@@ -311,6 +311,19 @@ header.site{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.92);ba
 .nav-links a:hover,.nav-links a[aria-current]{color:var(--color-accent)}
 .nav-cta{background:var(--color-accent);color:#fff;padding:11px 20px;border-radius:var(--radius-md);font-weight:600;font-size:14px}
 @media(max-width:820px){.nav-links{display:none}}
+.menu-btn{display:none;background:none;border:none;cursor:pointer;padding:8px}
+.mb-stack{position:relative;display:inline-flex;width:24px;height:24px}
+.mb-ic{position:absolute;inset:0;color:var(--color-brand);transition:opacity .2s ease-in-out,transform .2s ease-in-out}
+.mb-open{opacity:1;transform:scale(1)}
+.mb-close{opacity:0;transform:scale(.3)}
+.menu-btn[aria-expanded="true"] .mb-open{opacity:0;transform:scale(.3)}
+.menu-btn[aria-expanded="true"] .mb-close{opacity:1;transform:scale(1)}
+@media(max-width:820px){.menu-btn{display:block}}
+.mobile-menu{display:none;position:fixed;inset:73px 0 auto 0;background:#fff;border-bottom:1px solid var(--color-line);box-shadow:0 18px 40px rgba(11,11,11,.08);flex-direction:column;padding:18px clamp(18px,4vw,32px) 28px;z-index:190;opacity:0;visibility:hidden;transform:translateY(-10px);transition:transform .26s cubic-bezier(.23,1,.32,1),opacity .26s cubic-bezier(.23,1,.32,1),visibility 0s linear .26s}
+@media(max-width:820px){.mobile-menu{display:flex}}
+.mobile-menu.open{opacity:1;visibility:visible;transform:translateY(0);transition:transform .26s cubic-bezier(.23,1,.32,1),opacity .26s cubic-bezier(.23,1,.32,1),visibility 0s}
+.mobile-menu a{padding:14px 8px;font-weight:500;color:var(--color-ink);border-bottom:1px solid var(--color-surface)}
+.mobile-menu .nav-cta{display:block;text-align:center;margin-top:14px;border-bottom:none}
 
 /* hero */
 .hero{position:relative;background:linear-gradient(160deg,#13264A,#27498C);color:#fff;overflow:hidden}
@@ -684,10 +697,25 @@ footer nav a:hover{color:#fff}
         <li><a href="/team.html">Team</a></li>
         <li><a href="/blog/">Blog</a></li>
         <li><a href="/gallery.html">Gallery</a></li>
-        <li><a class="nav-cta" href="https://wa.me/917907671049" rel="noopener">Book Now</a></li>
+        <li><a class="nav-cta" href="/contact.html">Book Now</a></li>
       </ul>
     </nav>
+    <button class="menu-btn" aria-label="Open menu" aria-expanded="false" aria-controls="mmenu" id="menuBtn">
+      <span class="mb-stack" aria-hidden="true">
+        <svg class="mb-ic mb-open" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+        <svg class="mb-ic mb-close" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </span>
+    </button>
   </div>
+  <nav class="mobile-menu" id="mmenu" aria-label="Mobile">
+    <a href="/index.html">Home</a>
+    <a href="/online-consultation/" aria-current="page">Online Consultation</a>
+    <a href="/conditions/">Conditions</a>
+    <a href="/team.html">Team</a>
+    <a href="/blog/">Blog</a>
+    <a href="/gallery.html">Gallery</a>
+    <a class="nav-cta" href="/contact.html">Book Now</a>
+  </nav>
 </header>
 
 <!-- 1 · HERO -->
@@ -1055,6 +1083,9 @@ footer nav a:hover{color:#fff}
   var io=new IntersectionObserver(function(en){en.forEach(function(x){if(x.isIntersecting){x.target.classList.add('in');io.unobserve(x.target);}})},{threshold:.12});
   els.forEach(function(e){io.observe(e)});
 })();
+const mb=document.getElementById('menuBtn'),mm=document.getElementById('mmenu');
+mb.addEventListener('click',()=>{const o=mm.classList.toggle('open');mb.setAttribute('aria-expanded',o)});
+mm.querySelectorAll('a').forEach(a=>a.addEventListener('click',()=>{mm.classList.remove('open');mb.setAttribute('aria-expanded','false')}));
 </script>
 
 </body>

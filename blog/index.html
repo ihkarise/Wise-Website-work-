@@ -4,15 +4,16 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Blog &amp; Contact — Wise Homeopathy, Kottayam | Root-Cause Autoimmune &amp; Allergy Insights</title>
-<meta name="description" content="Root-cause articles on autoimmune and allergic disease by Dr. Libin Job, BHMS, MD (Hom), Wise Homeopathy Multispeciality Center, Kottayam. Book in-clinic or online consultations. wisehomeopathy.in">
+<meta name="description" content="Root-cause articles on autoimmune and allergic disease by Dr. Libin Job, BHMS, MD (Hom), Wise Homeopathy Multispeciality Center, Kottayam. Book in-clinic or online consultations. wisehomeopathy.com">
 <meta name="keywords" content="autoimmune homeopathy blog, Hashimoto's chronic urticaria, root cause homeopathy Kottayam, homeopathy Kerala blog, online homeopathy consultation">
-<link rel="canonical" href="https://wisehomeopathy.in/blog.html">
+<link rel="canonical" href="https://www.wisehomeopathy.com/blog/">
+<link rel="icon" href="/assets/favicon.ico">
 <meta name="geo.region" content="IN-KL">
 <meta name="geo.placename" content="Kottayam, Kerala, India">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Blog &amp; Contact — Wise Homeopathy, Kottayam">
 <meta property="og:description" content="Evidence-aware, root-cause articles on autoimmune and allergic disease — plus how to reach Wise Homeopathy Multispeciality Center, Kottayam.">
-<meta property="og:url" content="https://wisehomeopathy.in/blog.html">
+<meta property="og:url" content="https://www.wisehomeopathy.com/blog/">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&display=swap" rel="stylesheet">
@@ -21,7 +22,7 @@
   "@context": "https://schema.org",
   "@type": "Blog",
   "name": "Wise Homeopathy — Root-Cause Insights",
-  "url": "https://wisehomeopathy.in/blog.html",
+  "url": "https://www.wisehomeopathy.com/blog/",
   "publisher": {"@type": "MedicalClinic", "name": "Wise Homeopathy Multispeciality Center", "address": {"@type": "PostalAddress", "addressLocality": "Kottayam", "addressRegion": "Kerala", "addressCountry": "IN"}},
   "author": {"@type": "Physician", "name": "Dr. Libin Job", "honorificSuffix": "BHMS, MD (Hom)"},
   "blogPost": [
@@ -257,11 +258,12 @@ footer.site{background:var(--color-ink);color:#aeb6c2;padding:var(--space-6) 0 v
     </a>
     <nav aria-label="Primary">
       <ul class="nav-links">
-        <li><a href="/online-consultation/">Online Consultation</a></li><li><a href="/conditions/">Conditions</a></li><li><a href="/contact.html">Book Now</a></li><li><a href="index.html#conditions">Conditions</a></li>
-        <li><a href="index.html#journey">How It Works</a></li>
-        <li><a href="index.html#why">Why Wise</a></li>
+        <li><a href="/index.html">Home</a></li>
+        <li><a href="/online-consultation/">Online Consultation</a></li>
+        <li><a href="/conditions/">Conditions</a></li>
+        <li><a href="/team.html">Team</a></li>
         <li><a href="/blog/" class="active" aria-current="page">Blog</a></li>
-        <li><a href="#contact">Contact</a></li>
+        <li><a href="/gallery.html">Gallery</a></li>
       </ul>
     </nav>
     <div class="nav-cta">
@@ -275,7 +277,7 @@ footer.site{background:var(--color-ink);color:#aeb6c2;padding:var(--space-6) 0 v
     </div>
   </div>
   <nav class="mobile-menu" id="mmenu" aria-label="Mobile">
-    <a href="index.html#conditions">Conditions</a><a href="index.html#journey">How It Works</a><a href="index.html#why">Why Wise</a><a href="/blog/">Blog</a><a href="#contact">Contact</a>
+    <a href="/index.html">Home</a><a href="/online-consultation/">Online Consultation</a><a href="/conditions/">Conditions</a><a href="/team.html">Team</a><a href="/blog/">Blog</a><a href="/gallery.html">Gallery</a>
     <a class="btn btn-primary" href="#contact">Book Consultation</a>
   </nav>
 </header>
@@ -366,7 +368,9 @@ footer.site{background:var(--color-ink);color:#aeb6c2;padding:var(--space-6) 0 v
       </div>
     </div>
 
-    <form class="contact reveal" data-d="1" id="bookForm" novalidate>
+    <form class="contact reveal" data-d="1" id="bookForm" name="blog-consultation" method="POST" data-netlify="true" netlify-honeypot="bot-field" action="/booking-received.html">
+      <input type="hidden" name="form-name" value="blog-consultation">
+      <p style="display:none"><label>Leave blank: <input name="bot-field"></label></p>
       <h2>Request a consultation</h2>
       <p class="sub">Tell us a little about your condition and we'll get back to you.</p>
       <div class="row">
@@ -391,7 +395,6 @@ footer.site{background:var(--color-ink);color:#aeb6c2;padding:var(--space-6) 0 v
       <div class="field"><label for="ms">Message</label><textarea id="ms" name="ms" placeholder="Briefly describe your symptoms, how long you've had them, and any current treatment."></textarea></div>
       <button type="submit" class="btn btn-primary" style="width:100%">Send Request</button>
       <p class="form-note">By submitting, you agree to be contacted about your enquiry. This form is educational and not a medical emergency channel.</p>
-      <p id="formMsg" role="status" aria-live="polite" style="margin-top:12px;font-weight:600;color:var(--color-brand)"></p>
     </form>
   </div>
 </section>
@@ -415,18 +418,18 @@ footer.site{background:var(--color-ink);color:#aeb6c2;padding:var(--space-6) 0 v
   <div class="wrap">
     <div class="foot-grid">
       <div>
-        <a class="brand" href="index.html" style="margin-bottom:14px">
+        <a class="brand" href="/index.html" style="margin-bottom:14px">
           <span class="brand-mark" aria-hidden="true"><span>W</span></span>
           <span class="brand-txt"><strong style="color:#fff">WISE HOMEOPATHY</strong><small style="color:#8a93a3">MULTISPECIALITY CENTER · KOTTAYAM</small></span>
         </a>
-        <p class="foot-nap">Root-cause homeopathic care for autoimmune &amp; allergic disease.<br>Vettor Complex, No. 527/XII, Near KSRTC Bus Stand,<br>Kottayam, Kerala 686001 · India<br>wisehomeopathy@outlook.com · +91 79076 71049<br><strong style="color:#aeb6c2">wisehomeopathy.in</strong></p>
+        <p class="foot-nap">Root-cause homeopathic care for autoimmune &amp; allergic disease.<br>Vettor Complex, No. 527/XII, Near KSRTC Bus Stand,<br>Kottayam, Kerala 686001 · India<br>wisehomeopathy@outlook.com · +91 79076 71049<br><strong style="color:#aeb6c2">wisehomeopathy.com</strong></p>
       </div>
-      <div><h3>Clinic</h3><nav><a href="index.html#conditions">Conditions</a><a href="index.html#journey">How It Works</a><a href="index.html#why">Why Wise</a><a href="#contact">Book Consultation</a></nav></div>
-      <div><h3>Resources</h3><nav><a href="/blog/">Blog</a><a href="#faq">Patient FAQ</a><a href="#contact">Contact</a></nav></div>
+      <div><h3>Clinic</h3><nav><a href="/conditions/">Conditions</a><a href="/index.html#journey">How It Works</a><a href="/index.html#why">Why Wise</a><a href="/contact.html">Book Consultation</a></nav></div>
+      <div><h3>Resources</h3><nav><a href="/blog/">Blog</a><a href="#faq">Patient FAQ</a><a href="/contact.html">Contact</a></nav></div>
       <div><h3>Follow</h3><nav><a href="https://www.youtube.com/@WiseHomeopathy" rel="noopener">YouTube</a><a href="https://www.instagram.com/WiseHomeopathy" rel="noopener">Instagram</a><a href="https://www.facebook.com/WiseHomeopathy" rel="noopener">Facebook</a><a href="https://www.linkedin.com/company/wisehomeopathy" rel="noopener">LinkedIn</a></nav></div>
     </div>
     <div class="foot-bottom">
-      <p>© 2026 Wise Homeopathy Multispeciality Center, Kottayam · wisehomeopathy.in</p>
+      <p>© 2026 Wise Homeopathy Multispeciality Center, Kottayam · wisehomeopathy.com</p>
       <p>Content is educational and not a substitute for personal medical advice.</p>
     </div>
   </div>
@@ -446,14 +449,6 @@ mm.querySelectorAll('a').forEach(a=>a.addEventListener('click',()=>{mm.classList
 document.querySelectorAll('.acc button').forEach(b=>b.addEventListener('click',()=>{
   const acc=b.parentElement,open=acc.classList.toggle('open');b.setAttribute('aria-expanded',open);
 }));
-// Form (front-end demo; wire to Netlify Forms / Formspree on deploy)
-document.getElementById('bookForm').addEventListener('submit',e=>{
-  e.preventDefault();
-  const f=e.target,msg=document.getElementById('formMsg');
-  if(!f.fn.value||!f.ln.value||!f.em.value){msg.style.color='var(--color-accent)';msg.textContent='Please complete name and email.';return;}
-  msg.style.color='var(--color-brand)';msg.textContent='Thank you — your request has been noted. We\u2019ll reply within one working day.';
-  f.reset();
-});
 const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}}),{threshold:.12});
 document.querySelectorAll('.reveal:not(.in)').forEach(el=>io.observe(el));
 </script>
