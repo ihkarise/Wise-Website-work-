@@ -540,3 +540,26 @@ error-prone than clasp — use only if clasp isn't available.
 No patient login. Backend testing checklist and a real pilot are
 Batch 4G — the final item before Phase 1.5 is done. See
 docs/25-PHASE-1.5-TECHNICAL-PLAN.md §9 for the full batch sequence.
+
+## Phase 2A Foundation modules
+
+Per the approved Foundation plan (docs/29-PHASE-2A-TECHNICAL-PLAN.md §14 has the
+implementation notes), Phase 2A's backend lives in **this same project**, not a
+separate one — a deliberate decision made before implementation began, not a shortcut
+discovered mid-build. New files are prefixed `Foundation` (infrastructure shared by any
+future domain entity) or named for the specific domain entity they implement (e.g. a
+future `PatientIdentity.gs`) to stay visually and functionally distinct from the Phase
+1.5 modules documented above. No `Foundation`-family file calls into any Phase 1.5
+module, and no Phase 1.5 file has been, or should be, modified to accommodate them.
+
+Canonical contracts, schemas, and reference utilities these modules implement live in
+`/shared/` at the repository root — `shared/README.md` states the rule: `shared/` is
+authoritative, and Apps Script implementations conform to it and never extend or modify
+a contract independently.
+
+| File | Responsibility | Status |
+|---|---|---|
+| `FoundationConfig.gs` | Environment-specific values for the Foundation layer: the Patients spreadsheet ID, and the Script Property key names Foundation will read (never the secret values themselves). The Foundation-layer equivalent of `Config.gs` above. | Added (F1) |
+
+This table grows as later Foundation batches (F2–F5) land — see docs/29 §13/§14 for the
+batch sequence and what each one delivers.

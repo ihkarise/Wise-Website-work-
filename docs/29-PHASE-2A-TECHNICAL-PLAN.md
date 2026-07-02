@@ -381,3 +381,55 @@ opening move Phase 1.5 made with Batch 4A.
 
 **This plan does not authorize Batch 5A to begin.** Per this session's explicit
 instruction, implementation waits for separate approval.
+
+---
+
+# 14. Implementation Notes (to be filled in during/after build)
+
+## Foundation planning — two decisions made before implementation began
+
+Before any Foundation code was written, a dedicated planning pass produced a
+**Foundation Implementation Plan** (batches F1–F5, distinct from and superseding this
+document's §13 batch table for the scope it covers) and locked two decisions that
+revise this document's §3 and §4 framing:
+
+- **Single Apps Script project, not a separate one.** §3's "Separate Apps Script
+  project from Phase 1.5's (ADR-009)" is superseded. Foundation, and all subsequent
+  Phase 2A backend work, lives inside the existing `apps-script/` project as new,
+  `Foundation`-prefixed files (or files named for the specific domain entity they
+  implement), never modifying Phase 1.5's existing files. Least-privilege separation
+  (ADR-009, docs/15) is preserved at the **data** layer — a separate Patients
+  spreadsheet, distinctly-named Script Properties keys — rather than at the deployment
+  layer. This is a deliberate, reversible decision, not a permanent foreclosure:
+  revisit if a technical limitation or security requirement later makes
+  deployment-level separation necessary.
+- **A repository-level `shared/` directory** (see `shared/README.md`) now holds
+  canonical, machine-readable contracts and schemas (JSON, versioned) and reference
+  utility implementations, which Apps Script code conforms to and never extends or
+  modifies independently — shared-first, implementation-second, never reversed, with
+  one named exception for a contract's first creation. This formalizes and strengthens
+  what §4 already implied (docs/33 is canonical for entity meaning) into an
+  enforceable, versioned mechanism spanning more than just entity schemas.
+
+Neither decision touches any ADR, Architecture Principle, or Domain Model entry —
+docs/31's ADR set is unchanged; both decisions were reviewed against it explicitly
+before being accepted.
+
+## Batch F1 (complete)
+
+Delivered: `apps-script/FoundationConfig.gs` (placeholders and Script Property *names*
+only — no secrets, no logic beyond a configuration object); the `shared/` directory
+skeleton (`contracts/`, `schemas/`, `constants/`, `utils/`) and `shared/README.md`
+(the canonical-source rule, its format rules, and its one named bootstrap exception);
+and an append-only module-table entry in `apps-script/README.md` introducing the
+"Phase 2A Foundation modules" section.
+
+No patient-facing surface, no Sheet created yet, zero modification to any pre-existing
+`apps-script/*.gs` file — verified via `git diff` before commit, per this plan's own
+Definition of Done. `validation/phase-1-5/`'s existing suite re-run and confirmed
+unchanged (39/39 checks passed, re-run 2026-07-02 against this batch's commit),
+directly verifying Phase 1.5's behavior was not affected by this batch.
+
+Deferred to later batches: `shared/contracts/`, `shared/schemas/`, and `shared/utils/`
+remain empty until F2/F3 populate them; no `Foundation*` logic beyond the config
+placeholder exists yet.

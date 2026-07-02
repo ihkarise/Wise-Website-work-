@@ -8,6 +8,58 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-02 — Phase 2A implementation: Foundation Batch F1 (scaffolding)
+
+First implementation batch of Phase 2A, per the approved Foundation Implementation
+Plan. Scaffolding only — no business logic, no Sheets created, no patient-facing
+surface. Two decisions locked before this batch started (recorded in
+docs/29-PHASE-2A-TECHNICAL-PLAN.md §14): Foundation lives inside the existing
+`apps-script/` project rather than a separate one, and a new repository-level
+`shared/` directory is now the canonical, machine-readable source for contracts and
+schemas that Apps Script implementations conform to but never extend independently.
+
+### Added
+- `apps-script/FoundationConfig.gs` — placeholders and Script Property *key names*
+  only (no secrets, no logic): a placeholder Patients spreadsheet ID and the
+  `FOUNDATION_SESSION_SIGNING_SECRET` property name Foundation's session logic will
+  read from Script Properties starting in batch F4.
+- `shared/` — a new repository-level directory (`contracts/`, `schemas/`,
+  `constants/`, `utils/`, each currently empty except `constants/.gitkeep`) and
+  `shared/README.md`, which states the canonical-source rule (shared-first,
+  implementation-second, never reversed, with one named exception for a contract's
+  first creation), the machine-readable format rules (JSON/YAML define; Markdown only
+  explains; small algorithmic utilities are portable reference `.js` files), and how
+  Apps Script currently conforms to it (manual adaptation, no build step).
+
+### Changed
+- `apps-script/README.md`: append-only — added a "Phase 2A Foundation modules"
+  section and its own module table, introducing `FoundationConfig.gs`. No existing
+  row or sentence describing Phase 1.5's modules was altered.
+- `docs/29-PHASE-2A-TECHNICAL-PLAN.md`: added §14 (Implementation Notes), recording
+  the two decisions above as superseding §3's "separate Apps Script project" framing
+  for the scope they cover, and Batch F1's completion. No ADR, Architecture
+  Principle, or Domain Model entry was touched — both decisions were reviewed against
+  the frozen ADR set before being accepted.
+- `docs/24-ROADMAP.md`: Phase 2A status updated from "Implementation not yet started"
+  to reflect F1 having shipped.
+
+### Verification
+- `git diff` confirmed zero modifications to any pre-existing `apps-script/*.gs`
+  file — every change to `apps-script/` in this batch is either a new file
+  (`FoundationConfig.gs`) or an append-only edit to `README.md`.
+- `cd validation/phase-1-5 && node validate.js` re-run against the batch's final
+  commit: **39/39 checks still passing** — confirms Phase 1.5's behavior is
+  unaffected by this batch, not just assumed to be from the file list alone.
+- `node --check` run against `FoundationConfig.gs` — no syntax errors.
+
+### Notes
+- No Google Sheet, no Script Property value, and no live Apps Script deployment
+  change is part of this batch — `PATIENT_SPREADSHEET_ID` and
+  `FOUNDATION_SESSION_SIGNING_SECRET` are named/placeholder only, consistent with
+  "no logic yet" for a scaffolding batch.
+- Next: Foundation Batch F2 (shared contracts + utilities) — awaiting approval before
+  starting, per the Foundation plan's explicit "wait for approval" requirement.
+
 ## 2026-07-02 — Phase 2A architecture: documentation synchronization batch
 
 Documentation-only. No application code, no Apps Script code, and no existing
