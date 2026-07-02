@@ -495,6 +495,34 @@ number now appearing in the `summarized` execution-log line
 (`Logger.log`, not the Sheet or API response) — everything else is
 functionally identical to Batch 4C.
 
+## Batch 4D (complete)
+
+Doctor review implemented as **Sheet-bound**, per this document's own
+§5.2 allowance ("a simple review view (Sheet-bound or minimal UI)")
+rather than a second HTML/Web-App form. `apps-script/Review.gs` adds a
+**Consultation Summaries** custom menu (`onOpen()`, a required exact
+name for Apps Script's simple-trigger mechanism) with three actions —
+approve as-generated, approve as-edited, reject — each writing
+`review_status`/`reviewed_by`/`reviewed_at` on the selected row.
+`reviewed_by` is captured from `Session.getActiveUser().getEmail()`
+(the signed-in Workspace account), not free text.
+
+`apps-script/Send.gs`'s `evaluateSendGate_()` is the single choke point
+any future send path must pass through: both `patient_consent_confirmed
+=== true` and an approved `review_status` are required, checked against
+values re-read from the Sheet after review (not values captured at
+submission time), so a manual edit made directly in the Sheet is still
+caught. This batch deliberately proves the gate fails closed — six unit
+tests (`Tests.gs`) plus a manual test re-reading a tampered
+`patient_consent_confirmed` cell — without yet calling
+MailApp/GmailApp. The scope split from the original batch breakdown:
+4D proves the gate; 4E attaches the actual email template and delivery
+call to it, per that plan's explicit dependency ("4E ... Dependencies:
+Batch 4D (send function must exist to attach delivery to)").
+
+`apps-script/README.md` updated with a "Review workflow" section and
+matching manual-test steps.
+
 ---
 
 # 12. Documentation Impact

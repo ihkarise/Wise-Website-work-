@@ -28,9 +28,10 @@ Completed
   Workspace-domain-restricted, hard-gated consent checkbox
 - Batch 4C — OpenRouter AI summarization step (normalization only,
   code-level drift flagging independent of the prompt)
+- Batch 4D — Doctor review checkpoint (Sheet-bound custom menu) + gated
+  send decision (`evaluateSendGate_`); no email delivery yet
 
 Remaining
-- Batch 4D — Doctor review checkpoint + gated send
 - Batch 4E — HTML email template + delivery logging
 - Batch 4F — Retention purge trigger
 - Batch 4G — Testing & validation pass, then real pilot

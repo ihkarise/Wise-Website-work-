@@ -8,6 +8,22 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-02 — Phase 1.5, Batch 4D: doctor review checkpoint + gated send
+
+New: `apps-script/Review.gs` and `apps-script/Send.gs` — the doctor review step from `docs/25` §5.2 and the hard-gated send decision from §6/§9.2. No email is sent yet — this batch proves the gate is enforced correctly; Batch 4E attaches the actual delivery.
+
+### Added
+- `apps-script/Review.gs`: a Sheet-bound custom menu (**Consultation Summaries**, via `onOpen()`) with three actions — approve as-generated, approve as-edited, reject — writing `review_status`/`reviewed_by`/`reviewed_at` on the selected row. `reviewed_by` is captured from the signed-in Workspace account (`Session.getActiveUser().getEmail()`), not free text. Built Sheet-bound rather than as a second HTML form, per docs/25 §5.2's explicit "Sheet-bound or minimal UI" allowance.
+- `apps-script/Send.gs`: `evaluateSendGate_(row)` — the single choke point any future send path must pass through. Hard-checks `patient_consent_confirmed === true` and an approved `review_status`, reading values freshly re-read from the Sheet after review so a manual edit made directly in a cell is still caught, not just the value that was true at submission time.
+- `apps-script/Sheets.gs`: `getRowObjectByRowIndex_()` — reads one row's live values back as an object, used by the review workflow.
+- `apps-script/Tests.gs`: six new unit tests for `evaluateSendGate_()`, verified against actual execution (approved+consented passes; edited_and_approved passes; missing consent, non-approved status, empty draft, and empty recipient email each independently block).
+
+### Notes
+- No MailApp/GmailApp call exists yet anywhere in this project — a passing gate currently just confirms readiness and logs it.
+- `apps-script/README.md` gained a "Review workflow" section and matching manual-test steps (open the Sheet, confirm the menu appears, approve/reject, and specifically confirm a manually-tampered consent cell blocks the gate).
+- `docs/24-ROADMAP.md` and `docs/25-PHASE-1.5-TECHNICAL-PLAN.md` §11 updated.
+- Deferred: email template + delivery (4E), retention purge (4F).
+
 ## 2026-07-02 — Phase 1.5: prompt specification extracted to PROMPTS.md
 
 Small refactor, no behavior change, requested before starting Batch 4D. Moves the AI prompt out of `apps-script/Ai.gs`'s inline comments into a standalone, version-controlled specification.

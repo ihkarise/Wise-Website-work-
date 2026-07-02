@@ -72,3 +72,17 @@ function updateRowByRecordId_(recordId, fields) {
     sheet.getRange(targetRow, colIndex + 1).setValue(fields[col]);
   });
 }
+
+/**
+ * Reads one full row (1-indexed, including the header row at 1) as an
+ * object keyed by SCHEMA_COLUMNS. Used by the review workflow (Review.gs)
+ * to re-read a row's live values — including any manual edits a doctor
+ * made directly in the Sheet — rather than trusting stale in-memory state.
+ */
+function getRowObjectByRowIndex_(rowIndex) {
+  var sheet = getSheet_();
+  var values = sheet.getRange(rowIndex, 1, 1, SCHEMA_COLUMNS.length).getValues()[0];
+  var row = {};
+  SCHEMA_COLUMNS.forEach(function (col, i) { row[col] = values[i]; });
+  return row;
+}
