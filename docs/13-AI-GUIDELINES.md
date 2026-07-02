@@ -24,7 +24,9 @@ Support My Health Journey, Personal Care Plan and Wise Digital Twin.
 
 The first concrete implementation of "AI summarizes, organizes and
 explains" (never diagnoses, prescribes, or changes treatment). Full
-detail: `apps-script/Ai.gs`, `apps-script/README.md` ("AI boundaries"),
+detail: `apps-script/PROMPTS.md` (the canonical, version-controlled
+prompt specification), `apps-script/Ai.gs` (its implementation),
+`apps-script/README.md` ("AI boundaries"), and
 docs/25-PHASE-1.5-TECHNICAL-PLAN.md §6.
 
 The AI step is treated as a **normalization layer, not a

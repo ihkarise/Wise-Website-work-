@@ -481,6 +481,20 @@ staff, consistent with §8.3's failure-path requirement.
 `docs/13-AI-GUIDELINES.md` updated with this as a worked example / future
 reference pattern for AI usage elsewhere in the platform.
 
+## Small refactor after 4C (before 4D)
+
+Extracted the prompt specification out of `Ai.gs`'s inline comments into
+`apps-script/PROMPTS.md` — a standalone, version-controlled document
+(Prompt Version, Purpose, Inputs, Outputs, Safety Rules, Forbidden
+Behaviours, Traceability Principles, Future Evolution Notes). `Ai.gs`
+now carries a `PROMPT_VERSION_` constant and a comment pointing at
+`PROMPTS.md` as canonical; `SUMMARY_SYSTEM_PROMPT_`'s wording and
+`flagDrift_()`'s logic are unchanged — this was a documentation move,
+not a redesign. The only runtime-visible change is the prompt version
+number now appearing in the `summarized` execution-log line
+(`Logger.log`, not the Sheet or API response) — everything else is
+functionally identical to Batch 4C.
+
 ---
 
 # 12. Documentation Impact

@@ -8,6 +8,18 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-02 — Phase 1.5: prompt specification extracted to PROMPTS.md
+
+Small refactor, no behavior change, requested before starting Batch 4D. Moves the AI prompt out of `apps-script/Ai.gs`'s inline comments into a standalone, version-controlled specification.
+
+### Added
+- `apps-script/PROMPTS.md`: canonical prompt specification with Prompt Version, Purpose, Inputs, Outputs, Safety Rules, Forbidden Behaviours, Traceability Principles, and Future Evolution Notes. Apps Script does not read this file at runtime — it's documentation the implementation must match, not a loaded template.
+
+### Changed
+- `apps-script/Ai.gs`: added a `PROMPT_VERSION_` constant (`'1.0'`) and a comment pointing at `PROMPTS.md` as the canonical source. `SUMMARY_SYSTEM_PROMPT_`'s wording and `flagDrift_()`'s logic are byte-for-byte unchanged.
+- `apps-script/Code.gs`: the `summarized` execution-log line now includes the prompt version — the only runtime-visible difference from Batch 4C, and it's execution-log-only (not the Sheet, not the API response).
+- `apps-script/README.md`, `docs/13-AI-GUIDELINES.md`, `docs/25-PHASE-1.5-TECHNICAL-PLAN.md` §11 updated to reference `PROMPTS.md` as canonical.
+
 ## 2026-07-02 — Phase 1.5, Batch 4C: AI summarization (normalization only)
 
 New: `apps-script/Ai.gs` — the OpenRouter summarization step from `docs/25` §6, wired synchronously into `Code.gs`'s `doPost` after the row write. No email sending, no doctor review/approve UI yet — the draft this batch writes cannot reach a patient regardless.

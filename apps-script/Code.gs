@@ -47,7 +47,7 @@ function doPost(e) {
           ? 'AI_REVIEW_FLAGS: ' + aiResult.flags.join(' | ')
           : ''
       });
-      logEvent_('summarized', recordId, 'Draft written. Flags: ' + aiResult.flags.length);
+      logEvent_('summarized', recordId, 'Draft written (prompt v' + PROMPT_VERSION_ + '). Flags: ' + aiResult.flags.length);
     } catch (err) {
       logEvent_('failed', recordId, 'Could not write AI summary: ' + err.message);
     }
