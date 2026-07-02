@@ -8,6 +8,19 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-02 — Phase 1.5, Batch 4B: staff entry form
+
+New: `internal/consultation-summary.html` — the staff-only, Workspace-restricted entry point specified in `docs/25` §9.1, wired to the Batch 4A Apps Script Web App. Not linked from any public nav, not in `sitemap.xml`, `noindex`. No patient-facing change.
+
+### Added
+- `internal/consultation-summary.html`: condition dropdown, visit-summary note (2000-char limit matching `apps-script/Config.gs`), patient email, staff identifier, and a hard-required consent checkbox ("Patient has consented to receive this visit summary by email") that disables Submit until checked — a UX convenience layered on top of the actual server-side enforcement already built in Batch 4A's `Validation.gs`. Submits via `fetch` with `Content-Type: text/plain` to avoid a CORS preflight against the Apps Script Web App.
+
+### Notes
+- A repository-wide review (requested before starting this batch) checked whether any Batch 4A module — condition taxonomy, validation constants, schema, utilities — should move to a shared location usable by both Apps Script and the static site. Conclusion: not yet — the repo has no build step or module system that would let those two runtimes actually share a file, and nothing has a second consumer today. Recorded in `docs/25` §11 for revisiting later.
+- The condition dropdown's options are hand-duplicated from `apps-script/Config.gs`; both files carry a comment pointing at the other. No automated sync exists.
+- `docs/24-ROADMAP.md` and `docs/25-PHASE-1.5-TECHNICAL-PLAN.md` §11 updated.
+- Deferred to later batches: AI summarization (4C), doctor review + gated send (4D), email delivery (4E), retention purge (4F).
+
 ## 2026-07-02 — Phase 1.5, Batch 4A: Apps Script pipeline skeleton (schema, validation, Sheet-write layer)
 
 New backend-only work — no public pages, no navigation, no visual changes. Full plan: `docs/25-PHASE-1.5-TECHNICAL-PLAN.md`. First implementation of the "Website → Apps Script → Google Sheets" pattern specified in `docs/12-DATA-ARCHITECTURE.md`, and the first of eight sequenced batches (4A–4H) that make up Phase 1.5.
