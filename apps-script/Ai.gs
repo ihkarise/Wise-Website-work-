@@ -12,7 +12,17 @@
  *      (does not silently trust) output the prompt alone can't guarantee.
  * Neither line of defense is a substitute for the doctor review gate
  * built in Batch 4D — this module only ever writes a *draft*.
+ *
+ * PROMPT SPECIFICATION: apps-script/PROMPTS.md is the canonical,
+ * version-controlled source of truth for SUMMARY_SYSTEM_PROMPT_ below —
+ * its purpose, inputs/outputs, safety rules, forbidden behaviours, and
+ * traceability principles. The string below implements that spec; if
+ * they ever disagree, PROMPTS.md wins and this file should be corrected
+ * to match it. Any wording change here requires a matching update (and
+ * version bump) there.
  */
+
+var PROMPT_VERSION_ = '1.0'; // Must match "Prompt Version" in PROMPTS.md.
 
 var SUMMARY_SYSTEM_PROMPT_ =
   'You are a strict text-normalization tool for a healthcare clinic\'s ' +

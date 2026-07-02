@@ -27,7 +27,8 @@ it — e.g. only `Sheets.gs` calls `SpreadsheetApp`.
 | `Schema.gs` | The Sheet's column list (`SCHEMA_COLUMNS`), enum values (`REVIEW_STATUS`, `EMAIL_STATUS`), and `buildRow_()` to construct a full row from a validated submission. |
 | `Validation.gs` | `validateSubmission_()` and `sanitizeText_()` — all input validation/sanitization happens here, before anything touches a module further down the chain. |
 | `Sheets.gs` | The only module that calls `SpreadsheetApp`. Creates the sheet/header if missing, refuses to write if the live header has drifted from `Schema.gs`. `updateRowByRecordId_()` patches specific columns on an already-written row — used by the AI step and every later batch. |
-| `Ai.gs` | The AI summarization step. A **normalization layer, not a content-generation layer** — see "AI boundaries" below. Calls OpenRouter, then runs a code-level drift check (`flagDrift_()`) independent of the prompt. |
+| `Ai.gs` | The AI summarization step. A **normalization layer, not a content-generation layer** — see "AI boundaries" below. Calls OpenRouter, then runs a code-level drift check (`flagDrift_()`) independent of the prompt. Its prompt text implements `PROMPTS.md`, the canonical prompt specification — see below. |
+| `PROMPTS.md` | Version-controlled specification for `Ai.gs`'s prompt: purpose, inputs/outputs, safety rules, forbidden behaviours, traceability principles, future evolution notes. Not loaded at runtime — this is documentation the prompt must match, not a template Apps Script reads. |
 | `Logger.gs` | `logEvent_()` — thin wrapper around the Apps Script execution log for pipeline-stage audit events. |
 | `Utils.gs` | Small stateless helpers (currently: `jsonResponse_()`). No dependency on any other module. |
 | `Tests.gs` | Manual unit tests for pure logic (`Validation.gs`, `Ai.gs`'s `flagDrift_()`). Run `runAllTests_()` from the Apps Script editor; no live Sheet or network calls. |
@@ -63,6 +64,12 @@ a doctor can write the summary manually rather than losing the
 submission.
 
 ## AI boundaries (Batch 4C)
+
+Full specification: **`apps-script/PROMPTS.md`** — the canonical,
+version-controlled source of truth for the prompt's purpose, inputs/
+outputs, safety rules, forbidden behaviours, and traceability
+principles. `Ai.gs`'s `SUMMARY_SYSTEM_PROMPT_` implements that spec; if
+they ever disagree, `PROMPTS.md` wins. Summary below:
 
 `Ai.gs` is a **normalization layer, not a content-generation layer**. It
 may only rephrase `staff_submitted_note` into plain language; it must
@@ -125,8 +132,8 @@ extend the same row and reuse the same modules:
 - **4C (AI summarization)** — complete. `Ai.gs`, called from `Code.gs`
   after `appendRow_()` succeeds, writes `ai_summary_draft`,
   `ai_model_used`, and any `flagDrift_()` findings (in `error_log`) back
-  onto the same row via `Sheets.gs`'s `updateRowByRecordId_()`. See "AI
-  boundaries" above.
+  onto the same row via `Sheets.gs`'s `updateRowByRecordId_()`. Prompt
+  specified in `PROMPTS.md`. See "AI boundaries" above.
 - **4D (doctor review + gated send)** — a new `Review.gs`/`Send.gs`
   module reading `review_status` and `patient_consent_confirmed` off
   existing rows; both are already captured by 4A, so the gate has real
