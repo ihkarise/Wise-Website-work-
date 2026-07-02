@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wisehomeopathy.com/shared/schemas/patient-identity.schema.json",
+  "title": "Patient Identity",
+  "version": "1.0.0",
+  "description": "The canonical shape of a Patient record — docs/33-DOMAIN-MODEL.md §1.1 (Patient) and §1.2 (Patient Identity) combined into one stored record, per docs/29 §4's already-locked schema. See patient-identity.md for why these two conceptually distinct entities share one row instead of two, and which fields are the permanent identity core vs. the mutable profile.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["patient_id", "full_name", "email", "condition_slug", "status", "created_at", "created_by"],
+  "properties": {
+    "patient_id": {
+      "type": "string",
+      "description": "The permanent identity core (docs/33 §1.2, ADR-002). A UUID, generated once at creation, never reused or changed. Every other Phase 2A record references this value, never email or any other field on this object."
+    },
+    "full_name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Profile field (docs/33 §1.1). Mutable — may change without affecting patient_id or any record that references it."
+    },
+    "email": {
+      "type": "string",
+      "format": "email",
+      "description": "Profile field, and — per ADR-003 — the current authentication-lookup mechanism attached to this identity. Mutable. A future authentication method would attach to patient_id the same way, per ADR-002; this field is never itself treated as the identity."
+    },
+    "condition_slug": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Profile field. Reuses the canonical condition anchor IDs already locked by docs/20 §5 and reused throughout Phase 1.5 — not independently validated against that list yet in Foundation batch F3 (a documented simplification, see patient-identity.md)."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["active", "inactive", "recovered"],
+      "description": "Profile field (docs/33 §1.1's lifecycle). Set to \"active\" at creation."
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Permanent — set once at creation, never modified afterward."
+    },
+    "created_by": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Permanent — the staff identifier who created this record, an audit provenance field, never modified afterward."
+    }
+  }
+}

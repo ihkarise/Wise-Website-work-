@@ -8,6 +8,97 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-02 — Phase 2A implementation: Foundation Batch F3 (data layer + Patient Identity)
+
+Third implementation batch of Phase 2A, per the approved Foundation Implementation
+Plan. Per the plan's second (and final) named bootstrap exception, this batch creates
+the Patient Identity schema and its first implementation together. Also introduces a
+new standing step, by explicit requirement: a static-analysis pass runs before
+validation on every Foundation batch from this one onward.
+
+### Added
+- `validation/static-analysis/analyze.js` + `README.md` — checks duplicate global
+  names, duplicate constants, duplicate function names, unused exported helpers,
+  circular dependencies, and Apps Script namespace collisions across every
+  `apps-script/*.gs` file. No dependencies beyond Node's standard library.
+- `shared/schemas/patient-identity.schema.json` (v1.0.0) + `.md` — the canonical
+  Patient record shape, explicitly documenting which fields belong to the permanent
+  identity core (docs/33 §1.2) vs. the mutable profile (docs/33 §1.1), even though
+  both are stored in one row per docs/29 §4's already-locked schema.
+- `apps-script/FoundationDataStore.gs` — the data-access abstraction (insert/getById/
+  updateById/query + pure row/object conversion helpers), the only Foundation file
+  calling `SpreadsheetApp` for Patient-domain data.
+- `apps-script/FoundationAudit.gs` — `foundationLogAuditEvent_()`, an append-only
+  cross-cutting event log.
+- `apps-script/PatientIdentity.gs` — `foundationCreatePatient_()` /
+  `foundationGetPatientById_()`, plus `createFoundationPatient()`, a manually-run
+  editor wrapper (no Web App route, no Sheet menu yet — this batch's explicit,
+  minimal scope).
+- `apps-script/FoundationTests.gs` (partial) — 14 Apps Script-native unit tests
+  covering every pure function introduced in F2 and F3.
+
+### Changed
+- `apps-script/README.md`: append-only — four new module-table rows, a new
+  "Foundation's own trailing-underscore wrappers" table, and a new "Static analysis"
+  section. No existing content was altered.
+- `docs/29-PHASE-2A-TECHNICAL-PLAN.md`: §14 extended with the static-analysis tool's
+  introduction (including two real false positives it caught in the *existing*
+  codebase and fixed in the tool, not the code under test) and Batch F3's
+  implementation notes, including the Patient/Patient Identity reconciliation
+  reasoning and a documented, deliberate validation simplification.
+- `docs/24-ROADMAP.md`: Phase 2A status line updated to include F3.
+
+### Static analysis findings (all triaged, none silently ignored)
+Run before writing any F3 code, against the real F1+F2 baseline, this tool caught two
+real issues in the *existing* Phase 1.5 codebase that manual review had missed — both
+were false positives from the tool's own regex-based heuristics, fixed in the tool,
+not in the correct existing code:
+- A false circular dependency (`Email.gs -> Send.gs -> Email.gs`), traced to a comment
+  in `Email.gs` containing the literal text `attemptSend_(`.
+- Three false "unused" reports for `Review.gs`'s menu-bound functions — Apps Script's
+  `menu.addItem('label', 'fnName')` references a function by quoted string, which the
+  tool didn't originally treat as usage.
+
+After both fixes, the F1+F2 baseline reported 4 genuine, expected findings (Foundation
+infrastructure built ahead of its first consumer). After F3, there are still 4 —
+different functions, same kind of finding: `escapeFoundationHtml_` (built as one of
+`core.reference.js`'s three canonical utilities; no HTML-rendering need yet),
+`foundationDsQuery_` and `foundationDsUpdateById_` (two of `FoundationDataStore.gs`'s
+declared four-function interface; F3's minimal create/read scope doesn't need them
+yet), and `foundationGetPatientById_` (the "read" half of this batch's own
+"create/read" scope, awaiting a future caller — F4's session work or a later
+dashboard batch). Every one matches an interface this plan already committed to.
+Reviewed and accepted, not fixed by inventing artificial call-sites.
+
+### Verification
+- Static analysis: 2 tool bugs found and fixed against the real codebase; final F3
+  findings triaged as above.
+- `node --check` passed on every new `.gs` file.
+- `runFoundationTests_()` — all 14 tests — executed directly in Node (every tested
+  function is pure); all passed.
+- A full functional pass against a minimal in-memory `SpreadsheetApp` mock: create →
+  read-back round-trip (output checked against the JSON Schema's required fields),
+  not-found and invalid-input cases correctly returning their specific error codes
+  (not the generic one), the audit log gaining exactly one correctly-shaped row per
+  patient created, cross-patient isolation confirmed (creating a second patient leaves
+  the first untouched), and the header-drift safety check correctly throwing on a
+  tampered sheet header.
+- A full collision pre-check of every planned F3 name against the existing codebase,
+  before writing any code — zero collisions.
+- `cd validation/phase-1-5 && node validate.js`: **39/39 checks still passing** — zero
+  regression to Phase 1.5.
+- `git diff` confirmed zero modifications to any pre-existing `apps-script/*.gs` file.
+
+### Notes
+- No real Google Spreadsheet is provisioned by this batch — `PATIENT_SPREADSHEET_ID`
+  remains a placeholder, an operational step outside this repository, per the same
+  distinction docs/28 already drew for Phase 1.5's live deployment.
+- `condition_slug` is not validated against Phase 1.5's canonical allowlist yet — a
+  documented, deliberate simplification (`shared/schemas/patient-identity.md`), not an
+  oversight.
+- Next: Foundation Batch F4 (session + route protection) — awaiting approval before
+  starting, per the Foundation plan's explicit "wait for approval" requirement.
+
 ## 2026-07-02 — Phase 2A implementation: Foundation Batch F2 (shared contracts + utilities)
 
 Second implementation batch of Phase 2A, per the approved Foundation Implementation

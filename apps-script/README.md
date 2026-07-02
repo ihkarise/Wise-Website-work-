@@ -563,6 +563,27 @@ a contract independently.
 | `FoundationUtils.gs` | Small stateless helpers adapted from `shared/utils/core.reference.js`: `generateFoundationId_()` (Apps Script's native `Utilities.getUuid()`), `foundationNowIso_()`, `escapeFoundationHtml_()`. Distinctly named from Phase 1.5's own `Utils.gs` helpers to avoid a global-scope collision now that both files share this project. No dependency on any other module. | Added (F2) |
 | `FoundationContracts.gs` | `buildFoundationOkEnvelope_(data)` / `buildFoundationErrorEnvelope_(code, message)` — builders for the response envelope defined in `shared/contracts/response-envelope.schema.json`. Every Foundation function reachable from outside this project's internal call graph should return this shape. No dependency on any other module. | Added (F2) |
 | `FoundationErrorHandling.gs` | `withFoundationErrorHandling_(fn)` — wraps a function call and guarantees a response-envelope return, even on a thrown exception. Logs the real error to Apps Script's built-in execution log (`Logger`, distinct from this project's own `Logger.gs`/`logEvent_()`) but never leaks it to the caller. Depends only on `FoundationContracts.gs`. | Added (F2) |
+| `FoundationDataStore.gs` | The only Foundation file calling `SpreadsheetApp` for Patient-domain data. Four operations — `foundationDsInsert_()`, `foundationDsGetById_()`, `foundationDsUpdateById_()`, `foundationDsQuery_()` — plus pure row/object conversion helpers, all operating against the separate Patients spreadsheet (`FoundationConfig.gs`'s `PATIENT_SPREADSHEET_ID`), never `Phase1.5_ConsultationSummaries`. Same header-drift-refuses-to-write discipline as Phase 1.5's `Sheets.gs`. | Added (F3) |
+| `FoundationAudit.gs` | `foundationLogAuditEvent_()` — append-only cross-cutting event log (`AuditLog` sheet), distinct from any entity's own status columns. Depends on `FoundationDataStore.gs`, `FoundationUtils.gs`. | Added (F3) |
+| `PatientIdentity.gs` | The first concrete entity built on `Foundation*`, not infrastructure itself — deliberately not `Foundation`-prefixed (docs/29 §2). `foundationCreatePatient_()` / `foundationGetPatientById_()`, implementing `shared/schemas/patient-identity.schema.json`. No Web App route yet — `createFoundationPatient()` is a manually-run editor wrapper (see below). | Added (F3) |
+| `FoundationTests.gs` | Apps Script-native unit tests for Foundation's pure-logic functions, mirroring Phase 1.5's `Tests.gs` discipline — no live Sheet or network calls. Run `runFoundationTests()` from the editor dropdown. Partial as of F3 (covers `FoundationContracts.gs`, `FoundationDataStore.gs`'s pure helpers, `PatientIdentity.gs`'s input validation); `FoundationSession.gs`/`FoundationRouteGuard.gs` coverage lands in F4. | Added (F3) |
 
-This table grows as later Foundation batches (F3–F5) land — see docs/29 §13/§14 for the
+This table grows as later Foundation batches (F4–F5) land — see docs/29 §13/§14 for the
 batch sequence and what each one delivers.
+
+**Foundation's own trailing-underscore wrappers**, same convention as the table above
+("A note on trailing underscores"):
+
+| Use this from the dropdown | Calls |
+|---|---|
+| `runFoundationTests()` | `runFoundationTests_()` (`FoundationTests.gs`) |
+| `createFoundationPatient()` | `foundationCreatePatient_()` (`PatientIdentity.gs`) — edit the placeholder values inside the function body before running; this is intentionally not a form or a Sheet menu, per F3's minimal scope |
+
+## Static analysis
+
+`validation/static-analysis/analyze.js` scans every file in this directory for
+duplicate global names, duplicate constants, duplicate function names, unused exported
+helpers, circular dependencies, and Apps Script namespace collisions — see its own
+header comment and `validation/static-analysis/README.md` for full detail. Introduced
+in Foundation batch F3; runs before validation on every Foundation batch from F3
+onward, per docs/29 §14.

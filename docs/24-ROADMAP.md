@@ -66,9 +66,10 @@ Remaining
 Status: Architecture approved (docs/29-PHASE-2A-TECHNICAL-PLAN.md,
 docs/30-ARCHITECTURE-PRINCIPLES.md, docs/31-ADR-INDEX.md,
 docs/33-DOMAIN-MODEL.md, docs/34-ARCHITECTURE-CONSISTENCY-REVIEW.md).
-Implementation in progress — Foundation batches F1 (scaffolding) and F2
-(shared contracts + utilities) shipped. See docs/29 §14 for implementation
-notes and the full F1–F5 Foundation batch sequence.
+Implementation in progress — Foundation batches F1 (scaffolding), F2
+(shared contracts + utilities), and F3 (data layer + Patient Identity)
+shipped. See docs/29 §14 for implementation notes and the full F1–F5
+Foundation batch sequence.
 
 - Patient Login (passwordless, ADR-003)
 - Dashboard shell
