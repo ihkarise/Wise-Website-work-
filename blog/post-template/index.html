@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<!-- ============================================================
+     HOW TO PUBLISH A NEW BLOG POST (no coding needed):
+     1. Copy this whole "post-template" folder inside /blog/
+     2. Rename the folder to your post's URL, e.g. "hashimotos-csu-connection"
+        (lowercase, words separated by hyphens, contains your keyword)
+     3. Open index.html and replace everything marked CHANGE-ME
+     4. Add your post image to /assets/images/blog/ (1200×630 px, JPG)
+     5. Add one line to /sitemap.xml for the new URL
+     6. Add a card for this post on /blog/index.html
+     7. Drag the whole site folder into Netlify (or git push) — done.
+     ============================================================ -->
+
+<title>CHANGE-ME: Post Title (under 60 characters, includes keyword) | Wise Homeopathy</title>
+<meta name="description" content="CHANGE-ME: 150–160 character summary answering the search question directly. This is what Google and AI engines show.">
+<link rel="canonical" href="https://www.wisehomeopathy.com/blog/CHANGE-ME-folder-name/">
+<link rel="icon" href="/assets/favicon.ico">
+
+<!-- Social sharing preview -->
+<meta property="og:title" content="CHANGE-ME: Post Title">
+<meta property="og:description" content="CHANGE-ME: same as meta description">
+<meta property="og:image" content="https://www.wisehomeopathy.com/assets/images/blog/CHANGE-ME-image.jpg">
+<meta property="og:type" content="article">
+
+<!-- Article schema: helps Google + AI answer engines (AEO/GEO) -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "MedicalWebPage",
+  "headline": "CHANGE-ME: Post Title",
+  "description": "CHANGE-ME: meta description",
+  "image": "https://www.wisehomeopathy.com/assets/images/blog/CHANGE-ME-image.jpg",
+  "author": {"@type": "Person", "name": "Dr. Libin Job", "jobTitle": "Chief Physician, BHMS, MD (Hom)"},
+  "publisher": {"@type": "MedicalClinic", "name": "Wise Homeopathy Multispeciality Center", "address": "Kottayam, Kerala, India"},
+  "datePublished": "CHANGE-ME: 2026-06-12"
+}
+</script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--brand:#27498C;--brand-strong:#13264a;--accent:#D62E4D;--text:#1c2430;--text-2:#6F6F6F}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font:400 17px/1.75 'Poppins',Arial,Helvetica,sans-serif;color:var(--text)}
+img{max-width:100%}
+a{color:var(--brand);text-decoration:none}
+.logo{width:clamp(140px,18vw,220px);height:auto;object-fit:contain;display:block}
+header{position:sticky;top:0;background:rgba(255,255,255,.94);backdrop-filter:blur(8px);border-bottom:1px solid #e9eef6;z-index:50}
+.bar{max-width:1180px;margin:0 auto;padding:14px 22px;display:flex;align-items:center;justify-content:space-between;gap:18px}
+.brand{display:flex;align-items:center;gap:12px}
+.brand-mark{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,var(--brand),var(--brand-strong));display:flex;align-items:center;justify-content:center;flex:none;position:relative}
+.brand-mark::after{content:'';position:absolute;width:9px;height:9px;background:var(--accent);border-radius:3px;top:9px;right:9px}
+.brand-mark span{font-weight:700;color:#fff}
+.brand-txt strong{display:block;font-size:15px;font-weight:600;color:var(--brand);line-height:1.15}
+.brand-txt small{font-size:10.5px;color:var(--text-2);letter-spacing:.4px}
+nav a{font-size:14.5px;font-weight:500;color:var(--text);margin-left:22px}
+article{max-width:760px;margin:0 auto;padding:56px 22px 80px}
+.eyebrow{font-size:12.5px;font-weight:600;letter-spacing:2px;color:var(--accent);text-transform:uppercase}
+h1{font-size:clamp(28px,4.6vw,42px);font-weight:700;color:var(--brand-strong);line-height:1.2;margin:10px 0 14px}
+.byline{font-size:14px;color:var(--text-2);margin-bottom:28px}
+.hero-img{width:100%;border-radius:18px;margin-bottom:34px;display:block}
+h2{font-size:26px;font-weight:600;color:var(--brand-strong);margin:38px 0 12px}
+p{margin-bottom:18px}
+.cta{background:linear-gradient(135deg,#13264a,#27498C);color:#fff;border-radius:20px;padding:34px 30px;margin-top:48px;text-align:center}
+.cta h2{color:#fff;margin-top:0}
+.cta a{display:inline-block;background:var(--accent);color:#fff;font-weight:600;padding:13px 26px;border-radius:12px;margin-top:8px}
+footer{background:var(--brand-strong);color:rgba(255,255,255,.78);padding:34px 22px;text-align:center;font-size:14px}
+footer a{color:#fff}
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <a class="brand" href="/index.html">
+      <!-- File: assets/logo.svg | SVG preferred | Fallback: PNG 1200×400 px -->
+      <img src="/assets/logo.svg" alt="Wise Homeopathy logo" class="logo" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';this.nextElementSibling.nextElementSibling.style.display='block'">
+      <span class="brand-mark" aria-hidden="true" style="display:none"><span>W</span></span>
+      <span class="brand-txt" style="display:none"><strong>WISE HOMEOPATHY</strong><small>MULTISPECIALITY CENTER · KOTTAYAM</small></span>
+    </a>
+    <nav><a href="/index.html">Home</a><a href="/team.html">Team</a><a href="/blog/">Blog</a><a href="/gallery.html">Gallery</a></nav>
+  </div>
+</header>
+
+<article>
+  <div class="eyebrow">CHANGE-ME: Category (e.g. Root Causes)</div>
+  <h1>CHANGE-ME: Post Title — clear, keyword-rich, answers a real patient question</h1>
+  <div class="byline">By Dr. Libin Job, BHMS, MD (Hom) · CHANGE-ME: 12 June 2026 · 5 min read</div>
+
+  <!-- POST IMAGE -->
+  <!-- File: assets/images/blog/CHANGE-ME-image.jpg | Recommended: 1200×630 px | Format: JPG | Aspect ratio: 1.91:1 -->
+  <img class="hero-img" src="/assets/images/blog/CHANGE-ME-image.jpg" alt="CHANGE-ME: describe the image with the keyword">
+
+  <p><strong>CHANGE-ME: Opening paragraph.</strong> Answer the question in the first two sentences — AI answer engines (ChatGPT, Perplexity, Google AI) quote the opening directly. Then promise what the rest of the article covers.</p>
+
+  <h2>CHANGE-ME: Section heading (phrase it as a question patients actually search)</h2>
+  <p>CHANGE-ME: Body content...</p>
+
+  <h2>CHANGE-ME: Second section</h2>
+  <p>CHANGE-ME: Body content...</p>
+
+  <div class="cta">
+    <h2>Struggling with this condition?</h2>
+    <p>Every case at Wise Homeopathy is treated individually — never with a generic protocol. Online consultations available worldwide.</p>
+    <a href="https://wa.me/917907671049">Book a Consultation on WhatsApp</a>
+  </div>
+</article>
+
+<footer>© Wise Homeopathy Multispeciality Center, Kottayam · <a href="https://www.wisehomeopathy.com">wisehomeopathy.com</a></footer>
+</body>
+</html>

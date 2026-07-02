@@ -1,0 +1,25 @@
+# Wise Homeopathy — no-code editor configuration
+# This lets you add blog posts from a web dashboard. Setup steps are in
+# PUBLISHING-GUIDE.md → Part 7. It only works once the site is connected to
+# Netlify via GitHub (not the drag-and-drop method).
+
+backend:
+  name: git-gateway
+  branch: main
+
+media_folder: "assets/images/blog"
+public_folder: "/assets/images/blog"
+
+collections:
+  - name: "blog"
+    label: "Blog Posts"
+    folder: "blog-posts"
+    create: true
+    slug: "{{slug}}"
+    fields:
+      - { label: "Title", name: "title", widget: "string", hint: "Keep under 60 characters; include your keyword." }
+      - { label: "Summary (for Google & social)", name: "description", widget: "text", hint: "150-160 characters. Answers the search question directly." }
+      - { label: "Category", name: "category", widget: "string", default: "Root Causes" }
+      - { label: "Cover image", name: "image", widget: "image", hint: "1200x630 px JPG." }
+      - { label: "Publish date", name: "date", widget: "datetime" }
+      - { label: "Body", name: "body", widget: "markdown", hint: "Write the article. First sentence should answer the main question." }

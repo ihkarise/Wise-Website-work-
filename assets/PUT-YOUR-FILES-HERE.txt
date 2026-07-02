@@ -1,0 +1,15 @@
+Drop your real branding files in this folder (exact filenames):
+
+assets/logo.svg          - full-colour logo (SVG preferred; PNG 1200x400 fallback)
+assets/logo-white.svg    - white logo for dark sections
+assets/favicon.ico       - icon-only logo, 32x32 / 64x64
+assets/hero-image.jpg    - 1920x1080, 16:9
+assets/images/team/doctor-libin.jpg   - 1200x1500, 4:5
+assets/images/team/doctor-dhanya.jpg  - 1200x1500, 4:5
+assets/images/team/doctor-ansal.jpg   - 1200x1500, 4:5
+assets/images/team/doctor-merlin.jpg  - 1200x1500, 4:5
+assets/images/gallery/clinic-photo-01.jpg ... 06.jpg - 1600x1200, 4:3
+assets/images/blog/      - one folder/image per blog post, 1200x630 (og image size)
+
+Until files are added, the site shows safe fallbacks (monogram logo, initials avatars,
+"Add photo" tiles) - nothing breaks.
