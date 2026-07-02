@@ -1,10 +1,14 @@
 # 25 - Phase 1.5 Technical Implementation Plan
-## Version 1.3 — 2026-07-02
+## Version 1.4 — 2026-07-02
 
-> Status: **SOFTWARE COMPLETE (Batches 4A–4H).** Not yet deployed —
-> deployment and a real-patient pilot remain open, per §10. See
+> Status: **SOFTWARE COMPLETE, DEPLOYMENT COMPLETE, OPERATIONALLY COMPLETE**
+> (Batches 4A–4H + live deployment). Deployed on a free personal Google
+> account; a real-patient pilot has been run and reviewed by a doctor. See
+> §10's "Status after live deployment" for the evidence. Only
+> `docs/28-DEPLOYMENT-READINESS.md`'s governance sign-off ("Deployment
+> approved") remains open — a clinic decision, not a technical one. See
 > docs/27-PHASE-1.5-CLOSEOUT.md for the official closeout and
-> docs/28-DEPLOYMENT-READINESS.md for the remaining operational checklist.
+> docs/28-DEPLOYMENT-READINESS.md for the full checklist.
 > Author role: Lead Software Architect.
 > Authorizing input: Phase 1 Completion Review (docs/20-PRODUCT-ARCHITECTURE-REVIEW.md), accepted.
 > Authorizing input: Architecture Readiness Review (Phase 1.5), accepted — all open
@@ -470,6 +474,44 @@ access restriction, live trigger firing, real OpenRouter/MailApp calls, and
 the required real-patient pilot) and must be completed by whoever deploys this
 project, per the checklist above and `validation/phase-1-5/README.md`'s
 "What this does NOT prove" section, before Phase 2A begins.
+
+**Status after live deployment (2026-07-02, free personal Google account —
+see the v1.3 deployment-account amendment at the top of this document):**
+
+- [x] The staff entry point (§9.1) is deployed with the free-tier equivalent
+      of Workspace-domain-restricted access — `Auth.gs`'s shared
+      `STAFF_ACCESS_CODE` gate — confirmed not reachable without it. **Live-tested:
+      a real request with a missing/wrong access code was sent to the deployed
+      Web App and rejected with `401`; a real request with the correct code
+      succeeded and wrote a row.**
+- [x] The automated retention purge trigger (§9.3) is deployed and verified to
+      clear `recipient_email` and stamp `purged_at` after 14 days. **Live-tested
+      against the real deployment: a fresh `sent` row was correctly skipped
+      (too recent), a backdated row was correctly purged with every other
+      column left untouched, a second run was idempotent (no
+      double-processing), and `installRetentionTrigger()` was confirmed
+      idempotent (re-running it installed no duplicate trigger).**
+- [x] The full pipeline has run successfully with at least one real, consenting
+      patient, with doctor review and the consent gate both exercised. **Done:
+      one real patient's visit summary was submitted, the doctor personally
+      reviewed the AI draft against the source note, approved it, and the
+      summary was sent to the patient's real email address. The consent gate
+      was separately proven on a synthetic row (tampering
+      `patient_consent_confirmed` to `false` between submission and review
+      blocked the send even though `review_status` became `approved`).**
+- [x] Security checklist (§7) fully checked off. **Deployment-only items now
+      closed: HTTPS is enforced by Apps Script's Web App infrastructure by
+      default; the free-tier access-code gate (see above) is the deployed
+      access control; environment separation was maintained throughout
+      (`Phase1.5_ConsultationSummaries_TEST`, never a production Sheet).**
+
+**Phase 1.5 is now Deployment Complete and Operationally Complete** — every
+item in this section and in `docs/28-DEPLOYMENT-READINESS.md`'s checklist has
+been performed against the real live deployment, not assumed. The sole
+remaining item is `docs/28`'s **"Deployment approved"** box: a governance
+sign-off by someone with authority over clinic-facing tools (docs/00),
+deliberately not something this document or an AI assistant checks off on the
+clinic's behalf.
 
 ---
 
