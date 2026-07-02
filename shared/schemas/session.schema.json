@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wisehomeopathy.com/shared/schemas/session.schema.json",
+  "title": "Session",
+  "version": "1.0.0",
+  "description": "The canonical shape of a Foundation session token — docs/33-DOMAIN-MODEL.md §1.3. Not a stored record: a self-verifying, HMAC-signed payload proving a request genuinely comes from an authenticated Patient Identity, for a bounded window of time (ADR-002, ADR-003, ADR-010, docs/29 §3). See session.md for the wire-format encoding, signing algorithm, and rationale.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["patient_id", "issued_at", "expires_at"],
+  "properties": {
+    "patient_id": {
+      "type": "string",
+      "description": "The Patient Identity this session resolves to (docs/33 §1.2, ADR-002). Every authenticated call derives patient_id from this verified field, never from client-supplied input (docs/29 §3, §10)."
+    },
+    "issued_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "The instant this session was minted. Set once, at issuance, never modified."
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "The instant this session becomes invalid. No silent renewal (docs/15 \"session expiration\", ADR-010) — a caller presenting an expired token must re-authenticate from scratch, not receive a refreshed one."
+    }
+  }
+}
