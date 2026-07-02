@@ -19,9 +19,12 @@ Remaining
 - Photography & Branding Assets
 
 # Phase 1.5 — Platform Validation
-Status: Implementation and code-level validation complete (Batches 4A-4G).
-Live deployment + real-patient pilot still required before Phase 1.5 is
-marked done and Phase 2A begins — see docs/25 §10.
+Status: **Software Complete** (Batches 4A-4H). **Not** Deployment Complete
+and **not** Operationally Complete — a live Google Workspace deployment
+and a real-patient pilot are still required before Phase 1.5 is marked
+fully done and Phase 2A begins. See docs/25 §10 (Definition of Done),
+docs/26 (validation report), docs/27 (closeout), docs/28 (deployment
+checklist).
 
 Completed
 - Batch 4A — Sheet schema, Apps Script project skeleton, validation layer,
@@ -46,12 +49,18 @@ Completed
   (Workspace-domain access, a real OpenRouter/MailApp call, the live
   retention trigger firing on schedule, and the required real-patient
   pilot).
+- Batch 4H — Documentation, validation closeout, and project
+  synchronization only. No code changes anywhere. Closed a documentation
+  gap (docs/15 never got its promised Phase-1.5 security notes), and
+  added docs/26 (validation report), docs/27 (official closeout), and
+  docs/28 (deployment readiness checklist) — the formal end of the
+  Phase 1.5 implementation sequence.
 
 Remaining
 - Live deployment + the real-patient pilot required by docs/25 §10
   (not a numbered batch — a deployment/operations step for whoever runs
-  this project against a real Google Workspace, tracked in docs/25 §10's
-  checklist, not further code work)
+  this project against a real Google Workspace; full checklist in
+  docs/28-DEPLOYMENT-READINESS.md, not further code work)
 
 # Phase 2A — My Health Journey
 - Patient Login

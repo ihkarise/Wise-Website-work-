@@ -8,6 +8,26 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-02 — Phase 1.5, Batch 4H: documentation, validation closeout, and formal completion
+
+Final batch of Phase 1.5, per explicit scope: documentation, validation closeout, and project synchronization only — no new features, no refactor, no optimization, no Phase 2 work. `git diff` against `apps-script/`, `internal/`, and `validation/` is empty; this batch touches only `docs/`, `apps-script/README.md`, and this file.
+
+### Added
+- `docs/26-PHASE-1.5-VALIDATION-REPORT.md` — the canonical validation record: objectives, scope, what was implemented, methodology, unit/integration/failure-path tests executed, results (37/37 checks passed), remaining live-deployment validation, known limitations, risks, and a Go/No-Go recommendation (Go for test deployment, No-Go for real patient use until deployment readiness is closed).
+- `docs/27-PHASE-1.5-CLOSEOUT.md` — the official Phase 1.5 closeout: original objectives against what shipped, architecture delivered, lessons learned, remaining operational work, and the handoff into Phase 2A (which this document does not authorize).
+- `docs/28-DEPLOYMENT-READINESS.md` — an operational checklist (Workspace configuration, live deployment, API keys, mail permissions, retention trigger installation, domain-restriction verification, real-patient pilot approval, deployment approval) for whoever deploys this project — explicitly not a software task list.
+
+### Changed
+- `docs/15-SECURITY-STANDARDS.md`: added the Phase-1.5-specific security notes docs/25 §12 had flagged since the plan's first version but that were never actually written — closed now, seven batches later, cross-referencing docs/25 §7's existing mapping table rather than duplicating it.
+- `docs/25-PHASE-1.5-TECHNICAL-PLAN.md`: status banner updated to **Software Complete (Batches 4A-4H)**, explicitly distinct from Deployment Complete and Operationally Complete (both still false); §10's Definition of Done, §11 (Batch 4H retrospective), and §12's documentation-impact table all updated to close out the plan.
+- `docs/24-ROADMAP.md`: Phase 1.5 status finalized as Software Complete, pending live deployment and real-patient pilot.
+- `apps-script/README.md`: Status section rewritten to point at docs/26-28 instead of listing individual batches.
+
+### Notes
+- One documentation gap found during this closeout's repository review: docs/15-SECURITY-STANDARDS.md's promised Phase 1.5 update, tracked since docs/25's first version, had never been done. Fixed in this batch.
+- **Software Complete ≠ Deployment Complete ≠ Operationally Complete.** All Phase 1.5 code and validation work (Batches 4A-4G) is done and merged. No live Google Workspace deployment exists. No real patient has been contacted. Phase 1.5 is not marked fully done until docs/28's checklist and docs/25 §10 are closed by an actual deployment and pilot — not assumed.
+- Phase 2 has not begun. My Health Journey has not been implemented. Do not begin either until docs/25 §10 is fully closed.
+
 ## 2026-07-02 — Phase 1.5, Batch 4G: full pipeline validation
 
 Validation phase, per explicit scope: no new features, no architectural refactor, no code optimization. Zero lines changed in `apps-script/` — confirmed by `git status` showing only new files under `validation/`. Objective: prove the complete pipeline (staff submission → validation → Sheet write → AI normalization → doctor review → gate evaluation → email delivery → retention) works exactly as designed, stage by stage and end to end, including every required failure mode.
