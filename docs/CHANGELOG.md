@@ -2,11 +2,20 @@
 
 ## Unreleased
 
+### Changed
+- docs/25-PHASE-1.5-TECHNICAL-PLAN.md moved from PROPOSED to APPROVED. All six
+  items in §9 (staff entry point, consent capture, email retention, AI model
+  selection, sync vs. async processing, PDF vs. HTML) resolved and locked per
+  the Phase 1.5 Architecture Readiness Review, with no change to the underlying
+  architecture, scope, or Product Vision.
+
 ### Planned
 - Resources Hub
 - Condition Landing Pages
 - My Health Journey foundation
 - Knowledge Engine integration
+- Phase 1.5 implementation (staff entry point, Apps Script pipeline, AI summary,
+  patient visit-summary email) — now unblocked, per the APPROVED technical plan
 
 ## Phase 1 Foundation
 
