@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wisehomeopathy.com/shared/contracts/response-envelope.schema.json",
+  "title": "Response Envelope",
+  "version": "1.0.0",
+  "description": "The canonical shape every Foundation (and future Phase 2A) backend function returns to its caller. Every response is exactly this shape whether the operation succeeded or failed — a caller never receives a raw exception or an ad hoc error object. See response-envelope.md for rationale and usage.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["status", "data", "error"],
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["ok", "error"],
+      "description": "Discriminates the envelope. \"ok\" means data is the result payload and error is null. \"error\" means data is null and error describes what went wrong."
+    },
+    "data": {
+      "description": "The operation's result payload when status is \"ok\". Always null when status is \"error\".",
+      "type": ["object", "array", "string", "number", "boolean", "null"]
+    },
+    "error": {
+      "description": "Present (non-null) only when status is \"error\".",
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["code", "message"],
+      "properties": {
+        "code": {
+          "type": "string",
+          "description": "A stable, machine-readable error identifier (e.g. \"FOUNDATION_UNEXPECTED_ERROR\", \"FOUNDATION_NOT_FOUND\"). Callers may branch on this; it must never change meaning once shipped — add a new code instead of repurposing one."
+        },
+        "message": {
+          "type": "string",
+          "description": "A human-readable, non-technical message safe to show a user. Never a stack trace, a raw exception message, or implementation detail (docs/04 Error State: friendly, actionable, never technical)."
+        }
+      }
+    }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "status": { "const": "ok" },
+        "error": { "const": null }
+      }
+    },
+    {
+      "properties": {
+        "status": { "const": "error" },
+        "data": { "const": null }
+      }
+    }
+  ]
+}
