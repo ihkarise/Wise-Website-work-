@@ -8,6 +8,16 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-02 — Product Architecture Review (docs only)
+
+Added `docs/20-PRODUCT-ARCHITECTURE-REVIEW.md`: a strategic review of the long-term
+product architecture (Visitor → Trust → Consultation → Patient → My Health Journey →
+WiseOS), covering information architecture, product roadmap, patient journey mapping,
+content strategy, WiseOS integration readiness, navigation strategy, and a 12-month
+growth plan. No site files, pages, or code changed. Reaffirms Batch B (dedicated
+condition pages) as the correct next implementation step and identifies the absence of
+Privacy/Terms/Disclaimer pages as a newly-documented gap.
+
 ## 2026-07-02 — Batch 2: conversion routing, social previews, testimonial claims
 
 Copy/link/meta-tag fixes only — no layout, design, or new assets. Full rationale in `WEBSITE-AUDIT.md` → Phase 4 → Batch 2.
