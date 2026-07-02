@@ -19,12 +19,14 @@ Remaining
 - Photography & Branding Assets
 
 # Phase 1.5 — Platform Validation
-Status: **Software Complete** (Batches 4A-4H). **Not** Deployment Complete
-and **not** Operationally Complete — a live Google Workspace deployment
-and a real-patient pilot are still required before Phase 1.5 is marked
-fully done and Phase 2A begins. See docs/25 §10 (Definition of Done),
-docs/26 (validation report), docs/27 (closeout), docs/28 (deployment
-checklist).
+Status: **Software Complete, Deployment Complete, Operationally Complete**
+(Batches 4A-4H, plus live deployment on a free personal Google account —
+`wisehomeopathicmc@gmail.com`, not Google Workspace; see docs/25's v1.3
+deployment-account amendment). A real-patient pilot has been run and
+reviewed by a doctor. Only docs/28's final governance sign-off
+("Deployment approved") remains open — a clinic decision, not a technical
+one. See docs/25 §10 (Definition of Done), docs/26 (validation report),
+docs/27 (closeout), docs/28 (deployment checklist).
 
 Completed
 - Batch 4A — Sheet schema, Apps Script project skeleton, validation layer,
@@ -57,29 +59,44 @@ Completed
   Phase 1.5 implementation sequence.
 
 Remaining
-- Live deployment + the real-patient pilot required by docs/25 §10
-  (not a numbered batch — a deployment/operations step for whoever runs
-  this project against a real Google Workspace; full checklist in
-  docs/28-DEPLOYMENT-READINESS.md, not further code work)
+- docs/28's final governance sign-off ("Deployment approved") — a clinic
+  decision, not further code or deployment work.
 
-# Phase 2A — My Health Journey
-- Patient Login
-- Dashboard
-- Personal Care Plan
-- Secure Data Storage
+# Phase 2A — My Health Journey v1
+Status: Architecture approved (docs/29-PHASE-2A-TECHNICAL-PLAN.md,
+docs/30-ARCHITECTURE-PRINCIPLES.md, docs/31-ADR-INDEX.md,
+docs/33-DOMAIN-MODEL.md, docs/34-ARCHITECTURE-CONSISTENCY-REVIEW.md).
+Implementation not yet started.
 
-# Phase 2B — Patient Experience
-- Symptom Tracker
-- Progress Dashboard
-- Timeline
-- Document Vault
-- Follow-up Center
+- Patient Login (passwordless, ADR-003)
+- Dashboard shell
+- Health Timeline (read-only)
+- Consultation History
+- Symptom Tracker v1
+- Report Upload
 
-# Phase 2C — Digital Twin
+Reconciled with docs/09-PHASE-2-ARCHITECTURE.md's roadmap per
+docs/32-ARCHITECTURE-REVIEW.md Part 2 — Personal Care Plan is no longer
+grouped into Phase 2A; it did not have a designed architecture and is
+moved to its own phase below. Batch-level sequencing (5A–5H): docs/29 §13.
+
+# Phase 2B — Personal Care Plan
+Requires its own architecture-freeze pass (a technical plan and any new
+ADRs it needs) before implementation begins — no technical plan exists
+yet, per docs/32's recommendation.
+
+# Phase 2C — Health Milestones
+- Scheduled progress reviews (30/90 days, 6 months, 1 year, per docs/21)
+- No AI required — deliberately separated from Phase 2D, which carries the
+  platform's AI-supervised work
+
+# Phase 2D — Wise Digital Twin & AI Summaries
 - Health Story
 - AI Summaries
-- Health Milestones
 - Progress Analytics
+
+Requires the full ADR-001/ADR-004/ADR-005 AI-supervision pattern before
+any implementation begins.
 
 # Phase 3 — WiseOS
 - Doctor Dashboard

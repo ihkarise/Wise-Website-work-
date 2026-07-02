@@ -8,6 +8,66 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-02 — Phase 2A architecture: documentation synchronization batch
+
+Documentation-only. No application code, no Apps Script code, and no existing
+architecture document (ADRs, docs/30, docs/33, docs/34's findings themselves aside)
+was left unresolved — this batch closes the gaps docs/34-ARCHITECTURE-CONSISTENCY-REVIEW.md
+identified before Phase 2A implementation begins.
+
+### Changed
+- `docs/09-PHASE-2-ARCHITECTURE.md` (v2.1): Entry Point now describes passwordless
+  email magic-link login (ADR-003) instead of "Password or Mobile OTP"; Doctor
+  Workflow diagram now shows the mandatory Doctor Review & Approval Gate (ADR-005);
+  AI Summary reframed as a cross-cutting pattern (ADR-005, docs/33 §2.4) rather than a
+  peer module; Roadmap section reconciled with docs/24 — Phase 2A now matches
+  docs/29's actual scope, Personal Care Plan moved to its own Phase 2B, Phase 2C split
+  into a non-AI Health Milestones phase and a Phase 2D carrying Digital Twin/AI
+  Summaries; Security section cross-references ADR-010 and docs/29 §10.
+- `docs/24-ROADMAP.md`: Phase 1.5 status corrected to match docs/25 v1.4/docs/28 (live
+  deployment and real-patient pilot are done; only the governance sign-off remains
+  open — previously read as if live deployment were still pending). Phase 2A/2B/2C
+  restructured to match docs/09's corrected roadmap and docs/32's recommendation.
+- `docs/12-DATA-ARCHITECTURE.md`: "Google Sheets as primary datastore" removed from
+  the Principles list (it was never a principle, per ADR-006) and replaced with a
+  "Current Implementation" section citing ADR-006.
+- `docs/23-PATIENT-LIFECYCLE.md`: "Prescriptions" annotated as a `medicine`-type
+  Doctor Instruction (docs/33 §2.3) instead of an unmodeled list item.
+- `docs/01-WEBSITE-MASTER-PLAN.md`, `docs/03-DESIGN-SYSTEM.md`: primary navigation
+  list replaced with a cross-reference to docs/08-NAVIGATION-ARCHITECTURE.md (was
+  duplicated verbatim in four documents).
+- `docs/05-UX-GUIDELINES.md`: navigation list, Content Hierarchy, Floating Page Guide,
+  Accessibility, and Performance sections each replaced with a cross-reference to
+  their dedicated source document (docs/08, docs/06, docs/08, docs/14, docs/16
+  respectively) instead of restating them.
+- `docs/07-SEO-STANDARDS.md`: Performance section now points to docs/16 for the
+  underlying rules; keeps its own SEO-specific Lighthouse category targets, which
+  docs/16 doesn't cover.
+- `docs/13-AI-GUIDELINES.md`, `docs/15-SECURITY-STANDARDS.md`,
+  `docs/22-WISE-KNOWLEDGE-ENGINE.md`: each now states which ADRs govern it
+  (ADR-001/004/005 for AI/Knowledge Engine content, ADR-002/003/010 for security),
+  making the ADRs the single source of truth for architecture-level decisions those
+  documents previously stated independently.
+- `docs/29-PHASE-2A-TECHNICAL-PLAN.md` §4: added a note that docs/33-DOMAIN-MODEL.md
+  is canonical for entity meaning; its own schema table describes implementation shape
+  only — closes a duplication risk between the two documents before it could drift.
+- `docs/34-ARCHITECTURE-CONSISTENCY-REVIEW.md`: updated to mark every finding in this
+  entry as resolved rather than open. docs/32-ARCHITECTURE-REVIEW.md is left
+  unmodified as the historical record of when each item was first found, per ADR-007's
+  "supersede, never silently edit" rule.
+- `docs/CLAUDE.md`: added an "Architecture Freeze" section — once Phase 2A
+  implementation begins, the ADRs, docs/30-ARCHITECTURE-PRINCIPLES.md, and
+  docs/33-DOMAIN-MODEL.md are authoritative, and architectural changes require an
+  explicit architecture review before implementation, not an inline redesign.
+
+### Notes
+- No new documentation was created in this batch (per its explicit scope) — every
+  change above is an edit to an existing document.
+- This closes out the architecture-freeze work that began with docs/29 through
+  docs/34. Per docs/CLAUDE.md's new Architecture Freeze rule, the architecture is now
+  considered frozen for Phase 2A once this batch's Pull Request merges. Implementation
+  (Batch 5A) still awaits separate, explicit approval — this batch does not begin it.
+
 ## 2026-07-02 — Phase 1.5 live deployment complete: real-patient pilot run
 
 Phase 1.5 deployed for real on a free personal Google account

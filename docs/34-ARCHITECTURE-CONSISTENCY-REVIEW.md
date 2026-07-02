@@ -1,5 +1,13 @@
 # 34 - Architecture Consistency Review
-## Version 1.0 — 2026-07-02
+## Version 1.1 — 2026-07-02
+
+> **Update:** the documentation-synchronization batch this review called for has been
+> completed (see CHANGELOG.md's corresponding entry). Part 1's duplication clusters and
+> Part 2's four carried-forward contradictions plus the two new clarifications are now
+> resolved in the source documents — status columns below updated accordingly. This
+> document is kept as the historical record of what was found; docs/32 remains
+> untouched as the still-earlier historical record, per ADR-007's "supersede, never
+> silently edit" rule applied to review documents too.
 
 > The final architecture review before Phase 2 implementation. Reviews every existing
 > architecture document — docs/00 through docs/33, plus `/adr/ADR-001`–`ADR-010` —
@@ -24,9 +32,8 @@ and `docs/08-NAVIGATION-ARCHITECTURE.md` each independently list the identical p
 navigation ("Home, Conditions, Online Consultation, Doctors, Resources, Contact...
 Patient Login remains separate"). None references another as the source.
 
-**Recommendation:** docs/08 is the natural single source (it's the document whose
-entire purpose is navigation). docs/01, docs/03, and docs/05 should each replace their
-copy with a one-line cross-reference to docs/08 the next time any of them is edited.
+**Resolution:** Applied — docs/01, docs/03, and docs/05 now each cross-reference
+docs/08 instead of restating the list.
 
 ## 1.2 Page content structure — stated twice, verbatim
 
@@ -34,8 +41,8 @@ docs/05-UX-GUIDELINES.md's "Content Hierarchy" and docs/06-CONTENT-GUIDELINES.md
 "Page Structure" are the same five-item list (short answer → simple explanation →
 detailed information → FAQ → call to action) under two different headings.
 
-**Recommendation:** docs/06 is the natural owner (content-specific). docs/05 should
-cross-reference it rather than restate it.
+**Resolution:** Applied — docs/05 now cross-references docs/06 instead of restating
+the hierarchy.
 
 ## 1.3 Floating Page Guide — stated twice, verbatim
 
@@ -43,8 +50,8 @@ docs/05-UX-GUIDELINES.md and docs/08-NAVIGATION-ARCHITECTURE.md both define the
 identical six-item Floating Page Guide (Overview/Symptoms/Treatment/FAQ/Research/Book
 Consultation) with the same desktop-sticky/mobile-expandable behavior.
 
-**Recommendation:** docs/08 is the natural owner (it's a navigation component).
-docs/05 should cross-reference it.
+**Resolution:** Applied — docs/05 now cross-references docs/08 instead of restating
+the component.
 
 ## 1.4 Accessibility rules — stated twice
 
@@ -52,18 +59,17 @@ docs/05-UX-GUIDELINES.md's "Accessibility" section (keyboard navigation, visible
 states, semantic HTML, alt text, WCAG AA contrast) restates docs/14-ACCESSIBILITY-STANDARDS.md's
 entire content in miniature.
 
-**Recommendation:** docs/14 is the dedicated standards document. docs/05 should
-cross-reference it.
+**Resolution:** Applied — docs/05 now cross-references docs/14 instead of restating
+the requirements.
 
 ## 1.5 Performance rules — stated three times
 
 docs/05-UX-GUIDELINES.md, docs/07-SEO-STANDARDS.md, and docs/16-PERFORMANCE-STANDARDS.md
 each restate the same Lighthouse-95+/lazy-loading/minimal-JS rules independently.
 
-**Recommendation:** docs/16 is the dedicated standards document. docs/05 and docs/07
-should each cross-reference it instead of restating specific numeric targets — reduces
-the risk of the target number (e.g., "95+") being updated in one place and not the
-others.
+**Resolution:** Applied — docs/05 now cross-references docs/16 instead of restating
+targets; docs/07 keeps its SEO-specific Lighthouse category breakdown (which docs/16
+doesn't cover) but now points to docs/16 for the underlying rules.
 
 ## 1.6 A forming duplication risk between docs/29 and docs/33 (new, from this session)
 
@@ -72,10 +78,8 @@ both describe the same Phase 2A Sheets (`Patients`, `LoginTokens`, `Consultation
 `SymptomLogs`, `Reports`) with overlapping column lists. This is not yet a
 contradiction (both agree today), but it is two documents maintaining the same fact.
 
-**Recommendation:** Treat docs/33 as the canonical entity/schema-level reference going
-forward. When docs/29 is next revised, its §4 table should summarize and link to
-docs/33 rather than dual-list every column — the same pattern recommended for 1.1–1.5
-above, caught here before it has a chance to drift rather than after.
+**Resolution:** Applied — docs/29 §4 now states explicitly that docs/33 is canonical
+for entity meaning and its own table describes implementation shape only.
 
 ---
 
@@ -83,19 +87,18 @@ above, caught here before it has a chance to drift rather than after.
 
 ## 2.1 Carried forward from docs/32 — status check
 
-All four contradictions reported in docs/32-ARCHITECTURE-REVIEW.md Part 1 remain
-**open** as of this document. Restated briefly here since this is now the canonical
-"final" review; full detail remains in docs/32:
+All four contradictions reported in docs/32-ARCHITECTURE-REVIEW.md Part 1 have been
+**resolved** in the documentation-synchronization batch this review called for:
 
 | # | Contradiction | Status |
 |---|---|---|
-| docs/32 §1.1 | docs/09's "Password or Mobile OTP" vs. ADR-003's passwordless default | Open |
-| docs/32 §1.2 | docs/09 vs. docs/24 disagreeing on Phase 2A's scope | Open — docs/29 and docs/32 Part 2 both propose a resolution; not yet applied to docs/09/docs/24 |
-| docs/32 §1.3 | docs/12's "Google Sheets as primary datastore" listed as a Principle vs. ADR-006 | Open |
-| docs/32 §1.4 | docs/09's Doctor Workflow diagram omits the review gate ADR-005 requires | Open |
+| docs/32 §1.1 | docs/09's "Password or Mobile OTP" vs. ADR-003's passwordless default | Resolved — docs/09's Entry Point section now describes the passwordless mechanism and cites ADR-002/ADR-003 |
+| docs/32 §1.2 | docs/09 vs. docs/24 disagreeing on Phase 2A's scope | Resolved — both documents' Roadmap sections now state the same Phase 2A–2D split (docs/32 Part 2's recommendation) |
+| docs/32 §1.3 | docs/12's "Google Sheets as primary datastore" listed as a Principle vs. ADR-006 | Resolved — docs/12's Principles section no longer lists Sheets as a principle; a "Current Implementation" section cites ADR-006 |
+| docs/32 §1.4 | docs/09's Doctor Workflow diagram omits the review gate ADR-005 requires | Resolved — the diagram now shows the mandatory Doctor Review & Approval Gate |
 
-None of these block the Part 5 readiness assessment below, but all four should be
-resolved in documentation before or shortly after Batch 5A ships, per docs/29 §12.
+Batch 5A was not affected by any of these being open — this sync was completed as its
+own documentation-only batch before implementation begins, per docs/29 §12.
 
 ## 2.2 New — "AI Summary" naming ambiguity (resolved conceptually by docs/33, not yet reflected upstream)
 
@@ -107,10 +110,9 @@ same level as the others. docs/33-DOMAIN-MODEL.md §2.4 instead models AI Summar
 Consultation Summary already instantiates, and that a future Digital Twin narrative
 would also instantiate — not a standalone feature in its own right.
 
-**Recommendation:** Adopt docs/33's framing platform-wide. docs/09's "AI Summary"
-section should be reworded to describe it as a cross-cutting pattern (cross-referencing
-ADR-005 and docs/33 §2.4) rather than a fifth peer module — this is a clarification,
-not a scope change; nothing currently planned needs to move as a result.
+**Resolution:** Applied — docs/09's "AI Summary" section now describes it as a
+cross-cutting pattern, citing ADR-005 and docs/33 §2.4, rather than a fifth peer
+module.
 
 ## 2.3 New — docs/23's "Prescriptions" gap, now resolved conceptually
 
@@ -120,9 +122,8 @@ capability with no supporting architecture anywhere. docs/33 §2.3 defines Docto
 Instruction with an `instruction_type` of `medicine` — a Prescription is simply that
 instruction type, not a distinct entity.
 
-**Recommendation:** No new entity needed. When docs/23 is next revised, either link
-"Prescriptions" to Doctor Instruction (docs/33 §2.3) or remove it from the list until
-Care Plan (which Doctor Instruction depends on) is actually scheduled.
+**Resolution:** Applied — docs/23 now annotates "Prescriptions" as a `medicine`-type
+Doctor Instruction (docs/33 §2.3) rather than leaving it as an unmodeled item.
 
 ## 2.4 New — docs/21's "Investigation history" mapped to Report, not a new entity
 
@@ -196,12 +197,13 @@ zero patient-facing surface) specifically.
 
 ## What should happen before Batch 5A begins
 
-Unchanged from docs/32, restated as the actual gate:
-1. Close docs/28's outstanding governance sign-off.
-2. Resolve docs/32 §1.1 and §1.3 (docs/09's auth wording, docs/12's Sheets-as-principle
-   wording) — docs/29 already depends on the corrected version of both.
+1. Close docs/28's outstanding governance sign-off — still open; a clinic decision,
+   not a documentation task.
+2. ~~Resolve docs/32 §1.1 and §1.3~~ — **done**, in the documentation-synchronization
+   batch this review called for.
 3. A dedicated security review of the magic-link/session-token mechanism before Batch
-   5B specifically (Batch 5A itself has no auth logic and does not require this first).
+   5B specifically (Batch 5A itself has no auth logic and does not require this first)
+   — still pending, scheduled for when Batch 5B is reached.
 
 ## What does not need to happen before Batch 5A
 

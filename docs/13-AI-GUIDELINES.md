@@ -1,7 +1,12 @@
 # Wise Homeopathy AI Guidelines
-## Version 2.0
+## Version 2.1
 
 Purpose: Define responsible AI usage.
+
+Governed by ADR-001 (Knowledge Engine as source), ADR-004 (Digital Twin never
+diagnoses or treats), and ADR-005 (AI always under doctor supervision) —
+docs/31-ADR-INDEX.md. Where this document and those ADRs disagree, the ADR is
+authoritative.
 
 ## AI Principles
 - AI assists, never replaces clinicians.

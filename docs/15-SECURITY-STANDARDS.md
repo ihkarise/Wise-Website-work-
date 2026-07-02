@@ -1,5 +1,10 @@
 # Security Standards
-## Version 2.0
+## Version 2.1
+
+Governed by ADR-002 (identity independent of authentication), ADR-003 (passwordless
+by default), and ADR-010 (security decisions take precedence over convenience) —
+docs/31-ADR-INDEX.md. Where this document and those ADRs disagree, the ADR is
+authoritative.
 
 ## Goals
 Protect patient trust and data.
@@ -18,6 +23,9 @@ Patient portal:
 - Authenticated access only
 - Session expiration
 - Role-based permissions
+
+Concrete Phase 2A implementation of the three requirements above (not yet built,
+architecture approved): docs/29-PHASE-2A-TECHNICAL-PLAN.md §10.
 
 ## Phase 1.5 — Implementation Notes (Consultation Summary Pipeline)
 
