@@ -1,0 +1,229 @@
+# 34 - Architecture Consistency Review
+## Version 1.0 — 2026-07-02
+
+> The final architecture review before Phase 2 implementation. Reviews every existing
+> architecture document — docs/00 through docs/33, plus `/adr/ADR-001`–`ADR-010` —
+> together, for duplication, contradiction, and simplification opportunity. Per this
+> session's explicit instruction, **no document was modified to produce this review.**
+> Findings are reported here; resolving them is a separate, future, explicitly-approved
+> documentation batch. This document supersedes docs/32-ARCHITECTURE-REVIEW.md's Part 1
+> as the current status of documentation conflicts (docs/32 remains the historical
+> record of when each was first found).
+
+---
+
+# Part 1 — Duplication
+
+Content stated near-identically in two or more documents, with no cross-reference
+between them — a drift risk, since editing one copy doesn't update the other.
+
+## 1.1 Primary navigation list — stated four times
+
+`docs/01-WEBSITE-MASTER-PLAN.md`, `docs/03-DESIGN-SYSTEM.md`, `docs/05-UX-GUIDELINES.md`,
+and `docs/08-NAVIGATION-ARCHITECTURE.md` each independently list the identical primary
+navigation ("Home, Conditions, Online Consultation, Doctors, Resources, Contact...
+Patient Login remains separate"). None references another as the source.
+
+**Recommendation:** docs/08 is the natural single source (it's the document whose
+entire purpose is navigation). docs/01, docs/03, and docs/05 should each replace their
+copy with a one-line cross-reference to docs/08 the next time any of them is edited.
+
+## 1.2 Page content structure — stated twice, verbatim
+
+docs/05-UX-GUIDELINES.md's "Content Hierarchy" and docs/06-CONTENT-GUIDELINES.md's
+"Page Structure" are the same five-item list (short answer → simple explanation →
+detailed information → FAQ → call to action) under two different headings.
+
+**Recommendation:** docs/06 is the natural owner (content-specific). docs/05 should
+cross-reference it rather than restate it.
+
+## 1.3 Floating Page Guide — stated twice, verbatim
+
+docs/05-UX-GUIDELINES.md and docs/08-NAVIGATION-ARCHITECTURE.md both define the
+identical six-item Floating Page Guide (Overview/Symptoms/Treatment/FAQ/Research/Book
+Consultation) with the same desktop-sticky/mobile-expandable behavior.
+
+**Recommendation:** docs/08 is the natural owner (it's a navigation component).
+docs/05 should cross-reference it.
+
+## 1.4 Accessibility rules — stated twice
+
+docs/05-UX-GUIDELINES.md's "Accessibility" section (keyboard navigation, visible focus
+states, semantic HTML, alt text, WCAG AA contrast) restates docs/14-ACCESSIBILITY-STANDARDS.md's
+entire content in miniature.
+
+**Recommendation:** docs/14 is the dedicated standards document. docs/05 should
+cross-reference it.
+
+## 1.5 Performance rules — stated three times
+
+docs/05-UX-GUIDELINES.md, docs/07-SEO-STANDARDS.md, and docs/16-PERFORMANCE-STANDARDS.md
+each restate the same Lighthouse-95+/lazy-loading/minimal-JS rules independently.
+
+**Recommendation:** docs/16 is the dedicated standards document. docs/05 and docs/07
+should each cross-reference it instead of restating specific numeric targets — reduces
+the risk of the target number (e.g., "95+") being updated in one place and not the
+others.
+
+## 1.6 A forming duplication risk between docs/29 and docs/33 (new, from this session)
+
+docs/29-PHASE-2A-TECHNICAL-PLAN.md §4 (Data Architecture) and docs/33-DOMAIN-MODEL.md
+both describe the same Phase 2A Sheets (`Patients`, `LoginTokens`, `ConsultationHistory`,
+`SymptomLogs`, `Reports`) with overlapping column lists. This is not yet a
+contradiction (both agree today), but it is two documents maintaining the same fact.
+
+**Recommendation:** Treat docs/33 as the canonical entity/schema-level reference going
+forward. When docs/29 is next revised, its §4 table should summarize and link to
+docs/33 rather than dual-list every column — the same pattern recommended for 1.1–1.5
+above, caught here before it has a chance to drift rather than after.
+
+---
+
+# Part 2 — Contradictions
+
+## 2.1 Carried forward from docs/32 — status check
+
+All four contradictions reported in docs/32-ARCHITECTURE-REVIEW.md Part 1 remain
+**open** as of this document. Restated briefly here since this is now the canonical
+"final" review; full detail remains in docs/32:
+
+| # | Contradiction | Status |
+|---|---|---|
+| docs/32 §1.1 | docs/09's "Password or Mobile OTP" vs. ADR-003's passwordless default | Open |
+| docs/32 §1.2 | docs/09 vs. docs/24 disagreeing on Phase 2A's scope | Open — docs/29 and docs/32 Part 2 both propose a resolution; not yet applied to docs/09/docs/24 |
+| docs/32 §1.3 | docs/12's "Google Sheets as primary datastore" listed as a Principle vs. ADR-006 | Open |
+| docs/32 §1.4 | docs/09's Doctor Workflow diagram omits the review gate ADR-005 requires | Open |
+
+None of these block the Part 5 readiness assessment below, but all four should be
+resolved in documentation before or shortly after Batch 5A ships, per docs/29 §12.
+
+## 2.2 New — "AI Summary" naming ambiguity (resolved conceptually by docs/33, not yet reflected upstream)
+
+**Contradiction:** docs/09-PHASE-2-ARCHITECTURE.md lists "AI Summary" as one of several
+peer modules ("Converts doctor notes into patient-friendly updates") alongside
+Personal Care Plan, Digital Twin, and Symptom Tracker — implying it is a feature at the
+same level as the others. docs/33-DOMAIN-MODEL.md §2.4 instead models AI Summary as a
+*pattern* (the ADR-005 shape: prompt constraint + code check + review gate) that
+Consultation Summary already instantiates, and that a future Digital Twin narrative
+would also instantiate — not a standalone feature in its own right.
+
+**Recommendation:** Adopt docs/33's framing platform-wide. docs/09's "AI Summary"
+section should be reworded to describe it as a cross-cutting pattern (cross-referencing
+ADR-005 and docs/33 §2.4) rather than a fifth peer module — this is a clarification,
+not a scope change; nothing currently planned needs to move as a result.
+
+## 2.3 New — docs/23's "Prescriptions" gap, now resolved conceptually
+
+**Not a contradiction to fix — a gap docs/32 §1.5 flagged, now given a concrete
+answer.** docs/23-PATIENT-LIFECYCLE.md lists "Prescriptions" as a Patient Stage
+capability with no supporting architecture anywhere. docs/33 §2.3 defines Doctor
+Instruction with an `instruction_type` of `medicine` — a Prescription is simply that
+instruction type, not a distinct entity.
+
+**Recommendation:** No new entity needed. When docs/23 is next revised, either link
+"Prescriptions" to Doctor Instruction (docs/33 §2.3) or remove it from the list until
+Care Plan (which Doctor Instruction depends on) is actually scheduled.
+
+## 2.4 New — docs/21's "Investigation history" mapped to Report, not a new entity
+
+**Not a contradiction — a clarification.** docs/21's Digital Twin description lists
+"Investigation history" as a component. docs/33 §3.3 notes this is satisfied by Report
+(an uploaded lab/investigation document) rather than requiring a separate entity.
+
+**Recommendation:** No action needed beyond what docs/33 already states; noted here so
+a future reader doesn't wonder whether "Investigation history" was missed.
+
+---
+
+# Part 3 — Roadmap Gaps (entities with no owning phase)
+
+Surfaced directly by building docs/33's Summary Table. These are omissions, not
+contradictions — nothing states something false, something simply isn't claimed by any
+phase yet.
+
+| Entity | Gap |
+|---|---|
+| **Appointment** (docs/33 §4.1) | No phase owns turning a booking-form submission into a tracked record. Closes docs/20 §3's "THE GAP" at the data level if built. Strongest candidate for a near-term future phase — see Part 4. |
+| **Doctor** (docs/33 §1.4) | No authenticated identity entity exists; "who did this" is captured two inconsistent ways today (Google account identity in Phase 1.5's Sheet-bound review; free-text staff identifier in docs/29). Not urgent for Phase 2A; becomes relevant once per-doctor audit granularity or RBAC matters (plausibly Phase 3/WiseOS). |
+| **Notification** (docs/33 §4.2) | Implemented ad hoc per feature (two independent email flows once docs/29 ships) rather than as a shared entity. Not urgent yet — flagged as a "third flow" trigger point, see Part 4. |
+| **Calculator** (docs/33 §5.3) | Named in docs/21's product vision, absent from docs/09's Core Modules and docs/24's roadmap entirely — the one entity in this review with no phase claiming it at all, public or patient variant. |
+| **Knowledge Engine retrieval** (docs/33 §5.2) | ADR-001 requires AI grounding; today satisfied only by inline, per-request doctor text (Phase 1.5's pattern). A real retrieval implementation has no phase owner yet — needed before Phase 2D. |
+
+---
+
+# Part 4 — Recommended Simplifications
+
+1. **Consolidate the five duplication clusters in Part 1** into their natural owning
+   document, replacing restated content with a one-line cross-reference. Lowest-risk,
+   highest-value cleanup available — no architecture changes, just removing drift risk.
+2. **Adopt docs/33 as the canonical schema/entity reference** going forward (Part 1.6)
+   — future technical plans should describe implementation detail and link to docs/33
+   for entity meaning, rather than each phase's technical plan re-deriving entity
+   shape independently.
+3. **Reword docs/09's "AI Summary" section** to describe a pattern, not a peer module
+   (Part 2.2) — a clarification, not a scope change.
+4. **Give Appointment an explicit future phase**, since it has the clearest, most
+   concrete architectural justification of any gap in Part 3 — it directly closes a
+   previously-identified, named gap (docs/20 §3) and naturally follows Phase 2A's
+   identity/session infrastructure (an Appointment needs a Patient Identity to resolve
+   to, once one exists). Recommend it be scoped alongside or shortly after Phase 2B
+   (Personal Care Plan, per docs/32 Part 2) rather than left permanently unowned.
+5. **Give Calculator an explicit roadmap position** — currently the only entity named
+   in product vision (docs/21) with zero phase ownership anywhere, public or patient
+   variant. Does not need to be prioritized soon, but should not remain silently
+   absent from docs/24's roadmap.
+6. **Do not build Notification as a shared entity yet** — two independent
+   implementations (Phase 1.5's `Email.gs`, docs/29's login-link email) is a reasonable
+   point to stop and observe, not yet a violation. Revisit only when a third
+   independent email/notification flow is proposed — treat that moment as the trigger,
+   not a calendar date.
+
+---
+
+# Part 5 — Final Architecture Review Before Phase 2 Implementation
+
+## Is the architecture consistent enough to begin implementation?
+
+**Yes, for docs/29's Phase 2A scope specifically — the same conditional "yes" docs/32
+already gave, now re-confirmed after the domain-model pass found no new blocking
+issues.** Building the full domain model (docs/33) and cross-checking it against every
+existing document (this document) surfaced real findings — five duplication clusters,
+two new clarifications, five roadmap gaps — but **none of them contradict or
+destabilize anything docs/29 §13's batches (5A–5H) actually depend on.** The four
+contradictions carried forward from docs/32 (§2.1 above) remain the substantive open
+items, and none of them block Batch 5A (`Patients` sheet + staff provisioning tool,
+zero patient-facing surface) specifically.
+
+## What should happen before Batch 5A begins
+
+Unchanged from docs/32, restated as the actual gate:
+1. Close docs/28's outstanding governance sign-off.
+2. Resolve docs/32 §1.1 and §1.3 (docs/09's auth wording, docs/12's Sheets-as-principle
+   wording) — docs/29 already depends on the corrected version of both.
+3. A dedicated security review of the magic-link/session-token mechanism before Batch
+   5B specifically (Batch 5A itself has no auth logic and does not require this first).
+
+## What does not need to happen before Batch 5A
+
+The duplication cleanup (Part 1) and the roadmap-gap assignments (Part 3, Part 4) are
+real but non-blocking — they improve documentation hygiene and close honest gaps, but
+nothing in docs/29's eight batches depends on any of them being resolved first. Treat
+them as a follow-up documentation batch, not a precondition.
+
+## Remaining architectural risks (unchanged from docs/32, reconfirmed)
+
+Hand-rolled auth cryptography, Sheets-at-scale, the static-frontend complexity ceiling
+under real authenticated UI, free-account storage quotas, "patient data belongs to the
+patient" having no concrete mechanism yet, and the Knowledge Engine having no real
+retrieval implementation — all previously identified in docs/32, none newly introduced
+or newly resolved by this review.
+
+## Statement
+
+This document, together with docs/29 (Phase 2A Technical Plan), docs/30 (Architecture
+Principles), docs/31 (ADR Index), docs/32 (prior Architecture Review), and docs/33
+(Domain Model), represents the complete, cross-checked architecture for Phase 2A. No
+further architecture-freeze work is identified as necessary before implementation.
+
+**This document does not itself authorize Batch 5A to begin.** Per this session's
+instruction, implementation starts only on explicit, separate approval.
