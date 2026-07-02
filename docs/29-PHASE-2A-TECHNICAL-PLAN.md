@@ -480,3 +480,91 @@ regression to Phase 1.5. Automated, schema-validator-based conformance testing
 (`validation/phase-2a-foundation/conformance.js`) remains an F5 deliverable, not
 built early — this batch's checks were real but ad hoc, run directly against the
 committed source rather than through a committed harness.
+
+## Static analysis — a new standing step, introduced at F3
+
+By explicit requirement, every Foundation batch from F3 onward runs
+`validation/static-analysis/analyze.js` (checking duplicate global names, duplicate
+constants, duplicate function names, unused exported helpers, circular dependencies,
+and Apps Script namespace collisions) **before** validation, not just at the end. Full
+detail: `validation/static-analysis/README.md`.
+
+Built and run against the real F1+F2 baseline before writing any F3 code, this tool
+immediately proved its worth by finding two real issues in the *existing* codebase that
+manual review had missed:
+- A false circular dependency (`Email.gs -> Send.gs -> Email.gs`) traced to a comment
+  in `Email.gs` that happens to contain the literal text `attemptSend_(` — fixed in the
+  tool itself (comment/string-aware scanning), not in `Email.gs`, which was correct as
+  written.
+- Three false "unused" reports for `Review.gs`'s menu-bound functions
+  (`approveSelectedRowAsGenerated_`, `approveSelectedRowEdited_`, `rejectSelectedRow_`)
+  — Apps Script's `menu.addItem('label', 'fnName')` references a function by quoted
+  string, not a call, which the tool didn't originally recognize as usage. Fixed in the
+  tool; `Review.gs` was correct as written here too.
+
+Both fixes are documented in `analyze.js`'s own header comment, on the record rather
+than silently patched.
+
+## Batch F3 (complete)
+
+Delivered: `shared/schemas/patient-identity.schema.json` (v1.0.0) + `.md`;
+`apps-script/FoundationDataStore.gs` (the data-access abstraction, ADR-006/ADR-009 —
+the only Foundation file calling `SpreadsheetApp` for Patient-domain data);
+`apps-script/FoundationAudit.gs` (append-only event log); `apps-script/PatientIdentity.gs`
+(`foundationCreatePatient_()`/`foundationGetPatientById_()`, plus
+`createFoundationPatient()`, the manually-run editor wrapper this batch's scope calls
+for — no Web App route, no Sheet menu); `apps-script/FoundationTests.gs` (partial —
+Apps Script-native unit tests for every pure function introduced in F2 and F3, 14
+tests, formalizing what F2 validated ad hoc into a real, committed, repeatable suite).
+
+**Reconciling docs/33's Patient/Patient Identity split with docs/29 §4's already-locked
+single-sheet schema.** docs/33-DOMAIN-MODEL.md §1.1/§1.2 models Patient (profile) and
+Patient Identity (permanent core) as two distinct entities specifically so identity
+never depends on mutable profile data (ADR-002). docs/29 §4 had already locked one
+`Patients` sheet holding both. These were never in true conflict: ADR-002 requires
+`patient_id` to be permanent and universally referenced, not that storage be physically
+split. `shared/schemas/patient-identity.schema.json` documents this explicitly — every
+field is labeled as belonging to the identity core or the profile half, and
+`shared/schemas/patient-identity.md` records the reasoning — so the conceptual
+distinction stays visible even though implementation keeps it in one row, avoiding
+unneeded complexity at pilot scale (ADR-006).
+
+**A deliberate simplification, stated openly, not discovered later:**
+`foundationValidatePatientInput_()` does not validate `condition_slug` against Phase
+1.5's canonical `ALLOWED_CONDITION_SLUGS` list — duplicating that list now, with no
+second real consumer beyond a copy-paste, was already flagged as premature by Phase
+1.5's own Batch 4A review. `shared/constants/` (empty, reserved) is exactly where this
+belongs once it's needed for real — noted in `shared/schemas/patient-identity.md`, not
+silently skipped.
+
+**The correct error-handling split, put into real use for the first time.**
+`FoundationContracts.gs`'s own header comment (batch F2) already distinguished
+*expected* error cases (return `buildFoundationErrorEnvelope_()` directly, with a
+specific code) from *unexpected* failures (only `withFoundationErrorHandling_()`'s
+generic catch-all should produce those). `foundationCreatePatient_()`'s validation
+failures and `foundationGetPatientById_()`'s not-found case are both expected outcomes,
+correctly returning `FOUNDATION_INVALID_INPUT`/`FOUNDATION_NOT_FOUND` directly rather
+than the generic `FOUNDATION_UNEXPECTED_ERROR` — verified by execution (below), not
+just written to match the intent.
+
+**Verification performed** (all real, not assumed): the static-analysis pass (above);
+`node --check` on every new `.gs` file; `runFoundationTests_()` — all 14 tests —
+executed directly in Node (every tested function is pure, no Apps Script dependency);
+a full functional pass against a minimal in-memory `SpreadsheetApp` mock covering
+create → read-back round-trip (output checked against the JSON Schema's required
+fields), not-found returning the specific code, invalid input returning the specific
+code, the audit log gaining exactly one correctly-shaped row per patient created,
+cross-patient isolation (creating a second patient leaves the first untouched — the
+single highest-risk property for any multi-tenant data layer), and the header-drift
+safety check correctly throwing when a sheet's live header is tampered; a full
+collision pre-check of every planned F3 name against the existing codebase before
+writing any code (zero collisions); `validation/phase-1-5/validate.js` re-run clean
+(39/39).
+
+**Known, expected gap — not a shortcoming.** `FoundationConfig.gs`'s
+`PATIENT_SPREADSHEET_ID` remains a placeholder. Provisioning a real Google Spreadsheet
+and setting a real ID is an operational step outside this repository, exactly as
+docs/28 treated Phase 1.5's live deployment as separate from "software complete" —
+`FoundationDataStore.gs`'s `foundationDsGetOrCreateSheet_()` creates the `Patients` and
+`AuditLog` tabs (with the correct header) automatically on first real use once a real
+ID is set; nothing about that step is simulated or assumed complete here.
