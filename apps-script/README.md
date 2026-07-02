@@ -560,6 +560,9 @@ a contract independently.
 | File | Responsibility | Status |
 |---|---|---|
 | `FoundationConfig.gs` | Environment-specific values for the Foundation layer: the Patients spreadsheet ID, and the Script Property key names Foundation will read (never the secret values themselves). The Foundation-layer equivalent of `Config.gs` above. | Added (F1) |
+| `FoundationUtils.gs` | Small stateless helpers adapted from `shared/utils/core.reference.js`: `generateFoundationId_()` (Apps Script's native `Utilities.getUuid()`), `foundationNowIso_()`, `escapeFoundationHtml_()`. Distinctly named from Phase 1.5's own `Utils.gs` helpers to avoid a global-scope collision now that both files share this project. No dependency on any other module. | Added (F2) |
+| `FoundationContracts.gs` | `buildFoundationOkEnvelope_(data)` / `buildFoundationErrorEnvelope_(code, message)` — builders for the response envelope defined in `shared/contracts/response-envelope.schema.json`. Every Foundation function reachable from outside this project's internal call graph should return this shape. No dependency on any other module. | Added (F2) |
+| `FoundationErrorHandling.gs` | `withFoundationErrorHandling_(fn)` — wraps a function call and guarantees a response-envelope return, even on a thrown exception. Logs the real error to Apps Script's built-in execution log (`Logger`, distinct from this project's own `Logger.gs`/`logEvent_()`) but never leaks it to the caller. Depends only on `FoundationContracts.gs`. | Added (F2) |
 
-This table grows as later Foundation batches (F2–F5) land — see docs/29 §13/§14 for the
+This table grows as later Foundation batches (F3–F5) land — see docs/29 §13/§14 for the
 batch sequence and what each one delivers.

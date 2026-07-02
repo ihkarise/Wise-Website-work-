@@ -8,6 +8,69 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-02 — Phase 2A implementation: Foundation Batch F2 (shared contracts + utilities)
+
+Second implementation batch of Phase 2A, per the approved Foundation Implementation
+Plan. Per the plan's one named bootstrap exception (`shared/README.md`), this batch
+creates a `shared/` contract and its first Apps Script adaptation together, since
+neither existed before this batch — every change to either after this point must
+follow the shared-first, implementation-second rule with no exception available.
+
+### Added
+- `shared/contracts/response-envelope.schema.json` (version `1.0.0`) + `.md` — the
+  canonical `{status, data, error}` response shape every Foundation function returns.
+- `shared/utils/core.reference.js` (version `1.0.0`) + `.md` — canonical reference
+  implementations of `generateId()`, `nowIso()`, `escapeHtml()`.
+- `apps-script/FoundationUtils.gs` — `generateFoundationId_()` (uses Apps Script's
+  native `Utilities.getUuid()`, not the reference's portable algorithm — same
+  contract, better implementation, per `shared/README.md`'s "conform to the contract,
+  not necessarily the algorithm" rule), `foundationNowIso_()`, `escapeFoundationHtml_()`.
+- `apps-script/FoundationContracts.gs` — `buildFoundationOkEnvelope_()` /
+  `buildFoundationErrorEnvelope_()`, adapting the response-envelope schema.
+- `apps-script/FoundationErrorHandling.gs` — `withFoundationErrorHandling_()`, which
+  guarantees every wrapped call returns the envelope shape and never leaks a raw
+  exception message to the caller.
+
+### Changed
+- `apps-script/README.md`: append-only — three new rows in the "Phase 2A Foundation
+  modules" table added in F1. No existing row or sentence was altered.
+- `docs/29-PHASE-2A-TECHNICAL-PLAN.md`: §14 extended with Batch F2's implementation
+  notes, including a real naming collision this batch's pre-write review caught and
+  avoided (see Notes below).
+- `docs/24-ROADMAP.md`: Phase 2A status line updated to reflect F2 shipping alongside
+  F1.
+
+### Verification
+- A collision scan across every existing Apps Script global function name, run
+  *before* writing any F2 code, found that a literal port of the reference
+  `escapeHtml()` would have collided with Phase 1.5's own `Utils.gs` `escapeHtml_()`
+  — both now share one Apps Script project's flat function namespace. Named the new
+  function `escapeFoundationHtml_()` instead. (The first pass of this scan itself had
+  a case-sensitivity bug that produced a false-positive collision report; caught and
+  fixed before trusting the result.)
+- `node --check` passed on every new `.gs` file.
+- `shared/utils/core.reference.js`'s three functions executed directly in Node with
+  assertions on their output: `generateId()` produces a valid RFC 4122 v4 shape,
+  `nowIso()` produces a valid ISO 8601 UTC millisecond timestamp, `escapeHtml()`
+  produces the exact expected escaped output and never throws on a non-string input.
+- `FoundationContracts.gs`'s two builders (pure functions, no Apps Script dependency)
+  executed directly in Node; output checked against `response-envelope.schema.json`'s
+  required keys, `status` enum, and success/error `oneOf` shape — all passed.
+- `withFoundationErrorHandling_()` executed with a minimal `Logger` stub, confirming a
+  thrown exception's raw message is logged for debugging but never reaches the caller.
+- `cd validation/phase-1-5 && node validate.js` re-run against this batch's final
+  commit: **39/39 checks still passing** — zero regression to Phase 1.5.
+
+### Notes
+- No Google Sheet, Script Property value, or live Apps Script deployment change is
+  part of this batch.
+- Automated, schema-validator-based conformance testing
+  (`validation/phase-2a-foundation/conformance.js`) remains an F5 deliverable — this
+  batch's checks were real (executed against the actual committed source) but ad hoc,
+  not yet backed by a committed, repeatable harness.
+- Next: Foundation Batch F3 (data layer + Patient Identity) — awaiting approval before
+  starting, per the Foundation plan's explicit "wait for approval" requirement.
+
 ## 2026-07-02 — Phase 2A implementation: Foundation Batch F1 (scaffolding)
 
 First implementation batch of Phase 2A, per the approved Foundation Implementation

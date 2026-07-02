@@ -433,3 +433,50 @@ directly verifying Phase 1.5's behavior was not affected by this batch.
 Deferred to later batches: `shared/contracts/`, `shared/schemas/`, and `shared/utils/`
 remain empty until F2/F3 populate them; no `Foundation*` logic beyond the config
 placeholder exists yet.
+
+## Batch F2 (complete)
+
+Delivered, per this plan's own bootstrap exception (§6/`shared/README.md`) — a
+`shared/` contract and its first Apps Script adaptation, created together:
+
+- `shared/contracts/response-envelope.schema.json` (version `1.0.0`) + `.md` — the
+  `{status, data, error}` shape every Foundation function returns, adapted as
+  `apps-script/FoundationContracts.gs`'s `buildFoundationOkEnvelope_()`/
+  `buildFoundationErrorEnvelope_()`.
+- `shared/utils/core.reference.js` (version `1.0.0`) + `.md` — `generateId()`,
+  `nowIso()`, `escapeHtml()`, adapted as `apps-script/FoundationUtils.gs`'s
+  `generateFoundationId_()`, `foundationNowIso_()`, `escapeFoundationHtml_()`.
+- `apps-script/FoundationErrorHandling.gs`'s `withFoundationErrorHandling_()` —
+  guarantees every wrapped call returns the envelope shape, logging the real error to
+  Apps Script's execution log (not yet persisted to a Sheet — `FoundationAudit.gs`,
+  batch F3, adds that layer) but never leaking it to the caller.
+
+**A real collision was caught and avoided, not just theoretically possible.**
+Reviewing Phase 1.5's existing global function names before writing any F2 code found
+that a literal port of the reference `escapeHtml()` would have collided with Phase
+1.5's own `Utils.gs` `escapeHtml_()` — both now live in the same Apps Script project's
+flat function namespace (docs/29 §14's Decision 1), so a same-named second definition
+would have silently overwritten the first. `escapeFoundationHtml_()`'s distinct name
+avoids this; documented in `shared/utils/core.md` as the reference case for why every
+Foundation function is distinctly named, not just as a style preference.
+
+**`generateFoundationId_()` uses `Utilities.getUuid()`, not the reference algorithm** —
+the first concrete example of `shared/README.md`'s "conform to the contract, not
+necessarily the algorithm" rule: the reference `.js` demonstrates the required output
+shape in portable JS; Apps Script's native primitive already satisfies that shape and
+is what the adaptation actually calls.
+
+**Verification performed** (all real, not assumed): `node --check` on every new
+`.gs` file; the reference utilities executed directly in Node with assertions on
+their output (UUID shape, ISO 8601 format, HTML-escaping correctness); a
+collision scan across every existing Apps Script global function name (none found
+after fixing one case-sensitivity bug in the scan itself); `FoundationContracts.gs`'s
+two builders executed directly in Node (they have no Apps Script dependency) with
+their output checked against `response-envelope.schema.json`'s required keys, status
+enum, and `oneOf` success/error shape; `withFoundationErrorHandling_()` executed with
+a minimal `Logger` stub, confirming a thrown exception's raw message never reaches the
+caller; `validation/phase-1-5/validate.js` re-run clean (39/39) confirming zero
+regression to Phase 1.5. Automated, schema-validator-based conformance testing
+(`validation/phase-2a-foundation/conformance.js`) remains an F5 deliverable, not
+built early — this batch's checks were real but ad hoc, run directly against the
+committed source rather than through a committed harness.
