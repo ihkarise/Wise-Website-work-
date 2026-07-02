@@ -8,6 +8,26 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-02 — Phase 1.5, Batch 4G: full pipeline validation
+
+Validation phase, per explicit scope: no new features, no architectural refactor, no code optimization. Zero lines changed in `apps-script/` — confirmed by `git status` showing only new files under `validation/`. Objective: prove the complete pipeline (staff submission → validation → Sheet write → AI normalization → doctor review → gate evaluation → email delivery → retention) works exactly as designed, stage by stage and end to end, including every required failure mode.
+
+### Added
+- `validation/phase-1-5/harness.js`: loads the real, unmodified `apps-script/*.gs` source into a mocked Apps Script runtime (in-memory Sheet; fake `PropertiesService`/`UrlFetchApp`/`MailApp`/`ScriptApp`/`Session`) — the strongest verification available without a live Google Workspace deployment, since it exercises the actual committed code rather than a reimplementation of its logic.
+- `validation/phase-1-5/validate.js`: drives that real source through every pipeline stage independently and the full end-to-end workflow (success path twice — once through to a real send + 20-days-later retention purge, once through a doctor rejection — plus a tampered-consent path caught at review time). **37/37 checks passed**, including the existing 26-test `Tests.gs` suite re-run through the same real-source harness.
+- `validation/phase-1-5/README.md`: what the harness proves, and — equally important — what it explicitly does not prove (Workspace-domain access restriction, a real OpenRouter call, a real email actually arriving, the live retention trigger firing on schedule, a real-patient pilot), since none of those are achievable without a live deployment this environment doesn't have.
+
+### Coverage
+Per this batch's explicit requirements, all tested and confirmed to leave the system in a safe state: success path; validation failures (missing consent, unknown condition slug, malformed JSON); AI failures (missing key, provider HTTP error); Sheets-write failures (initial submission and retention, both non-fatal to the rest of the batch); provider (email) failures; consent failures (submission-time rejection, and a stronger send-time check — tampering `patient_consent_confirmed` directly in an already-`approved` row still blocks the email); review failures (rejection sends nothing); retention failures (one row's write failure logged and skipped, batch continues, idempotency proven by running the purge twice with zero re-purges); HTML injection (a synthetic `<script>`-bearing AI draft confirmed escaped in the actual email body).
+
+### Documentation
+- `docs/25-PHASE-1.5-TECHNICAL-PLAN.md` §10 (Definition of Done): checklist updated to distinguish what Batch 4G verified from what remains open pending live deployment — the Workspace-domain access check, the live OpenRouter/MailApp calls, the live retention trigger, and the required real-patient pilot. §11 gained a full Batch 4G retrospective.
+- `docs/24-ROADMAP.md`: Phase 1.5 status updated to "implementation and code-level validation complete; live deployment + real-patient pilot still required."
+
+### Notes
+- **Phase 1.5 is not marked done.** Every item verifiable without live Google Workspace credentials has been verified; the remaining Definition-of-Done items are deployment/operations work for whoever runs this project against a real Workspace, not further code work.
+- Do not begin Phase 2A until docs/25 §10's full checklist is closed.
+
 ## 2026-07-02 — Phase 1.5, Batch 4F: automated retention purge
 
 New: `apps-script/Retention.gs` — the 14-day retention policy from `docs/25` §9.3, implemented as a time-driven trigger fully independent of `Review.gs`/`Send.gs`/`Email.gs`. This is the last implementation batch before Phase 1.5's testing/validation pass (Batch 4G).
