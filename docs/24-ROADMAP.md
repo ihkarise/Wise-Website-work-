@@ -66,7 +66,9 @@ Remaining
 Status: Architecture approved (docs/29-PHASE-2A-TECHNICAL-PLAN.md,
 docs/30-ARCHITECTURE-PRINCIPLES.md, docs/31-ADR-INDEX.md,
 docs/33-DOMAIN-MODEL.md, docs/34-ARCHITECTURE-CONSISTENCY-REVIEW.md).
-Implementation not yet started.
+Implementation in progress — Foundation batch F1 (scaffolding: `shared/`
+directory, Apps Script config skeleton) shipped. See docs/29 §14 for
+implementation notes and the full F1–F5 Foundation batch sequence.
 
 - Patient Login (passwordless, ADR-003)
 - Dashboard shell
