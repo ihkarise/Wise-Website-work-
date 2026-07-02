@@ -15,7 +15,11 @@ function runAllTests_() {
     test_unknownConditionSlugFails_(),
     test_oversizedNoteFails_(),
     test_invalidEmailFails_(),
-    test_sanitizeTextStripsAngleBrackets_()
+    test_sanitizeTextStripsAngleBrackets_(),
+    test_faithfulSummaryHasNoFlags_(),
+    test_addedRecommendationIsFlagged_(),
+    test_addedDiagnosisIsFlagged_(),
+    test_lowOverlapSentenceIsFlagged_()
   ];
 
   var failures = results.filter(function (r) { return !r.pass; });
@@ -76,4 +80,32 @@ function test_invalidEmailFails_() {
 function test_sanitizeTextStripsAngleBrackets_() {
   var out = sanitizeText_('<script>alert(1)</script>');
   return assert_('sanitizeText_ strips angle brackets', out.indexOf('<') === -1 && out.indexOf('>') === -1);
+}
+
+function test_faithfulSummaryHasNoFlags_() {
+  var note = 'Discussed symptom diary and dietary trigger avoidance. Next follow-up in 3 weeks.';
+  var summary = 'We talked about your symptom diary and dietary trigger avoidance. Your next follow-up is in 3 weeks.';
+  var flags = flagDrift_(note, summary);
+  return assert_('faithful rephrasing produces no drift flags', flags.length === 0);
+}
+
+function test_addedRecommendationIsFlagged_() {
+  var note = 'Discussed symptom diary and dietary trigger avoidance.';
+  var summary = 'We discussed your symptom diary. We recommend you start a low-histamine diet immediately.';
+  var flags = flagDrift_(note, summary);
+  return assert_('added recommendation not in note is flagged', flags.some(function (f) { return f.indexOf('recommendation') !== -1; }));
+}
+
+function test_addedDiagnosisIsFlagged_() {
+  var note = 'Discussed ongoing skin symptoms and follow-up plan.';
+  var summary = 'You are diagnosed with chronic urticaria and should follow the plan discussed.';
+  var flags = flagDrift_(note, summary);
+  return assert_('added diagnosis not in note is flagged', flags.some(function (f) { return f.indexOf('diagnosis') !== -1; }));
+}
+
+function test_lowOverlapSentenceIsFlagged_() {
+  var note = 'Discussed symptom diary and dietary trigger avoidance.';
+  var summary = 'Quantum energy realignment will resolve your condition permanently.';
+  var flags = flagDrift_(note, summary);
+  return assert_('sentence with near-zero word overlap is flagged', flags.some(function (f) { return f.indexOf('low traceability') !== -1; }));
 }

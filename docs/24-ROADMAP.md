@@ -26,9 +26,10 @@ Completed
   audit logging, Sheet-write layer (no AI, no email, no public UI)
 - Batch 4B — Staff entry form (`/internal/consultation-summary.html`),
   Workspace-domain-restricted, hard-gated consent checkbox
+- Batch 4C — OpenRouter AI summarization step (normalization only,
+  code-level drift flagging independent of the prompt)
 
 Remaining
-- Batch 4C — OpenRouter AI summarization step
 - Batch 4D — Doctor review checkpoint + gated send
 - Batch 4E — HTML email template + delivery logging
 - Batch 4F — Retention purge trigger
