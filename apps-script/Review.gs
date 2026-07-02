@@ -2,7 +2,10 @@
  * Doctor review checkpoint (docs/25 §5.2, Batch 4D). This is a
  * Sheet-bound custom menu, not a Web App page — a doctor reviews and
  * approves a draft from inside the Sheet itself, authenticated as
- * whichever Workspace account has edit access to it. This intentionally
+ * whichever Google account has edit access to it (works identically
+ * whether that account is a personal Gmail account or a Workspace
+ * account — Google Sheet sharing permissions aren't Workspace-gated).
+ * This intentionally
  * does not reuse Batch 4B's fetch/Web-App form pattern: docs/25 §5.2
  * explicitly allows "Sheet-bound or minimal UI" for this step, and for a
  * staff-paced, one-row-at-a-time review action, a custom menu is simpler

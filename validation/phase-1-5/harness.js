@@ -26,7 +26,7 @@ const vm = require('vm');
 
 const APPS_SCRIPT_DIR = path.resolve(__dirname, '../../apps-script');
 const FILES = [
-  'Config.gs', 'Schema.gs', 'Validation.gs', 'Utils.gs', 'Logger.gs',
+  'Config.gs', 'Schema.gs', 'Validation.gs', 'Auth.gs', 'Utils.gs', 'Logger.gs',
   'Sheets.gs', 'Ai.gs', 'Send.gs', 'Email.gs', 'Review.gs', 'Retention.gs',
   'Code.gs', 'Tests.gs'
 ];

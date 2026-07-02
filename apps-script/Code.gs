@@ -13,6 +13,12 @@ function doPost(e) {
     return jsonResponse_(400, { errors: ['Request body must be valid JSON.'] });
   }
 
+  if (!verifyAccessCode_(input && input.access_code)) {
+    logEvent_('unauthorized', null, 'Missing or invalid staff access code.');
+    return jsonResponse_(401, { errors: ['Invalid access code.'] });
+  }
+  delete input.access_code;
+
   if (input && typeof input.staff_submitted_note === 'string') {
     input.staff_submitted_note = sanitizeText_(input.staff_submitted_note);
   }

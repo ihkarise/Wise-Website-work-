@@ -8,6 +8,64 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-02 — Phase 1.5 deployment: free personal Google account (no Workspace)
+
+Deployment decision: this project deploys from a free personal Google
+account (`wisehomeopathicmc@gmail.com`), not Google Workspace. Google
+Workspace's domain-restricted Web App access (the original
+`appsscript.json` `access: DOMAIN`) is not available to a personal
+account, so it is replaced with an application-level shared access code —
+everything else (Sheets, Apps Script, MailApp/Gmail, Drive) was already
+free and unaffected.
+
+### Added
+- `apps-script/Auth.gs` — `verifyAccessCode_()`, the new access gate:
+  checks a `STAFF_ACCESS_CODE` Script Property against every request's
+  `access_code` field, fails closed if the property is unset, before any
+  parsing/validation/Sheet write happens.
+- 4 new unit tests in `apps-script/Tests.gs` covering `verifyAccessCode_()`
+  (unset property, wrong code, empty code, correct code).
+- `apps-script/README.md`: new "Access control" section explaining why
+  Workspace's domain restriction doesn't exist for a personal account,
+  the shared-access-code replacement, its tradeoffs vs. Workspace, and
+  the no-redesign migration path back to Workspace if the clinic adopts
+  it later.
+
+### Changed
+- `apps-script/appsscript.json`: `webapp.access` changed from `DOMAIN` to
+  `ANYONE_ANONYMOUS` (the Web App URL is public; `Auth.gs`'s shared code
+  is the real access control now). `executeAs` unchanged (`USER_DEPLOYING`
+  — all mail still sends from the one clinic account).
+- `apps-script/Code.gs`: `doPost` now checks `verifyAccessCode_()` first,
+  before sanitization/validation; rejects with `401` and logs
+  `unauthorized` on failure.
+- `internal/consultation-summary.html`: added a required "Staff access
+  code" field, sent as `access_code`; removed Workspace-sign-in language
+  from the banner and error messages; added an explicit `401` message.
+- `apps-script/sample-payloads/*.json`: added an `access_code` field
+  (placeholder `REPLACE_WITH_YOUR_STAFF_ACCESS_CODE`) to the JSON samples.
+- `apps-script/README.md`: deployment steps rewritten for a free personal
+  account (no `clasp login` to a Workspace account, no domain-restricted
+  deploy option, new `STAFF_ACCESS_CODE` setup step); manual testing steps
+  updated to test the access-code gate instead of a Workspace/non-Workspace
+  account pair.
+- `docs/28-DEPLOYMENT-READINESS.md`: rewritten for the free-account
+  deployment — "Google Workspace configured" checklist item replaced with
+  "Google account confirmed" and "Staff access code configured and
+  verified."
+- `docs/25-PHASE-1.5-TECHNICAL-PLAN.md`: added a deployment-account
+  amendment note (v1.3) at the top, explaining that the plan's original
+  Workspace-domain-restriction language (§9.1, §9.7, §7, §10) describes
+  the original design and is superseded by the access-code control
+  described above; no other part of the plan changes.
+- `validation/phase-1-5/harness.js` and `validate.js`: updated the mocked
+  harness and test payloads to include `STAFF_ACCESS_CODE` /
+  `access_code`, and added explicit checks that a missing/wrong access
+  code is rejected with `401` before any row is written. 39/39 checks
+  pass (was 37/37 before the 2 new access-code checks + 4 new `Tests.gs`
+  cases folded into Stage 0's count).
+- `validation/phase-1-5/README.md`: result summary updated to 39/39.
+
 ## 2026-07-02 — Phase 1.5, Batch 4H: documentation, validation closeout, and formal completion
 
 Final batch of Phase 1.5, per explicit scope: documentation, validation closeout, and project synchronization only — no new features, no refactor, no optimization, no Phase 2 work. `git diff` against `apps-script/`, `internal/`, and `validation/` is empty; this batch touches only `docs/`, `apps-script/README.md`, and this file.

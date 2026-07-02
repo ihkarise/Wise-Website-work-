@@ -38,6 +38,7 @@ it — e.g. only `Sheets.gs` calls `SpreadsheetApp`.
 | `Config.gs` | All environment-specific values: Sheet name, allowed condition slugs, field length limits. The only file that should change between test and production. |
 | `Schema.gs` | The Sheet's column list (`SCHEMA_COLUMNS`), enum values (`REVIEW_STATUS`, `EMAIL_STATUS`), and `buildRow_()` to construct a full row from a validated submission. |
 | `Validation.gs` | `validateSubmission_()` and `sanitizeText_()` — all input validation/sanitization happens here, before anything touches a module further down the chain. |
+| `Auth.gs` | `verifyAccessCode_()` — the application-level access gate for the Web App endpoint. Replaces Google Workspace's domain-restricted deployment access (not available on a personal Google account) with a shared secret checked on every request, before anything else runs. See "Access control" below. |
 | `Sheets.gs` | The only module that calls `SpreadsheetApp`. Creates the sheet/header if missing, refuses to write if the live header has drifted from `Schema.gs`. `updateRowByRecordId_()` patches specific columns on an already-written row; `getRowObjectByRowIndex_()` reads one row's live values back as an object; `getAllRowObjects_()` batch-reads every data row, used only by `Retention.gs`. |
 | `Ai.gs` | The AI summarization step. A **normalization layer, not a content-generation layer** — see "AI boundaries" below. Calls OpenRouter, then runs a code-level drift check (`flagDrift_()`) independent of the prompt. Its prompt text implements `PROMPTS.md`, the canonical prompt specification — see below. |
 | `PROMPTS.md` | Version-controlled specification for `Ai.gs`'s prompt: purpose, inputs/outputs, safety rules, forbidden behaviours, traceability principles, future evolution notes. Not loaded at runtime — this is documentation the prompt must match, not a template Apps Script reads. |
@@ -78,6 +79,72 @@ undo it: if OpenRouter fails, the row still exists with an empty
 response still reports `{ status: 200, ai_summary_generated: false }` —
 a doctor can write the summary manually rather than losing the
 submission.
+
+## Access control (free personal Google account)
+
+This project is deployed from a personal Google account
+(`wisehomeopathicmc@gmail.com`), not Google Workspace. That changes exactly
+one thing about the design: **how the staff entry point is locked down**.
+Everything else — Google Sheets, Apps Script, Gmail delivery via `MailApp`,
+Google Drive — is already free and unaffected by not having Workspace.
+
+**Why this needed a real change, not just a wording change.** Apps Script
+Web Apps have a deployment-time "who has access" setting. "Anyone within
+[domain]" (`appsscript.json`'s old `access: DOMAIN`) is a Google Workspace
+feature — it doesn't exist as an option for a Web App deployed from a
+`@gmail.com` account, because a personal account isn't part of a Workspace
+domain for Google to restrict access to. Deploying from a personal account
+only offers "Anyone" (with or without requiring a Google sign-in).
+
+**The free-tier replacement: an application-level shared access code.**
+`appsscript.json`'s `access` is now `ANYONE_ANONYMOUS` (the Web App URL is
+publicly reachable), and `Auth.gs`'s `verifyAccessCode_()` is checked as the
+very first thing `doPost` does (`Code.gs`) — before parsing, sanitizing, or
+writing anything. Every submission must include an `access_code` field
+matching a `STAFF_ACCESS_CODE` value stored in Script Properties (never
+committed to this repo, same treatment as `OPENROUTER_API_KEY`). A missing
+or wrong code is rejected with `401` and logged via `logEvent_('unauthorized', ...)`
+before any other code runs — no row is ever written, no Sheet is ever
+touched, on an unauthorized request.
+
+**Tradeoffs vs. the Workspace domain restriction:**
+- *Identity vs. secret.* Workspace's domain restriction ties access to
+  "signed in with a real clinic Google identity" — every request is
+  attributable to a specific person by Google itself. A shared access code
+  only proves "knows the code," not "is a specific staff member." This
+  project already compensates for that at the one place identity actually
+  matters: `consent_confirmed_by` (typed by the submitting staff member) and
+  `reviewed_by` (`Review.gs`, captured automatically from
+  `Session.getActiveUser().getEmail()` of whoever has edit access to the
+  Sheet — Google Sheet sharing is per-account and works identically on a
+  free account, so this identity capture is unaffected).
+- *Revocation granularity.* Revoking one Workspace user's access doesn't
+  affect others; rotating a shared code affects everyone who has it (an
+  intentional, simple tradeoff for a small team — rotate the Script
+  Property and redistribute the new code out-of-band, e.g. verbally or a
+  private message, never by email in plain text).
+- *Brute-force exposure.* A public URL means the access code could in
+  principle be guessed by automated requests. Mitigate by using a long,
+  random code (20+ characters, e.g. generated by a password manager) rather
+  than a memorable phrase — treat it exactly like an API key, not a PIN.
+  This is intentionally not paired with in-app rate-limiting/lockout logic:
+  for this pilot's request volume, a long random code is sufficient, and
+  building a lockout mechanism risks a self-inflicted denial-of-service
+  (an attacker triggering enough failures to lock out real staff). Revisit
+  if usage patterns ever suggest otherwise.
+
+**Migrating to Google Workspace later requires no redesign.** If the clinic
+adopts Google Workspace in the future:
+1. Change `appsscript.json`'s `webapp.access` from `ANYONE_ANONYMOUS` to
+   `DOMAIN` (or set it via the Deploy dialog's "Anyone within [domain]").
+2. Optionally remove the `access_code` field from
+   `/internal/consultation-summary.html` and the `verifyAccessCode_()` check
+   in `Code.gs` — or simply leave both in place as a second layer of
+   defense on top of the domain restriction (defense in depth costs
+   nothing here).
+3. Nothing else changes: `Schema.gs`, `Validation.gs`, `Send.gs`,
+   `Email.gs`, `Review.gs`, and `Retention.gs` have no dependency on which
+   access-control mode is active.
 
 ## AI boundaries (Batch 4C)
 
@@ -133,7 +200,8 @@ selected:
 - **Reject selected row** → `review_status = rejected`, no send attempt
 
 `reviewed_by` is captured automatically from `Session.getActiveUser().getEmail()`
-(the signed-in Workspace account with edit access to the Sheet), not a
+(the signed-in Google account with edit access to the Sheet — a personal
+account works identically to a Workspace one here), not a
 free-text field — the same identity space as `consent_confirmed_by`.
 `reviewed_at` is stamped by Apps Script, not client-supplied.
 
@@ -286,28 +354,44 @@ This project has no npm dependencies and is not built/bundled — the
 
 ### Option A — clasp (recommended)
 
+This project is deployed from a **personal Google account**
+(`wisehomeopathicmc@gmail.com`), not Google Workspace — see "Access control"
+above for what that changes (one setting) and what it doesn't (everything
+else).
+
 1. `npm install -g @google/clasp` (one-time, local machine).
-2. `clasp login` (authenticates with a clinic Google Workspace account).
+2. `clasp login` (authenticates with `wisehomeopathicmc@gmail.com` — any
+   free Google account works the same way as a Workspace one for `clasp`).
 3. Create the Apps Script project once: `clasp create --type webapp --title "Phase 1.5 Consultation Summaries" --rootDir ./apps-script`, or `clasp clone <scriptId>` if the project already exists.
 4. Copy `.clasp.json.example` to `.clasp.json` and fill in the real `scriptId` (`.clasp.json` is intentionally not committed — it's environment-specific).
 5. `clasp push` from this directory to sync all files to the Apps Script project.
-6. In the Apps Script editor, bind the project to the target Google Sheet (`Phase1.5_ConsultationSummaries` per `Config.gs`) via **Resources → Cloud Platform project** or by creating the script from within the Sheet's Extensions menu.
+6. In the Apps Script editor, bind the project to the target Google Sheet (`Phase1.5_ConsultationSummaries` per `Config.gs`) — easiest path on a free account: create the Sheet first in Google Sheets (free, no Workspace needed), then **Extensions → Apps Script** from inside that Sheet to open a bound script project, and push into that one instead of a standalone script.
 7. Deploy as a Web App: **Deploy → New deployment → Web app**. Set:
-   - Execute as: **Me** (the deploying account) — matches `appsscript.json`'s `executeAs: USER_DEPLOYING`.
-   - Who has access: **Anyone within [clinic Workspace domain]** — matches `appsscript.json`'s `access: DOMAIN`. This is the actual access control (docs/25 §9.1) — do not change to "Anyone."
+   - Execute as: **Me** (the deploying account) — matches `appsscript.json`'s `executeAs: USER_DEPLOYING`. This means all patient emails send from `wisehomeopathicmc@gmail.com` regardless of which staff member submitted the note — no per-staff Gmail authorization needed.
+   - Who has access: **Anyone** — matches `appsscript.json`'s `access: ANYONE_ANONYMOUS`. A personal account cannot offer "Anyone within [domain]"; the shared `STAFF_ACCESS_CODE` (step 9 below) is the real access control here, not this setting — see "Access control" above.
 8. Copy the deployed Web App URL (ends in `/exec`) into
    `/internal/consultation-summary.html`'s `WEB_APP_URL` constant,
    replacing the `REPLACE_WITH_DEPLOYED_WEB_APP_URL` placeholder. The
    form refuses to submit and shows an explicit message until this is
    set, so a not-yet-connected form fails loudly instead of silently.
-9. Set the OpenRouter API key: Apps Script editor → **Project Settings →
-   Script Properties → Add script property**, key `OPENROUTER_API_KEY`,
-   value your OpenRouter key. `Ai.gs` reads it from
-   `PropertiesService` at call time — it is never written to any file in
-   this repo. Without it, submissions still succeed and write a row;
-   `ai_summary_draft` is just left empty with the failure logged to
-   `error_log` (see "AI boundaries" above).
-10. Install the retention trigger: Apps Script editor → select
+   This static page can be hosted for free on the site's existing GitHub
+   Pages deployment — no separate hosting needed.
+9. Set the staff access code: Apps Script editor → **Project Settings →
+   Script Properties → Add script property**, key `STAFF_ACCESS_CODE`,
+   value a long random string (20+ characters — treat it like an API key,
+   generate it with a password manager, don't reuse a real password).
+   Share this value with staff out-of-band (verbally, or a private
+   message — never by plain email). Without this property set, **every**
+   submission is rejected with `401` — `Auth.gs`'s `verifyAccessCode_()`
+   fails closed on an unset code (see "Access control" above).
+10. Set the OpenRouter API key: Apps Script editor → **Project Settings →
+    Script Properties → Add script property**, key `OPENROUTER_API_KEY`,
+    value your OpenRouter key. `Ai.gs` reads it from
+    `PropertiesService` at call time — it is never written to any file in
+    this repo. Without it, submissions still succeed and write a row;
+    `ai_summary_draft` is just left empty with the failure logged to
+    `error_log` (see "AI boundaries" above).
+11. Install the retention trigger: Apps Script editor → select
     `installRetentionTrigger_` from the function dropdown → **Run**
     (once). Confirm it under **Triggers** (clock icon) in the editor —
     should show `purgeExpiredRecipientEmails_`, time-driven, daily. Not
@@ -331,21 +415,27 @@ error-prone than clasp — use only if clasp isn't available.
 2. Run `runAllTests_()` from the Apps Script editor to check pure
    validation logic.
 3. Use **Run → Test deployment** (or `curl` against the deployed test
-   Web App URL) with each file in `sample-payloads/` and confirm the
-   **JSON body's `status` field** (not the transport-level HTTP status,
-   which Apps Script Web Apps always report as 200 — see `Utils.gs`):
-   - `valid-submission.json` → body `status: 200`, one new row.
-   - `missing-consent.json` → body `status: 400`, no row written.
-   - `invalid-condition-slug.json` → body `status: 400`, no row written.
+   Web App URL) with each file in `sample-payloads/` — each JSON sample
+   has an `access_code` field set to the placeholder
+   `REPLACE_WITH_YOUR_STAFF_ACCESS_CODE`; replace it with your test
+   `STAFF_ACCESS_CODE` value before sending, or you'll correctly get a
+   `401` first. Confirm the **JSON body's `status` field**
+   (not the transport-level HTTP status, which Apps Script Web Apps always
+   report as 200 — see `Utils.gs`):
+   - `valid-submission.json` (+ correct `access_code`) → body `status: 200`, one new row.
+   - `missing-consent.json` (+ correct `access_code`) → body `status: 400`, no row written.
+   - `invalid-condition-slug.json` (+ correct `access_code`) → body `status: 400`, no row written.
    - `malformed-json.txt` → body `status: 400`, no row written.
+   - any payload with a missing or wrong `access_code` → body `status: 401`, no row written — this is the free-tier equivalent of the domain-restriction check (see "Access control" above).
 4. With the Web App URL filled into `/internal/consultation-summary.html`
-   (step 8 above), load that page while signed in to a clinic Workspace
-   account and submit the form once with synthetic data — confirm a row
-   appears in the test Sheet and the page shows the returned `record_id`.
-   Then sign out (or use a private/incognito window with a non-Workspace
-   account) and confirm the request fails instead of writing a row —
-   this is the actual verification that domain-restricted access works,
-   not just that the form renders.
+   (step 8 above), load that page and submit the form once with the
+   correct staff access code and synthetic data — confirm a row appears
+   in the test Sheet and the page shows the returned `record_id`. Then
+   submit again with a wrong or blank access code and confirm the request
+   is rejected (`401`, page shows the "Access code is missing or
+   incorrect" message) and no row is written — this is the actual
+   verification that the access-code gate works, not just that the form
+   renders.
 5. With `OPENROUTER_API_KEY` set (step 9 above), submit again and
    confirm `ai_summary_draft`/`ai_model_used` are populated on the row.
    Then temporarily remove or misname the property and submit once more

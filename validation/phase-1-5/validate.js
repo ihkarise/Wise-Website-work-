@@ -18,8 +18,11 @@ function record(name, pass, detail) {
   console.log((pass ? 'PASS' : 'FAIL') + ' — ' + name + (detail ? '  (' + detail + ')' : ''));
 }
 
+const TEST_ACCESS_CODE = 'test-access-code';
+
 function freshRow(overrides) {
   return Object.assign({
+    access_code: TEST_ACCESS_CODE,
     condition_slug: 'mcas',
     staff_submitted_note: 'Reviewed symptom diary, discussed dietary trigger avoidance, confirmed supplement schedule.',
     patient_consent_confirmed: true,
@@ -41,15 +44,23 @@ function doPostJson(ctx, payload) {
   const h = buildSandbox({ scriptProperties: { OPENROUTER_API_KEY: 'test-key' } });
   const ctx = loadProject(h.sandbox);
   const ok = ctx.runAllTests_();
-  record('Stage0: apps-script/Tests.gs runAllTests_() — all 26 existing unit tests pass', ok === true);
+  record('Stage0: apps-script/Tests.gs runAllTests_() — all 30 existing unit tests pass', ok === true);
 })();
 
 // ============================================================
 // STAGE 1 — Staff Submission -> Validation (independent)
 // ============================================================
 (function stage1() {
-  const h = buildSandbox({ scriptProperties: { OPENROUTER_API_KEY: 'test-key' } });
+  const h = buildSandbox({ scriptProperties: { OPENROUTER_API_KEY: 'test-key', STAFF_ACCESS_CODE: 'test-access-code' } });
   const ctx = loadProject(h.sandbox);
+
+  const wrongCode = doPostJson(ctx, freshRow({ access_code: 'wrong-code' }));
+  record('Stage1: wrong access_code rejected (401), no row written', wrongCode.status === 401 && h.sheet.getLastRow() === 0,
+    JSON.stringify(wrongCode));
+
+  const missingCode = doPostJson(ctx, freshRow({ access_code: undefined }));
+  record('Stage1: missing access_code rejected (401), no row written', missingCode.status === 401 && h.sheet.getLastRow() === 0,
+    JSON.stringify(missingCode));
 
   const bad = doPostJson(ctx, freshRow({ patient_consent_confirmed: false }));
   record('Stage1: submission with consent unchecked is rejected (400)', bad.status === 400 && h.sheet.getLastRow() === 0,
@@ -71,7 +82,7 @@ function doPostJson(ctx, payload) {
   // §8.3's third named failure mode: "if Sheets write fails" during the
   // initial submission itself (distinct from a later retention/send
   // write failure, covered in Stage4/Stage5).
-  const h = buildSandbox({ scriptProperties: { OPENROUTER_API_KEY: 'test-key' } });
+  const h = buildSandbox({ scriptProperties: { OPENROUTER_API_KEY: 'test-key', STAFF_ACCESS_CODE: 'test-access-code' } });
   const ctx = loadProject(h.sandbox);
   h.sheet.appendRow = () => { throw new Error('simulated Sheets outage'); };
 
@@ -84,7 +95,7 @@ function doPostJson(ctx, payload) {
 // STAGE 2 — AI Normalization (independent: success + failure)
 // ============================================================
 (function stage2_success() {
-  const h = buildSandbox({ scriptProperties: { OPENROUTER_API_KEY: 'test-key' } });
+  const h = buildSandbox({ scriptProperties: { OPENROUTER_API_KEY: 'test-key', STAFF_ACCESS_CODE: 'test-access-code' } });
   const ctx = loadProject(h.sandbox);
   const res = doPostJson(ctx, freshRow());
   const row = h.sheet._rows[1];
@@ -94,7 +105,7 @@ function doPostJson(ctx, payload) {
 })();
 
 (function stage2_failure_missing_key() {
-  const h = buildSandbox({ scriptProperties: {} }); // no OPENROUTER_API_KEY
+  const h = buildSandbox({ scriptProperties: { STAFF_ACCESS_CODE: 'test-access-code' } }); // no OPENROUTER_API_KEY
   const ctx = loadProject(h.sandbox);
   const res = doPostJson(ctx, freshRow());
   const row = h.sheet._rows[1];
@@ -107,7 +118,7 @@ function doPostJson(ctx, payload) {
 })();
 
 (function stage2_failure_provider_error() {
-  const h = buildSandbox({ scriptProperties: { OPENROUTER_API_KEY: 'test-key' } });
+  const h = buildSandbox({ scriptProperties: { OPENROUTER_API_KEY: 'test-key', STAFF_ACCESS_CODE: 'test-access-code' } });
   h.setUrlFetchImpl(() => ({ getResponseCode: () => 500, getContentText: () => 'upstream error' }));
   const ctx = loadProject(h.sandbox);
   const res = doPostJson(ctx, freshRow());
@@ -279,7 +290,7 @@ function doPostJson(ctx, payload) {
 // STAGE 6 — Full End-to-End Pipeline (success path)
 // ============================================================
 (function e2e_success() {
-  const h = buildSandbox({ scriptProperties: { OPENROUTER_API_KEY: 'test-key' } });
+  const h = buildSandbox({ scriptProperties: { OPENROUTER_API_KEY: 'test-key', STAFF_ACCESS_CODE: 'test-access-code' } });
   const ctx = loadProject(h.sandbox);
 
   // 1. Staff submission -> validation -> Sheet write -> AI normalization (synchronous, all in doPost)
@@ -345,7 +356,7 @@ function doPostJson(ctx, payload) {
 // STAGE 7 — Full End-to-End Pipeline (rejection path — no send)
 // ============================================================
 (function e2e_rejection() {
-  const h = buildSandbox({ scriptProperties: { OPENROUTER_API_KEY: 'test-key' } });
+  const h = buildSandbox({ scriptProperties: { OPENROUTER_API_KEY: 'test-key', STAFF_ACCESS_CODE: 'test-access-code' } });
   const ctx = loadProject(h.sandbox);
   doPostJson(ctx, freshRow());
   h.sandbox.SpreadsheetApp.getActiveSheet = () => h.sheet;
@@ -360,7 +371,7 @@ function doPostJson(ctx, payload) {
 // STAGE 8 — Full End-to-End Pipeline (tampered consent blocks send at review time)
 // ============================================================
 (function e2e_tampered_consent() {
-  const h = buildSandbox({ scriptProperties: { OPENROUTER_API_KEY: 'test-key' } });
+  const h = buildSandbox({ scriptProperties: { OPENROUTER_API_KEY: 'test-key', STAFF_ACCESS_CODE: 'test-access-code' } });
   const ctx = loadProject(h.sandbox);
   doPostJson(ctx, freshRow());
   // Simulate staff/doctor manually editing the consent cell directly in the Sheet.

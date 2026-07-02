@@ -52,8 +52,9 @@ h1{font-family:var(--font-display);font-size:clamp(24px,4vw,30px);color:var(--co
 <div class="wrap">
 
   <div class="banner">
-    Internal staff tool — not for patients. Requires sign-in with your clinic
-    Google Workspace account. Do not share this link outside the clinic team.
+    Internal staff tool — not for patients. Requires the clinic staff access
+    code (ask your administrator). Do not share this link or the access code
+    outside the clinic team.
   </div>
 
   <h1 class="serif">Post-Consultation Summary</h1>
@@ -61,6 +62,11 @@ h1{font-family:var(--font-display);font-size:clamp(24px,4vw,30px);color:var(--co
 
   <div class="card">
     <form id="summaryForm" novalidate>
+
+      <div class="field">
+        <label for="access_code">Staff access code<span class="hint">Ask your administrator if you don't have this.</span></label>
+        <input id="access_code" name="access_code" type="password" required autocomplete="off">
+      </div>
 
       <div class="field">
         <label for="condition_slug">Condition</label>
@@ -154,6 +160,7 @@ h1{font-family:var(--font-display);font-size:clamp(24px,4vw,30px);color:var(--co
     }
 
     var payload = {
+      access_code: document.getElementById('access_code').value,
       condition_slug: document.getElementById('condition_slug').value,
       staff_submitted_note: noteField.value,
       patient_consent_confirmed: consentBox.checked,
@@ -181,13 +188,16 @@ h1{font-family:var(--font-display);font-size:clamp(24px,4vw,30px);color:var(--co
           form.reset();
           noteCount.textContent = '0';
           updateSubmitState();
+        } else if (data.status === 401) {
+          showStatus('err', 'Access code is missing or incorrect. Check with your administrator and try again.');
+          updateSubmitState();
         } else {
           showStatus('err', (data.errors || ['Submission failed.']).join(' '));
           updateSubmitState();
         }
       })
       .catch(function () {
-        showStatus('err', 'Could not reach the submission service. If you are not signed in to your clinic Google Workspace account in this browser, sign in and try again.');
+        showStatus('err', 'Could not reach the submission service. Check your internet connection and try again.');
         updateSubmitState();
       });
   });
