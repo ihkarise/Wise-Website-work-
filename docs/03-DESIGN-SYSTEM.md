@@ -83,19 +83,8 @@ Body Font: **Poppins**
 
 ## Navigation
 
-Home
-
-Conditions
-
-Online Consultation
-
-Doctors
-
-Resources
-
-Contact
-
-Patient Login remains separate.
+See docs/08-NAVIGATION-ARCHITECTURE.md for the canonical navigation structure —
+not restated here to avoid two documents drifting out of sync.
 
 ## Performance Rules
 

@@ -91,6 +91,9 @@ Target Lighthouse:
 - Best Practices 95+
 - SEO 100
 
+Underlying performance rules (image optimization, lazy loading, minimal JS, caching):
+see docs/16-PERFORMANCE-STANDARDS.md — not restated here to avoid drift.
+
 ---
 
 # Technical SEO

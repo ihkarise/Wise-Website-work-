@@ -7,8 +7,15 @@ Purpose: Define how data flows across the website and future patient ecosystem.
 - Single source of truth
 - Minimal data collection
 - Patient-owned journey
-- Google Sheets as primary datastore
-- Google Apps Script as backend API
+
+## Current Implementation
+Google Sheets (via Google Apps Script as the backend API) is the platform's current
+storage mechanism — a deliberate, cost-effective choice at pilot scale, **not a
+product-level principle**. Per ADR-006 (docs/31-ADR-INDEX.md), every schema is
+designed as if a migration to a real database is a certainty: flat, typed-by-
+convention columns; a stable, permanent UUID primary key per record; no per-patient
+tabs. This section states the current implementation; the "Future" section below
+states the binding rule it must satisfy.
 
 ## Phase 1
 Public website:

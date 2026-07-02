@@ -56,16 +56,8 @@ My Health Journey (Future)
 
 # Navigation Rules
 
-Primary navigation:
-
-- Home
-- Conditions
-- Online Consultation
-- Doctors
-- Resources
-- Contact
-
-Patient Login is always separate.
+Primary navigation structure: see docs/08-NAVIGATION-ARCHITECTURE.md (not restated
+here to avoid drift).
 
 Every page must provide a logical next step.
 
@@ -75,11 +67,8 @@ No dead ends.
 
 # Content Hierarchy
 
-1. Short answer
-2. Simple explanation
-3. Detailed information
-4. FAQ
-5. Call to Action
+See docs/06-CONTENT-GUIDELINES.md's "Page Structure" for the canonical hierarchy —
+not restated here to avoid drift.
 
 Avoid long uninterrupted text.
 
@@ -111,16 +100,8 @@ Avoid multiple competing CTAs.
 
 # Floating Page Guide
 
-Long pages should include:
-
-- Overview
-- Symptoms
-- Treatment
-- FAQ
-- Research
-- Book Consultation
-
-Highlight current section while scrolling.
+See docs/08-NAVIGATION-ARCHITECTURE.md's "Floating Page Guide" for the canonical
+component definition — not restated here to avoid drift.
 
 ---
 
@@ -158,20 +139,15 @@ Distribute trust throughout the page:
 
 # Accessibility
 
-- Keyboard navigation
-- Visible focus states
-- Semantic HTML
-- Alt text
-- WCAG AA contrast
+See docs/14-ACCESSIBILITY-STANDARDS.md for the canonical requirements — not restated
+here to avoid drift.
 
 ---
 
 # Performance
 
-- Minimal JavaScript
-- Optimized images
-- Lazy loading
-- Lighthouse target 95+
+See docs/16-PERFORMANCE-STANDARDS.md for the canonical targets — not restated here to
+avoid drift.
 
 ---
 

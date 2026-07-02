@@ -167,6 +167,12 @@ the other.
 
 **Governing ADRs: ADR-002, ADR-006 (Sheets as implementation detail), ADR-009.**
 
+docs/33-DOMAIN-MODEL.md is the canonical reference for what each entity below *means*
+(purpose, relationships, lifecycle, ownership). The table below describes current
+*implementation* shape only — which Sheet, which columns — and should be read as an
+implementation detail of the entities docs/33 defines, not a second, independent
+definition of them.
+
 Extends docs/12's pattern (Website → Apps Script → Google Sheets), same schema
 discipline Phase 1.5 proved: flat columns, stable UUID `record_id`, no per-patient
 tabs, SQL-migration-safe by design. A new spreadsheet, separate from

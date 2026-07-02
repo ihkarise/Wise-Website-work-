@@ -46,7 +46,8 @@ Future Support
 - Progress Dashboard
 - Personal Care Plan
 - Reports
-- Prescriptions
+- Prescriptions (modeled as a `medicine`-type Doctor Instruction, part of Personal
+  Care Plan — see docs/33-DOMAIN-MODEL.md §2.3; not a separate entity)
 - Symptom Tracker
 - AI-assisted summaries
 

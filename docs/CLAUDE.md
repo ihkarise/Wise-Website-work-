@@ -18,6 +18,20 @@ If implementation conflicts with Product Vision:
 - Explain the conflict
 - Recommend the best solution
 
+## Architecture Freeze
+
+Once Phase 2A implementation begins:
+
+- ADRs are authoritative.
+- Architecture Principles are authoritative.
+- Domain Model is authoritative.
+
+Claude must not redesign the architecture unless explicitly instructed.
+
+Implementation should conform to the approved architecture.
+
+Architectural changes require an explicit architecture review before implementation.
+
 ## Core Principles
 - Refine, don't rebuild.
 - Preserve branding.
