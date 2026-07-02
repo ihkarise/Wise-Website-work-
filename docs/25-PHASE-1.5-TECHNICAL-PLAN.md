@@ -447,6 +447,40 @@ The condition dropdown's option list is hand-duplicated from
 repository-structure review above) — both are commented to point at each
 other; there is no automated sync yet.
 
+## Batch 4C (complete)
+
+Added `apps-script/Ai.gs`, called synchronously from `Code.gs` after the
+row write succeeds (§9.5). Per an explicit implementation-time
+requirement, the AI step is treated as a **normalization layer, not a
+content-generation layer**: it may only rephrase `staff_submitted_note`
+into plain language, and must never add a diagnosis, recommendation,
+investigation, medicine, reassurance, or conclusion absent from the
+source note. Every output sentence must be traceable to the note; missing
+information is omitted, never inferred.
+
+This is enforced two independent ways (both required, neither sufficient
+alone):
+- **Prompt** — `SUMMARY_SYSTEM_PROMPT_`, nine explicit numbered rules
+  covering each prohibited category plus "omit rather than infer."
+- **Implementation** — `flagDrift_()`, a code-level check that (a) scans
+  for prohibited-category lexicon matches present in the summary but
+  absent from the note, and (b) flags any summary sentence whose word
+  overlap with the note's vocabulary falls below 0.3. Flags are written
+  to `error_log` (prefixed `AI_REVIEW_FLAGS:`) for the doctor reviewer
+  built in Batch 4D — never auto-blocking, since no send capability
+  exists until 4D/4E and both remain gated on human review regardless.
+
+Model: `anthropic/claude-haiku-4.5` via OpenRouter, `temperature: 0`, per
+the already-locked §9.4 decision. API key read from Script Properties
+only (`OPENROUTER_API_KEY`), never committed to the repo. An AI-call
+failure (missing key, OpenRouter error, timeout) never undoes the row
+already written by 4A — `ai_summary_draft` is left empty, the failure is
+logged to `error_log`, and the submission still returns success to
+staff, consistent with §8.3's failure-path requirement.
+
+`docs/13-AI-GUIDELINES.md` updated with this as a worked example / future
+reference pattern for AI usage elsewhere in the platform.
+
 ---
 
 # 12. Documentation Impact

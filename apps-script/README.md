@@ -10,7 +10,8 @@ and leave the repo out of sync; changes flow from here outward via
 
 **Batch 4A** — schema, validation, and Sheet-write layer. Complete.
 **Batch 4B** — staff entry form (`/internal/consultation-summary.html`). Complete.
-No AI summarization, no email sending, no patient login yet.
+**Batch 4C** — AI summarization (normalization only). Complete.
+No email sending, no doctor review/approve UI, no patient login yet.
 See docs/25 §9 for the batch sequence this project is built in.
 
 ## Module layout
@@ -25,13 +26,14 @@ it — e.g. only `Sheets.gs` calls `SpreadsheetApp`.
 | `Config.gs` | All environment-specific values: Sheet name, allowed condition slugs, field length limits. The only file that should change between test and production. |
 | `Schema.gs` | The Sheet's column list (`SCHEMA_COLUMNS`), enum values (`REVIEW_STATUS`, `EMAIL_STATUS`), and `buildRow_()` to construct a full row from a validated submission. |
 | `Validation.gs` | `validateSubmission_()` and `sanitizeText_()` — all input validation/sanitization happens here, before anything touches a module further down the chain. |
-| `Sheets.gs` | The only module that calls `SpreadsheetApp`. Creates the sheet/header if missing, refuses to write if the live header has drifted from `Schema.gs`. |
+| `Sheets.gs` | The only module that calls `SpreadsheetApp`. Creates the sheet/header if missing, refuses to write if the live header has drifted from `Schema.gs`. `updateRowByRecordId_()` patches specific columns on an already-written row — used by the AI step and every later batch. |
+| `Ai.gs` | The AI summarization step. A **normalization layer, not a content-generation layer** — see "AI boundaries" below. Calls OpenRouter, then runs a code-level drift check (`flagDrift_()`) independent of the prompt. |
 | `Logger.gs` | `logEvent_()` — thin wrapper around the Apps Script execution log for pipeline-stage audit events. |
 | `Utils.gs` | Small stateless helpers (currently: `jsonResponse_()`). No dependency on any other module. |
-| `Tests.gs` | Manual unit tests for pure logic (`Validation.gs`). Run `runAllTests_()` from the Apps Script editor; no live Sheet or network calls. |
+| `Tests.gs` | Manual unit tests for pure logic (`Validation.gs`, `Ai.gs`'s `flagDrift_()`). Run `runAllTests_()` from the Apps Script editor; no live Sheet or network calls. |
 | `sample-payloads/` | Example `doPost` bodies for manual/curl testing — one valid, and a few that should each fail validation for a specific reason. |
 
-## Request flow (Batch 4A)
+## Request flow
 
 ```
 doPost(e)
@@ -43,12 +45,53 @@ doPost(e)
   ├─ buildRow_(input)                          [Schema.gs]
   ├─ appendRow_(row)                           [Sheets.gs]
   │     └─ getSheet_() / ensureHeader_()       [Sheets.gs]
-  └─ logEvent_('submitted', ...)               [Logger.gs]
+  ├─ logEvent_('submitted', ...)               [Logger.gs]
+  ├─ summarizeNote_(note)                      [Ai.gs]
+  │     ├─ callOpenRouterSummary_(note)        [Ai.gs]
+  │     └─ flagDrift_(note, summary)           [Ai.gs]
+  └─ updateRowByRecordId_(id, ai fields)       [Sheets.gs]
 ```
 
-Every request either returns `{ status: 200, record_id }` with a new row
-written, or a `4xx`/`5xx` JSON error with **nothing** written to the
-Sheet. There is no partial-write state.
+The submission (steps 1-6) either returns `{ status: 200, record_id }`
+with a new row written, or a `4xx`/`5xx` JSON error with **nothing**
+written to the Sheet — no partial-write state. The AI step (7-8) always
+runs synchronously after a successful write (docs/25 §9.5) but can never
+undo it: if OpenRouter fails, the row still exists with an empty
+`ai_summary_draft` and the failure logged to `error_log`, and the
+response still reports `{ status: 200, ai_summary_generated: false }` —
+a doctor can write the summary manually rather than losing the
+submission.
+
+## AI boundaries (Batch 4C)
+
+`Ai.gs` is a **normalization layer, not a content-generation layer**. It
+may only rephrase `staff_submitted_note` into plain language; it must
+never add a diagnosis, recommendation, investigation, medicine,
+reassurance, or conclusion that isn't already in the note, and every
+output sentence must be traceable back to something the doctor actually
+wrote (docs/25 §6). This is enforced two ways, deliberately independent
+of each other:
+
+1. **`SUMMARY_SYSTEM_PROMPT_`** — instructs the model, in explicit
+   numbered rules, to normalize only: no diagnosis, no recommendation,
+   no investigation, no medicine, no reassurance, no conclusion, no
+   inference, omit rather than guess.
+2. **`flagDrift_(note, summary)`** — a code-level check that does not
+   trust the prompt was followed. It (a) scans the summary for phrases
+   from a small lexicon signaling each prohibited category (e.g.
+   "recommend", "diagnosed with", "prescribe") that don't also appear in
+   the source note, and (b) computes a per-sentence word-overlap ratio
+   against the note's vocabulary, flagging any sentence that falls below
+   `CONFIG.AI.SENTENCE_TRACEABILITY_MIN_OVERLAP` (0.3) as low-traceability.
+
+Flags never block the draft from being written or auto-reject it — there
+is no send capability yet (that's Batch 4D/4E, both still gated on doctor
+review), so nothing can reach a patient regardless. Flags are written
+into `error_log` prefixed `AI_REVIEW_FLAGS:` so the doctor reviewer in
+Batch 4D has something concrete to check the draft against, not just a
+blank trust exercise. This is a heuristic, not a proof — it catches
+recognizable drift patterns and sentences with almost no vocabulary
+overlap with the source, not every possible fabrication.
 
 ## Sheet schema
 
@@ -79,11 +122,11 @@ extend the same row and reuse the same modules:
   enforced gate is `Validation.gs`'s server-side check. Real access
   control is the Web App's Workspace-domain deployment restriction,
   not the page being unlisted.
-- **4C (AI summarization)** — adds a call to OpenRouter inside
-  `doPost`, after `appendRow_()` succeeds, writing `ai_summary_draft`
-  and `ai_model_used` into the same row (likely a new `Ai.gs` module,
-  called from `Code.gs`, reusing `logEvent_()` for the `summarized`
-  stage).
+- **4C (AI summarization)** — complete. `Ai.gs`, called from `Code.gs`
+  after `appendRow_()` succeeds, writes `ai_summary_draft`,
+  `ai_model_used`, and any `flagDrift_()` findings (in `error_log`) back
+  onto the same row via `Sheets.gs`'s `updateRowByRecordId_()`. See "AI
+  boundaries" above.
 - **4D (doctor review + gated send)** — a new `Review.gs`/`Send.gs`
   module reading `review_status` and `patient_consent_confirmed` off
   existing rows; both are already captured by 4A, so the gate has real
@@ -121,6 +164,13 @@ This project has no npm dependencies and is not built/bundled — the
    replacing the `REPLACE_WITH_DEPLOYED_WEB_APP_URL` placeholder. The
    form refuses to submit and shows an explicit message until this is
    set, so a not-yet-connected form fails loudly instead of silently.
+9. Set the OpenRouter API key: Apps Script editor → **Project Settings →
+   Script Properties → Add script property**, key `OPENROUTER_API_KEY`,
+   value your OpenRouter key. `Ai.gs` reads it from
+   `PropertiesService` at call time — it is never written to any file in
+   this repo. Without it, submissions still succeed and write a row;
+   `ai_summary_draft` is just left empty with the failure logged to
+   `error_log` (see "AI boundaries" above).
 
 ### Option B — manual (no clasp)
 
@@ -153,12 +203,24 @@ error-prone than clasp — use only if clasp isn't available.
    account) and confirm the request fails instead of writing a row —
    this is the actual verification that domain-restricted access works,
    not just that the form renders.
-5. Only after all of the above pass should this be pointed at a real
-   Sheet — and even then, no email or AI step exists yet, so there is
-   no patient-facing risk regardless.
+5. With `OPENROUTER_API_KEY` set (step 9 above), submit again and
+   confirm `ai_summary_draft`/`ai_model_used` are populated on the row.
+   Then temporarily remove or misname the property and submit once more
+   — confirm the row still writes, `ai_summary_draft` stays empty, and
+   `error_log` shows `AI_SUMMARY_FAILED: ...` (docs/25 §8.3's
+   failure-path requirement). Restore the correct property afterward.
+6. Submit a note containing an obvious drift trigger (e.g. include the
+   word "recommend" in a way the model might echo back as its own
+   recommendation) and confirm `error_log` shows an `AI_REVIEW_FLAGS:`
+   entry — this is the one live-model check `Tests.gs`'s offline unit
+   tests can't cover, since they call `flagDrift_()` directly rather
+   than a real OpenRouter response.
+7. Only after all of the above pass should this be pointed at a real
+   Sheet — and even then, no email step or doctor-review UI exists yet
+   (Batch 4D/4E), so nothing can reach a patient regardless.
 
 ## Explicitly out of scope so far
 
-No AI summarization, no email sending, no doctor review/approve UI, no
-retention purge, no patient login. See docs/25-PHASE-1.5-TECHNICAL-PLAN.md
-§9 for the full batch sequence.
+No email sending, no doctor review/approve UI, no retention purge, no
+patient login. See docs/25-PHASE-1.5-TECHNICAL-PLAN.md §9 for the full
+batch sequence.

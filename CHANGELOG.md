@@ -8,6 +8,23 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-02 — Phase 1.5, Batch 4C: AI summarization (normalization only)
+
+New: `apps-script/Ai.gs` — the OpenRouter summarization step from `docs/25` §6, wired synchronously into `Code.gs`'s `doPost` after the row write. No email sending, no doctor review/approve UI yet — the draft this batch writes cannot reach a patient regardless.
+
+### Added
+- `apps-script/Ai.gs`: `summarizeNote_()` orchestrates the AI call (`anthropic/claude-haiku-4.5` via OpenRouter, `temperature: 0`, per the already-locked §9.4 decision) and a code-level drift check (`flagDrift_()`), independent of the prompt.
+- The AI step is implemented and documented as a **normalization layer, not a content-generation layer**, per an explicit requirement: it may only rephrase the doctor's note, never add a diagnosis, recommendation, investigation, medicine, reassurance, or conclusion not already present in the source note, and every output sentence must be traceable back to the note. Enforced two independent ways: (1) a nine-rule system prompt, (2) `flagDrift_()`, which flags prohibited-category lexicon matches and low-word-overlap sentences into `error_log` for the doctor reviewer (Batch 4D) to check — flags are advisory, never auto-blocking, since nothing can be sent without human review regardless.
+- `apps-script/Sheets.gs`: `updateRowByRecordId_()` — patches specific columns on an already-written row; used by the AI step and reusable by every later batch (review, send, purge).
+- `apps-script/Tests.gs`: four new unit tests for `flagDrift_()` (faithful rephrasing produces no flags; added recommendation/diagnosis are flagged; a fabricated, unrelated sentence is flagged for low traceability).
+- `internal/consultation-summary.html`'s confirmation message now reflects whether an AI draft was actually generated.
+
+### Notes
+- An AI-call failure (missing API key, OpenRouter error) never undoes the row already written — `ai_summary_draft` is left empty, the failure is logged to `error_log`, and the submission still reports success to staff, per docs/25 §8.3's failure-path requirement.
+- `docs/13-AI-GUIDELINES.md` updated with this as a worked example: prompt-level constraint + independent code-level check + mandatory human review, intended as the reference pattern for future AI usage on the platform, not a one-off.
+- `docs/24-ROADMAP.md` and `docs/25-PHASE-1.5-TECHNICAL-PLAN.md` §11 updated.
+- Deferred to later batches: doctor review + gated send (4D), email delivery (4E), retention purge (4F).
+
 ## 2026-07-02 — Phase 1.5, Batch 4B: staff entry form
 
 New: `internal/consultation-summary.html` — the staff-only, Workspace-restricted entry point specified in `docs/25` §9.1, wired to the Batch 4A Apps Script Web App. Not linked from any public nav, not in `sitemap.xml`, `noindex`. No patient-facing change.

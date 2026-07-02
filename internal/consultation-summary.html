@@ -174,7 +174,10 @@ h1{font-family:var(--font-display);font-size:clamp(24px,4vw,30px);color:var(--co
       .then(function (response) { return response.json(); })
       .then(function (data) {
         if (data.status === 200) {
-          showStatus('ok', 'Note submitted. Record ID: ' + data.record_id + '. A doctor must review and approve before anything is emailed to the patient.');
+          var aiNote = data.ai_summary_generated
+            ? 'A draft summary has been generated.'
+            : 'The AI draft could not be generated automatically — a doctor will need to write the summary manually.';
+          showStatus('ok', 'Note submitted. Record ID: ' + data.record_id + '. ' + aiNote + ' A doctor must review and approve before anything is emailed to the patient.');
           form.reset();
           noteCount.textContent = '0';
           updateSubmitState();
