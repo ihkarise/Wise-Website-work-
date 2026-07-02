@@ -1,9 +1,12 @@
 # 25 - Phase 1.5 Technical Implementation Plan
-## Version 1.0 — 2026-07-02
+## Version 1.1 — 2026-07-02
 
-> Status: PROPOSED — awaiting approval before any implementation begins.
+> Status: APPROVED — ready for implementation.
 > Author role: Lead Software Architect.
 > Authorizing input: Phase 1 Completion Review (docs/20-PRODUCT-ARCHITECTURE-REVIEW.md), accepted.
+> Authorizing input: Architecture Readiness Review (Phase 1.5), accepted — all open
+> decisions in the original §9 resolved below; findings incorporated without
+> redesigning the architecture.
 > This document is the binding technical specification for Phase 1.5. It expands
 > docs/24-ROADMAP.md's five-line Phase 1.5 summary into an implementable plan and
 > supersedes it in case of conflict.
@@ -102,29 +105,28 @@ A **staff-initiated, single-direction data pipeline**:
 ```
 Doctor/Staff (post-consultation)
         │
+        │  confirms patient consent for the summary email (§9.2)
         │  submits a short structured note
-        │  (internal, staff-only entry point — NOT public, NOT patient-facing)
+        │  (internal, staff-only entry point — a Workspace-restricted HTML
+        │   form, §9.1 — NOT public, NOT patient-facing)
         ▼
-Google Apps Script Web App  (doPost endpoint, staff-only trigger)
+Google Apps Script Web App  (doPost endpoint, staff-only, Workspace-authenticated)
         │
-        │  1. validates + sanitizes input
+        │  1. validates + sanitizes input; requires patient_consent_confirmed
         │  2. writes row to Google Sheets (audit trail starts here)
+        │  3. calls OpenRouter synchronously in the same execution (§9.5)
+        │  4. writes draft summary back to the same row
         ▼
 Google Sheets  (single source of truth for this pipeline)
-        │
-        │  3. Apps Script reads the new row
-        ▼
-AI Summary Step (OpenRouter call, grounded strictly in the submitted note)
-        │
-        │  4. writes draft summary back to the same row
         ▼
 Doctor Review Checkpoint (manual approval — required, not optional)
         │
         │  5. doctor approves in a simple review view (Sheet-bound or minimal UI)
         ▼
-Apps Script sends email (MailApp) — patient-friendly visit summary, PDF or HTML
+Apps Script sends email (MailApp) — patient-friendly visit summary, HTML (§9.6)
         │
         │  6. delivery status logged back to the Sheet
+        │  7. recipient_email purged automatically after the retention window (§9.3)
         ▼
         DONE — no further storage, no login, no ongoing record beyond the audit row
 ```
@@ -141,9 +143,9 @@ should not be relaxed without revisiting docs/15.
 
 # 4. What Phase 1.5 Is Not
 
-- Not an authentication system, not even a lightweight one. If staff-side access
-  needs restricting, that is handled by **not publishing the internal entry point**
-  (unlisted, non-indexed, shared only with clinic staff) — not by building login.
+- Not an authentication system, not even a lightweight one. Staff-side access is
+  restricted by **Workspace-domain-restricted deployment** of the entry point
+  (§9.1) — not by building patient-style login.
 - Not a place where patients view anything. The only patient-facing artifact is
   a one-time email they receive; there is no page for them to visit or log into.
 - Not the AI Guidance / public chatbot experience described in docs/21. No public
@@ -166,41 +168,55 @@ certainty*. Columns are flat, typed by convention, and every row has a stable ID
 |---|---|---|
 | `record_id` | string (UUID) | Stable primary key. Never reused. This is the row's permanent identity across any future migration. |
 | `created_at` | ISO 8601 timestamp | Set by Apps Script, not client-supplied. |
-| `condition_slug` | string | Reuses the canonical condition IDs already in production (`mcas`, `hashimotos-thyroiditis`, `chronic-urticaria`, etc.), per docs/20 §5's "the slug is the ID" decision. |
-| `staff_submitted_note` | text | Free-text doctor input. Source of truth for the AI step — nothing else feeds the AI. |
+| `condition_slug` | string | Reuses the canonical condition IDs already in production (`mcas`, `hashimotos-thyroiditis`, `chronic-urticaria`, etc.), per docs/20 §5's "the slug is the ID" decision — already locked by that prior review. |
+| `staff_submitted_note` | text | Free-text doctor input. Source of truth for the AI step — nothing else feeds the AI. Staff guidance (§9.2) restricts this field to consultation-summary content only — no lab values, no full patient name, no history beyond what belongs in a visit summary. |
+| `patient_consent_confirmed` | boolean | Set `true` only if staff confirms verbal/written consent was obtained for this specific pilot email. Hard gate — see §9.2. |
+| `consent_confirmed_by` | string | Staff identifier who confirmed consent. Same identifier space as `reviewed_by`. |
+| `recipient_email` | string | Patient email address. Purged per the retention rule in §9.3 — not retained indefinitely. |
 | `ai_summary_draft` | text | AI-generated patient-friendly summary. Never sent until reviewed. |
-| `ai_model_used` | string | Model identifier, for audit/reproducibility. |
+| `ai_model_used` | string | Model identifier, for audit/reproducibility. Fixed for Phase 1.5 — see §9.4. |
 | `review_status` | enum | `pending_review` / `approved` / `rejected` / `edited_and_approved` |
 | `reviewed_by` | string | Doctor/staff identifier (name or email — internal, not a patient identifier). |
 | `reviewed_at` | ISO 8601 timestamp | Null until reviewed. |
 | `email_status` | enum | `not_sent` / `sent` / `failed` |
 | `email_sent_at` | ISO 8601 timestamp | Null until sent. |
 | `error_log` | text | Any pipeline failure detail, per docs/15 audit logging. |
+| `purged_at` | ISO 8601 timestamp | Set by the automated retention job (§9.3) when `recipient_email` is cleared. Null until purge runs. |
 
 No patient name, phone number, or free-text medical history beyond the doctor's
 own note is stored in a way that couples it to a public-facing identity. Recipient
-email address is stored only as long as needed to send, consistent with docs/12's
-"minimal data collection" principle — this is revisited explicitly in §9 (Open
-Decisions) because it is the one place this plan touches PII and deserves an
-explicit retention decision before build.
+email address is stored only as long as needed to send and is purged automatically
+per the retention rule locked in §9.3, consistent with docs/12's "minimal data
+collection" principle.
 
 ## 5.2 Data Flow Diagram
 
+Processing is **synchronous within a single `doPost` execution** (locked in §9.5;
+see rationale there) — the diagram below reflects one Apps Script run per
+submission, not a separate asynchronous trigger:
+
 ```
-[Staff entry point] --POST--> [Apps Script doPost] --write--> [Google Sheet row]
-                                                                     │
-                                                        [Apps Script onEdit/
-                                                         time-driven trigger]
-                                                                     │
-                                                          [OpenRouter API call]
-                                                                     │
-                                                        [write ai_summary_draft]
-                                                                     │
-                                                     [staff reviews + approves]
-                                                                     │
-                                                        [Apps Script MailApp]
-                                                                     │
-                                                          [email_status update]
+[Staff entry point] --POST--> [Apps Script doPost]
+                                     │  1. validate + sanitize input
+                                     │  2. write row (record_id, created_at,
+                                     │     condition_slug, staff_submitted_note,
+                                     │     patient_consent_confirmed, consent_confirmed_by)
+                                     │  3. call OpenRouter (ai_model_used, §9.4)
+                                     │     within the same execution
+                                     │  4. write ai_summary_draft
+                                     ▼
+                          [Google Sheet row — pending_review]
+                                     │
+                          [staff reviews + approves in Sheet]
+                                     │
+                          [Apps Script send function — gated on
+                           review_status = approved/edited_and_approved
+                           AND patient_consent_confirmed = true]
+                                     │
+                          [Apps Script MailApp send]
+                                     │
+                          [email_status update; recipient_email
+                           scheduled for automated purge, §9.3]
 ```
 
 This mirrors docs/12's mandated flow (`Website → Apps Script → Google Sheets →
@@ -219,12 +235,19 @@ Per docs/13-AI-GUIDELINES.md and docs/22-WISE-KNOWLEDGE-ENGINE.md:
 - The AI **must never**: diagnose, prescribe, suggest treatment changes, or
   state anything not present in `staff_submitted_note`.
 - The AI output is a **draft only**. It is never emailed without doctor approval
-  (`review_status = approved` or `edited_and_approved`). This is a hard gate in
-  the Apps Script logic, not a UI suggestion — the send function must refuse to
-  run if `review_status` is not an approved state.
+  (`review_status = approved` or `edited_and_approved`) **and** confirmed patient
+  consent (`patient_consent_confirmed = true`). Both are hard gates in the Apps
+  Script send function, not UI suggestions — the send function must refuse to run
+  unless both conditions hold.
 - Prompt design constrains the model to summarization-only behavior and rejects/
   flags any output that introduces content not traceable to the source note
   (implementation detail for the build phase, specified here as a requirement).
+- **Model selection (locked, §9.4):** Phase 1.5 uses a single fixed OpenRouter
+  model — `anthropic/claude-haiku-4.5` — for all summarization calls. Rationale:
+  low per-call cost appropriate to pilot volume, strong plain-language rewriting
+  quality, and a stable, pinned model identifier that keeps `ai_model_used`
+  meaningful for audit/reproducibility (§5.1). The model is not swapped mid-pilot;
+  changing it requires a documented decision, not a silent config change.
 
 ---
 
@@ -234,13 +257,14 @@ Per docs/13-AI-GUIDELINES.md and docs/22-WISE-KNOWLEDGE-ENGINE.md:
 |---|---|
 | HTTPS everywhere | Apps Script Web App and all endpoints are HTTPS by default (Google-enforced). |
 | Least privilege | Apps Script service account scoped only to this Sheet and Gmail send; no broader Drive/Sheets access requested. |
-| Secure Apps Script endpoints | Web App deployed with execute-as-owner, access restricted to the staff entry point only; no public "anyone can POST" endpoint. |
+| Secure Apps Script endpoints | Web App deployed with execute-as-owner. Staff entry point is a Google Workspace-restricted HTML form (§9.1) — deployment access set to "Anyone within [clinic Workspace domain]," not "Anyone with the link," so the write path requires an authenticated clinic Google account even though there is no patient-facing login. No public "anyone can POST" endpoint. |
 | Input validation | All fields validated/sanitized server-side in `doPost` before writing to Sheets (length limits, type checks, no raw HTML injected into email templates). |
 | No secrets in frontend | OpenRouter API key stored in Apps Script Properties Service, never in client-side code. |
 | Environment separation | A separate test Sheet + test Apps Script deployment used for validation (§8) before any real-note is processed. |
-| Audit logging | Every pipeline stage logged in-row (§5.1): submitted → summarized → reviewed → sent/failed. |
+| Audit logging | Every pipeline stage logged in-row (§5.1): submitted → summarized → reviewed → sent/failed, plus consent confirmation and retention purge (§9.2, §9.3). |
 | Regular dependency review | N/A for Apps Script (no npm dependencies); OpenRouter API version pinned and reviewed. |
-| Patient portal: authenticated access, session expiration, RBAC | Not applicable — Phase 1.5 has no patient portal by design (§3, §4). The staff entry point is the only write surface and is treated as internal tooling, not a portal. |
+| Patient portal: authenticated access, session expiration, RBAC | Not applicable — Phase 1.5 has no patient portal by design (§3, §4). The staff entry point is the only write surface, requires an authenticated clinic Workspace account per the row above, and is treated as internal tooling, not a portal. |
+| Data minimization / retention | Automated time-driven Apps Script trigger clears `recipient_email` after the retention window (§9.3) and stamps `purged_at` — not a manual step. |
 
 ---
 
@@ -264,37 +288,102 @@ Per docs/13-AI-GUIDELINES.md and docs/22-WISE-KNOWLEDGE-ENGINE.md:
 
 ---
 
-# 9. Open Decisions (require stakeholder confirmation before build starts)
+# 9. Locked Decisions
 
-These are architecturally significant enough that this plan flags them rather
-than deciding unilaterally, per docs/00's escalation rule ("if implementation
-conflicts with Product Vision: stop, explain, recommend"):
+All items previously listed as Open Decisions have been resolved per the
+Architecture Readiness Review (Phase 1.5) and are now locked. None of these
+resolutions change the architecture described in §3–§6 — they close gaps in
+an already-approved design, per docs/00's escalation rule ("if implementation
+conflicts with Product Vision: stop, explain, recommend"). Changing any locked
+item below after implementation starts requires re-running that escalation,
+not a silent edit.
 
-1. **Staff entry point mechanism** — recommend a simple unlisted HTML form
-   (matches existing tech stack, no new tooling) posting to the Apps Script Web
-   App, rather than a Google Form (harder to control schema/validation) or a
-   direct Sheet edit (no server-side validation). Needs sign-off.
-2. **Email address retention** — recommend storing the recipient email only in
-   the row needed to send, with a defined manual purge cadence, until Phase 2
-   defines real patient data retention policy. Needs sign-off on retention window.
-3. **Who counts as "staff"** — no auth exists, so access control is entirely
-   "don't share the URL." Acceptable for a pilot; needs an explicit sunset date
-   or upgrade trigger (e.g., "must gain real access control before N pilots" or
-   "before Phase 2A begins").
-4. **PDF vs HTML email** — docs/20 §2 specifically proposes a PDF visit summary;
-   this plan defaults to HTML-first (simpler, no PDF-generation dependency) with
-   PDF as a fast-follow if the pilot validates the concept. Needs confirmation
-   this doesn't undercut the original intent.
+## 9.1 Staff entry point mechanism — LOCKED
+
+A single unlisted HTML form (matches existing tech stack, no new tooling),
+posting to the Apps Script Web App. The Web App deployment is configured with
+access set to **"Anyone within [clinic Workspace domain]"** — not "Anyone with
+the link" — so submission requires an authenticated clinic Google Workspace
+account, not just knowledge of the URL. This closes the readiness review's
+finding that "unlisted" alone is an access-control assumption, not a control.
+A Google Form and direct Sheet edit remain rejected for the reasons already
+stated (schema/validation control).
+
+## 9.2 Consent capture mechanism — LOCKED
+
+Consent is captured as a required field on the staff entry form, not assumed
+verbally. The form requires the submitting staff member to check a
+"Patient has consented to receive this visit summary by email" confirmation
+before the form will submit. This writes `patient_consent_confirmed = true`
+and `consent_confirmed_by = <staff identifier>` to the row (§5.1). The email
+send function is hard-gated on `patient_consent_confirmed = true` in addition
+to `review_status`, mirroring the existing review-status gate in §6 — consent
+is enforced in Apps Script logic, not left as a UI-only checkbox. Staff
+guidance for `staff_submitted_note` is also locked here: the field is for
+visit-summary content only (what was discussed, next steps) — not lab values,
+not full case history — keeping the row consistent with §2.2's "not a growing
+patient record" scope.
+
+## 9.3 Email retention policy — LOCKED
+
+`recipient_email` is retained for **14 days** after `email_sent_at`, then
+cleared automatically by a time-driven Apps Script trigger (not a manual
+step), which also stamps `purged_at` (§5.1). Fourteen days covers the
+realistic window for a bounced-delivery follow-up or a patient support query
+about the email, without indefinite retention of PII. This is a Phase-1.5-only
+policy for pilot-scale volume; Phase 2 will define real patient data retention
+under its own authenticated data model and is not bound by this window.
+
+## 9.4 AI model selection — LOCKED
+
+`anthropic/claude-haiku-4.5` via OpenRouter, fixed for all Phase 1.5
+summarization calls (rationale and guardrails in §6). Not swapped mid-pilot.
+
+## 9.5 Synchronous vs. asynchronous processing — LOCKED
+
+**Synchronous.** Validation, Sheet write, and the OpenRouter summarization
+call all run within a single `doPost` execution (§5.2, §3), rather than a
+separate `onEdit`/time-driven trigger reading the row after the fact. At
+Phase 1.5's pilot volume (staff-paced, one submission at a time), synchronous
+processing removes an entire class of "did the async trigger fire yet"
+ambiguity from both testing (§8) and the Definition of Done (§10), and is
+strictly simpler to reason about and to audit. If Phase 2 volume later
+requires asynchronous processing, that is a Phase 2 decision made against
+Phase 2's actual load, not inherited by default from here.
+
+## 9.6 PDF vs. HTML email — LOCKED
+
+HTML-first, per the plan's original default. docs/20 §2's PDF proposal is not
+abandoned — it remains a valid fast-follow once the pilot validates the
+underlying concept — but is explicitly out of scope for Phase 1.5 itself, so
+it does not gate this plan's approval.
+
+## 9.7 Who counts as "staff" — LOCKED (sunset condition)
+
+Access control for the entry point is the Workspace-domain restriction in
+§9.1, not "don't share the URL." That resolves the original concern that
+access control was obscurity-only. The upgrade trigger already implied by
+docs/20 §2's sequencing stands: real patient login/RBAC is introduced at
+Phase 2A, not before — Phase 1.5's Workspace-restricted form is sufficient
+for its own scope and is not extended into a general-purpose internal tool.
 
 ---
 
 # 10. Success Criteria — Definition of Done for Phase 1.5
 
+All items in §9 are locked as of this version — implementation may begin.
 Phase 1.5 is complete when:
 
-- [ ] The full pipeline (§5.2) has run successfully end-to-end with synthetic data.
+- [ ] The staff entry point (§9.1) is deployed with Workspace-domain-restricted
+      access, confirmed not reachable by "anyone with the link."
+- [ ] The consent checkbox (§9.2) is confirmed to hard-block submission when
+      unchecked, and hard-blocks send when `patient_consent_confirmed` is false.
+- [ ] The automated retention purge trigger (§9.3) is deployed and verified to
+      clear `recipient_email` and stamp `purged_at` after 14 days.
+- [ ] The full pipeline (§5.2) has run successfully end-to-end with synthetic data,
+      using the locked model (§9.4) and synchronous flow (§9.5).
 - [ ] The full pipeline has run successfully with at least one real, consenting
-      patient, with doctor review at the gate.
+      patient, with doctor review and the consent gate both exercised.
 - [ ] Every failure mode in §8.3 has been tested and correctly logged.
 - [ ] The Sheet schema (§5.1) has been reviewed against docs/12's SQL-migration
       rule and confirmed migration-safe.
