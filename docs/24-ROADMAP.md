@@ -19,7 +19,9 @@ Remaining
 - Photography & Branding Assets
 
 # Phase 1.5 — Platform Validation
-Status: In Progress — see docs/25-PHASE-1.5-TECHNICAL-PLAN.md for the full batch sequence.
+Status: Implementation and code-level validation complete (Batches 4A-4G).
+Live deployment + real-patient pilot still required before Phase 1.5 is
+marked done and Phase 2A begins — see docs/25 §10.
 
 Completed
 - Batch 4A — Sheet schema, Apps Script project skeleton, validation layer,
@@ -35,10 +37,21 @@ Completed
 - Batch 4F — Automated 14-day retention purge (`Retention.gs`), fully
   independent of Review.gs/Send.gs/Email.gs, clears only
   `recipient_email` + stamps `purged_at`
+- Batch 4G — Validation phase. No code changes to `apps-script/`. Built
+  `validation/phase-1-5/` — a Node harness that runs the real committed
+  source through every pipeline stage and the full end-to-end workflow,
+  including every required failure mode. 37/37 checks passed. See
+  docs/25 §10/§11 for exactly which Definition-of-Done items this closes
+  versus which remain open pending a live Google Workspace deployment
+  (Workspace-domain access, a real OpenRouter/MailApp call, the live
+  retention trigger firing on schedule, and the required real-patient
+  pilot).
 
 Remaining
-- Batch 4G — Testing & validation pass, then real pilot
-- Batch 4H — Documentation & changelog closeout
+- Live deployment + the real-patient pilot required by docs/25 §10
+  (not a numbered batch — a deployment/operations step for whoever runs
+  this project against a real Google Workspace, tracked in docs/25 §10's
+  checklist, not further code work)
 
 # Phase 2A — My Health Journey
 - Patient Login

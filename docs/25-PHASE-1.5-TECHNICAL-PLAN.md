@@ -397,6 +397,62 @@ Phase 1.5 is complete when:
 Only once these are met should Phase 2A (Login + My Health Journey shell) begin,
 per docs/20 §2's sequencing recommendation.
 
+**Status after Batch 4G (see §11 for full detail and `validation/phase-1-5/`
+for the runnable evidence):**
+
+- [ ] The staff entry point (§9.1) is deployed with Workspace-domain-restricted
+      access, confirmed not reachable by "anyone with the link." **Not yet
+      verifiable from this environment — requires a live deployment and two
+      real Google accounts (one in the Workspace domain, one outside it).**
+- [x] The consent checkbox (§9.2) is confirmed to hard-block submission when
+      unchecked, and hard-blocks send when `patient_consent_confirmed` is false.
+      **Verified two ways in Batch 4G: submission rejected (400) when unchecked,
+      and — a stronger check — send blocked even when `review_status` is already
+      `approved` if `patient_consent_confirmed` is separately tampered to `false`
+      directly in the row.**
+- [ ] The automated retention purge trigger (§9.3) is deployed and verified to
+      clear `recipient_email` and stamp `purged_at` after 14 days. **Purge
+      *logic* fully verified (idempotent, correct 14-day boundary math, safe
+      partial failure) against the real committed code. The *live time-driven
+      trigger actually firing on schedule* still requires
+      `installRetentionTrigger_()` to be run in a real deployment and checked
+      back on.**
+- [x] The full pipeline (§5.2) has run successfully end-to-end with synthetic data,
+      using the locked model (§9.4) and synchronous flow (§9.5). **Verified in
+      Batch 4G — see "E2E: ..." checks in `validation/phase-1-5/validate.js`.**
+- [ ] The full pipeline has run successfully with at least one real, consenting
+      patient, with doctor review and the consent gate both exercised. **Cannot
+      be done from this environment — requires a live deployment and a real
+      patient. Remains open.**
+- [x] Every failure mode in §8.3 has been tested and correctly logged. **All
+      three named modes verified in Batch 4G: AI-call failure (missing key and
+      provider HTTP error), Sheets-write failure (both at initial submission and
+      during retention), and email-send failure — every one lands in `error_log`/
+      `email_status = failed` and none silently drops.**
+- [x] The Sheet schema (§5.1) has been reviewed against docs/12's SQL-migration
+      rule and confirmed migration-safe. **Design review, not runtime-testable:
+      flat columns, a stable UUID `record_id`, no per-patient tabs — matches
+      docs/12's rule as designed since Batch 4A.**
+- [ ] Security checklist (§7) fully checked off. **Code-level items confirmed
+      (input validation, no secrets in frontend, audit logging). Deployment-only
+      items (HTTPS by default, Workspace-domain access, environment separation)
+      remain open pending live deployment.**
+- [x] No patient-facing authentication, login, or portal has been introduced.
+      **Confirmed by design across every batch — no such code exists anywhere
+      in `apps-script/` or `internal/`.**
+- [x] docs/12-DATA-ARCHITECTURE.md, docs/24-ROADMAP.md, and CHANGELOG.md are
+      updated to reflect what was actually built (not just what was planned).
+- [x] A short retrospective note is added here (§11) documenting any deviation
+      from this plan and why.
+
+**Phase 1.5 is not yet marked done.** Every item this environment could verify
+without a live Google Workspace deployment has been verified and is checked
+above. The remaining open items are all live-deployment-dependent (Workspace
+access restriction, live trigger firing, real OpenRouter/MailApp calls, and
+the required real-patient pilot) and must be completed by whoever deploys this
+project, per the checklist above and `validation/phase-1-5/README.md`'s
+"What this does NOT prove" section, before Phase 2A begins.
+
 ---
 
 # 11. Implementation Notes (to be filled in during/after build)
@@ -605,6 +661,65 @@ protected columns provably untouched throughout.
 manual test steps (skip-when-too-recent, purge-when-eligible with
 protected-column verification, idempotency-on-rerun, and
 trigger-install idempotency).
+
+## Batch 4G (complete — validation phase)
+
+Per this batch's explicit scope: **no new features, no architectural
+refactor, no code optimization.** Zero lines in `apps-script/` changed —
+confirmed by `git status` showing only new files under `validation/`.
+The objective was to prove the complete pipeline (staff submission →
+validation → Sheet write → AI normalization → doctor review → gate
+evaluation → email delivery → retention) works exactly as designed,
+stage by stage and end to end, including every required failure mode.
+
+**Method**: rather than reasoning about the code or re-testing only the
+already-existing `Tests.gs` unit suite, built a small Node-only harness
+(`validation/phase-1-5/harness.js`) that loads the real, unmodified
+`apps-script/*.gs` source into a mocked Apps Script runtime (in-memory
+Sheet; fake `PropertiesService`/`UrlFetchApp`/`MailApp`/`ScriptApp`/
+`Session`) and drives it through synthetic scenarios
+(`validation/phase-1-5/validate.js`). This is the strongest verification
+available without a live Google Workspace deployment: it exercises the
+actual committed code, not a reimplementation of its logic.
+
+**Result: 37/37 checks passed** (the existing 26-test `Tests.gs` suite,
+re-run through the same real-source harness, plus 36 new stage-level and
+end-to-end checks). Coverage included, per this batch's explicit
+requirements:
+
+- Success path, full pipeline, twice (once through to a real send +
+  20-days-later retention purge; once through a doctor rejection).
+- Validation failures (missing consent, unknown condition slug,
+  malformed JSON).
+- AI failures (missing API key, provider HTTP error) — row still
+  written, draft left empty, failure logged, submission still succeeds.
+- Sheets-write failures — both at initial submission (500, no crash) and
+  during retention (one row's failure logged and skipped, batch
+  continues, that row's data left completely unmodified).
+- Provider (email) failures — `email_status = failed` + `error_log`
+  populated, no exception escapes.
+- Consent failures — rejected at submission time, **and** a stronger
+  check: blocked at send time even when `review_status` is already
+  `approved`, if `patient_consent_confirmed` is tampered directly in the
+  row (proving the gate reads live values, not submission-time state).
+- Review failures (rejection) — `review_status = rejected`, zero calls
+  to the mail provider.
+- Retention failures — one row's write failure logged and skipped
+  without stopping the batch; idempotency proven by running the purge
+  twice and confirming zero re-purges.
+- HTML injection: a synthetic AI draft containing `<script>` tags is
+  confirmed escaped in the actual email body the code would send.
+
+**What this does not prove** (see `validation/phase-1-5/README.md` for
+the full list): Workspace-domain access restriction on a real
+deployment, a real OpenRouter call, a real email actually arriving, the
+real time-driven trigger firing on schedule, and the required real,
+consenting-patient pilot. These remain open items in §10's Definition of
+Done, to be completed by whoever deploys this project — not something
+this environment can verify without live credentials.
+
+docs/25 §10's checklist updated above to reflect exactly which items
+this batch closes versus which stay open pending live deployment.
 
 ---
 
