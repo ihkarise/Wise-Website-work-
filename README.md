@@ -41,6 +41,8 @@ submissions appear in Netlify dashboard → Forms. Add email notifications there
 | White logo | assets/logo-white.svg | SVG (fallback PNG 1200×400) | SVG | Dark footer/CTA sections (future use) |
 | Favicon | assets/favicon.ico | 32×32 + 64×64 | ICO | Browser tab, all pages |
 | Hero image | assets/hero-image.jpg | 1920×1080 (16:9) | JPG | Landing page hero (optional slot) |
+| Home social image | assets/images/home-og.jpg | 1200×630 (1.91:1) | JPG | Home — social share preview |
+| Team social image | assets/images/team-og.jpg | 1200×630 (1.91:1) | JPG | Team — social share preview |
 | Dr. Libin photo | assets/images/team/doctor-libin.jpg | 1200×1500 (4:5) | JPG | team.html — Chief Physician card |
 | Dr. Dhanya photo | assets/images/team/doctor-dhanya.jpg | 1200×1500 (4:5) | JPG | team.html — Psychologist card |
 | Dr. Ansal photo | assets/images/team/doctor-ansal.jpg | 1200×1500 (4:5) | JPG | team.html — Junior Doctor card |

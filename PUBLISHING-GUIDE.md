@@ -235,6 +235,8 @@ secure by design.
 | Clinic photos 1–6 | assets/images/gallery/clinic-photo-01..06.jpg | 1600×1200 (4:3) | JPG | Gallery |
 | Blog post images | assets/images/blog/[post-name].jpg | 1200×630 (1.91:1) | JPG | Each blog post |
 | OC social image | assets/images/online-consultation-og.jpg | 1200×630 (1.91:1) | JPG | Online Consultation share preview |
+| Home social image | assets/images/home-og.jpg | 1200×630 (1.91:1) | JPG | Home — social share preview |
+| Team social image | assets/images/team-og.jpg | 1200×630 (1.91:1) | JPG | Team — social share preview |
 
 ---
 
