@@ -7,12 +7,23 @@
  * purgeExpiredRecipientEmails_() are NOT covered here since they call a
  * real Sheet (and, for the first two, a mail provider) — see
  * apps-script/README.md's manual test steps for those. Run
- * runAllTests_() and check the execution log for FAIL lines.
+ * runAllTests() (from the editor's function dropdown) and check the
+ * execution log for FAIL lines.
  *
  * This is a starting point for docs/25 §8.2's "unit-level checks"; Batch
  * 4G is responsible for the full backend testing checklist, including
  * live-Sheet and failure-path cases this file does not cover.
  */
+
+/**
+ * Public wrapper with no trailing underscore — Apps Script's editor
+ * hides any function ending in "_" from the Run/function-picker
+ * dropdown (its convention for "private"), so runAllTests_() itself
+ * can never be selected and run directly from the editor UI.
+ */
+function runAllTests() {
+  return runAllTests_();
+}
 
 function runAllTests_() {
   var results = [

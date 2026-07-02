@@ -103,8 +103,30 @@ function isEligibleForPurge_(row, nowMs) {
 }
 
 /**
+ * Public wrapper with no trailing underscore — Apps Script's editor
+ * hides any function ending in "_" from the Run/function-picker
+ * dropdown, so installRetentionTrigger_() itself can never be selected
+ * and run directly from the editor UI. Use this one from the dropdown.
+ */
+function installRetentionTrigger() {
+  return installRetentionTrigger_();
+}
+
+/**
+ * Public wrapper, same reason as installRetentionTrigger() above — lets
+ * purgeExpiredRecipientEmails_() be run manually from the editor's
+ * dropdown for testing. The time-driven trigger itself still calls
+ * purgeExpiredRecipientEmails_() directly (see below); ScriptApp
+ * triggers are not subject to the editor dropdown's naming convention,
+ * only manual "Run" is.
+ */
+function purgeExpiredRecipientEmails() {
+  return purgeExpiredRecipientEmails_();
+}
+
+/**
  * One-time setup, run manually from the Apps Script editor (Select
- * function -> installRetentionTrigger_ -> Run). Idempotent: if the
+ * function -> installRetentionTrigger -> Run). Idempotent: if the
  * trigger already exists, this does nothing rather than creating a
  * duplicate that would purge the same eligible rows twice per day.
  */

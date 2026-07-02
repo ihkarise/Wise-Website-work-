@@ -48,8 +48,34 @@ it — e.g. only `Sheets.gs` calls `SpreadsheetApp`.
 | `Retention.gs` | Automated 14-day retention purge (docs/25 §9.3). Deliberately independent of `Review.gs`/`Send.gs`/`Email.gs` — never calls them, never called by them. Only ever writes `recipient_email`/`purged_at`. See "Retention purge" below. |
 | `Logger.gs` | `logEvent_()` — thin wrapper around the Apps Script execution log for pipeline-stage audit events. |
 | `Utils.gs` | Small stateless helpers: `jsonResponse_()`, `escapeHtml_()` (used by `Email.gs` to neutralize the AI draft before embedding it in HTML). No dependency on any other module. |
-| `Tests.gs` | Manual unit tests for pure logic (`Validation.gs`, `Ai.gs`'s `flagDrift_()`, `Send.gs`'s `evaluateSendGate_()`, `Email.gs`'s `buildVisitSummaryEmail_()`, `Utils.gs`'s `escapeHtml_()`, `Retention.gs`'s `isEligibleForPurge_()`). Run `runAllTests_()` from the Apps Script editor; no live Sheet or network calls. `attemptSend_()`, `sendVisitSummaryEmail_()`, and `purgeExpiredRecipientEmails_()` are deliberately NOT covered here — they touch a real Sheet (and, for the first two, a mail provider); see the manual test steps below. |
+| `Tests.gs` | Manual unit tests for pure logic (`Validation.gs`, `Ai.gs`'s `flagDrift_()`, `Send.gs`'s `evaluateSendGate_()`, `Email.gs`'s `buildVisitSummaryEmail_()`, `Utils.gs`'s `escapeHtml_()`, `Retention.gs`'s `isEligibleForPurge_()`, `Auth.gs`'s `verifyAccessCode_()`). Run `runAllTests()` (the public wrapper — `runAllTests_()` itself is hidden from the editor's Run dropdown because of its trailing underscore, see "A note on trailing underscores" below) from the Apps Script editor; no live Sheet or network calls. `attemptSend_()`, `sendVisitSummaryEmail_()`, and `purgeExpiredRecipientEmails_()` are deliberately NOT covered here — they touch a real Sheet (and, for the first two, a mail provider); see the manual test steps below. |
 | `sample-payloads/` | Example `doPost` bodies for manual/curl testing — one valid, and a few that should each fail validation for a specific reason. |
+
+## A note on trailing underscores
+
+Every internal function in this project ends in `_` (e.g. `validateSubmission_`,
+`purgeExpiredRecipientEmails_`) — Apps Script's naming convention for
+"private, not meant to be called directly by a person." One consequence:
+**the Apps Script editor's Run/function-picker dropdown hides any function
+whose name ends in `_`** — it will never appear there, no matter how
+correctly it's defined. This is a UI-only restriction (it doesn't affect
+custom-menu items or time-driven triggers, which can call underscored
+functions just fine); it only blocks manually selecting one from the
+dropdown and clicking Run.
+
+Three functions in this project are meant to be run manually from that
+dropdown during setup/testing, so each has a public, no-underscore wrapper
+that simply calls the real one:
+
+| Use this from the dropdown | Calls |
+|---|---|
+| `runAllTests()` | `runAllTests_()` (`Tests.gs`) |
+| `installRetentionTrigger()` | `installRetentionTrigger_()` (`Retention.gs`) |
+| `purgeExpiredRecipientEmails()` | `purgeExpiredRecipientEmails_()` (`Retention.gs`) |
+
+The rest of this README refers to the underscored names when describing
+what the code actually does internally, and the wrapper names when
+describing what to click in the editor's dropdown.
 
 ## Request flow
 
@@ -285,9 +311,11 @@ summary line (`purged=N skipped=N failed=N`) closes out each run.
 
 **Setup**: the trigger is not automatic on deployment. Run
 `installRetentionTrigger_()` once from the Apps Script editor (**Select
-function → installRetentionTrigger_ → Run**) after deploying. It's
-idempotent too — running it again when the trigger already exists is a
-no-op, so it won't ever install duplicate triggers that would double-purge.
+function → installRetentionTrigger → Run** — the dropdown-visible
+wrapper, see "A note on trailing underscores" above) after deploying.
+It's idempotent too — running it again when the trigger already exists
+is a no-op, so it won't ever install duplicate triggers that would
+double-purge.
 
 ## Sheet schema
 
@@ -316,8 +344,8 @@ extend the same row and reuse the same modules:
   content type). Client-side disables Submit until the consent
   checkbox is ticked, but that is a UX convenience only — the real,
   enforced gate is `Validation.gs`'s server-side check. Real access
-  control is the Web App's Workspace-domain deployment restriction,
-  not the page being unlisted.
+  control is `Auth.gs`'s shared staff access code (see "Access control"
+  above), not the page being unlisted.
 - **4C (AI summarization)** — complete. `Ai.gs`, called from `Code.gs`
   after `appendRow_()` succeeds, writes `ai_summary_draft`,
   `ai_model_used`, and any `flagDrift_()` findings (in `error_log`) back
@@ -374,8 +402,10 @@ else).
    replacing the `REPLACE_WITH_DEPLOYED_WEB_APP_URL` placeholder. The
    form refuses to submit and shows an explicit message until this is
    set, so a not-yet-connected form fails loudly instead of silently.
-   This static page can be hosted for free on the site's existing GitHub
-   Pages deployment — no separate hosting needed.
+   This static page is part of the site's existing Netlify deployment
+   (`netlify.toml` in the repo root) — no separate hosting needed; it
+   goes live at `/internal/consultation-summary.html` on the same domain
+   as the rest of the site the next time this branch/repo is deployed.
 9. Set the staff access code: Apps Script editor → **Project Settings →
    Script Properties → Add script property**, key `STAFF_ACCESS_CODE`,
    value a long random string (20+ characters — treat it like an API key,
@@ -392,9 +422,11 @@ else).
     `ai_summary_draft` is just left empty with the failure logged to
     `error_log` (see "AI boundaries" above).
 11. Install the retention trigger: Apps Script editor → select
-    `installRetentionTrigger_` from the function dropdown → **Run**
-    (once). Confirm it under **Triggers** (clock icon) in the editor —
-    should show `purgeExpiredRecipientEmails_`, time-driven, daily. Not
+    `installRetentionTrigger` (the dropdown-visible wrapper — see "A note
+    on trailing underscores" above) from the function dropdown →
+    **Run** (once). Confirm it under **Triggers** (clock icon) in the
+    editor — should show `purgeExpiredRecipientEmails_`, time-driven,
+    daily. Not
     part of `clasp push` or the Web App deployment; this step is easy to
     forget and the pipeline works fine without it right up until the
     first row is old enough to need purging.
@@ -412,8 +444,8 @@ error-prone than clasp — use only if clasp isn't available.
 1. Bind against a **test** Sheet/Apps Script project first (docs/25 §7:
    "Environment separation") — never point Batch 4A at a production
    Sheet before it's validated.
-2. Run `runAllTests_()` from the Apps Script editor to check pure
-   validation logic.
+2. Run `runAllTests()` (dropdown-visible wrapper for `runAllTests_()`)
+   from the Apps Script editor to check pure validation logic.
 3. Use **Run → Test deployment** (or `curl` against the deployed test
    Web App URL) with each file in `sample-payloads/` — each JSON sample
    has an `access_code` field set to the placeholder
@@ -479,26 +511,27 @@ error-prone than clasp — use only if clasp isn't available.
     control (docs/25 §8.1). Only after all of the above pass, and only
     with a real, consenting patient reviewed manually at every stage
     (docs/25 §8.5, Batch 4G), should a real address ever be used.
-13. Run `runAllTests_()` and confirm the seven `isEligibleForPurge_()`
+13. Run `runAllTests()` and confirm the seven `isEligibleForPurge_()`
     tests pass (offline, no Sheet needed).
 14. With at least one `sent` row from step 8, run
     `purgeExpiredRecipientEmails_()` manually from the Apps Script editor
-    (**Select function → purgeExpiredRecipientEmails_ → Run**) — since
-    that row is only minutes old, confirm it is correctly *skipped*
-    (check the execution log for `retention window has not elapsed yet`)
-    and `recipient_email` is untouched.
+    (**Select function → purgeExpiredRecipientEmails → Run** — the
+    dropdown-visible wrapper) — since that row is only minutes old,
+    confirm it is correctly *skipped* (check the execution log for
+    `retention window has not elapsed yet`) and `recipient_email` is
+    untouched.
 15. Temporarily lower `CONFIG.RETENTION.EMAIL_RETENTION_DAYS` to `0` (or
     manually backdate a test row's `email_sent_at` cell to 20+ days ago)
-    and run `purgeExpiredRecipientEmails_()` again — confirm
+    and run `purgeExpiredRecipientEmails` again — confirm
     `recipient_email` is cleared, `purged_at` is stamped, and every
     *other* column on that row (`staff_submitted_note`, `ai_summary_draft`,
     `review_status`, `reviewed_by`, `email_status`, `email_sent_at`,
     `error_log`) is byte-for-byte unchanged. Restore
     `EMAIL_RETENTION_DAYS` to `14` afterward.
-16. Run `purgeExpiredRecipientEmails_()` a second time immediately —
+16. Run `purgeExpiredRecipientEmails` a second time immediately —
     confirm the already-purged row is now skipped (not re-processed) and
     no duplicate log entry appears — this is the idempotency proof.
-17. Confirm `installRetentionTrigger_()` is idempotent: run it twice from
+17. Confirm `installRetentionTrigger_()` is idempotent: run `installRetentionTrigger` twice from
     the editor and confirm **Triggers** still shows exactly one
     `purgeExpiredRecipientEmails_` trigger, not two.
 
