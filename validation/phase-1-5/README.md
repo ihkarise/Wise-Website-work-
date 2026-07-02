@@ -29,12 +29,15 @@ library — no `npm install` needed).
 
 ## Result (last run)
 
-**37/37 checks passed** — 1 for the existing 26-test `Tests.gs` suite
-(reported as a single pass/fail from `runAllTests_()`'s return value)
-plus 36 new stage-level and end-to-end checks, including all three
-failure modes docs/25 §8.3 names explicitly: AI-call failure, Sheets-write
-failure, and email-send failure. Re-run `node validate.js` at any time;
-it prints a `PASS`/`FAIL` line per check plus a final tally.
+**39/39 checks passed** — 1 for the existing 30-test `Tests.gs` suite
+(reported as a single pass/fail from `runAllTests_()`'s return value,
+includes the 4 `Auth.gs` access-code tests added for the free-account
+deployment) plus 38 new stage-level and end-to-end checks, including all
+three failure modes docs/25 §8.3 names explicitly (AI-call failure,
+Sheets-write failure, email-send failure) and the `Auth.gs` access-code
+gate (missing/wrong `access_code` rejected with 401, before any Sheet
+write). Re-run `node validate.js` at any time; it prints a `PASS`/`FAIL`
+line per check plus a final tally.
 
 ## What this does NOT prove
 

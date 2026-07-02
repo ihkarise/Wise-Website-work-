@@ -1,5 +1,5 @@
 # 25 - Phase 1.5 Technical Implementation Plan
-## Version 1.2 — 2026-07-02
+## Version 1.3 — 2026-07-02
 
 > Status: **SOFTWARE COMPLETE (Batches 4A–4H).** Not yet deployed —
 > deployment and a real-patient pilot remain open, per §10. See
@@ -13,6 +13,21 @@
 > This document is the binding technical specification for Phase 1.5. It expands
 > docs/24-ROADMAP.md's five-line Phase 1.5 summary into an implementable plan and
 > supersedes it in case of conflict.
+>
+> **Deployment-account amendment (v1.3):** this project deploys from a free
+> personal Google account (`wisehomeopathicmc@gmail.com`), not Google
+> Workspace. Every reference below to "Workspace-domain-restricted
+> deployment," "Anyone within [clinic Workspace domain]," or
+> `appsscript.json`'s `access: DOMAIN` (§9.1, §9.7, §7's security table,
+> §10) describes the *original* design and is superseded by an
+> application-level shared access code (`Auth.gs`'s `verifyAccessCode_()`,
+> `STAFF_ACCESS_CODE` in Script Properties) — the free-tier equivalent
+> control, not a lesser one. Full rationale, tradeoffs, and the
+> no-redesign migration path back to a Workspace domain restriction if the
+> clinic later adopts Workspace: `apps-script/README.md`'s "Access
+> control" section. No other part of this plan changes — Sheets, Apps
+> Script, MailApp/Gmail delivery, and Drive are already free services and
+> were never Workspace-dependent.
 
 ---
 

@@ -1,9 +1,9 @@
 /**
  * Manual unit tests for pure logic (Validation.gs, Ai.gs's flagDrift_(),
  * Send.gs's evaluateSendGate_(), Email.gs's buildVisitSummaryEmail_()/
- * Utils.gs's escapeHtml_(), Retention.gs's isEligibleForPurge_()). No
- * Sheets or network calls — safe to run from the Apps Script editor at
- * any time. attemptSend_(), sendVisitSummaryEmail_(), and
+ * Utils.gs's escapeHtml_(), Retention.gs's isEligibleForPurge_(),
+ * Auth.gs's verifyAccessCode_()). No Sheets or network calls — safe to
+ * run from the Apps Script editor at any time. attemptSend_(), sendVisitSummaryEmail_(), and
  * purgeExpiredRecipientEmails_() are NOT covered here since they call a
  * real Sheet (and, for the first two, a mail provider) — see
  * apps-script/README.md's manual test steps for those. Run
@@ -41,7 +41,11 @@ function runAllTests_() {
     test_purgeNotEligibleWhenAlreadyPurged_(),
     test_purgeNotEligibleWhenEmailAlreadyEmpty_(),
     test_purgeNotEligibleWhenNeverSent_(),
-    test_purgeNotEligibleWithInvalidSentDate_()
+    test_purgeNotEligibleWithInvalidSentDate_(),
+    test_accessCodeRejectedWhenUnset_(),
+    test_accessCodeRejectedWhenWrong_(),
+    test_accessCodeRejectedWhenEmpty_(),
+    test_accessCodeAcceptedWhenCorrect_()
   ];
 
   var failures = results.filter(function (r) { return !r.pass; });
@@ -261,4 +265,53 @@ function test_purgeNotEligibleWithInvalidSentDate_() {
   row.email_sent_at = 'not-a-date';
   var result = isEligibleForPurge_(row, TEST_NOW_MS_);
   return assert_('purge not eligible when email_sent_at is not a valid date', result.eligible === false);
+}
+
+// verifyAccessCode_ tests touch Script Properties (not Sheets/network),
+// and always restore whatever STAFF_ACCESS_CODE was set to beforehand.
+function withAccessCodeProperty_(value, fn) {
+  var props = PropertiesService.getScriptProperties();
+  var original = props.getProperty('STAFF_ACCESS_CODE');
+  try {
+    if (value === null) {
+      props.deleteProperty('STAFF_ACCESS_CODE');
+    } else {
+      props.setProperty('STAFF_ACCESS_CODE', value);
+    }
+    return fn();
+  } finally {
+    if (original === null) {
+      props.deleteProperty('STAFF_ACCESS_CODE');
+    } else {
+      props.setProperty('STAFF_ACCESS_CODE', original);
+    }
+  }
+}
+
+function test_accessCodeRejectedWhenUnset_() {
+  var result = withAccessCodeProperty_(null, function () {
+    return verifyAccessCode_('anything');
+  });
+  return assert_('access code rejected when STAFF_ACCESS_CODE is unset (fails closed)', result === false);
+}
+
+function test_accessCodeRejectedWhenWrong_() {
+  var result = withAccessCodeProperty_('correct-code', function () {
+    return verifyAccessCode_('wrong-code');
+  });
+  return assert_('access code rejected when it does not match', result === false);
+}
+
+function test_accessCodeRejectedWhenEmpty_() {
+  var result = withAccessCodeProperty_('correct-code', function () {
+    return verifyAccessCode_('');
+  });
+  return assert_('access code rejected when empty string is provided', result === false);
+}
+
+function test_accessCodeAcceptedWhenCorrect_() {
+  var result = withAccessCodeProperty_('correct-code', function () {
+    return verifyAccessCode_('correct-code');
+  });
+  return assert_('access code accepted when it matches', result === true);
 }

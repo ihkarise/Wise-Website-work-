@@ -1,4 +1,5 @@
 {
+  "access_code": "REPLACE_WITH_YOUR_STAFF_ACCESS_CODE",
   "condition_slug": "not-a-real-condition",
   "staff_submitted_note": "Discussed flare pattern and updated the care plan.",
   "patient_consent_confirmed": true,

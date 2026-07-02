@@ -1,4 +1,5 @@
 {
+  "access_code": "REPLACE_WITH_YOUR_STAFF_ACCESS_CODE",
   "condition_slug": "mcas",
   "staff_submitted_note": "Reviewed symptom diary, discussed dietary trigger avoidance, and confirmed the current supplement schedule. Next follow-up in 3 weeks.",
   "patient_consent_confirmed": true,

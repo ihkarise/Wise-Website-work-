@@ -1,10 +1,12 @@
 # 28 - Phase 1.5 Deployment Readiness Checklist
-## Version 1.0 — 2026-07-02
+## Version 1.1 — 2026-07-02
 
 > An operational checklist, not a software task list. Every item here is
-> something a person does against a real Google Workspace, Google Sheet,
-> or Apps Script deployment — none of it is code work, and none of it can
-> be completed from within this repository alone. Companion to
+> something a person does against a real Google account, Google Sheet, or
+> Apps Script deployment — none of it is code work, and none of it can be
+> completed from within this repository alone. Deploys on a free personal
+> Google account, not Google Workspace — see "Deployment account" below.
+> Companion to
 > docs/26-PHASE-1.5-VALIDATION-REPORT.md (what's already proven in
 > software) and docs/27-PHASE-1.5-CLOSEOUT.md (the official closeout).
 > Full step-by-step mechanics for each item: `apps-script/README.md`'s
@@ -23,25 +25,43 @@ been performed.
 
 ---
 
+## Deployment account: free personal Google account
+
+This deployment uses a **free personal Google account**
+(`wisehomeopathicmc@gmail.com`), not Google Workspace. Google Workspace is
+**not required** for anything in this checklist — every item below uses a
+free Google service (Sheets, Apps Script, Gmail/MailApp, Drive) or a
+GitHub Pages-hosted static page. The one place Workspace would have
+provided something free accounts can't (domain-restricted Web App access)
+has an application-level replacement — see `apps-script/README.md`'s
+"Access control" section for the full explanation, tradeoffs, and the
+no-redesign migration path back to Workspace later, if the clinic ever
+adopts it.
+
 ## Checklist
 
-- [ ] **Google Workspace configured** — a clinic Google Workspace project
-      exists (or the existing one is confirmed usable), with at least one
-      account available for testing that is *inside* the domain and one
-      that is *outside* it.
+- [ ] **Google account confirmed** — `wisehomeopathicmc@gmail.com` (or
+      whichever free Google account is deploying) is accessible and its
+      password is stored securely (a password manager, not a shared doc).
+      No Google Workspace signup is required.
 - [ ] **Test Sheet created** — a Google Sheet exists for testing,
       separate from any future production Sheet (docs/25 §7:
       "Environment separation"). Do not reuse a production Sheet for
-      testing, ever.
+      testing, ever. Free Google Sheets has no feature gap here — this
+      step is identical with or without Workspace.
 - [ ] **Apps Script deployed** — this project (`apps-script/`) pushed via
       `clasp push` (or manually) to an Apps Script project bound to the
       test Sheet, and deployed as a Web App per
       `apps-script/README.md`'s deployment steps.
-- [ ] **Workspace domain restriction verified** — the deployed Web App's
-      access is confirmed set to "Anyone within [clinic domain]," **and**
-      a real account *outside* that domain has actually attempted access
-      and been rejected. Confirming the manifest setting alone is not
-      sufficient — this must be tested with a real non-Workspace account.
+- [ ] **Staff access code configured and verified** — a long, random
+      `STAFF_ACCESS_CODE` (20+ characters) is set in Script Properties
+      (this is the free-account replacement for Workspace's domain
+      restriction — see `apps-script/README.md`'s "Access control"
+      section), **and** a real request with a missing/wrong access code
+      has actually been sent and rejected with `401`. Confirming the
+      property is set is not sufficient — this must be tested with a real
+      request, the same rigor previously required for the Workspace
+      domain check.
 - [ ] **OpenRouter API configured** — an OpenRouter account exists, an API
       key has been generated, and that key is set in the Apps Script
       project's Script Properties as `OPENROUTER_API_KEY`. Confirmed
