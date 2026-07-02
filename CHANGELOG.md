@@ -8,6 +8,32 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-02 — Phase 1.5, Batch 4A: Apps Script pipeline skeleton (schema, validation, Sheet-write layer)
+
+New backend-only work — no public pages, no navigation, no visual changes. Full plan: `docs/25-PHASE-1.5-TECHNICAL-PLAN.md`. First implementation of the "Website → Apps Script → Google Sheets" pattern specified in `docs/12-DATA-ARCHITECTURE.md`, and the first of eight sequenced batches (4A–4H) that make up Phase 1.5.
+
+### Added
+- `apps-script/` — a modular Google Apps Script project (`Code.gs`, `Config.gs`, `Schema.gs`, `Validation.gs`, `Sheets.gs`, `Logger.gs`, `Utils.gs`, `Tests.gs`), each with a single responsibility, per `apps-script/README.md`'s module table. This repository is the canonical source for the project; the Apps Script editor is a deployment target only.
+- `Phase1.5_ConsultationSummaries` Sheet schema (16 columns, full detail in `docs/12-DATA-ARCHITECTURE.md` and `docs/25` §5.1) — designed to survive a future SQL migration unchanged, per `docs/12`'s standing rule.
+- A `doPost` Web App endpoint that validates a staff-submitted consultation note (condition slug, note text, consent confirmation, staff identifier, recipient email) and writes one audited row per submission. Every request either writes a complete row or writes nothing — no partial-write state.
+- `apps-script/sample-payloads/` — example request bodies (one valid, three that each fail validation for a distinct reason) for manual/curl testing.
+- `apps-script/README.md` — module responsibilities, request-flow diagram, how each of docs/25's later batches (4B–4F) plugs into this schema without changing it, and clasp-based deployment steps.
+- `apps-script/Tests.gs` — manual unit tests for the validation layer (`runAllTests_()`), runnable from the Apps Script editor with no live Sheet or network calls.
+- `.gitignore` — excludes `apps-script/.clasp.json` (environment-specific, contains a real Apps Script project ID); `apps-script/.clasp.json.example` documents its shape.
+
+### Not included in this batch (by design — see docs/25 §9 for sequencing)
+- No AI summarization call (Batch 4C).
+- No doctor review checkpoint or email-send gating (Batch 4D).
+- No email template or delivery (Batch 4E).
+- No retention purge trigger (Batch 4F).
+- No staff-facing HTML entry form yet (Batch 4B) — the endpoint exists and is tested via `sample-payloads/`, but nothing on the public site links to it.
+- No patient login, authentication, or portal — none is introduced anywhere in Phase 1.5.
+
+### Notes
+- Code review caught and fixed two issues before merge: `Config.gs`'s canonical condition-slug allowlist was missing `dermographism` (an 8th slug already live on `/conditions/`, which would have caused valid submissions for that condition to be rejected); and `apps-script/README.md`'s testing instructions initially implied checking real HTTP status codes, which Apps Script Web Apps cannot set (every response transports as HTTP 200) — both `Utils.gs` and the README now document that callers must branch on the JSON body's `status` field instead.
+- `docs/24-ROADMAP.md` updated to track the Batch 4A–4H sequence under Phase 1.5.
+- Deferred to later batches: staff entry form, AI summarization, doctor review UI, email delivery, retention automation, and the full end-to-end/real-pilot validation pass (docs/25 §8, §10).
+
 ## 2026-07-02 — Batch 3: Legal & Compliance pages
 
 New: `privacy.html`, `terms.html`, `disclaimer.html` — Privacy Policy, Terms of Use, and Medical Disclaimer, written specifically for Wise Homeopathy from verified facts already in this repository (no generic templates, no invented certifications, retention periods, or grievance officers). Each covers what's collected, why, how it's used, and clearly marks not-yet-built functionality (Patient Login, My Health Journey, WiseOS) as "Future Update Required" instead of describing it as live.

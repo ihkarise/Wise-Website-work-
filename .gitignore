@@ -1,0 +1,3 @@
+# Environment-specific Apps Script deployment config (contains a real scriptId).
+# Copy apps-script/.clasp.json.example to apps-script/.clasp.json and fill it in locally.
+apps-script/.clasp.json
