@@ -1,170 +1,44 @@
 # CLAUDE.md
-# Wise Homeopathy Project Instructions
 
-> This file contains project-specific instructions for Claude Code.
-> Read this file before making any changes.
+## Project Identity
+Wise is a Digital Healthcare Platform, not just a website.
 
-## Mission
+## Read Order
+1. docs/00-PROJECT-GOVERNANCE.md
+2. docs/21-WISE-PRODUCT-VISION.md
+3. docs/20-PRODUCT-ARCHITECTURE-REVIEW.md
+4. docs/01-WEBSITE-MASTER-PLAN.md
+5. docs/02-WEBSITE-AUDIT.md
+6. Remaining documentation as required.
 
-You are contributing to the Wise Homeopathy website.
+The Product Vision overrides implementation details.
 
-This is an **evolution project**, not a rewrite.
+If implementation conflicts with Product Vision:
+- Stop
+- Explain the conflict
+- Recommend the best solution
 
-Your objective is to refine, improve, and extend the existing website while preserving its strengths.
-
----
-
-## Read First
-
-Before writing code, read these documents in order:
-
-1. /docs/00-PROJECT-GOVERNANCE.md
-2. /docs/01-WEBSITE-MASTER-PLAN.md
-3. /docs/02-WEBSITE-AUDIT.md
-4. Read the remaining files in /docs as needed for the task.
-
-Treat the documentation as the product specification.
-
----
-
-## Core Rules
-
+## Core Principles
 - Refine, don't rebuild.
 - Preserve branding.
 - Preserve SEO.
 - Preserve accessibility.
 - Preserve performance.
-- Prefer incremental improvements.
-- Keep commits small and reviewable.
+- Prefer reusable components.
 
-Do not introduce new frameworks unless explicitly approved.
+## Documentation First
+Update documentation whenever implementation changes architecture, UX, navigation, AI, data, security, performance or content.
 
-Current stack:
+Always update CHANGELOG after user-visible changes.
 
-- HTML
-- CSS
-- JavaScript
-- Google Apps Script
-- Google Sheets
-- Netlify
+## AI Principles
+AI assists.
+Doctors decide.
+Knowledge Engine is the trusted source.
+Never invent medical facts.
 
----
+## Workflow
+Read docs → Explain plan → Implement → Test → Update docs → Update changelog → Summarize.
 
-## Working Process
-
-For every task:
-
-1. Understand the request.
-2. Review affected documentation.
-3. Review affected files.
-4. Explain the intended approach.
-5. Implement the smallest safe change.
-6. Test for regressions.
-7. Update documentation if required.
-8. Update CHANGELOG.md when behavior changes.
-
-Never skip documentation updates.
-
----
-
-## Living Documentation
-
-Documentation is part of the product.
-
-Whenever implementation changes:
-
-- Architecture
-- Navigation
-- UX
-- UI
-- Components
-- Content
-- SEO
-- AI
-- Data flow
-- Security
-- Accessibility
-- Performance
-
-Update the corresponding document inside /docs before considering the task complete.
-
-If documentation becomes outdated, update it immediately.
-
----
-
-## Audit Before Build
-
-Before adding new functionality, first check whether:
-
-- An existing component can be reused.
-- Existing CSS can be reused.
-- Existing JavaScript can be extended.
-- Existing patterns already solve the problem.
-
-Avoid duplication.
-
----
-
-## Definition of Done
-
-A task is complete only when:
-
-- Code works.
-- Existing functionality is preserved.
-- Documentation is synchronized.
-- CHANGELOG.md is updated (when applicable).
-- No console errors remain.
-- Mobile experience is verified.
-
----
-
-## Future Vision
-
-Phase 1:
-Refine the public website.
-
-Phase 2:
-Build My Health Journey including:
-
-- Personal Care Plan
-- Wise Digital Twin
-- Symptom Tracker
-- AI Summaries
-
-Do not prematurely implement Phase 2 unless requested.
-
----
-
-## AI Guidelines
-
-AI may:
-
-- Summarize
-- Organize
-- Explain
-- Improve UX
-- Improve documentation
-
-AI must not:
-
-- Invent medical facts.
-- Make diagnoses.
-- Prescribe treatment.
-- Remove working functionality without justification.
-
----
-
-## Repository Philosophy
-
+## Repository Goal
 Leave the repository better than you found it.
-
-Improve:
-
-- Code quality
-- Documentation
-- Consistency
-- Readability
-- Maintainability
-
-Never sacrifice stability for novelty.
-

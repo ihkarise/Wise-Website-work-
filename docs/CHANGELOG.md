@@ -1,25 +1,42 @@
-# Changelog
-
-All notable changes are recorded here.
+# CHANGELOG
 
 ## Unreleased
 
-### Added
-- Documentation framework
+### Planned
+- Resources Hub
+- Legal Pages
+- Condition Landing Pages
+- My Health Journey foundation
+- Knowledge Engine integration
 
-### Changed
+## Phase 1 Foundation
+
+### Added
+- Governance
+- Product Vision
+- Product Architecture
+- Knowledge Engine
+- Patient Lifecycle
+- Product Roadmap
 
 ### Fixed
+- Canonical URLs
+- Navigation
+- Mobile navigation
+- Consultation flow
+- Homepage condition routing
+- Open Graph metadata
+- Testimonial wording
 
-### Removed
+## Next Batch
+1. Legal Pages
+2. Resources Hub
+3. Cornerstone Articles
+4. Condition Pages
+5. My Health Journey Phase 1.5
 
-### Performance
+## North Star
 
-### Security
+Our goal is not to build the best clinic website.
 
----
-
-## Versioning
-
-Use Semantic Versioning:
-MAJOR.MINOR.PATCH
+Our goal is to build the world's most trusted continuous digital homeopathy care platform.
