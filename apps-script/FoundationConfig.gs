@@ -25,14 +25,22 @@ var FOUNDATION_CONFIG = {
 
   SCHEMA_VERSION: 1,
 
-  // Script Properties key names Foundation modules will read via
-  // PropertiesService (from F4 onward). The values themselves are never
-  // stored here or anywhere in this repo — set them in the Apps Script
-  // editor's Project Settings > Script Properties, same treatment as
-  // Phase 1.5's STAFF_ACCESS_CODE/OPENROUTER_API_KEY. Prefixed
-  // FOUNDATION_ to stay visually distinct in a Script Properties list this
-  // project now shares with Phase 1.5's own keys.
+  // Script Properties key names Foundation modules read via
+  // PropertiesService, consumed from F4 onward by FoundationSession.gs.
+  // The values themselves are never stored here or anywhere in this repo
+  // — set them in the Apps Script editor's Project Settings > Script
+  // Properties, same treatment as Phase 1.5's
+  // STAFF_ACCESS_CODE/OPENROUTER_API_KEY. Prefixed FOUNDATION_ to stay
+  // visually distinct in a Script Properties list this project now shares
+  // with Phase 1.5's own keys.
   SCRIPT_PROPERTY_KEYS: {
     SESSION_SIGNING_SECRET: 'FOUNDATION_SESSION_SIGNING_SECRET'
-  }
+  },
+
+  // Session lifetime in seconds. 3600 (60 minutes) — the low end of
+  // docs/29 §3's "60-90 minutes" range, per ADR-010 (the more secure
+  // default, not the more convenient one). See
+  // shared/schemas/session.md's "Default session lifetime" section for
+  // the full reasoning. Consumed by FoundationSession.gs (batch F4).
+  SESSION_TTL_SECONDS: 3600
 };

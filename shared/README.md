@@ -80,8 +80,8 @@ shared/
   utils/                portable reference implementations of small, algorithmic helpers
 ```
 
-`contracts/`, `schemas/`, and `utils/` are populated by Foundation's F2 and F3 batches
-(docs/29 §13/§14) — empty as of F1. `constants/` is reserved for future use (a good
+`contracts/`, `schemas/`, and `utils/` are populated by Foundation's F2, F3, and F4
+batches (docs/29 §13/§14) — empty as of F1. `constants/` is reserved for future use (a good
 future candidate: the condition-slug list currently hand-duplicated between
 `apps-script/Config.gs` and `internal/consultation-summary.html`, per docs/25 §11 —
 not a Foundation deliverable, noted here for whoever picks it up later).
