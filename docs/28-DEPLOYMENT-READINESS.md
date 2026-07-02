@@ -1,5 +1,10 @@
 # 28 - Phase 1.5 Deployment Readiness Checklist
-## Version 1.1 — 2026-07-02
+## Version 1.2 — 2026-07-02
+
+> **All technical items below are complete** — verified against a real live
+> deployment on `wisehomeopathicmc@gmail.com`, including one real-patient
+> pilot. Only the final governance sign-off ("Deployment approved") remains
+> open.
 
 > An operational checklist, not a software task list. Every item here is
 > something a person does against a real Google account, Google Sheet, or
@@ -41,64 +46,55 @@ adopts it.
 
 ## Checklist
 
-- [ ] **Google account confirmed** — `wisehomeopathicmc@gmail.com` (or
-      whichever free Google account is deploying) is accessible and its
-      password is stored securely (a password manager, not a shared doc).
-      No Google Workspace signup is required.
-- [ ] **Test Sheet created** — a Google Sheet exists for testing,
-      separate from any future production Sheet (docs/25 §7:
-      "Environment separation"). Do not reuse a production Sheet for
-      testing, ever. Free Google Sheets has no feature gap here — this
-      step is identical with or without Workspace.
-- [ ] **Apps Script deployed** — this project (`apps-script/`) pushed via
-      `clasp push` (or manually) to an Apps Script project bound to the
-      test Sheet, and deployed as a Web App per
-      `apps-script/README.md`'s deployment steps.
-- [ ] **Staff access code configured and verified** — a long, random
-      `STAFF_ACCESS_CODE` (20+ characters) is set in Script Properties
-      (this is the free-account replacement for Workspace's domain
-      restriction — see `apps-script/README.md`'s "Access control"
-      section), **and** a real request with a missing/wrong access code
-      has actually been sent and rejected with `401`. Confirming the
-      property is set is not sufficient — this must be tested with a real
-      request, the same rigor previously required for the Workspace
-      domain check.
-- [ ] **OpenRouter API configured** — an OpenRouter account exists, an API
-      key has been generated, and that key is set in the Apps Script
-      project's Script Properties as `OPENROUTER_API_KEY`. Confirmed
-      **not** present in any file in this repository.
-- [ ] **Mail permissions verified** — the Apps Script project has been
-      authorized (via the standard Google OAuth consent screen on first
-      run) to send mail as the deploying account, and a real test email
-      has been sent and received in a test inbox.
-- [ ] **Retention trigger installed** — `installRetentionTrigger_()` has
-      been run once from the Apps Script editor against the live
-      deployment, and confirmed present under **Triggers** (not just
-      assumed from the code being correct).
-- [ ] **Staff entry form wired up** — `/internal/consultation-summary.html`'s
-      `WEB_APP_URL` constant updated to the real deployed Web App URL
-      (replacing the `REPLACE_WITH_DEPLOYED_WEB_APP_URL` placeholder) and
-      deployed to the live site.
-- [ ] **Synthetic validation completed against the live deployment** —
-      every manual test step in `apps-script/README.md`'s "Testing before
-      real use" sections has been walked through against the *real*
-      deployment (not `validation/phase-1-5/`'s mocked harness, which
-      only proves the code): submission, validation failures, AI success
-      and failure, doctor review (approve as-generated, approve as-edited,
-      reject), gate enforcement against a tampered consent cell, real
-      email delivery to a test inbox, forced delivery failure, and
-      retention purge (skip-too-recent, purge-when-eligible with
-      protected-column verification, idempotency-on-rerun).
-- [ ] **Real patient pilot approved** — the clinic has identified one
-      real, already-consenting recent patient for the required pilot
-      (docs/25 §8 item 5, §10), and a doctor has agreed to manually
-      review every stage of that one run before treating the pipeline as
-      "working" for real use.
+- [x] **Google account confirmed** — `wisehomeopathicmc@gmail.com` deployed
+      the project. No Google Workspace signup was needed.
+- [x] **Test Sheet created** — `Phase1.5_ConsultationSummaries_TEST`
+      created separately from any future production Sheet.
+- [x] **Apps Script deployed** — `apps-script/` copied into an Apps Script
+      project bound to the test Sheet and deployed as a Web App
+      (`.../exec` URL live).
+- [x] **Staff access code configured and verified** — `STAFF_ACCESS_CODE`
+      set in Script Properties; a real request with a wrong/missing code
+      was sent and rejected with `401` (`reqbin.com` test), and a real
+      request with the correct code succeeded with `200` and wrote a row.
+- [x] **OpenRouter API configured** — a real OpenRouter key is set as
+      `OPENROUTER_API_KEY` in Script Properties, confirmed not present in
+      any file in this repository. Live calls succeeded (`ai_summary_draft`
+      populated on real submissions) and the model correctly refused to
+      fabricate content from non-clinical test notes, caught by
+      `flagDrift_()`.
+- [x] **Mail permissions verified** — Apps Script authorized to send mail
+      as `wisehomeopathicmc@gmail.com` (OAuth consent granted), a real
+      test email was sent and received.
+- [x] **Retention trigger installed** — `installRetentionTrigger()` run
+      from the Apps Script editor; confirmed present under **Triggers**
+      (`purgeExpiredRecipientEmails_`, daily), and confirmed idempotent
+      (running it again logged "already installed — nothing to do," no
+      duplicate trigger).
+- [x] **Staff entry form wired up** — `/internal/consultation-summary.html`'s
+      `WEB_APP_URL` updated to the real deployed Web App URL and live on
+      the site's Netlify deployment.
+- [x] **Synthetic validation completed against the live deployment** —
+      every manual test step walked through against the real deployment:
+      valid/invalid submissions, wrong/missing access code (401), AI
+      success and AI drift-flagging, doctor review (approve-as-generated,
+      consent-gate block on a tampered row, reject, forced delivery
+      failure with `EMAIL_SEND_FAILED` logged), and retention (skip-too-
+      recent, purge-when-eligible with all other columns verified
+      untouched, idempotent re-run, idempotent trigger re-install). A
+      final clean synthetic end-to-end pass (submit → AI → approve →
+      email) was also run with nothing deliberately broken.
+- [x] **Real patient pilot approved** — one real, already-consenting
+      patient's visit summary was submitted, the doctor personally
+      reviewed the AI draft against the source note before approving, and
+      the summary was sent to the patient's real email address.
 - [ ] **Deployment approved** — someone with authority to approve
       clinic-facing tools (per docs/00's governance) has reviewed this
       checklist, confirmed every item above is genuinely complete (not
       just code-validated), and signs off that Phase 1.5 may be used for
-      real, ongoing consultations.
+      real, ongoing consultations. **Still open — this is a governance
+      sign-off, not a technical step, and is deliberately left for the
+      clinic's own decision-maker rather than checked off here.**
 
 ---
 

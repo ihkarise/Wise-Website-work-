@@ -8,6 +8,35 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-02 — Phase 1.5 live deployment complete: real-patient pilot run
+
+Phase 1.5 deployed for real on a free personal Google account
+(`wisehomeopathicmc@gmail.com`) and validated end to end against the live
+deployment: access-code gate, OpenRouter AI calls, doctor review (approve,
+approve-edited, reject), the consent gate blocking a tampered row, real
+email delivery, a forced delivery failure, retention purge (skip, purge,
+idempotency), and trigger installation (idempotency). One real,
+already-consenting patient's visit summary was submitted, reviewed by a
+doctor against the source note, approved, and sent to the patient's real
+email address.
+
+### Changed
+- `docs/28-DEPLOYMENT-READINESS.md`: all technical checklist items marked
+  complete with the live evidence for each. Only the governance
+  "Deployment approved" sign-off remains open (deliberately left for the
+  clinic's own decision-maker).
+- `docs/25-PHASE-1.5-TECHNICAL-PLAN.md`: status banner updated to
+  **Software Complete, Deployment Complete, Operationally Complete**; §10
+  ("Status after live deployment") added, closing the staff-entry-point
+  access control, retention trigger, real-patient pilot, and security
+  checklist Definition-of-Done items that were open pending a live
+  deployment.
+
+### Notes
+- Phase 1.5 is now Deployment Complete and Operationally Complete, on top
+  of the Software Complete status reached at Batch 4H. Phase 2A still
+  should not begin until the one remaining governance sign-off is made.
+
 ## 2026-07-02 — Phase 1.5 deployment: free personal Google account (no Workspace)
 
 Deployment decision: this project deploys from a free personal Google
