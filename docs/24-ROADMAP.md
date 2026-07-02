@@ -11,9 +11,9 @@ Completed
 - Governance
 - Batch 1
 - Batch 2
+- Batch 3 — Legal Pages
 
 Remaining
-- Legal Pages
 - Dedicated Condition Pages
 - Resources Hub
 - Photography & Branding Assets

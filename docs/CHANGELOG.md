@@ -4,7 +4,6 @@
 
 ### Planned
 - Resources Hub
-- Legal Pages
 - Condition Landing Pages
 - My Health Journey foundation
 - Knowledge Engine integration
@@ -18,6 +17,7 @@
 - Knowledge Engine
 - Patient Lifecycle
 - Product Roadmap
+- Legal Pages — Privacy Policy, Terms of Use, Medical Disclaimer, written specifically for Wise Homeopathy (see root `CHANGELOG.md` and `WEBSITE-AUDIT.md` for full detail)
 
 ### Fixed
 - Canonical URLs
@@ -27,13 +27,13 @@
 - Homepage condition routing
 - Open Graph metadata
 - Testimonial wording
+- Stray invalid markup and a stale WhatsApp footer link on Online Consultation, found while shipping Legal Pages
 
 ## Next Batch
-1. Legal Pages
-2. Resources Hub
-3. Cornerstone Articles
-4. Condition Pages
-5. My Health Journey Phase 1.5
+1. Resources Hub
+2. Cornerstone Articles
+3. Condition Pages
+4. My Health Journey Phase 1.5
 
 ## North Star
 
