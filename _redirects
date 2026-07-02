@@ -1,0 +1,3 @@
+# Force www version (canonical domain for SEO)
+https://wisehomeopathy.com/* https://www.wisehomeopathy.com/:splat 301!
+http://wisehomeopathy.com/*  https://www.wisehomeopathy.com/:splat 301!
