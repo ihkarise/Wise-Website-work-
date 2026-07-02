@@ -30,8 +30,9 @@ been performed.
 This deployment uses a **free personal Google account**
 (`wisehomeopathicmc@gmail.com`), not Google Workspace. Google Workspace is
 **not required** for anything in this checklist — every item below uses a
-free Google service (Sheets, Apps Script, Gmail/MailApp, Drive) or a
-GitHub Pages-hosted static page. The one place Workspace would have
+free Google service (Sheets, Apps Script, Gmail/MailApp, Drive) or the
+site's existing Netlify deployment (`netlify.toml`) for the staff form's
+static page. The one place Workspace would have
 provided something free accounts can't (domain-restricted Web App access)
 has an application-level replacement — see `apps-script/README.md`'s
 "Access control" section for the full explanation, tradeoffs, and the

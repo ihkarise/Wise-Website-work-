@@ -402,8 +402,10 @@ else).
    replacing the `REPLACE_WITH_DEPLOYED_WEB_APP_URL` placeholder. The
    form refuses to submit and shows an explicit message until this is
    set, so a not-yet-connected form fails loudly instead of silently.
-   This static page can be hosted for free on the site's existing GitHub
-   Pages deployment — no separate hosting needed.
+   This static page is part of the site's existing Netlify deployment
+   (`netlify.toml` in the repo root) — no separate hosting needed; it
+   goes live at `/internal/consultation-summary.html` on the same domain
+   as the rest of the site the next time this branch/repo is deployed.
 9. Set the staff access code: Apps Script editor → **Project Settings →
    Script Properties → Add script property**, key `STAFF_ACCESS_CODE`,
    value a long random string (20+ characters — treat it like an API key,
