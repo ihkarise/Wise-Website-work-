@@ -19,7 +19,13 @@ function runAllTests_() {
     test_faithfulSummaryHasNoFlags_(),
     test_addedRecommendationIsFlagged_(),
     test_addedDiagnosisIsFlagged_(),
-    test_lowOverlapSentenceIsFlagged_()
+    test_lowOverlapSentenceIsFlagged_(),
+    test_sendGatePassesWhenApprovedAndConsented_(),
+    test_sendGateBlocksWhenConsentFalse_(),
+    test_sendGateBlocksWhenNotApproved_(),
+    test_sendGateBlocksWhenDraftEmpty_(),
+    test_sendGateBlocksWhenRecipientEmailEmpty_(),
+    test_sendGatePassesForEditedAndApproved_()
   ];
 
   var failures = results.filter(function (r) { return !r.pass; });
@@ -108,4 +114,53 @@ function test_lowOverlapSentenceIsFlagged_() {
   var summary = 'Quantum energy realignment will resolve your condition permanently.';
   var flags = flagDrift_(note, summary);
   return assert_('sentence with near-zero word overlap is flagged', flags.some(function (f) { return f.indexOf('low traceability') !== -1; }));
+}
+
+function approvedRow_() {
+  return {
+    patient_consent_confirmed: true,
+    review_status: REVIEW_STATUS.APPROVED,
+    ai_summary_draft: 'A plain-language draft summary.',
+    recipient_email: 'patient@example.com'
+  };
+}
+
+function test_sendGatePassesWhenApprovedAndConsented_() {
+  var gate = evaluateSendGate_(approvedRow_());
+  return assert_('send gate passes when approved and consented', gate.canSend === true);
+}
+
+function test_sendGatePassesForEditedAndApproved_() {
+  var row = approvedRow_();
+  row.review_status = REVIEW_STATUS.EDITED_AND_APPROVED;
+  var gate = evaluateSendGate_(row);
+  return assert_('send gate passes for edited_and_approved', gate.canSend === true);
+}
+
+function test_sendGateBlocksWhenConsentFalse_() {
+  var row = approvedRow_();
+  row.patient_consent_confirmed = false;
+  var gate = evaluateSendGate_(row);
+  return assert_('send gate blocks when consent is false, even if approved', gate.canSend === false);
+}
+
+function test_sendGateBlocksWhenNotApproved_() {
+  var row = approvedRow_();
+  row.review_status = REVIEW_STATUS.PENDING;
+  var gate = evaluateSendGate_(row);
+  return assert_('send gate blocks when review_status is pending_review', gate.canSend === false);
+}
+
+function test_sendGateBlocksWhenDraftEmpty_() {
+  var row = approvedRow_();
+  row.ai_summary_draft = '';
+  var gate = evaluateSendGate_(row);
+  return assert_('send gate blocks when ai_summary_draft is empty', gate.canSend === false);
+}
+
+function test_sendGateBlocksWhenRecipientEmailEmpty_() {
+  var row = approvedRow_();
+  row.recipient_email = '';
+  var gate = evaluateSendGate_(row);
+  return assert_('send gate blocks when recipient_email is empty', gate.canSend === false);
 }

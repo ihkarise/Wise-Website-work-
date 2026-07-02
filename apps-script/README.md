@@ -11,7 +11,9 @@ and leave the repo out of sync; changes flow from here outward via
 **Batch 4A** — schema, validation, and Sheet-write layer. Complete.
 **Batch 4B** — staff entry form (`/internal/consultation-summary.html`). Complete.
 **Batch 4C** — AI summarization (normalization only). Complete.
-No email sending, no doctor review/approve UI, no patient login yet.
+**Batch 4D** — doctor review checkpoint + gated send decision. Complete.
+No email delivery yet (the send gate is proven, but nothing calls
+MailApp/GmailApp until Batch 4E), no patient login.
 See docs/25 §9 for the batch sequence this project is built in.
 
 ## Module layout
@@ -26,12 +28,14 @@ it — e.g. only `Sheets.gs` calls `SpreadsheetApp`.
 | `Config.gs` | All environment-specific values: Sheet name, allowed condition slugs, field length limits. The only file that should change between test and production. |
 | `Schema.gs` | The Sheet's column list (`SCHEMA_COLUMNS`), enum values (`REVIEW_STATUS`, `EMAIL_STATUS`), and `buildRow_()` to construct a full row from a validated submission. |
 | `Validation.gs` | `validateSubmission_()` and `sanitizeText_()` — all input validation/sanitization happens here, before anything touches a module further down the chain. |
-| `Sheets.gs` | The only module that calls `SpreadsheetApp`. Creates the sheet/header if missing, refuses to write if the live header has drifted from `Schema.gs`. `updateRowByRecordId_()` patches specific columns on an already-written row — used by the AI step and every later batch. |
+| `Sheets.gs` | The only module that calls `SpreadsheetApp`. Creates the sheet/header if missing, refuses to write if the live header has drifted from `Schema.gs`. `updateRowByRecordId_()` patches specific columns on an already-written row; `getRowObjectByRowIndex_()` reads one row's live values back as an object. Used by the AI step and every later batch. |
 | `Ai.gs` | The AI summarization step. A **normalization layer, not a content-generation layer** — see "AI boundaries" below. Calls OpenRouter, then runs a code-level drift check (`flagDrift_()`) independent of the prompt. Its prompt text implements `PROMPTS.md`, the canonical prompt specification — see below. |
 | `PROMPTS.md` | Version-controlled specification for `Ai.gs`'s prompt: purpose, inputs/outputs, safety rules, forbidden behaviours, traceability principles, future evolution notes. Not loaded at runtime — this is documentation the prompt must match, not a template Apps Script reads. |
+| `Review.gs` | The doctor review checkpoint. A Sheet-bound custom menu (`onOpen()` — must keep that exact name, it's an Apps Script simple trigger), not a Web App page. Approve/reject writes `review_status`/`reviewed_by`/`reviewed_at`, then checks the send gate on freshly re-read row data. |
+| `Send.gs` | `evaluateSendGate_(row)` — the single choke point every future send path must pass through. Hard-checks `patient_consent_confirmed === true` and `review_status` is an approved state, reading live Sheet values, not assumptions carried over from submission time. |
 | `Logger.gs` | `logEvent_()` — thin wrapper around the Apps Script execution log for pipeline-stage audit events. |
 | `Utils.gs` | Small stateless helpers (currently: `jsonResponse_()`). No dependency on any other module. |
-| `Tests.gs` | Manual unit tests for pure logic (`Validation.gs`, `Ai.gs`'s `flagDrift_()`). Run `runAllTests_()` from the Apps Script editor; no live Sheet or network calls. |
+| `Tests.gs` | Manual unit tests for pure logic (`Validation.gs`, `Ai.gs`'s `flagDrift_()`, `Send.gs`'s `evaluateSendGate_()`). Run `runAllTests_()` from the Apps Script editor; no live Sheet or network calls. |
 | `sample-payloads/` | Example `doPost` bodies for manual/curl testing — one valid, and a few that should each fail validation for a specific reason. |
 
 ## Request flow
@@ -92,13 +96,43 @@ of each other:
    `CONFIG.AI.SENTENCE_TRACEABILITY_MIN_OVERLAP` (0.3) as low-traceability.
 
 Flags never block the draft from being written or auto-reject it — there
-is no send capability yet (that's Batch 4D/4E, both still gated on doctor
-review), so nothing can reach a patient regardless. Flags are written
-into `error_log` prefixed `AI_REVIEW_FLAGS:` so the doctor reviewer in
-Batch 4D has something concrete to check the draft against, not just a
-blank trust exercise. This is a heuristic, not a proof — it catches
-recognizable drift patterns and sentences with almost no vocabulary
-overlap with the source, not every possible fabrication.
+is no send capability yet (email delivery is Batch 4E), so nothing can
+reach a patient regardless. Flags are written into `error_log` prefixed
+`AI_REVIEW_FLAGS:` so the doctor reviewer (Batch 4D, below) has something
+concrete to check the draft against, not just a blank trust exercise.
+This is a heuristic, not a proof — it catches recognizable drift patterns
+and sentences with almost no vocabulary overlap with the source, not
+every possible fabrication.
+
+## Review workflow (Batch 4D)
+
+Doctor review is **Sheet-bound**, not a Web App page — docs/25 §5.2
+explicitly allows "Sheet-bound or minimal UI," and for a staff-paced,
+one-row-at-a-time action, a custom menu inside the Sheet itself is
+simpler and more auditable than a second HTML form. Opening the bound
+Sheet adds a **Consultation Summaries** menu (`Review.gs`'s `onOpen()`)
+with three actions, each operating on whichever row the doctor has
+selected:
+
+- **Approve selected row (as generated)** → `review_status = approved`
+- **Approve selected row (I edited the draft)** → `review_status =
+  edited_and_approved` — pick this if the doctor edited the
+  `ai_summary_draft` cell directly in the Sheet before approving
+- **Reject selected row** → `review_status = rejected`, no send attempt
+
+`reviewed_by` is captured automatically from `Session.getActiveUser().getEmail()`
+(the signed-in Workspace account with edit access to the Sheet), not a
+free-text field — the same identity space as `consent_confirmed_by`.
+`reviewed_at` is stamped by Apps Script, not client-supplied.
+
+After approval, `reviewSelectedRow_()` re-reads the row (not the values
+it started with) and runs it through `Send.gs`'s `evaluateSendGate_()` —
+so a manual edit to `patient_consent_confirmed` made directly in the
+Sheet between submission and review is still caught, not just the value
+that was true at submission time (docs/25 §6, §9.2). **This batch proves
+the gate is enforced correctly; it does not call MailApp/GmailApp.** A
+passing gate currently just confirms readiness and logs it — Batch 4E is
+what turns that into an actual email.
 
 ## Sheet schema
 
@@ -134,13 +168,17 @@ extend the same row and reuse the same modules:
   `ai_model_used`, and any `flagDrift_()` findings (in `error_log`) back
   onto the same row via `Sheets.gs`'s `updateRowByRecordId_()`. Prompt
   specified in `PROMPTS.md`. See "AI boundaries" above.
-- **4D (doctor review + gated send)** — a new `Review.gs`/`Send.gs`
-  module reading `review_status` and `patient_consent_confirmed` off
-  existing rows; both are already captured by 4A, so the gate has real
-  data to check from day one.
-- **4E (email template + delivery)** — a new `Email.gs` module called
-  only after 4D's gates pass; writes `email_status`/`email_sent_at`
-  onto the same row.
+- **4D (doctor review + gated send)** — complete. `Review.gs` is a
+  Sheet-bound custom menu (docs/25 §5.2's "Sheet-bound or minimal UI"
+  allowance) writing `review_status`/`reviewed_by`/`reviewed_at`.
+  `Send.gs`'s `evaluateSendGate_()` reads live `review_status` and
+  `patient_consent_confirmed` off the row — both already captured by 4A
+  — so the gate has real data to check from day one. This batch proves
+  the gate fails closed; it does not yet call MailApp/GmailApp.
+- **4E (email template + delivery)** — a new `Email.gs` module, called
+  only when `evaluateSendGate_()` returns `canSend: true`, that builds
+  the patient-facing HTML template (docs/25 §9.6) and performs the
+  actual send, writing `email_status`/`email_sent_at` onto the same row.
 - **4F (retention purge)** — a new time-driven trigger function
   (likely `Retention.gs`) that reads `email_sent_at` off existing rows
   and clears `recipient_email`, stamping `purged_at`.
@@ -222,12 +260,27 @@ error-prone than clasp — use only if clasp isn't available.
    entry — this is the one live-model check `Tests.gs`'s offline unit
    tests can't cover, since they call `flagDrift_()` directly rather
    than a real OpenRouter response.
-7. Only after all of the above pass should this be pointed at a real
-   Sheet — and even then, no email step or doctor-review UI exists yet
-   (Batch 4D/4E), so nothing can reach a patient regardless.
+7. Open the test Sheet directly (not the Apps Script editor) and confirm
+   the **Consultation Summaries** menu appears — this only shows up if
+   `Review.gs`'s `onOpen()` was deployed and the Sheet was reopened after
+   deployment (simple triggers only fire on open, not retroactively).
+8. Select a row with a populated `ai_summary_draft` and
+   `patient_consent_confirmed = TRUE`, click **Approve selected row (as
+   generated)**, and confirm: `review_status` becomes `approved`,
+   `reviewed_by` is your own Workspace email (not a placeholder), and the
+   alert reports the send gate passed.
+9. On a *different* row, manually edit the `patient_consent_confirmed`
+   cell to `FALSE` before approving — confirm the alert reports the gate
+   blocked with `patient_consent_confirmed is not true`, proving the gate
+   reads live values rather than trusting the row's state at submission
+   time (docs/25 §6, §9.2).
+10. Click **Reject selected row** on a row and confirm `review_status`
+    becomes `rejected` and no gate-check alert appears.
+11. Only after all of the above pass should this be pointed at a real
+    Sheet — and even then, no email step exists yet (Batch 4E), so
+    nothing can reach a patient regardless.
 
 ## Explicitly out of scope so far
 
-No email sending, no doctor review/approve UI, no retention purge, no
-patient login. See docs/25-PHASE-1.5-TECHNICAL-PLAN.md §9 for the full
-batch sequence.
+No email sending, no retention purge, no patient login. See
+docs/25-PHASE-1.5-TECHNICAL-PLAN.md §9 for the full batch sequence.
