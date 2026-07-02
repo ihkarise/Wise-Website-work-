@@ -559,6 +559,53 @@ confirm a tampered-consent row still doesn't send, force and verify a
 delivery failure is logged, never a real patient address until §8's
 full validation pass and Batch 4G).
 
+## Batch 4F (complete)
+
+Adds `apps-script/Retention.gs`, implementing the §9.3-locked policy:
+`recipient_email` retained 14 days after `email_sent_at`, then cleared
+automatically by a time-driven trigger, which stamps `purged_at`.
+
+Per an explicit implementation-time requirement, this module is
+structurally independent of `Review.gs`, `Send.gs`, and `Email.gs` — it
+neither calls them nor is called by them — and is restricted to exactly
+two columns:
+
+- `purgeExpiredRecipientEmails_()` — the trigger entry point. Scans every
+  row once (`Sheets.gs`'s new `getAllRowObjects_()`), and for each
+  eligible row calls `updateRowByRecordId_()` with a hardcoded
+  `{ recipient_email: '', purged_at: <timestamp> }` object — there is no
+  code path in this file able to touch `staff_submitted_note`,
+  `ai_summary_draft`, `review_status`, `reviewed_by`, `reviewed_at`,
+  `email_status`, `email_sent_at`, or `error_log`.
+- `isEligibleForPurge_(row, nowMs)` — pure, unit-tested eligibility
+  check. A row qualifies only if `recipient_email` is non-empty,
+  `purged_at` is not already set, and at least 14 days have passed since
+  a valid `email_sent_at`. The `purged_at` check is what makes the whole
+  operation **idempotent**: once set, a row can never be purged again,
+  so running the trigger twice (or the same run overlapping itself) is
+  always safe.
+- Partial-failure handling: each row's write is wrapped in its own
+  `try`/`catch` inside the scan loop — one row's Sheets-write failure is
+  logged and the loop continues to the next row, never stopping the
+  batch. A summary line (`purged=N skipped=N failed=N`) closes every run.
+- `installRetentionTrigger_()` — one-time, idempotent setup run manually
+  from the Apps Script editor; checks for an existing trigger before
+  creating one, so it can be safely re-run without creating duplicates.
+
+Verified against synthetic data (not just hand-reasoned): a 4-row
+dataset (one purge-eligible, one too-recent, one already-purged, one
+engineered to fail the Sheets write) run through
+`purgeExpiredRecipientEmails_()` twice confirmed exactly the required
+behavior — one purge, two correct skips, one logged-and-continued
+failure on the first run; zero re-purges and the same persistent failure
+correctly retried (not silently abandoned) on the second run; all
+protected columns provably untouched throughout.
+
+`apps-script/README.md` updated with a "Retention purge" section and
+manual test steps (skip-when-too-recent, purge-when-eligible with
+protected-column verification, idempotency-on-rerun, and
+trigger-install idempotency).
+
 ---
 
 # 12. Documentation Impact
