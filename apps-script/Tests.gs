@@ -1,7 +1,12 @@
 /**
- * Manual unit tests for pure logic (Validation.gs, Schema.gs). No Sheets
- * or network calls — safe to run from the Apps Script editor at any time.
- * Run runAllTests_() and check the execution log for FAIL lines.
+ * Manual unit tests for pure logic (Validation.gs, Ai.gs's flagDrift_(),
+ * Send.gs's evaluateSendGate_(), Email.gs's buildVisitSummaryEmail_()/
+ * Utils.gs's escapeHtml_()). No Sheets or network calls — safe to run
+ * from the Apps Script editor at any time. attemptSend_() and
+ * sendVisitSummaryEmail_() are NOT covered here since they call a real
+ * Sheet and mail provider — see apps-script/README.md's manual test
+ * steps for those. Run runAllTests_() and check the execution log for
+ * FAIL lines.
  *
  * This is a starting point for docs/25 §8.2's "unit-level checks"; Batch
  * 4G is responsible for the full backend testing checklist, including
@@ -25,7 +30,10 @@ function runAllTests_() {
     test_sendGateBlocksWhenNotApproved_(),
     test_sendGateBlocksWhenDraftEmpty_(),
     test_sendGateBlocksWhenRecipientEmailEmpty_(),
-    test_sendGatePassesForEditedAndApproved_()
+    test_sendGatePassesForEditedAndApproved_(),
+    test_escapeHtmlNeutralizesTags_(),
+    test_emailBodyEscapesDraftContent_(),
+    test_emailBodyUsesConfiguredSubject_()
   ];
 
   var failures = results.filter(function (r) { return !r.pass; });
@@ -163,4 +171,29 @@ function test_sendGateBlocksWhenRecipientEmailEmpty_() {
   row.recipient_email = '';
   var gate = evaluateSendGate_(row);
   return assert_('send gate blocks when recipient_email is empty', gate.canSend === false);
+}
+
+// buildVisitSummaryEmail_/escapeHtml_ are pure (no MailApp/Sheets calls),
+// unlike attemptSend_ and sendVisitSummaryEmail_ — those touch a real
+// mail provider and Sheet, so they're covered by the manual test steps
+// in apps-script/README.md instead of here.
+
+function test_escapeHtmlNeutralizesTags_() {
+  var out = escapeHtml_('<script>alert(1)</script> & "quoted"');
+  var safe = out.indexOf('<script>') === -1 && out.indexOf('&lt;script&gt;') !== -1;
+  return assert_('escapeHtml_ neutralizes tags and entities', safe);
+}
+
+function test_emailBodyEscapesDraftContent_() {
+  var row = approvedRow_();
+  row.ai_summary_draft = '<b>not from the model</b>';
+  var content = buildVisitSummaryEmail_(row);
+  var safe = content.htmlBody.indexOf('<b>not from the model</b>') === -1 &&
+    content.htmlBody.indexOf('&lt;b&gt;') !== -1;
+  return assert_('email body escapes ai_summary_draft before embedding', safe);
+}
+
+function test_emailBodyUsesConfiguredSubject_() {
+  var content = buildVisitSummaryEmail_(approvedRow_());
+  return assert_('email subject matches CONFIG.EMAIL.SUBJECT', content.subject === CONFIG.EMAIL.SUBJECT);
 }

@@ -16,3 +16,19 @@ function jsonResponse_(statusCode, body) {
     .createTextOutput(JSON.stringify(payload))
     .setMimeType(ContentService.MimeType.JSON);
 }
+
+/**
+ * Escapes text for safe embedding in an HTML email body. Defense in
+ * depth: staff_submitted_note is sanitized at submission (Validation.gs),
+ * but ai_summary_draft is model output that has never passed through
+ * that filter — anything reaching an HTML template must be escaped here
+ * first (docs/15: "no raw HTML injected into email templates").
+ */
+function escapeHtml_(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}

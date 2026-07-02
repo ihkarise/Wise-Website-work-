@@ -78,19 +78,15 @@ function reviewSelectedRow_(newStatus) {
   // Re-read the row rather than reusing values captured above, so a
   // manual edit to patient_consent_confirmed (or anything else the gate
   // checks) between submission and review is still caught (docs/25 §6).
+  // attemptSend_() (Send.gs) re-checks the gate itself and, only if it
+  // passes, calls Email.gs to actually deliver — Review.gs never calls
+  // Email.gs or a mail provider directly.
   var updatedRow = getRowObjectByRowIndex_(rowIndex);
-  var gate = evaluateSendGate_(updatedRow);
+  var sendResult = attemptSend_(updatedRow);
 
-  if (!gate.canSend) {
-    ui.alert('Approved, but not ready to send: ' + gate.reason);
-    logEvent_('failed', row.record_id, 'Send gate blocked after review: ' + gate.reason);
-    return;
+  if (sendResult.sent) {
+    ui.alert('Approved and sent — the patient has been emailed their visit summary.');
+  } else {
+    ui.alert('Approved, but not sent: ' + sendResult.reason);
   }
-
-  // Batch 4D proves the gate is enforced correctly; it does not yet call
-  // MailApp/GmailApp. The actual patient-facing HTML template and
-  // delivery call are Batch 4E's scope (docs/25 §9.6).
-  ui.alert('Approved — consent and review gates both pass. Email delivery ' +
-    'is not implemented until Batch 4E; nothing has been sent to the patient.');
-  logEvent_('reviewed', row.record_id, 'Send gate passed; delivery not yet implemented (Batch 4E).');
 }

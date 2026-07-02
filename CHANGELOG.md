@@ -8,6 +8,29 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-02 — Phase 1.5, Batch 4E: email delivery, layered behind a dedicated Email.gs
+
+New: `apps-script/Email.gs` — the visit-summary email template and the only module permitted to call a mail provider. Requested layering: `Send.gs` never calls `MailApp`/`GmailApp` directly.
+
+### Added
+- `apps-script/Email.gs`: `sendVisitSummaryEmail_(row)` builds the HTML template (`buildVisitSummaryEmail_()`, docs/25 §9.6, HTML-first, locked) and is the sole caller of `MailApp.sendEmail()` anywhere in the project.
+- `apps-script/Send.gs`: `attemptSend_(row)` — re-checks `evaluateSendGate_()` and, only if it passes, calls `Email.gs`; writes `email_status`/`email_sent_at` (success) or `email_status = failed` + `error_log` (any failure) back to the row regardless of outcome, per docs/25 §8.3's never-silently-drop requirement.
+- `apps-script/Utils.gs`: `escapeHtml_()` — the AI's draft output is escaped before being embedded in the HTML email, since (unlike `staff_submitted_note`) it was never sanitized at submission time.
+- `apps-script/Config.gs`: `CONFIG.EMAIL` (subject, sender name) — read only by `Email.gs`.
+- `apps-script/Tests.gs`: three new unit tests for `escapeHtml_()`/`buildVisitSummaryEmail_()`, verified against actual execution. `attemptSend_()`/`sendVisitSummaryEmail_()` are intentionally not unit-tested (they touch a real Sheet and mail provider) — covered by expanded manual test steps instead.
+
+### Changed
+- `apps-script/Review.gs`: after approval, now calls `Send.gs`'s `attemptSend_()` (which sends the email if the gate passes) instead of Batch 4D's placeholder "not yet implemented" alert. `Review.gs` still never calls `Email.gs` or a mail provider directly.
+
+### Architecture
+- Layering: `Review.gs → Send.gs → Email.gs → MailApp`. `Send.gs` never touches a mail provider; `Review.gs` never touches `Email.gs`. This keeps the send gate independent of the delivery mechanism — a future provider swap only touches `Email.gs`. Phase 1.5 uses MailApp only, per docs/25 §3's diagram; no other provider was introduced.
+
+### Notes
+- Self-review verified the layering holds (`grep` for `MailApp`/`GmailApp` across all modules shows exactly one call site, in `Email.gs`) and exercised the gate-pass, gate-blocked, and provider-failure paths against mocked dependencies before committing.
+- `apps-script/README.md` gained an "Email delivery layering" section and expanded manual-test steps: send to a real test inbox, confirm a tampered-consent row still doesn't send, force and verify a delivery failure is logged — never a real patient address until docs/25 §8's full validation pass (Batch 4G).
+- `docs/24-ROADMAP.md` and `docs/25-PHASE-1.5-TECHNICAL-PLAN.md` §11 updated.
+- Deferred: retention purge (4F).
+
 ## 2026-07-02 — Phase 1.5, Batch 4D: doctor review checkpoint + gated send
 
 New: `apps-script/Review.gs` and `apps-script/Send.gs` — the doctor review step from `docs/25` §5.2 and the hard-gated send decision from §6/§9.2. No email is sent yet — this batch proves the gate is enforced correctly; Batch 4E attaches the actual delivery.

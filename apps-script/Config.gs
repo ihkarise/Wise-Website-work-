@@ -40,5 +40,12 @@ var CONFIG = {
     // traceable to the source note"). Heuristic, not a hard block — see
     // Ai.gs.
     SENTENCE_TRACEABILITY_MIN_OVERLAP: 0.3
+  },
+
+  // Visit-summary email (docs/25 §9.6 — HTML-first, locked). Only
+  // Email.gs reads this section; Send.gs never touches email content.
+  EMAIL: {
+    SUBJECT: 'Your Visit Summary — Wise Homeopathy',
+    SENDER_NAME: 'Wise Homeopathy'
   }
 };

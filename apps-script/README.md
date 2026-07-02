@@ -12,8 +12,8 @@ and leave the repo out of sync; changes flow from here outward via
 **Batch 4B** — staff entry form (`/internal/consultation-summary.html`). Complete.
 **Batch 4C** — AI summarization (normalization only). Complete.
 **Batch 4D** — doctor review checkpoint + gated send decision. Complete.
-No email delivery yet (the send gate is proven, but nothing calls
-MailApp/GmailApp until Batch 4E), no patient login.
+**Batch 4E** — email delivery (`Email.gs`, MailApp). Complete.
+No retention purge yet, no patient login.
 See docs/25 §9 for the batch sequence this project is built in.
 
 ## Module layout
@@ -31,11 +31,12 @@ it — e.g. only `Sheets.gs` calls `SpreadsheetApp`.
 | `Sheets.gs` | The only module that calls `SpreadsheetApp`. Creates the sheet/header if missing, refuses to write if the live header has drifted from `Schema.gs`. `updateRowByRecordId_()` patches specific columns on an already-written row; `getRowObjectByRowIndex_()` reads one row's live values back as an object. Used by the AI step and every later batch. |
 | `Ai.gs` | The AI summarization step. A **normalization layer, not a content-generation layer** — see "AI boundaries" below. Calls OpenRouter, then runs a code-level drift check (`flagDrift_()`) independent of the prompt. Its prompt text implements `PROMPTS.md`, the canonical prompt specification — see below. |
 | `PROMPTS.md` | Version-controlled specification for `Ai.gs`'s prompt: purpose, inputs/outputs, safety rules, forbidden behaviours, traceability principles, future evolution notes. Not loaded at runtime — this is documentation the prompt must match, not a template Apps Script reads. |
-| `Review.gs` | The doctor review checkpoint. A Sheet-bound custom menu (`onOpen()` — must keep that exact name, it's an Apps Script simple trigger), not a Web App page. Approve/reject writes `review_status`/`reviewed_by`/`reviewed_at`, then checks the send gate on freshly re-read row data. |
-| `Send.gs` | `evaluateSendGate_(row)` — the single choke point every future send path must pass through. Hard-checks `patient_consent_confirmed === true` and `review_status` is an approved state, reading live Sheet values, not assumptions carried over from submission time. |
+| `Review.gs` | The doctor review checkpoint. A Sheet-bound custom menu (`onOpen()` — must keep that exact name, it's an Apps Script simple trigger), not a Web App page. Approve/reject writes `review_status`/`reviewed_by`/`reviewed_at`, then calls `Send.gs`'s `attemptSend_()` on freshly re-read row data. Never calls `Email.gs` or a mail provider directly. |
+| `Send.gs` | `evaluateSendGate_(row)` — the single choke point every send path must pass through. Hard-checks `patient_consent_confirmed === true` and `review_status` is an approved state, reading live Sheet values, not assumptions carried over from submission time. `attemptSend_(row)` orchestrates: gate → `Email.gs` → log the outcome back to the Sheet. **Never calls MailApp/GmailApp itself** — see "Email delivery layering" below. |
+| `Email.gs` | The only module that calls a mail provider. `sendVisitSummaryEmail_(row)` builds the HTML template (`buildVisitSummaryEmail_()`) and calls `MailApp.sendEmail()`. Phase 1.5 uses MailApp only. |
 | `Logger.gs` | `logEvent_()` — thin wrapper around the Apps Script execution log for pipeline-stage audit events. |
-| `Utils.gs` | Small stateless helpers (currently: `jsonResponse_()`). No dependency on any other module. |
-| `Tests.gs` | Manual unit tests for pure logic (`Validation.gs`, `Ai.gs`'s `flagDrift_()`, `Send.gs`'s `evaluateSendGate_()`). Run `runAllTests_()` from the Apps Script editor; no live Sheet or network calls. |
+| `Utils.gs` | Small stateless helpers: `jsonResponse_()`, `escapeHtml_()` (used by `Email.gs` to neutralize the AI draft before embedding it in HTML). No dependency on any other module. |
+| `Tests.gs` | Manual unit tests for pure logic (`Validation.gs`, `Ai.gs`'s `flagDrift_()`, `Send.gs`'s `evaluateSendGate_()`, `Email.gs`'s `buildVisitSummaryEmail_()`, `Utils.gs`'s `escapeHtml_()`). Run `runAllTests_()` from the Apps Script editor; no live Sheet or network calls. `attemptSend_()`/`sendVisitSummaryEmail_()` are deliberately NOT covered here — they touch a real Sheet and mail provider; see the manual test steps below. |
 | `sample-payloads/` | Example `doPost` bodies for manual/curl testing — one valid, and a few that should each fail validation for a specific reason. |
 
 ## Request flow
@@ -126,13 +127,46 @@ free-text field — the same identity space as `consent_confirmed_by`.
 `reviewed_at` is stamped by Apps Script, not client-supplied.
 
 After approval, `reviewSelectedRow_()` re-reads the row (not the values
-it started with) and runs it through `Send.gs`'s `evaluateSendGate_()` —
-so a manual edit to `patient_consent_confirmed` made directly in the
-Sheet between submission and review is still caught, not just the value
-that was true at submission time (docs/25 §6, §9.2). **This batch proves
-the gate is enforced correctly; it does not call MailApp/GmailApp.** A
-passing gate currently just confirms readiness and logs it — Batch 4E is
-what turns that into an actual email.
+it started with) and calls `Send.gs`'s `attemptSend_()` — so a manual
+edit to `patient_consent_confirmed` made directly in the Sheet between
+submission and review is still caught, not just the value that was true
+at submission time (docs/25 §6, §9.2). `Review.gs` never calls `Email.gs`
+or a mail provider directly — see "Email delivery layering" below.
+
+## Email delivery layering (Batch 4E)
+
+```
+Review.gs  →  Send.gs (evaluateSendGate_ / attemptSend_)  →  Email.gs (sendVisitSummaryEmail_)  →  MailApp
+```
+
+Each arrow is a hard rule, not a convention: `Send.gs` never calls
+`MailApp`/`GmailApp` directly, and `Review.gs` never calls `Email.gs` or
+a mail provider directly. `attemptSend_()` is the only function allowed
+to call `Email.gs`, and it always re-checks `evaluateSendGate_()` first
+— so a future caller that adds a new entry point into this flow cannot
+accidentally bypass the gate by calling `Email.gs` on its own.
+
+This keeps the send *gate* (who is allowed to be emailed, and when)
+independent of the delivery *mechanism* (how the email actually leaves
+the building). Phase 1.5 uses `MailApp` only, per docs/25 §3's diagram —
+no other provider is introduced. If a future phase needs to swap
+providers (a different Google service, or a non-Google one), only
+`Email.gs` changes; `Send.gs`'s gate logic and `Review.gs`'s review
+workflow are untouched.
+
+`buildVisitSummaryEmail_()` (`Email.gs`) builds a simple, brand-consistent
+HTML email (docs/25 §9.6, HTML-first, locked) using the site's existing
+color tokens. `ai_summary_draft` is passed through `Utils.gs`'s
+`escapeHtml_()` before being embedded — this is defense in depth:
+`staff_submitted_note` is sanitized at submission (`Validation.gs`), but
+the AI's own output has never passed through that filter, so anything
+reaching the HTML template is escaped here regardless of what produced
+it (docs/15: "no raw HTML injected into email templates").
+
+`attemptSend_()` always writes `email_status`/`email_sent_at` (on
+success) or `email_status = failed` plus `error_log` (on any failure —
+gate blocked or provider error) back to the row, and logs every outcome
+via `Logger.gs` — no failure is ever silently dropped (docs/25 §8.3).
 
 ## Sheet schema
 
@@ -175,10 +209,11 @@ extend the same row and reuse the same modules:
   `patient_consent_confirmed` off the row — both already captured by 4A
   — so the gate has real data to check from day one. This batch proves
   the gate fails closed; it does not yet call MailApp/GmailApp.
-- **4E (email template + delivery)** — a new `Email.gs` module, called
-  only when `evaluateSendGate_()` returns `canSend: true`, that builds
-  the patient-facing HTML template (docs/25 §9.6) and performs the
-  actual send, writing `email_status`/`email_sent_at` onto the same row.
+- **4E (email template + delivery)** — complete. `Email.gs`, called only
+  by `Send.gs`'s `attemptSend_()` when the gate passes, builds the
+  patient-facing HTML template (docs/25 §9.6) and calls `MailApp`.
+  Writes `email_status`/`email_sent_at` onto the same row via
+  `Sheets.gs`. See "Email delivery layering" above.
 - **4F (retention purge)** — a new time-driven trigger function
   (likely `Retention.gs`) that reads `email_sent_at` off existing rows
   and clears `recipient_email`, stamping `purged_at`.
@@ -264,23 +299,35 @@ error-prone than clasp — use only if clasp isn't available.
    the **Consultation Summaries** menu appears — this only shows up if
    `Review.gs`'s `onOpen()` was deployed and the Sheet was reopened after
    deployment (simple triggers only fire on open, not retroactively).
-8. Select a row with a populated `ai_summary_draft` and
-   `patient_consent_confirmed = TRUE`, click **Approve selected row (as
-   generated)**, and confirm: `review_status` becomes `approved`,
-   `reviewed_by` is your own Workspace email (not a placeholder), and the
-   alert reports the send gate passed.
+8. Select a row with a populated `ai_summary_draft`, a **test inbox you
+   control** as `recipient_email`, and `patient_consent_confirmed =
+   TRUE`. Click **Approve selected row (as generated)** and confirm:
+   `review_status` becomes `approved`, `reviewed_by` is your own
+   Workspace email, the alert reports the email was sent, and
+   `email_status`/`email_sent_at` populate on the row. Check the test
+   inbox — confirm the HTML email actually arrived and renders the
+   summary correctly.
 9. On a *different* row, manually edit the `patient_consent_confirmed`
    cell to `FALSE` before approving — confirm the alert reports the gate
-   blocked with `patient_consent_confirmed is not true`, proving the gate
-   reads live values rather than trusting the row's state at submission
-   time (docs/25 §6, §9.2).
+   blocked with `patient_consent_confirmed is not true`, `email_status`
+   stays `not_sent`, and no email is sent, proving the gate reads live
+   values rather than trusting the row's state at submission time
+   (docs/25 §6, §9.2).
 10. Click **Reject selected row** on a row and confirm `review_status`
-    becomes `rejected` and no gate-check alert appears.
-11. Only after all of the above pass should this be pointed at a real
-    Sheet — and even then, no email step exists yet (Batch 4E), so
-    nothing can reach a patient regardless.
+    becomes `rejected`, no send is attempted, and no gate-check alert
+    appears.
+11. Force a delivery failure (e.g. temporarily set `recipient_email` to
+    something malformed directly in the Sheet, bypassing form
+    validation) and approve — confirm `email_status` becomes `failed`,
+    `error_log` shows `EMAIL_SEND_FAILED: ...`, and the doctor-facing
+    alert reports the failure instead of claiming success (docs/25 §8.3).
+12. **Never use a real patient's address for steps 8-11** — every
+    delivery test in this batch must use a synthetic/test inbox you
+    control (docs/25 §8.1). Only after all of the above pass, and only
+    with a real, consenting patient reviewed manually at every stage
+    (docs/25 §8.5, Batch 4G), should a real address ever be used.
 
 ## Explicitly out of scope so far
 
-No email sending, no retention purge, no patient login. See
+No retention purge, no patient login. See
 docs/25-PHASE-1.5-TECHNICAL-PLAN.md §9 for the full batch sequence.
