@@ -8,15 +8,23 @@ and leave the repo out of sync; changes flow from here outward via
 
 ## Status
 
-**Batch 4A** — schema, validation, and Sheet-write layer. Complete.
-**Batch 4B** — staff entry form (`/internal/consultation-summary.html`). Complete.
-**Batch 4C** — AI summarization (normalization only). Complete.
-**Batch 4D** — doctor review checkpoint + gated send decision. Complete.
-**Batch 4E** — email delivery (`Email.gs`, MailApp). Complete.
-**Batch 4F** — automated retention purge (`Retention.gs`). Complete.
-No patient login — the full backend pipeline (§8 testing, real pilot) is
-Batch 4G, the last item before Phase 1.5 can be marked done.
-See docs/25 §9 for the batch sequence this project is built in.
+**Batches 4A–4G are all complete.** Software is done; this project has
+not yet been deployed to a live Google Workspace. See:
+
+- **docs/26-PHASE-1.5-VALIDATION-REPORT.md** — what was validated, how,
+  and the results (37/37 checks passed against the real committed
+  source, via `validation/phase-1-5/`).
+- **docs/27-PHASE-1.5-CLOSEOUT.md** — the official Phase 1.5 closeout:
+  objectives, deliverables, architecture, lessons learned.
+- **docs/28-DEPLOYMENT-READINESS.md** — the operational checklist for
+  whoever deploys this project for real (Workspace setup, clasp push,
+  API keys, live trigger install, real-patient pilot approval).
+
+No patient login exists anywhere in this project, by design. See
+docs/25 §9 for the batch sequence this project was built in, and docs/25
+§10 for the full Definition of Done (software items are checked; live
+deployment items are not — that distinction matters and is preserved
+throughout these docs).
 
 ## Module layout
 

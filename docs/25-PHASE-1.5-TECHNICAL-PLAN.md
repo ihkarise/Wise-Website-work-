@@ -1,7 +1,10 @@
 # 25 - Phase 1.5 Technical Implementation Plan
-## Version 1.1 — 2026-07-02
+## Version 1.2 — 2026-07-02
 
-> Status: APPROVED — ready for implementation.
+> Status: **SOFTWARE COMPLETE (Batches 4A–4H).** Not yet deployed —
+> deployment and a real-patient pilot remain open, per §10. See
+> docs/27-PHASE-1.5-CLOSEOUT.md for the official closeout and
+> docs/28-DEPLOYMENT-READINESS.md for the remaining operational checklist.
 > Author role: Lead Software Architect.
 > Authorizing input: Phase 1 Completion Review (docs/20-PRODUCT-ARCHITECTURE-REVIEW.md), accepted.
 > Authorizing input: Architecture Readiness Review (Phase 1.5), accepted — all open
@@ -721,20 +724,60 @@ this environment can verify without live credentials.
 docs/25 §10's checklist updated above to reflect exactly which items
 this batch closes versus which stay open pending live deployment.
 
+## Batch 4H (complete — closeout)
+
+Per this batch's explicit scope: **documentation, validation closeout,
+and project synchronization only** — no new features, no refactor, no
+optimization, no Phase 2 work. Confirmed by `git diff` against
+`apps-script/`, `internal/`, and `validation/`: empty. This is the only
+batch in the Phase 1.5 sequence that touches nothing but `docs/`,
+`apps-script/README.md`, and `CHANGELOG.md`.
+
+Closed the one documentation gap this plan's own §12 table had flagged
+but never fulfilled: docs/15-SECURITY-STANDARDS.md never received its
+"Phase-1.5-specific security notes discovered during build" note despite
+being listed since the plan's original version. Added now, cross-
+referencing §7's existing mapping table rather than duplicating it.
+
+Three new documents close out Phase 1.5 formally:
+
+- **docs/26-PHASE-1.5-VALIDATION-REPORT.md** — the validation record:
+  objectives, scope, what was implemented, methodology, every test
+  category executed, results, and an explicit, honest list of what
+  remains open pending live deployment. Supersedes scattered validation
+  notes across §10/§11 as the single canonical validation record.
+- **docs/27-PHASE-1.5-CLOSEOUT.md** — the official closeout: original
+  objectives against what shipped, deliverables, architecture delivered,
+  lessons learned, remaining operational work, and the handoff into
+  Phase 2A.
+- **docs/28-DEPLOYMENT-READINESS.md** — an operational checklist (not a
+  software task list) for whoever deploys this project: Workspace setup,
+  `clasp push`, API keys, trigger installation, domain-restriction
+  verification, and real-pilot approval.
+
+**Distinction preserved throughout, per explicit requirement**:
+*Software Complete* (true — all of Batches 4A-4G's code and validation
+work is done and merged) is not the same as *Deployment Complete* or
+*Operational Complete* (both false — no live Google Workspace
+deployment exists yet, and no real patient has been contacted). Nothing
+in this batch claims otherwise.
+
 ---
 
 # 12. Documentation Impact
 
-Per docs/00's Living Documentation Policy, completing Phase 1.5 will require
-updates to:
+Per docs/00's Living Documentation Policy — all closed as of Batch 4H:
 
-| Doc | Update needed |
-|---|---|
-| docs/12-DATA-ARCHITECTURE.md | Record the actual Sheet schema and Apps Script endpoint shape once built. |
-| docs/24-ROADMAP.md | Mark Phase 1.5 line items complete as they land. |
-| docs/15-SECURITY-STANDARDS.md | Add any Phase-1.5-specific security notes discovered during build. |
-| docs/13-AI-GUIDELINES.md | Record the summarization prompt boundaries as a concrete example, if useful for Phase 2C. |
-| CHANGELOG.md | Standard entry once shipped. |
+| Doc | Update needed | Status |
+|---|---|---|
+| docs/12-DATA-ARCHITECTURE.md | Record the actual Sheet schema and Apps Script endpoint shape once built. | Done — Batch 4A |
+| docs/24-ROADMAP.md | Mark Phase 1.5 line items complete as they land. | Done — updated every batch |
+| docs/15-SECURITY-STANDARDS.md | Add any Phase-1.5-specific security notes discovered during build. | Done — Batch 4H |
+| docs/13-AI-GUIDELINES.md | Record the summarization prompt boundaries as a concrete example, if useful for Phase 2C. | Done — Batch 4C |
+| CHANGELOG.md | Standard entry once shipped. | Done — every batch |
+| docs/26-PHASE-1.5-VALIDATION-REPORT.md | New — the canonical validation record. | Done — Batch 4H |
+| docs/27-PHASE-1.5-CLOSEOUT.md | New — the official Phase 1.5 closeout. | Done — Batch 4H |
+| docs/28-DEPLOYMENT-READINESS.md | New — the operational deployment checklist. | Done — Batch 4H |
 
 ---
 
