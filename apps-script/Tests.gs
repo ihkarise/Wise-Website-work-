@@ -1,12 +1,13 @@
 /**
  * Manual unit tests for pure logic (Validation.gs, Ai.gs's flagDrift_(),
  * Send.gs's evaluateSendGate_(), Email.gs's buildVisitSummaryEmail_()/
- * Utils.gs's escapeHtml_()). No Sheets or network calls — safe to run
- * from the Apps Script editor at any time. attemptSend_() and
- * sendVisitSummaryEmail_() are NOT covered here since they call a real
- * Sheet and mail provider — see apps-script/README.md's manual test
- * steps for those. Run runAllTests_() and check the execution log for
- * FAIL lines.
+ * Utils.gs's escapeHtml_(), Retention.gs's isEligibleForPurge_()). No
+ * Sheets or network calls — safe to run from the Apps Script editor at
+ * any time. attemptSend_(), sendVisitSummaryEmail_(), and
+ * purgeExpiredRecipientEmails_() are NOT covered here since they call a
+ * real Sheet (and, for the first two, a mail provider) — see
+ * apps-script/README.md's manual test steps for those. Run
+ * runAllTests_() and check the execution log for FAIL lines.
  *
  * This is a starting point for docs/25 §8.2's "unit-level checks"; Batch
  * 4G is responsible for the full backend testing checklist, including
@@ -33,7 +34,14 @@ function runAllTests_() {
     test_sendGatePassesForEditedAndApproved_(),
     test_escapeHtmlNeutralizesTags_(),
     test_emailBodyEscapesDraftContent_(),
-    test_emailBodyUsesConfiguredSubject_()
+    test_emailBodyUsesConfiguredSubject_(),
+    test_purgeEligibleAfterRetentionWindow_(),
+    test_purgeNotEligibleWithinRetentionWindow_(),
+    test_purgeNotEligibleAtExactBoundary_(),
+    test_purgeNotEligibleWhenAlreadyPurged_(),
+    test_purgeNotEligibleWhenEmailAlreadyEmpty_(),
+    test_purgeNotEligibleWhenNeverSent_(),
+    test_purgeNotEligibleWithInvalidSentDate_()
   ];
 
   var failures = results.filter(function (r) { return !r.pass; });
@@ -196,4 +204,61 @@ function test_emailBodyEscapesDraftContent_() {
 function test_emailBodyUsesConfiguredSubject_() {
   var content = buildVisitSummaryEmail_(approvedRow_());
   return assert_('email subject matches CONFIG.EMAIL.SUBJECT', content.subject === CONFIG.EMAIL.SUBJECT);
+}
+
+var DAY_MS_ = 24 * 60 * 60 * 1000;
+var TEST_NOW_MS_ = Date.now();
+
+function sentRow_(daysAgo) {
+  return {
+    record_id: 'r1',
+    recipient_email: 'patient@example.com',
+    purged_at: '',
+    email_sent_at: new Date(TEST_NOW_MS_ - daysAgo * DAY_MS_).toISOString()
+  };
+}
+
+function test_purgeEligibleAfterRetentionWindow_() {
+  var result = isEligibleForPurge_(sentRow_(15), TEST_NOW_MS_);
+  return assert_('purge eligible after retention window elapses', result.eligible === true);
+}
+
+function test_purgeNotEligibleWithinRetentionWindow_() {
+  var result = isEligibleForPurge_(sentRow_(5), TEST_NOW_MS_);
+  return assert_('purge not eligible within retention window', result.eligible === false);
+}
+
+function test_purgeNotEligibleAtExactBoundary_() {
+  // A row exactly CONFIG.RETENTION.EMAIL_RETENTION_DAYS old should
+  // already be eligible (>= the window, not strictly greater than it).
+  var result = isEligibleForPurge_(sentRow_(CONFIG.RETENTION.EMAIL_RETENTION_DAYS), TEST_NOW_MS_);
+  return assert_('purge eligible exactly at the retention boundary', result.eligible === true);
+}
+
+function test_purgeNotEligibleWhenAlreadyPurged_() {
+  var row = sentRow_(30);
+  row.purged_at = new Date().toISOString();
+  var result = isEligibleForPurge_(row, TEST_NOW_MS_);
+  return assert_('purge not eligible when purged_at is already set (idempotency)', result.eligible === false);
+}
+
+function test_purgeNotEligibleWhenEmailAlreadyEmpty_() {
+  var row = sentRow_(30);
+  row.recipient_email = '';
+  var result = isEligibleForPurge_(row, TEST_NOW_MS_);
+  return assert_('purge not eligible when recipient_email is already empty', result.eligible === false);
+}
+
+function test_purgeNotEligibleWhenNeverSent_() {
+  var row = sentRow_(30);
+  row.email_sent_at = '';
+  var result = isEligibleForPurge_(row, TEST_NOW_MS_);
+  return assert_('purge not eligible when email was never sent', result.eligible === false);
+}
+
+function test_purgeNotEligibleWithInvalidSentDate_() {
+  var row = sentRow_(30);
+  row.email_sent_at = 'not-a-date';
+  var result = isEligibleForPurge_(row, TEST_NOW_MS_);
+  return assert_('purge not eligible when email_sent_at is not a valid date', result.eligible === false);
 }

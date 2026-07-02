@@ -47,5 +47,11 @@ var CONFIG = {
   EMAIL: {
     SUBJECT: 'Your Visit Summary — Wise Homeopathy',
     SENDER_NAME: 'Wise Homeopathy'
+  },
+
+  // Retention (docs/25 §9.3, locked). Only Retention.gs reads this —
+  // it is a Phase-1.5-only pilot-scale policy, not a general precedent.
+  RETENTION: {
+    EMAIL_RETENTION_DAYS: 14
   }
 };

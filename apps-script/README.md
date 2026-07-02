@@ -13,7 +13,9 @@ and leave the repo out of sync; changes flow from here outward via
 **Batch 4C** — AI summarization (normalization only). Complete.
 **Batch 4D** — doctor review checkpoint + gated send decision. Complete.
 **Batch 4E** — email delivery (`Email.gs`, MailApp). Complete.
-No retention purge yet, no patient login.
+**Batch 4F** — automated retention purge (`Retention.gs`). Complete.
+No patient login — the full backend pipeline (§8 testing, real pilot) is
+Batch 4G, the last item before Phase 1.5 can be marked done.
 See docs/25 §9 for the batch sequence this project is built in.
 
 ## Module layout
@@ -28,15 +30,16 @@ it — e.g. only `Sheets.gs` calls `SpreadsheetApp`.
 | `Config.gs` | All environment-specific values: Sheet name, allowed condition slugs, field length limits. The only file that should change between test and production. |
 | `Schema.gs` | The Sheet's column list (`SCHEMA_COLUMNS`), enum values (`REVIEW_STATUS`, `EMAIL_STATUS`), and `buildRow_()` to construct a full row from a validated submission. |
 | `Validation.gs` | `validateSubmission_()` and `sanitizeText_()` — all input validation/sanitization happens here, before anything touches a module further down the chain. |
-| `Sheets.gs` | The only module that calls `SpreadsheetApp`. Creates the sheet/header if missing, refuses to write if the live header has drifted from `Schema.gs`. `updateRowByRecordId_()` patches specific columns on an already-written row; `getRowObjectByRowIndex_()` reads one row's live values back as an object. Used by the AI step and every later batch. |
+| `Sheets.gs` | The only module that calls `SpreadsheetApp`. Creates the sheet/header if missing, refuses to write if the live header has drifted from `Schema.gs`. `updateRowByRecordId_()` patches specific columns on an already-written row; `getRowObjectByRowIndex_()` reads one row's live values back as an object; `getAllRowObjects_()` batch-reads every data row, used only by `Retention.gs`. |
 | `Ai.gs` | The AI summarization step. A **normalization layer, not a content-generation layer** — see "AI boundaries" below. Calls OpenRouter, then runs a code-level drift check (`flagDrift_()`) independent of the prompt. Its prompt text implements `PROMPTS.md`, the canonical prompt specification — see below. |
 | `PROMPTS.md` | Version-controlled specification for `Ai.gs`'s prompt: purpose, inputs/outputs, safety rules, forbidden behaviours, traceability principles, future evolution notes. Not loaded at runtime — this is documentation the prompt must match, not a template Apps Script reads. |
 | `Review.gs` | The doctor review checkpoint. A Sheet-bound custom menu (`onOpen()` — must keep that exact name, it's an Apps Script simple trigger), not a Web App page. Approve/reject writes `review_status`/`reviewed_by`/`reviewed_at`, then calls `Send.gs`'s `attemptSend_()` on freshly re-read row data. Never calls `Email.gs` or a mail provider directly. |
 | `Send.gs` | `evaluateSendGate_(row)` — the single choke point every send path must pass through. Hard-checks `patient_consent_confirmed === true` and `review_status` is an approved state, reading live Sheet values, not assumptions carried over from submission time. `attemptSend_(row)` orchestrates: gate → `Email.gs` → log the outcome back to the Sheet. **Never calls MailApp/GmailApp itself** — see "Email delivery layering" below. |
 | `Email.gs` | The only module that calls a mail provider. `sendVisitSummaryEmail_(row)` builds the HTML template (`buildVisitSummaryEmail_()`) and calls `MailApp.sendEmail()`. Phase 1.5 uses MailApp only. |
+| `Retention.gs` | Automated 14-day retention purge (docs/25 §9.3). Deliberately independent of `Review.gs`/`Send.gs`/`Email.gs` — never calls them, never called by them. Only ever writes `recipient_email`/`purged_at`. See "Retention purge" below. |
 | `Logger.gs` | `logEvent_()` — thin wrapper around the Apps Script execution log for pipeline-stage audit events. |
 | `Utils.gs` | Small stateless helpers: `jsonResponse_()`, `escapeHtml_()` (used by `Email.gs` to neutralize the AI draft before embedding it in HTML). No dependency on any other module. |
-| `Tests.gs` | Manual unit tests for pure logic (`Validation.gs`, `Ai.gs`'s `flagDrift_()`, `Send.gs`'s `evaluateSendGate_()`, `Email.gs`'s `buildVisitSummaryEmail_()`, `Utils.gs`'s `escapeHtml_()`). Run `runAllTests_()` from the Apps Script editor; no live Sheet or network calls. `attemptSend_()`/`sendVisitSummaryEmail_()` are deliberately NOT covered here — they touch a real Sheet and mail provider; see the manual test steps below. |
+| `Tests.gs` | Manual unit tests for pure logic (`Validation.gs`, `Ai.gs`'s `flagDrift_()`, `Send.gs`'s `evaluateSendGate_()`, `Email.gs`'s `buildVisitSummaryEmail_()`, `Utils.gs`'s `escapeHtml_()`, `Retention.gs`'s `isEligibleForPurge_()`). Run `runAllTests_()` from the Apps Script editor; no live Sheet or network calls. `attemptSend_()`, `sendVisitSummaryEmail_()`, and `purgeExpiredRecipientEmails_()` are deliberately NOT covered here — they touch a real Sheet (and, for the first two, a mail provider); see the manual test steps below. |
 | `sample-payloads/` | Example `doPost` bodies for manual/curl testing — one valid, and a few that should each fail validation for a specific reason. |
 
 ## Request flow
@@ -168,6 +171,48 @@ success) or `email_status = failed` plus `error_log` (on any failure —
 gate blocked or provider error) back to the row, and logs every outcome
 via `Logger.gs` — no failure is ever silently dropped (docs/25 §8.3).
 
+## Retention purge (Batch 4F)
+
+`Retention.gs` is deliberately independent of `Review.gs`, `Send.gs`,
+and `Email.gs` — it never calls them, and they never call it. Its only
+job, per docs/25 §9.3:
+
+> locate eligible rows → clear `recipient_email` → stamp `purged_at` → log
+
+It must never modify `staff_submitted_note`, `ai_summary_draft`,
+`review_status`, `reviewed_by`, `reviewed_at`, `email_status`,
+`email_sent_at`, or `error_log` — only `recipient_email` and
+`purged_at`, and only on rows that are actually eligible. This is
+structurally enforced, not just documented: `purgeExpiredRecipientEmails_()`
+has exactly one call to `Sheets.gs`'s `updateRowByRecordId_()`, with a
+hardcoded two-field object — there is no code path in this file that can
+touch any other column.
+
+**Eligibility** (`isEligibleForPurge_(row, nowMs)`, pure and unit-tested):
+a row is eligible only if `recipient_email` is non-empty, `purged_at` is
+not already set, `email_sent_at` is a valid date, and at least
+`CONFIG.RETENTION.EMAIL_RETENTION_DAYS` (14, locked per docs/25 §9.3)
+have elapsed since then. Every one of those conditions is also what
+makes the function **idempotent**: once a row is purged, `purged_at`
+being set permanently disqualifies it from being purged again, so
+running the trigger twice — or twice on the same row, by accident or
+overlap — is always safe.
+
+**Partial-failure handling**: `purgeExpiredRecipientEmails_()` wraps
+each row's write in its own `try`/`catch`. One row's Sheets-write
+failure is logged (`logEvent_('failed', ...)`) and the loop continues to
+the next row — a single bad row can never stop the rest of the batch
+from being purged. If the initial bulk read itself fails, the whole run
+is logged and aborted (nothing to iterate over), also without throwing.
+Every purge, skip-reason, and failure is logged via `Logger.gs`; a
+summary line (`purged=N skipped=N failed=N`) closes out each run.
+
+**Setup**: the trigger is not automatic on deployment. Run
+`installRetentionTrigger_()` once from the Apps Script editor (**Select
+function → installRetentionTrigger_ → Run**) after deploying. It's
+idempotent too — running it again when the trigger already exists is a
+no-op, so it won't ever install duplicate triggers that would double-purge.
+
 ## Sheet schema
 
 Matches docs/25 §5.1 exactly. Batch 4A populates:
@@ -214,9 +259,12 @@ extend the same row and reuse the same modules:
   patient-facing HTML template (docs/25 §9.6) and calls `MailApp`.
   Writes `email_status`/`email_sent_at` onto the same row via
   `Sheets.gs`. See "Email delivery layering" above.
-- **4F (retention purge)** — a new time-driven trigger function
-  (likely `Retention.gs`) that reads `email_sent_at` off existing rows
-  and clears `recipient_email`, stamping `purged_at`.
+- **4F (retention purge)** — complete. `Retention.gs`'s time-driven
+  trigger (`purgeExpiredRecipientEmails_()`, installed once via
+  `installRetentionTrigger_()`) reads `email_sent_at` off existing rows
+  and clears `recipient_email`, stamping `purged_at`. Deliberately
+  independent of `Review.gs`/`Send.gs`/`Email.gs`. See "Retention purge"
+  above.
 
 `Sheets.gs`'s header-drift check means every later batch's writes are
 validated against the same `SCHEMA_COLUMNS` list — if a later batch
@@ -251,6 +299,13 @@ This project has no npm dependencies and is not built/bundled — the
    this repo. Without it, submissions still succeed and write a row;
    `ai_summary_draft` is just left empty with the failure logged to
    `error_log` (see "AI boundaries" above).
+10. Install the retention trigger: Apps Script editor → select
+    `installRetentionTrigger_` from the function dropdown → **Run**
+    (once). Confirm it under **Triggers** (clock icon) in the editor —
+    should show `purgeExpiredRecipientEmails_`, time-driven, daily. Not
+    part of `clasp push` or the Web App deployment; this step is easy to
+    forget and the pipeline works fine without it right up until the
+    first row is old enough to need purging.
 
 ### Option B — manual (no clasp)
 
@@ -326,8 +381,31 @@ error-prone than clasp — use only if clasp isn't available.
     control (docs/25 §8.1). Only after all of the above pass, and only
     with a real, consenting patient reviewed manually at every stage
     (docs/25 §8.5, Batch 4G), should a real address ever be used.
+13. Run `runAllTests_()` and confirm the seven `isEligibleForPurge_()`
+    tests pass (offline, no Sheet needed).
+14. With at least one `sent` row from step 8, run
+    `purgeExpiredRecipientEmails_()` manually from the Apps Script editor
+    (**Select function → purgeExpiredRecipientEmails_ → Run**) — since
+    that row is only minutes old, confirm it is correctly *skipped*
+    (check the execution log for `retention window has not elapsed yet`)
+    and `recipient_email` is untouched.
+15. Temporarily lower `CONFIG.RETENTION.EMAIL_RETENTION_DAYS` to `0` (or
+    manually backdate a test row's `email_sent_at` cell to 20+ days ago)
+    and run `purgeExpiredRecipientEmails_()` again — confirm
+    `recipient_email` is cleared, `purged_at` is stamped, and every
+    *other* column on that row (`staff_submitted_note`, `ai_summary_draft`,
+    `review_status`, `reviewed_by`, `email_status`, `email_sent_at`,
+    `error_log`) is byte-for-byte unchanged. Restore
+    `EMAIL_RETENTION_DAYS` to `14` afterward.
+16. Run `purgeExpiredRecipientEmails_()` a second time immediately —
+    confirm the already-purged row is now skipped (not re-processed) and
+    no duplicate log entry appears — this is the idempotency proof.
+17. Confirm `installRetentionTrigger_()` is idempotent: run it twice from
+    the editor and confirm **Triggers** still shows exactly one
+    `purgeExpiredRecipientEmails_` trigger, not two.
 
 ## Explicitly out of scope so far
 
-No retention purge, no patient login. See
+No patient login. Backend testing checklist and a real pilot are
+Batch 4G — the final item before Phase 1.5 is done. See
 docs/25-PHASE-1.5-TECHNICAL-PLAN.md §9 for the full batch sequence.

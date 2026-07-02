@@ -86,3 +86,23 @@ function getRowObjectByRowIndex_(rowIndex) {
   SCHEMA_COLUMNS.forEach(function (col, i) { row[col] = values[i]; });
   return row;
 }
+
+/**
+ * Reads every data row (excluding the header) as an array of objects
+ * keyed by SCHEMA_COLUMNS, in one batch read. Used by Retention.gs to
+ * scan for purge-eligible rows — the only module that needs to look at
+ * every row rather than one at a time.
+ */
+function getAllRowObjects_() {
+  var sheet = getSheet_();
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) {
+    return [];
+  }
+  var values = sheet.getRange(2, 1, lastRow - 1, SCHEMA_COLUMNS.length).getValues();
+  return values.map(function (rowValues) {
+    var row = {};
+    SCHEMA_COLUMNS.forEach(function (col, i) { row[col] = rowValues[i]; });
+    return row;
+  });
+}

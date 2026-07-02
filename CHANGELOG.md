@@ -8,6 +8,28 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-02 — Phase 1.5, Batch 4F: automated retention purge
+
+New: `apps-script/Retention.gs` — the 14-day retention policy from `docs/25` §9.3, implemented as a time-driven trigger fully independent of `Review.gs`/`Send.gs`/`Email.gs`. This is the last implementation batch before Phase 1.5's testing/validation pass (Batch 4G).
+
+### Added
+- `apps-script/Retention.gs`: `purgeExpiredRecipientEmails_()` (the trigger entry point), `isEligibleForPurge_(row, nowMs)` (pure eligibility check), and `installRetentionTrigger_()` (one-time, idempotent setup). Deliberately calls none of Review.gs/Send.gs/Email.gs, and is never called by them.
+- `apps-script/Sheets.gs`: `getAllRowObjects_()` — batch-reads every data row in one call, used only by `Retention.gs`.
+- `apps-script/Config.gs`: `CONFIG.RETENTION.EMAIL_RETENTION_DAYS` (`14`, locked per docs/25 §9.3).
+- `apps-script/Tests.gs`: seven new unit tests for `isEligibleForPurge_()` — eligible after the window, not eligible within it, eligible exactly at the boundary, and not-eligible for each idempotency/data-integrity condition (already purged, already-empty email, never sent, invalid date). All verified against real execution.
+
+### Guarantees (verified against synthetic data, not just reasoned about)
+- **Scope-restricted by construction**: the only `updateRowByRecordId_()` call in this module passes a hardcoded `{ recipient_email, purged_at }` object — there is no code path able to touch doctor notes, AI summaries, review status, or any other audit column.
+- **Idempotent**: once `purged_at` is set, a row is permanently ineligible for purge again — confirmed by running the purge twice against the same synthetic dataset and observing zero re-purges on the second run.
+- **Safe against partial failures**: each row's write is wrapped in its own try/catch; a synthetic write failure on one row was confirmed to be logged and skipped without stopping the batch — the other eligible rows in the same run still purged correctly.
+- **Every action audited**: every purge, skip, and failure is logged via `Logger.gs`, with a `purged=N skipped=N failed=N` summary closing each run.
+
+### Notes
+- Self-review: `grep` confirms `Retention.gs` contains no calls into `Review.gs`/`Send.gs`/`Email.gs`, and those three files contain no references back into `Retention.gs`.
+- `apps-script/README.md` gained a "Retention purge" section, a deployment step for `installRetentionTrigger_()`, and manual test steps (skip-too-recent, purge-with-protected-column verification, idempotency-on-rerun, trigger-install idempotency).
+- `docs/24-ROADMAP.md` and `docs/25-PHASE-1.5-TECHNICAL-PLAN.md` §11 updated.
+- Remaining: Batch 4G — the full backend testing checklist and a real, consenting-patient pilot, the last item before Phase 1.5 is marked done.
+
 ## 2026-07-02 — Phase 1.5, Batch 4E: email delivery, layered behind a dedicated Email.gs
 
 New: `apps-script/Email.gs` — the visit-summary email template and the only module permitted to call a mail provider. Requested layering: `Send.gs` never calls `MailApp`/`GmailApp` directly.

@@ -32,9 +32,11 @@ Completed
   send decision (`evaluateSendGate_`)
 - Batch 4E — HTML email template + delivery (`Email.gs`, MailApp only),
   layered behind `Send.gs` so the gate stays independent of the provider
+- Batch 4F — Automated 14-day retention purge (`Retention.gs`), fully
+  independent of Review.gs/Send.gs/Email.gs, clears only
+  `recipient_email` + stamps `purged_at`
 
 Remaining
-- Batch 4F — Retention purge trigger
 - Batch 4G — Testing & validation pass, then real pilot
 - Batch 4H — Documentation & changelog closeout
 
