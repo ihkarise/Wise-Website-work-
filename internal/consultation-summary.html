@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Consultation Summary — Staff Only | Wise Homeopathy</title>
+<link rel="icon" href="/assets/favicon.ico">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Fraunces:opsz,wght@9..144,400;9..144,600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --color-brand:#27498C;--color-brand-strong:#1B3463;--color-brand-deep:#13264A;
+  --color-accent:#D62E4D;--color-accent-strong:#B8273F;
+  --color-ink:#0B0B0B;--color-text-secondary:#5B6472;--color-text-faint:#9AA3B2;
+  --color-line:#E7EBF1;--color-surface:#F4F7FB;--color-surface-base:#FFFFFF;
+  --color-warn-bg:#FFF4E5;--color-warn-line:#F0C36D;--color-warn-text:#7A5200;
+  --color-err-bg:#FCEBEC;--color-err-line:#E8A3AC;--color-err-text:#8A1F2C;
+  --color-ok-bg:#EAF3EC;--color-ok-line:#9CC9A6;--color-ok-text:#245C34;
+  --font-display:'Fraunces',Georgia,serif;--font-body:'Poppins',Arial,sans-serif;
+  --radius-md:13px;--radius-lg:22px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font-body);font-size:15.5px;color:var(--color-ink);background:var(--color-surface);line-height:1.6;-webkit-font-smoothing:antialiased}
+.wrap{max-width:640px;margin:0 auto;padding:clamp(24px,5vw,48px) clamp(18px,4vw,32px)}
+.serif{font-family:var(--font-display)}
+:focus-visible{outline:3px solid var(--color-accent);outline-offset:3px;border-radius:4px}
+.banner{background:var(--color-warn-bg);border:1px solid var(--color-warn-line);color:var(--color-warn-text);border-radius:var(--radius-md);padding:12px 16px;font-size:13.5px;margin-bottom:24px}
+h1{font-family:var(--font-display);font-size:clamp(24px,4vw,30px);color:var(--color-brand-strong);margin-bottom:6px}
+.sub{color:var(--color-text-secondary);font-size:14.5px;margin-bottom:28px}
+.card{background:var(--color-surface-base);border:1px solid var(--color-line);border-radius:var(--radius-lg);padding:clamp(20px,4vw,32px)}
+.field{margin-bottom:18px}
+.field label{display:block;font-size:13.5px;font-weight:500;margin-bottom:6px;color:var(--color-brand-strong)}
+.field .hint{display:block;font-weight:400;color:var(--color-text-faint);font-size:12px;margin-top:4px}
+.field input,.field select,.field textarea{width:100%;padding:13px 15px;border:1px solid var(--color-line);border-radius:var(--radius-md);font:inherit;font-size:15px;background:var(--color-surface-base);transition:border-color .15s ease}
+.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--color-brand)}
+.field textarea{min-height:140px;resize:vertical}
+.consent{display:flex;align-items:flex-start;gap:10px;background:var(--color-surface);border:1px solid var(--color-line);border-radius:var(--radius-md);padding:14px 16px;margin-bottom:22px}
+.consent input{width:auto;margin-top:3px;flex:none}
+.consent label{font-size:13.5px;font-weight:500;color:var(--color-ink)}
+.submit{width:100%;background:var(--color-accent);color:#fff;border:none;padding:15px;border-radius:var(--radius-md);font:600 15.5px var(--font-body);cursor:pointer;transition:transform .15s ease,box-shadow .2s ease}
+.submit:hover{transform:translateY(-2px);box-shadow:0 12px 28px rgba(214,46,77,.34)}
+.submit:disabled{opacity:.55;cursor:not-allowed;transform:none;box-shadow:none}
+.status{margin-top:16px;padding:13px 16px;border-radius:var(--radius-md);font-size:14px;display:none}
+.status.ok{display:block;background:var(--color-ok-bg);border:1px solid var(--color-ok-line);color:var(--color-ok-text)}
+.status.err{display:block;background:var(--color-err-bg);border:1px solid var(--color-err-line);color:var(--color-err-text)}
+.charcount{font-size:11.5px;color:var(--color-text-faint);text-align:right;margin-top:4px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="banner">
+    Internal staff tool — not for patients. Requires sign-in with your clinic
+    Google Workspace account. Do not share this link outside the clinic team.
+  </div>
+
+  <h1 class="serif">Post-Consultation Summary</h1>
+  <p class="sub">Submit a short note after a consultation to generate a doctor-reviewed visit summary email. Nothing is sent to the patient from this form — a doctor reviews and approves the summary separately before anything goes out.</p>
+
+  <div class="card">
+    <form id="summaryForm" novalidate>
+
+      <div class="field">
+        <label for="condition_slug">Condition</label>
+        <select id="condition_slug" name="condition_slug" required>
+          <option value="" disabled selected>Select a condition</option>
+          <!-- Keep in sync with apps-script/Config.gs ALLOWED_CONDITION_SLUGS
+               and the canonical anchors on /conditions/. No shared source
+               exists yet between the static site and Apps Script (see
+               apps-script/README.md's shared/-directory review); update
+               both places by hand if the condition list changes. -->
+          <option value="mcas">MCAS (Mast Cell Activation Syndrome)</option>
+          <option value="hashimotos-thyroiditis">Hashimoto's Thyroiditis</option>
+          <option value="chronic-urticaria">Chronic Urticaria</option>
+          <option value="eczema">Eczema</option>
+          <option value="allergic-rhinitis">Allergic Rhinitis</option>
+          <option value="eosinophilic-esophagitis">Eosinophilic Esophagitis</option>
+          <option value="pots">POTS</option>
+          <option value="dermographism">Dermographism</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="staff_submitted_note">Visit summary note<span class="hint">What was discussed and next steps only — no lab values, no full case history (docs/25 §9.2).</span></label>
+        <textarea id="staff_submitted_note" name="staff_submitted_note" maxlength="2000" required placeholder="e.g. Reviewed symptom diary, discussed dietary trigger avoidance, confirmed current supplement schedule. Next follow-up in 3 weeks."></textarea>
+        <div class="charcount"><span id="noteCount">0</span>/2000</div>
+      </div>
+
+      <div class="field">
+        <label for="recipient_email">Patient email</label>
+        <input id="recipient_email" name="recipient_email" type="email" required autocomplete="off">
+      </div>
+
+      <div class="field">
+        <label for="consent_confirmed_by">Your name or staff email<span class="hint">Recorded as the staff member confirming consent for this submission.</span></label>
+        <input id="consent_confirmed_by" name="consent_confirmed_by" type="text" required autocomplete="off">
+      </div>
+
+      <div class="consent">
+        <input type="checkbox" id="patient_consent_confirmed" name="patient_consent_confirmed" required>
+        <label for="patient_consent_confirmed">Patient has consented to receive this visit summary by email.</label>
+      </div>
+
+      <button class="submit" type="submit" id="submitBtn" disabled>Submit note</button>
+      <div class="status" id="statusBox" role="status" aria-live="polite"></div>
+    </form>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  // Filled in after the Apps Script Web App is deployed (Batch 4A).
+  // See apps-script/README.md "Deployment" for how to get this URL.
+  var WEB_APP_URL = 'REPLACE_WITH_DEPLOYED_WEB_APP_URL';
+
+  var form = document.getElementById('summaryForm');
+  var submitBtn = document.getElementById('submitBtn');
+  var consentBox = document.getElementById('patient_consent_confirmed');
+  var noteField = document.getElementById('staff_submitted_note');
+  var noteCount = document.getElementById('noteCount');
+  var statusBox = document.getElementById('statusBox');
+
+  function updateSubmitState() {
+    // Client-side gate is a UX convenience only — the real, enforced gate
+    // is server-side in apps-script/Validation.gs (docs/25 §9.2).
+    submitBtn.disabled = !consentBox.checked;
+  }
+  consentBox.addEventListener('change', updateSubmitState);
+  updateSubmitState();
+
+  noteField.addEventListener('input', function () {
+    noteCount.textContent = noteField.value.length;
+  });
+
+  function showStatus(kind, message) {
+    statusBox.className = 'status ' + kind;
+    statusBox.textContent = message;
+  }
+
+  form.addEventListener('submit', function (event) {
+    event.preventDefault();
+
+    if (WEB_APP_URL.indexOf('REPLACE_WITH') === 0) {
+      showStatus('err', 'This form is not yet connected to a deployed Apps Script Web App. See apps-script/README.md.');
+      return;
+    }
+
+    if (!form.checkValidity()) {
+      form.reportValidity();
+      return;
+    }
+
+    var payload = {
+      condition_slug: document.getElementById('condition_slug').value,
+      staff_submitted_note: noteField.value,
+      patient_consent_confirmed: consentBox.checked,
+      consent_confirmed_by: document.getElementById('consent_confirmed_by').value,
+      recipient_email: document.getElementById('recipient_email').value
+    };
+
+    submitBtn.disabled = true;
+    showStatus('ok', 'Submitting…');
+
+    fetch(WEB_APP_URL, {
+      method: 'POST',
+      // text/plain avoids a CORS preflight; the Apps Script doPost still
+      // parses the body as JSON regardless of Content-Type.
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload)
+    })
+      .then(function (response) { return response.json(); })
+      .then(function (data) {
+        if (data.status === 200) {
+          showStatus('ok', 'Note submitted. Record ID: ' + data.record_id + '. A doctor must review and approve before anything is emailed to the patient.');
+          form.reset();
+          noteCount.textContent = '0';
+          updateSubmitState();
+        } else {
+          showStatus('err', (data.errors || ['Submission failed.']).join(' '));
+          updateSubmitState();
+        }
+      })
+      .catch(function () {
+        showStatus('err', 'Could not reach the submission service. If you are not signed in to your clinic Google Workspace account in this browser, sign in and try again.');
+        updateSubmitState();
+      });
+  });
+})();
+</script>
+</body>
+</html>

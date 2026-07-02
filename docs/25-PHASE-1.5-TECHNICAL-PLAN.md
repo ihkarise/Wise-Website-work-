@@ -401,8 +401,51 @@ per docs/20 §2's sequencing recommendation.
 
 # 11. Implementation Notes (to be filled in during/after build)
 
-_Not yet started. This section will record actual sequencing, deviations from
-this plan, and validation results once implementation is authorized._
+## Batch 4A (complete)
+
+Built as a modular Apps Script project under `apps-script/` (`Code.gs`,
+`Config.gs`, `Schema.gs`, `Validation.gs`, `Sheets.gs`, `Logger.gs`,
+`Utils.gs`, `Tests.gs`) rather than a single script file, per an
+implementation-time decision to treat it as a real software project — not
+a deviation from this plan's architecture, just an internal-structure
+choice. Full module responsibilities in `apps-script/README.md`.
+
+Pre-merge review caught and fixed two issues: `Config.gs`'s condition-slug
+allowlist was initially missing `dermographism` (an 8th canonical slug
+already live on `/conditions/`); and Apps Script Web Apps cannot return
+real HTTP status codes (always transport as 200) — the README and
+`Utils.gs` now document that callers must check the JSON body's `status`
+field.
+
+**Repository-structure review (pre-4B):** considered whether any Batch 4A
+module (condition taxonomy, validation constants, schema, utilities)
+should move to a future shared/ directory usable by both the Apps Script
+project and the static site. Decision: not yet. The repo has no build
+step or JS module system that would let a browser context and the Apps
+Script (V8/GAS) runtime actually share a file without new tooling, and
+none of the candidates has a second real consumer today — the public
+site's condition references are hand-authored HTML anchors, not
+data-driven. Revisit if/when frontend rendering becomes template- or
+data-driven (e.g., if dedicated condition pages move off hand-authored
+HTML).
+
+## Batch 4B (complete)
+
+Added `/internal/consultation-summary.html` — a standalone static page
+(not linked from any public nav, not in `sitemap.xml`, `<meta
+name="robots" content="noindex, nofollow">`) that POSTs to the Batch 4A
+Web App. Submits with `Content-Type: text/plain` to avoid a CORS
+preflight (Apps Script's `doPost` parses the body as JSON regardless of
+declared content type). The consent checkbox disables the Submit button
+client-side as a UX convenience only — the enforced gate remains
+server-side in `Validation.gs`, unchanged from Batch 4A. Real access
+control is still the Web App's Workspace-domain deployment restriction
+(§9.1), not the page's unlisted URL.
+
+The condition dropdown's option list is hand-duplicated from
+`apps-script/Config.gs`'s `ALLOWED_CONDITION_SLUGS` (see the
+repository-structure review above) — both are commented to point at each
+other; there is no automated sync yet.
 
 ---
 

@@ -24,9 +24,10 @@ Status: In Progress — see docs/25-PHASE-1.5-TECHNICAL-PLAN.md for the full bat
 Completed
 - Batch 4A — Sheet schema, Apps Script project skeleton, validation layer,
   audit logging, Sheet-write layer (no AI, no email, no public UI)
+- Batch 4B — Staff entry form (`/internal/consultation-summary.html`),
+  Workspace-domain-restricted, hard-gated consent checkbox
 
 Remaining
-- Batch 4B — Staff entry form (Workspace-restricted)
 - Batch 4C — OpenRouter AI summarization step
 - Batch 4D — Doctor review checkpoint + gated send
 - Batch 4E — HTML email template + delivery logging
