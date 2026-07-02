@@ -523,6 +523,42 @@ Batch 4D (send function must exist to attach delivery to)").
 `apps-script/README.md` updated with a "Review workflow" section and
 matching manual-test steps.
 
+## Batch 4E (complete)
+
+Adds `apps-script/Email.gs` — the only module in the project permitted
+to call a mail provider. Per an explicit implementation-time requirement,
+`Send.gs` never calls `MailApp`/`GmailApp` directly; it calls `Email.gs`
+instead, which is the sole caller of `MailApp.sendEmail()`:
+
+```
+Review.gs → Send.gs (evaluateSendGate_ / attemptSend_) → Email.gs (sendVisitSummaryEmail_) → MailApp
+```
+
+`Send.gs` gained `attemptSend_(row)`: re-checks `evaluateSendGate_()`,
+and only if it passes, calls `Email.gs`, then writes
+`email_status`/`email_sent_at` (success) or `email_status = failed` +
+`error_log` (any failure — gate blocked or provider error) back to the
+row, logging every outcome. `Review.gs` now calls `attemptSend_()` after
+approval instead of the placeholder "not yet implemented" alert from
+Batch 4D — no other code path changed.
+
+`Email.gs`'s `buildVisitSummaryEmail_()` builds the HTML template (§9.6,
+locked) using the site's existing color tokens. `ai_summary_draft` is
+passed through a new `escapeHtml_()` helper (`Utils.gs`) before
+embedding — defense in depth, since the AI's own output was never
+sanitized the way `staff_submitted_note` was at submission.
+
+This keeps the send *gate* independent of the delivery *mechanism*: a
+future provider swap only touches `Email.gs`. Phase 1.5 uses `MailApp`
+only, per this document's §3 diagram — no other provider was introduced,
+and no scope was added beyond the layering itself.
+
+`apps-script/README.md` updated with an "Email delivery layering"
+section and expanded manual-test steps (send to a real test inbox,
+confirm a tampered-consent row still doesn't send, force and verify a
+delivery failure is logged, never a real patient address until §8's
+full validation pass and Batch 4G).
+
 ---
 
 # 12. Documentation Impact
