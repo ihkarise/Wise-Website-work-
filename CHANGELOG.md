@@ -8,6 +8,92 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-03 — Patient Access Batch PA-4 (Symptom Tracker — quick-log form, history)
+
+Fourth Patient Access batch (docs/29 §13 Batch 5E), preceded by
+docs/41-SYMPTOM-TRACKER-READINESS-REVIEW.md, approved before any code was written —
+the platform's first patient-*writable* feature. **No unauthorized modification to
+any frozen file** — every touch to an already-shipped file is named below, none of
+them silent.
+
+### Added
+- `shared/constants/condition-slugs.json` + `.md` — the canonical condition-slug list,
+  closing Batch F3's own named deferral (`shared/README.md`,
+  `shared/schemas/patient-identity.md`) now that `SymptomLogs.condition_slug` is a
+  real second consumer.
+- `shared/schemas/symptom-log.schema.json` + `.md` — the `SymptomLogs` contract: all
+  four scale fields mandatory (docs/41 §10 Q1), `logged_at` always server-set, never
+  patient-editable (docs/41 §10 Q2).
+- `apps-script/FoundationSymptomLog.gs` — patient-facing create
+  (`foundationCreateSymptomLog_()`, all-four-mandatory validation, `condition_slug`
+  validated against the new canonical list) and patient-facing sorted/capped list
+  (`foundationGetPatientSymptomLogs_()`). No `get_by_id` — docs/41 §12 found no
+  product requirement for one.
+- `my-health-journey/symptoms/index.html` + `symptoms.js` — the Symptom History page:
+  a real ordered list of the patient's own entries, escaped notes, the optional
+  condition tag, the "No data yet" Empty State, a network-failure fallback.
+- `validation/pa-4-symptom-tracker/browser-test.js` + `README.md` — a new, committed
+  Playwright suite (28/28 passing).
+
+### Changed
+- `apps-script/FoundationRouter.gs` — gained two new dispatch cases, `log_symptom`
+  and `get_symptom_logs`, and their thin wiring functions — the same disclosed,
+  additive exception PA-3's own two new cases already established.
+- `my-health-journey/dashboard.js` — the Symptom Tracker card now shows a real,
+  always-present quick-log form (four mandatory 1-10 number inputs, an optional notes
+  field, an optional condition-tag select) plus a bare most-recent-value summary and
+  "View full history" link once entries exist — replacing its "Coming later in Phase
+  2A" placeholder. The explicitly planned evolution of the PA-2 shell, not a
+  restructuring — the session-guard logic itself is untouched.
+- `assets/site.css` — two new, purely additive rules, `.field textarea` and
+  `.field select`, styled identically to the existing `.field input` — this phase's
+  first form needing either element.
+- `validation/phase-2a-foundation/harness.js` / `conformance.js` — extended with
+  `FoundationSymptomLog.gs` and a new Stage 8 (22 new checks).
+- `validation/phase-2a-foundation/schema-validator.js` — gained `integer` type support
+  and `minimum`/`maximum` numeric bounds, a small additive extension per this tool's
+  own stated policy — `symptom-log.schema.json`'s four scale fields are the first
+  real schema to need either construct.
+- `validation/pa-2-dashboard/browser-test.js` — updated to reflect the Symptom
+  Tracker card's real behavior (mock now also routes `get_symptom_logs`;
+  `phase2aCount` drops from 2 to 1; `nodataCount` rises from 1 to 2; two new checks).
+
+### Notes
+- **No new authorization shape needed, confirmed rather than assumed.** Unlike PA-3's
+  `get_timeline_entry` (which needed a record-ownership check for a client-supplied
+  `record_id`), `log_symptom`/`get_symptom_logs` act only on the caller's own
+  session-derived `patient_id` — the same primitive `get_profile`/`get_timeline`
+  already use, now proven on a write. Verified: Stage 8's cross-patient isolation
+  checks on both create and list, at the real HTTP-dispatch layer.
+- **A deliberate simplification, stated openly**: no per-entry detail fetch exists —
+  docs/41 §12 found no product requirement for one, since a Symptom Log row has no
+  long-form text that benefits from its own page.
+- **A disclosed testing-environment note**: all three browser-test suites
+  (`pa-2-dashboard`, `pa-3-timeline`, `pa-4-symptom-tracker`) were executed in this
+  session via a temporary, session-local Playwright install pointed at this
+  environment's pre-installed Chromium — not via the committed invocation as written,
+  since no `package.json`/`node_modules/playwright` exists in this repository
+  (docs/41 Finding 5, carried forward, not newly introduced).
+- Verified: `node validation/static-analysis/analyze.js` (0 findings, 31 files
+  scanned); `node validation/phase-2a-foundation/conformance.js` (**107/107**, 26 new
+  — 4 in Stage 0, 22 in Stage 8); `node validation/phase-1-5/validate.js` (42/42,
+  unchanged); `validation/pa-2-dashboard/browser-test.js` (**30/30**, updated);
+  `validation/pa-3-timeline/browser-test.js` (**29/29**, re-run unchanged, zero
+  regression); `validation/pa-4-symptom-tracker/browser-test.js` (**28/28**, new).
+- `docs/29-PHASE-2A-TECHNICAL-PLAN.md` §16 gained a new Batch PA-4 entry (naming every
+  disclosed frozen-file exception in full, including the schema-validator extension);
+  `docs/04-COMPONENT-LIBRARY.md` gained concrete Symptom Quick-Log Form/Symptom
+  History entries; `docs/24-ROADMAP.md` updated to reflect PA-4 shipped and name PA-5
+  (Reports, Batch 5F) next; `docs/33-DOMAIN-MODEL.md`'s Symptom Log entity updated
+  from *Planned* to *Implemented*, and (per docs/41's own recommendation to batch
+  these) its three long-stale `Patient`/`Patient Identity`/`Session` *Planned* labels
+  and the `Timeline Event` Summary Table row (already *Implemented* in its own section
+  header, but not its table row) were also corrected in the same pass;
+  `docs/15-SECURITY-STANDARDS.md` gained a Batch PA-4 section documenting the
+  platform's first patient-writable route; `apps-script/README.md` gained a Batch PA-4
+  module table entry; docs/29 §9's stale "Phase 2C" reference to Digital Twin (found
+  by docs/41, every other mention agreeing on Phase 2D) was corrected to Phase 2D.
+
 ## 2026-07-03 — Patient Access Batch PA-3 (Consultation History, Timeline, Consultation History detail)
 
 Third Patient Access batch (docs/29 §13 Batch 5D), preceded by

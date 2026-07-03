@@ -45,6 +45,16 @@ h1{font-family:var(--font-display);font-size:clamp(24px,4vw,30px);color:var(--co
 .field input:focus{border-color:var(--color-brand)}
 .field input:focus:not(:focus-visible){outline:none}
 
+/* textarea/select — added Batch PA-4, the first Phase 2A form with either
+   (docs/29 §9's optional notes/condition_slug fields). Same look as
+   .field input, so a mixed form reads as one component, not three. */
+.field textarea{width:100%;padding:13px 15px;border:1px solid var(--color-line);border-radius:var(--radius-md);font:inherit;font-size:15px;background:var(--color-surface-base);transition:border-color .15s ease;resize:vertical}
+.field textarea:focus{border-color:var(--color-brand)}
+.field textarea:focus:not(:focus-visible){outline:none}
+.field select{width:100%;padding:13px 15px;border:1px solid var(--color-line);border-radius:var(--radius-md);font:inherit;font-size:15px;background:var(--color-surface-base);transition:border-color .15s ease}
+.field select:focus{border-color:var(--color-brand)}
+.field select:focus:not(:focus-visible){outline:none}
+
 .submit{width:100%;background:var(--color-accent);color:#fff;border:none;padding:15px;border-radius:var(--radius-md);font:600 15.5px var(--font-body);cursor:pointer;transition:transform .15s ease,box-shadow .2s ease}
 .submit:hover{transform:translateY(-2px);box-shadow:0 12px 28px rgba(214,46,77,.34)}
 .submit:disabled{opacity:.55;cursor:not-allowed;transform:none;box-shadow:none}

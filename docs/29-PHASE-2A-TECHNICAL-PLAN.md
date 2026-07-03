@@ -281,7 +281,11 @@ free-text note + optional `condition_slug` tag) → POST → row in `SymptomLogs
 `patient_id` taken from the verified session, never the request body. Display: the
 patient's own chronological log, at most a bare recent-value list. **Deliberately no
 trend analysis, no AI commentary, no insights** — that's Digital Twin/Progress
-Analytics territory (Phase 2C, ADR-001/004/005) and must not creep in here.
+Analytics territory (Phase 2D, ADR-001/004/005) and must not creep in here. (Corrected
+from a stale "Phase 2C" reference — docs/41-SYMPTOM-TRACKER-READINESS-REVIEW.md §9/
+Repository Consistency Review Finding 1 — every other mention of this boundary,
+including this plan's own Roadmap section, docs/24, and docs/33 §3.5, already agreed on
+2D; Phase 2C is Health Milestones, deliberately separated from this AI-supervised work.)
 
 ---
 
@@ -1425,3 +1429,113 @@ more general framing.
 Tracker (Batch 5E/PA-4) and Reports (Batch 5F) remain separate, independent dashboard
 cards — this batch deliberately does not merge either into the Timeline feed (docs/39
 §8/§9); adding "Patient Login" to primary nav (Batch 5G, unchanged).
+
+## Batch PA-4 (complete)
+
+Delivered exactly its named scope (§13 Batch 5E): the `SymptomLogs` sheet and
+data-access layer, the platform's first patient-*writable* feature. Preceded by a
+dedicated pre-implementation review (docs/41-SYMPTOM-TRACKER-READINESS-REVIEW.md),
+approved before any code was written, per this session's own instruction. Three
+decisions the review surfaced rather than assumed were resolved by explicit approval
+before implementation began: all four scale fields are mandatory (no partial log);
+`logged_at` is always server-set, never patient-editable; and no offline/PWA support
+exists for the quick-log form (a live connection is required, consistent with every
+other Foundation write path).
+
+**Frozen components were not modified beyond the disclosed, additive exceptions named
+below.** Per this session's explicit instruction, every change to an already-shipped
+file is named here, not silently made:
+
+- `apps-script/FoundationRouter.gs` gained two new `switch` cases (`log_symptom`,
+  `get_symptom_logs`) and their two thin wiring functions — the same category of
+  disclosed, additive exception PA-3's own `get_timeline`/`get_timeline_entry` cases
+  already established.
+- `my-health-journey/dashboard.js` gained the Symptom Tracker card's real wiring
+  (`loadSymptomPreview()`, `symptomFormHtml()`, `symptomSummaryHtml()`,
+  `wireSymptomForm()`, `refreshSymptomSummary()`, `conditionOptionsHtml()`) — the
+  explicitly-planned evolution docs/38 §9 anticipated, not a restructuring of the
+  shell or its session guard.
+- `assets/site.css` gained two new, purely additive rules — `.field textarea` and
+  `.field select`, styled identically to the existing `.field input` — this phase's
+  first form needing either element (every prior form, `login.html`, had exactly one
+  `<input>`). Zero existing rule was touched.
+- `validation/pa-2-dashboard/browser-test.js` was updated (not just re-run) the same
+  way PA-3 already updated it for the Timeline card: `mockGetProfile()` now also routes
+  `get_symptom_logs`; `phase2aCount` drops from 2 to 1 (Reports is now the only
+  remaining placeholder); `nodataCount` rises from 1 to 2 (Timeline and Symptom Tracker
+  each render their own real "No data yet" badge).
+- `validation/phase-2a-foundation/schema-validator.js` gained `integer` type support
+  and `minimum`/`maximum` numeric bounds — a small, additive extension to this tool's
+  documented subset (`validation/phase-2a-foundation/README.md`'s own stated policy:
+  "Extend it only when a real `shared/` schema actually needs a construct it doesn't
+  yet support"), needed for the first time by `symptom-log.schema.json`'s four 1-10
+  scale fields. Zero existing check was changed; every previously-passing assertion
+  still passes unchanged.
+- No other frozen file (`login.html`, `verify.html`, `my-health-journey/index.html`,
+  any Foundation/Identity & Access file, any PA-3 file) was touched at all.
+
+**`shared/constants/condition-slugs.json` populated, closing Batch F3's own named
+deferral.** `shared/README.md` and `shared/schemas/patient-identity.md` both named the
+condition-slug list (hand-duplicated between `apps-script/Config.gs` and
+`internal/consultation-summary.html`) as a candidate for `shared/constants/`, deferred
+for lack of a second real consumer. `SymptomLogs.condition_slug` is that second real
+consumer — `apps-script/FoundationSymptomLog.gs`'s `FOUNDATION_ALLOWED_CONDITION_SLUGS_`
+is manually adapted from this new canonical file, per `shared/README.md`'s
+port-into-a-Foundation-file convention. Neither `Config.gs` nor the internal tool's
+`<select>` was modified — both are Phase 1.5 files, out of this batch's scope.
+
+**No per-entry detail fetch, a deliberate simplification confirmed, not a gap.**
+Unlike `FoundationConsultationHistory.gs`, `FoundationSymptomLog.gs` provides no
+`get_by_id` function — docs/41 §12 found no product requirement for one, since a
+Symptom Log row has no long-form text that benefits from its own page. If a future
+batch adds a detail view, `record_id` is already stored on every row for exactly that
+purpose, needing no migration.
+
+**Component Reuse Review, performed before writing any new markup.** `assets/site.css`
+tokens/`.card`/`.status`/`.skeleton` and PA-2's Empty State pattern reused unchanged;
+the quick-log form's scale/notes/condition fields extend `login.html`'s `.field`
+pattern into this phase's first genuinely multi-field form; the Symptom History list
+page reuses PA-3's `.tl-track`/`.tl-item` visual (freshly implemented in its own
+`<style>` block, per this repo's per-page CSS convention, not imported) and
+`my-health-journey/session-guard.js` unchanged.
+
+**Verification performed** (all real, not assumed):
+- `node validation/static-analysis/analyze.js` — 0 findings (31 `apps-script/*.gs`
+  files scanned).
+- `node validation/phase-2a-foundation/conformance.js` — **107/107** (81 pre-existing +
+  Stage0's 4 new schema-validator self-checks + Stage 8's 22 new checks), covering
+  schema conformance, the all-four-mandatory validation rule, out-of-range/non-integer
+  rejection, `condition_slug` taxonomy validation, cross-patient isolation on both
+  create and list — the platform's first patient-writable route's highest-priority
+  property — and both new `FoundationRouter.gs` routes end to end, confirming
+  `patient_id` is never accepted from a client-supplied field.
+- `node validation/phase-1-5/validate.js` — 42/42, unchanged.
+- `validation/pa-2-dashboard/browser-test.js` — updated and re-run — **30/30** passed
+  (28 pre-existing + 2 new checks for the Symptom Tracker card's own real "No data yet"
+  render and its always-present quick-log form).
+- `validation/pa-3-timeline/browser-test.js` — re-run unchanged — **29/29** passed,
+  confirming zero regression to PA-3's own frontend.
+- `validation/pa-4-symptom-tracker/browser-test.js` — new, committed, mirroring
+  `pa-3-timeline`'s discipline exactly — **28/28** passed, covering the Symptom History
+  page's populated/empty/network-failure states, escaped-notes rendering (a
+  `<script>`-tag fixture confirms it is never live markup), the condition tag, the
+  dashboard card's always-present form with every field's `<label for>`, a successful
+  submission's `aria-live` confirmation and form reset, a rejected submission's
+  verbatim backend message and preserved in-progress values, sign-out, 375px responsive
+  layout, and keyboard-driven accessibility.
+
+**A disclosed testing-environment note.** All three browser-test suites above
+(`pa-2-dashboard`, `pa-3-timeline`, `pa-4-symptom-tracker`) were executed in this
+session using a temporary, session-local Playwright install pointed at this
+environment's pre-installed Chromium binary — not via the committed invocation as
+literally written (`docs/41`'s Finding 5 recorded that no `package.json`/
+`node_modules/playwright` exists in this repository). The committed `browser-test.js`
+files themselves were not changed to depend on this session's local setup; a future
+session with Playwright properly installed should be able to re-run them exactly as
+documented in each suite's own README.
+
+**Deferred, not silently skipped:** Reports (Batch 5F) remains a separate, independent
+dashboard card — this batch does not touch it; adding "Patient Login" to primary nav
+(Batch 5G, unchanged); a `package.json` declaring the `playwright` dev dependency so
+these suites can be run without a session-local workaround (a real, disclosed gap,
+carried forward from docs/41 Finding 5, still not this batch's problem to solve).

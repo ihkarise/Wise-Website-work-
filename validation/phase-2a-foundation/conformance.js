@@ -42,6 +42,15 @@
  * shape (a client-supplied record_id must resolve only to its own
  * patient_id, never anyone else's).
  *
+ * Extended in Patient Access batch PA-4 with Stage 8, covering
+ * FoundationSymptomLog.gs against the new
+ * shared/schemas/symptom-log.schema.json, plus the two new
+ * FoundationRouter.gs dispatch cases (log_symptom, get_symptom_logs) end
+ * to end — the platform's first patient-*writable* route, so this stage's
+ * highest-priority check is cross-patient isolation on both create and
+ * list (docs/41 §12), the same authorization boundary already proven for
+ * reads, verified here on a write.
+ *
  * Run with: node conformance.js  (no dependencies beyond Node's
  * standard library).
  */
@@ -60,6 +69,7 @@ var patientIdentitySchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'sc
 var sessionSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/session.schema.json'), 'utf8'));
 var loginTokenSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/login-token.schema.json'), 'utf8'));
 var consultationHistorySchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/consultation-history.schema.json'), 'utf8'));
+var symptomLogSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/symptom-log.schema.json'), 'utf8'));
 
 var results = [];
 function record(name, pass, detail) {
@@ -108,6 +118,20 @@ function record(name, pass, detail) {
   var loginTokenWithNullUsedAt = Object.assign({}, loginTokenWithEmptySentinel, { used_at: null });
   record('Stage0: schema-validator rejects a null used_at (the sentinel is a string, never null)',
     validate(loginTokenSchema, loginTokenWithNullUsedAt).valid === false);
+
+  // PA-4: schema-validator's new "integer" type and minimum/maximum
+  // numeric-bounds support (symptom-log.schema.json's first real need for
+  // either) — proven against a tiny local fragment schema, the same
+  // "prove the tool before trusting it" discipline as every check above.
+  var scaleFragment = { type: 'object', additionalProperties: false, required: ['severity'], properties: { severity: { type: 'integer', minimum: 1, maximum: 10 } } };
+  record('Stage0: schema-validator accepts an in-range integer against a type:"integer" schema',
+    validate(scaleFragment, { severity: 5 }).valid === true);
+  record('Stage0: schema-validator rejects a non-integer number against a type:"integer" schema',
+    validate(scaleFragment, { severity: 5.5 }).valid === false);
+  record('Stage0: schema-validator rejects an integer below minimum',
+    validate(scaleFragment, { severity: 0 }).valid === false);
+  record('Stage0: schema-validator rejects an integer above maximum',
+    validate(scaleFragment, { severity: 11 }).valid === false);
 })();
 
 // ============================================================
@@ -547,6 +571,136 @@ var ctx = loadProject(h.sandbox);
 
   var createdAuditRows = auditRowsOf(h, 'consultation_entry_created');
   record('Stage7: every foundationCreateConsultationEntry_() call wrote its own consultation_entry_created AuditLog row',
+    createdAuditRows.length === 6);
+})();
+
+// ============================================================
+// Stage 8 (PA-4) — FoundationSymptomLog.gs -> symptom-log.schema.json,
+// plus FoundationRouter.gs's two new dispatch cases end to end. The
+// platform's first patient-writable route.
+// ============================================================
+(function stage8_symptomLog() {
+  var patientA = ctx.foundationCreatePatient_({
+    full_name: 'Stage8 Patient A', email: 'stage8-a@example.com',
+    condition_slug: 'mcas', created_by: 'conformance-harness'
+  });
+  var patientB = ctx.foundationCreatePatient_({
+    full_name: 'Stage8 Patient B', email: 'stage8-b@example.com',
+    condition_slug: 'mcas', created_by: 'conformance-harness'
+  });
+  record('Stage8: setup — two independent patients exist', patientA.status === 'ok' && patientB.status === 'ok');
+
+  var payload = ctx.foundationBuildSymptomLogRecord_(
+    { patient_id: patientA.data.patient_id, severity: 5, sleep: 6, energy: 4, stress: 3, notes: 'Felt a bit tired.', condition_slug: 'mcas' },
+    'stage8-fixture-id', '2026-07-01T00:00:00.000Z'
+  );
+  var payloadResult = validate(symptomLogSchema, payload);
+  record('Stage8: foundationBuildSymptomLogRecord_() output conforms to symptom-log.schema.json',
+    payloadResult.valid === true, payloadResult.errors.join('; '));
+
+  var missingScales = ctx.foundationCreateSymptomLog_({ patient_id: patientA.data.patient_id, severity: 5 });
+  record('Stage8: foundationCreateSymptomLog_() rejects a partial log (missing sleep/energy/stress) with FOUNDATION_INVALID_INPUT — all four scale fields are mandatory (docs/41 §10 Q1)',
+    missingScales.status === 'error' && missingScales.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var outOfRange = ctx.foundationCreateSymptomLog_({ patient_id: patientA.data.patient_id, severity: 11, sleep: 5, energy: 5, stress: 5 });
+  record('Stage8: foundationCreateSymptomLog_() rejects an out-of-range scale value (11 > 10)',
+    outOfRange.status === 'error' && outOfRange.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var nonIntegerScale = ctx.foundationCreateSymptomLog_({ patient_id: patientA.data.patient_id, severity: 5.5, sleep: 5, energy: 5, stress: 5 });
+  record('Stage8: foundationCreateSymptomLog_() rejects a non-integer scale value',
+    nonIntegerScale.status === 'error' && nonIntegerScale.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var badSlug = ctx.foundationCreateSymptomLog_({ patient_id: patientA.data.patient_id, severity: 5, sleep: 5, energy: 5, stress: 5, condition_slug: 'not-a-real-slug' });
+  record('Stage8: foundationCreateSymptomLog_() rejects a condition_slug outside the canonical list (shared/constants/condition-slugs.json)',
+    badSlug.status === 'error' && badSlug.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  // Three entries for patient A (with distinct logged_at instants, to
+  // prove sorting), one for patient B (to prove cross-patient isolation).
+  var entryOldest = ctx.foundationCreateSymptomLog_({ patient_id: patientA.data.patient_id, severity: 3, sleep: 7, energy: 6, stress: 2, notes: 'Oldest entry.' });
+  var entryMiddle = ctx.foundationCreateSymptomLog_({ patient_id: patientA.data.patient_id, severity: 5, sleep: 6, energy: 5, stress: 4, condition_slug: 'mcas' });
+  var entryNewest = ctx.foundationCreateSymptomLog_({ patient_id: patientA.data.patient_id, severity: 7, sleep: 4, energy: 3, stress: 6, notes: '<script>alert(1)</script>' });
+  var entryOtherPatient = ctx.foundationCreateSymptomLog_({ patient_id: patientB.data.patient_id, severity: 8, sleep: 8, energy: 8, stress: 8 });
+  record('Stage8: setup — four real entries created (three for patient A, one for patient B)',
+    [entryOldest, entryMiddle, entryNewest, entryOtherPatient].every(function (r) { return r.status === 'ok'; }));
+
+  var createdResult = validate(symptomLogSchema, entryMiddle.data || {});
+  record('Stage8: a real foundationCreateSymptomLog_() result conforms to symptom-log.schema.json',
+    createdResult.valid === true, createdResult.errors.join('; '));
+  record('Stage8: logged_at is server-set, never accepted from a client-supplied field (docs/41 §10 Q2)',
+    typeof entryMiddle.data.logged_at === 'string' && entryMiddle.data.logged_at.length > 0);
+  record('Stage8: notes is stored raw (unescaped) — escaping happens at display time, the same convention every other free-text field already uses',
+    entryNewest.data.notes === '<script>alert(1)</script>');
+
+  // Backdate the two earlier entries directly (same technique Stage 5/7
+  // already use) so ordering is provable without relying on real
+  // wall-clock timing between three synchronous calls.
+  ctx.foundationDsUpdateById_(ctx.FOUNDATION_SYMPTOM_LOGS_SHEET_, ctx.FOUNDATION_SYMPTOM_LOGS_COLUMNS_, 'record_id', entryOldest.data.record_id,
+    { logged_at: '2026-01-01T00:00:00.000Z' });
+  ctx.foundationDsUpdateById_(ctx.FOUNDATION_SYMPTOM_LOGS_SHEET_, ctx.FOUNDATION_SYMPTOM_LOGS_COLUMNS_, 'record_id', entryMiddle.data.record_id,
+    { logged_at: '2026-06-01T00:00:00.000Z' });
+
+  var logs = ctx.foundationGetPatientSymptomLogs_(patientA.data.patient_id);
+  record('Stage8: foundationGetPatientSymptomLogs_() succeeds', logs.status === 'ok');
+  record('Stage8: the list contains only patient A\'s three entries, never patient B\'s',
+    logs.data.length === 3 && logs.data.every(function (e) { return e.patient_id === patientA.data.patient_id; }));
+  record('Stage8: the list is sorted logged_at descending (newest first), independent of creation order',
+    logs.data[0].record_id === entryNewest.data.record_id &&
+    logs.data[1].record_id === entryMiddle.data.record_id &&
+    logs.data[2].record_id === entryOldest.data.record_id);
+
+  var logsEntryResult = validate(symptomLogSchema, logs.data[0]);
+  record('Stage8: a real listed entry conforms to symptom-log.schema.json',
+    logsEntryResult.valid === true, logsEntryResult.errors.join('; '));
+
+  // ---- FoundationRouter.gs — the two new dispatch cases, end to end ----
+  var sessionA = ctx.foundationIssueSessionToken_(patientA.data.patient_id);
+  var logSymptomHttp = ctx.handleFoundationRequest_({
+    foundation_action: 'log_symptom', session_token: sessionA,
+    severity: 6, sleep: 6, energy: 6, stress: 6, notes: 'Via HTTP dispatch.'
+  });
+  var logSymptomBody = JSON.parse(logSymptomHttp._text);
+  record('Stage8: log_symptom (real HTTP dispatch) creates an entry for the caller\'s own session-derived patient_id',
+    logSymptomBody.status === 'ok' && logSymptomBody.data.patient_id === patientA.data.patient_id);
+
+  record('Stage8: log_symptom derives patient_id only from the verified session, never from a client-supplied field',
+    (function () {
+      var spoofed = ctx.handleFoundationRequest_({
+        foundation_action: 'log_symptom', session_token: sessionA, patient_id: 'someone-elses-id',
+        severity: 5, sleep: 5, energy: 5, stress: 5
+      });
+      var spoofedBody = JSON.parse(spoofed._text);
+      return spoofedBody.status === 'ok' && spoofedBody.data.patient_id === patientA.data.patient_id;
+    })());
+
+  var unauthedLogSymptomHttp = ctx.handleFoundationRequest_({ foundation_action: 'log_symptom', session_token: 'not-a-real-session-token', severity: 5, sleep: 5, energy: 5, stress: 5 });
+  var unauthedLogSymptomBody = JSON.parse(unauthedLogSymptomHttp._text);
+  record('Stage8: log_symptom rejects an invalid session_token with FOUNDATION_UNAUTHORIZED, never writing a row',
+    unauthedLogSymptomBody.status === 'error' && unauthedLogSymptomBody.error.code === 'FOUNDATION_UNAUTHORIZED' && unauthedLogSymptomBody.data === null);
+
+  var getSymptomLogsHttp = ctx.handleFoundationRequest_({ foundation_action: 'get_symptom_logs', session_token: sessionA });
+  var getSymptomLogsBody = JSON.parse(getSymptomLogsHttp._text);
+  record('Stage8: get_symptom_logs (real HTTP dispatch) resolves the caller\'s own entries from a valid session',
+    getSymptomLogsBody.status === 'ok' && getSymptomLogsBody.data.length === 5 &&
+    getSymptomLogsBody.data.every(function (e) { return e.patient_id === patientA.data.patient_id; }));
+
+  var sessionB = ctx.foundationIssueSessionToken_(patientB.data.patient_id);
+  var getSymptomLogsHttpB = ctx.handleFoundationRequest_({ foundation_action: 'get_symptom_logs', session_token: sessionB });
+  var getSymptomLogsBodyB = JSON.parse(getSymptomLogsHttpB._text);
+  record('Stage8: get_symptom_logs over real HTTP dispatch returns only patient B\'s own entry, never patient A\'s, proving cross-patient isolation on the platform\'s first patient-writable route',
+    getSymptomLogsBodyB.status === 'ok' && getSymptomLogsBodyB.data.length === 1 && getSymptomLogsBodyB.data[0].patient_id === patientB.data.patient_id);
+
+  var unauthedGetSymptomLogsHttp = ctx.handleFoundationRequest_({ foundation_action: 'get_symptom_logs', session_token: 'not-a-real-session-token' });
+  var unauthedGetSymptomLogsBody = JSON.parse(unauthedGetSymptomLogsHttp._text);
+  record('Stage8: get_symptom_logs rejects an invalid session_token with FOUNDATION_UNAUTHORIZED, never leaking any data',
+    unauthedGetSymptomLogsBody.status === 'error' && unauthedGetSymptomLogsBody.error.code === 'FOUNDATION_UNAUTHORIZED' && unauthedGetSymptomLogsBody.data === null);
+
+  var invalidInputHttp = ctx.handleFoundationRequest_({ foundation_action: 'log_symptom', session_token: sessionA, severity: 5 });
+  var invalidInputBody = JSON.parse(invalidInputHttp._text);
+  record('Stage8: log_symptom over real HTTP dispatch still rejects a partial log with FOUNDATION_INVALID_INPUT',
+    invalidInputBody.status === 'error' && invalidInputBody.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var createdAuditRows = auditRowsOf(h, 'symptom_log_created');
+  record('Stage8: every foundationCreateSymptomLog_() call (direct and via HTTP dispatch) wrote its own symptom_log_created AuditLog row',
     createdAuditRows.length === 6);
 })();
 

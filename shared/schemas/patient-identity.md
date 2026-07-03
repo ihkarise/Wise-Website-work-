@@ -47,12 +47,16 @@ other record needs to change. That property is what this schema — and
 Phase 1.5's `apps-script/Config.gs` maintains `ALLOWED_CONDITION_SLUGS`, the canonical
 list reused platform-wide (docs/20 §5). Foundation batch F3 does **not** duplicate that
 list into a Foundation-side validator — `foundationValidatePatientInput_()` only checks
-`condition_slug` is a non-empty string. This is a deliberate, minimal choice: hand-
-duplicating an 8-item list without a real second consumer was already flagged as
-premature by Phase 1.5's own Batch 4A review, and `shared/constants/` (currently empty,
-reserved per `shared/README.md`) is exactly where this list should live once it has a
-second real, distinct implementation to serve. Not a Foundation deliverable — noted
-here so it isn't mistaken for an oversight.
+`condition_slug` is a non-empty string. This was a deliberate, minimal choice at the
+time: hand-duplicating an 8-item list without a real second consumer was already
+flagged as premature by Phase 1.5's own Batch 4A review. `shared/constants/` has since
+been populated in Patient Access Batch PA-4
+(`condition-slugs.json`, once `SymptomLogs.condition_slug` became that second real
+consumer) — but `PatientIdentity.gs` itself remains frozen (docs/35 §9) and was **not**
+updated to validate against it, so this field's own gap is unchanged and still open,
+not retroactively closed by PA-4's unrelated work. Closing it would mean reopening a
+frozen Foundation file for a validation-only change — a future batch's decision, not
+this note's to make.
 
 ## Versioning
 

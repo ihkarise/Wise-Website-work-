@@ -108,10 +108,21 @@ the two disclosed, additive exceptions (`FoundationRouter.gs`'s two new
 dispatch cases; `dashboard.js`'s Timeline-card wiring) are named in full
 in docs/29 §16's Batch PA-3 notes.
 
-Next: Batch PA-4 (docs/29 §13 Batch 5E) — the `SymptomLogs` sheet and
-the patient-facing Symptom Tracker (the first patient-*writable* Phase
-2A feature, per docs/29 §9). Not yet started; approval required before
-it begins.
+Batch PA-4 (docs/29 §13 Batch 5E) — the `SymptomLogs` sheet and the
+patient-facing Symptom Tracker (the platform's first patient-*writable*
+feature, per docs/29 §9) — has also now shipped, preceded by
+docs/41-SYMPTOM-TRACKER-READINESS-REVIEW.md. The Symptom Tracker card on
+`/my-health-journey/` now shows a real quick-log form and most-recent-value
+summary instead of an empty state, and a new full history page exists at
+`/my-health-journey/symptoms/`. Zero unauthorized modification to any frozen
+file — the disclosed, additive exceptions (`FoundationRouter.gs`'s two new
+dispatch cases; `dashboard.js`'s Symptom Tracker-card wiring; `assets/site.css`'s
+new `.field textarea`/`.field select` rules) are named in full in docs/29 §16's
+Batch PA-4 notes.
+
+Next: Batch PA-5 (docs/29 §13 Batch 5F) — the `Reports` sheet, Drive
+integration, and the platform's highest-risk feature, file upload. Not yet
+started; approval required before it begins.
 
 - Patient Login (passwordless, ADR-003)
 - Dashboard shell
