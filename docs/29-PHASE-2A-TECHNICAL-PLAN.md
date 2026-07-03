@@ -1121,6 +1121,14 @@ bug fixes (docs/36-IDENTITY-AND-ACCESS-CLOSEOUT.md). Patient Access is the miles
 that builds the patient-facing surface against it, starting with the deferred frontend
 half of this document's original §13 Batch 5B.
 
+> **Update, 2026-07-03:** Batches PA-1 and PA-2 below — the dashboard shell (login,
+> verify, `assets/site.css`, and `/my-health-journey/`) — are now **complete and frozen
+> except for bug fixes**, per this session's explicit instruction. See
+> docs/38-PATIENT-ACCESS-DASHBOARD-SHELL-CLOSEOUT.md for the closeout summary and
+> Batch PA-3 entry criteria, and docs/39-CONSULTATION-TIMELINE-READINESS-REVIEW.md for
+> the pre-PA-3 readiness review. Neither PA-1 nor PA-2's implementation notes below were
+> altered to produce either document — both are reports on already-shipped work.
+
 ## Batch PA-1 (complete)
 
 Delivered exactly its stated scope: `login.html` (email-entry form, calls

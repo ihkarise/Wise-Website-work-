@@ -8,6 +8,39 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-03 — Patient Access Dashboard Shell Closeout + Consultation Timeline Readiness Review (docs only)
+
+Documentation-only batch. No frontend page, `apps-script/*.gs` file, `shared/`
+contract, or architecture document was modified — confirmed via `git diff`.
+
+- Added `docs/38-PATIENT-ACCESS-DASHBOARD-SHELL-CLOSEOUT.md`: the official closeout of
+  Patient Access Batches PA-1–PA-2 (login/verify, `assets/site.css`, the
+  `/my-health-journey/` dashboard shell) — scope delivered, architecture summary, the
+  session-guard and three-Empty-State model as actually built, validation/regression/
+  static-analysis results re-verified fresh against the current merged state, deferred
+  work, lessons learned, and Batch PA-3 entry criteria.
+- **Patient Access Batches PA-1–PA-2 are now frozen except for bug fixes** — see
+  docs/38 §9. `login.html`, `verify.html`, `assets/site.css`, and
+  `my-health-journey/` join Identity & Access's frozen backend as stable, tested
+  surface.
+- Added `docs/39-CONSULTATION-TIMELINE-READINESS-REVIEW.md`: the pre-implementation
+  review for Batch PA-3 (docs/29 §13 Batch 5D), covering consultation information
+  architecture, the Timeline entry model (including a real `entry_type` schema gap
+  found between docs/29 §4 and docs/33 §3.1, and a recommendation to close it),
+  ordering, empty-state behavior, card layout, detail-view requirements, component
+  reuse (including a now-ripe session-guard extraction), relationship to Symptom
+  Tracker/Reports, required backend contracts (named, not designed), accessibility,
+  a recommended implementation sequence, and a scoped Repository Consistency Review.
+- `docs/29-PHASE-2A-TECHNICAL-PLAN.md` §16 gained a freeze notice; `docs/24-ROADMAP.md`
+  updated to reflect the freeze and point at both new documents.
+- Re-ran clean and unchanged: `node validation/static-analysis/analyze.js` (0
+  findings), `node validation/phase-2a-foundation/conformance.js` (61/61),
+  `node validation/phase-1-5/validate.js` (42/42), and
+  `validation/pa-2-dashboard/browser-test.js` (26/26).
+
+**Patient Access Batch PA-3 is the next milestone**, not yet started — approval
+required before it begins (docs/39).
+
 ## 2026-07-03 — Patient Access Batch PA-2 (assets/site.css, My Health Journey dashboard shell)
 
 Second Patient Access batch (docs/29 §13 Batch 5C), preceded by a dedicated
