@@ -10,44 +10,14 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/site.css">
 <style>
-:root{
-  --color-brand:#27498C;--color-brand-strong:#1B3463;--color-brand-deep:#13264A;
-  --color-accent:#D62E4D;--color-accent-strong:#B8273F;
-  --color-ink:#0B0B0B;--color-text-secondary:#5B6472;--color-text-faint:#9AA3B2;
-  --color-line:#E7EBF1;--color-surface:#F4F7FB;--color-surface-base:#FFFFFF;
-  --color-warn-bg:#FFF4E5;--color-warn-line:#F0C36D;--color-warn-text:#7A5200;
-  --color-err-bg:#FCEBEC;--color-err-line:#E8A3AC;--color-err-text:#8A1F2C;
-  --color-ok-bg:#EAF3EC;--color-ok-line:#9CC9A6;--color-ok-text:#245C34;
-  --font-display:'Fraunces',Georgia,serif;--font-body:'Poppins',Arial,sans-serif;
-  --radius-md:13px;--radius-lg:22px;
-}
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:var(--font-body);font-size:15.5px;color:var(--color-ink);background:var(--color-surface);line-height:1.6;-webkit-font-smoothing:antialiased}
-.wrap{max-width:480px;margin:0 auto;padding:clamp(24px,5vw,48px) clamp(18px,4vw,32px);min-height:100vh;display:flex;flex-direction:column;justify-content:center}
-.serif{font-family:var(--font-display)}
-:focus-visible{outline:3px solid var(--color-accent);outline-offset:3px;border-radius:4px}
-.brand{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:28px}
-.brand img{height:34px;width:auto}
-.brand .mark{display:none;height:34px;width:34px;border-radius:50%;background:var(--color-brand);color:#fff;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:600}
-.brand .txt{display:none;font-family:var(--font-display);font-weight:600;font-size:15px;color:var(--color-brand-deep)}
-h1{font-family:var(--font-display);font-size:clamp(24px,4vw,30px);color:var(--color-brand-strong);text-align:center;margin-bottom:6px}
-.sub{color:var(--color-text-secondary);font-size:14.5px;text-align:center;margin-bottom:28px}
-.card{background:var(--color-surface-base);border:1px solid var(--color-line);border-radius:var(--radius-lg);padding:clamp(20px,4vw,32px);text-align:center}
-.submit{width:100%;background:var(--color-accent);color:#fff;border:none;padding:15px;border-radius:var(--radius-md);font:600 15.5px var(--font-body);cursor:pointer;transition:transform .15s ease,box-shadow .2s ease}
-.submit:hover{transform:translateY(-2px);box-shadow:0 12px 28px rgba(214,46,77,.34)}
-.submit:disabled{opacity:.55;cursor:not-allowed;transform:none;box-shadow:none}
-.secondary{display:inline-block;margin-top:14px;background:var(--color-brand);color:#fff;text-decoration:none;font-weight:600;font-size:14.5px;padding:12px 22px;border-radius:var(--radius-md)}
-.status{margin-top:16px;padding:13px 16px;border-radius:var(--radius-md);font-size:14px;display:none;text-align:left}
-.status.ok{display:block;background:var(--color-ok-bg);border:1px solid var(--color-ok-line);color:var(--color-ok-text)}
-.status.err{display:block;background:var(--color-err-bg);border:1px solid var(--color-err-line);color:var(--color-err-text)}
-.status.loading{display:block;background:var(--color-surface);border:1px solid var(--color-line);color:var(--color-text-secondary);text-align:center}
-.skeleton{height:14px;border-radius:7px;background:linear-gradient(90deg,var(--color-line) 25%,#f4f6fa 37%,var(--color-line) 63%);background-size:400% 100%;animation:shimmer 1.4s ease infinite;margin:6px 0}
-@keyframes shimmer{0%{background-position:100% 0}100%{background-position:0 0}}
-.foot{margin-top:24px;text-align:center;font-size:13.5px;color:var(--color-text-faint)}
-.foot a{color:var(--color-brand);text-decoration:none;font-weight:500}
-.foot a:hover{text-decoration:underline}
-[hidden]{display:none !important}
+/* Page-specific layout only — shared tokens/components now live in
+   assets/site.css (docs/29 §13 Batch 5C extraction). */
+.wrap{max-width:480px;min-height:100vh;display:flex;flex-direction:column;justify-content:center}
+.card{text-align:center}
+.status{text-align:left}
+.status.loading{text-align:center}
 </style>
 </head>
 <body>
@@ -88,7 +58,8 @@ h1{font-family:var(--font-display);font-size:clamp(24px,4vw,30px);color:var(--co
       <!-- State: success -->
       <div id="successState" hidden>
         <p class="sub" style="margin-bottom:0">You're signed in ✓</p>
-        <p class="sub">My Health Journey — your patient dashboard — is coming soon. You can close this tab; your session will stay active for the next 60 minutes.</p>
+        <p class="sub" style="margin-bottom:18px">Your session will stay active for the next 60 minutes.</p>
+        <a class="secondary" href="/my-health-journey/">Go to My Health Journey</a>
       </div>
 
       <!-- State: failure -->

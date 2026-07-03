@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wisehomeopathy.com/shared/schemas/consultation-history.schema.json",
+  "title": "Consultation History Entry",
+  "version": "1.0.0",
+  "description": "The canonical shape of a ConsultationHistory record — docs/29-PHASE-2A-TECHNICAL-PLAN.md §4's already-locked sheet, and the concrete storage of docs/33-DOMAIN-MODEL.md §3.1's Timeline Event for this batch's one entry_type. Feeds the patient-facing Timeline (docs/29 §6) and Consultation History detail view (docs/29 §7). See consultation-history.md for the entry_type scope note, the record_id identity strategy (docs/40-CONSULTATION-IDENTITY-STRATEGY.md), and the source_ref sentinel-value convention.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["record_id", "patient_id", "entry_date", "entry_type", "title", "summary_text", "source_ref", "created_by", "created_at"],
+  "properties": {
+    "record_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The permanent identity of this consultation entry (docs/40 Q1/Q2). A UUID, generated once at creation, never reused or changed, and SQL-migration-safe by design (ADR-006). The only field the Timeline/Consultation History detail view should ever use to reference or fetch a specific entry — never row position (docs/40 Q4)."
+    },
+    "patient_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The Patient Identity this entry belongs to (docs/33 §1.2, ADR-002). Every patient-facing fetch of this entry must verify this field matches the session-derived patient_id before returning it (docs/40 Q3, docs/39 §10) — record_id alone is not an authorization boundary."
+    },
+    "entry_date": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The clinically meaningful date the visit happened — not necessarily the same as created_at, since staff may enter or backfill an entry after the fact. This is the Timeline's sort key (descending), with created_at as an explicit tiebreaker for same-date entries (docs/39 §3)."
+    },
+    "entry_type": {
+      "type": "string",
+      "enum": ["consultation"],
+      "description": "Every row this schema version stores is \"consultation\" — the enum is deliberately narrow to what ConsultationHistory actually holds today, not widened speculatively. docs/33 §3.1's more general Timeline Event model anticipates future entry_types (note/milestone) arriving via later entities/sheets (Care Plan, Digital Twin), not necessarily by widening this enum — a future batch should revisit this value set only once it actually needs to, per shared/README.md's versioning rule."
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Short, patient-facing entry title — staff-authored."
+    },
+    "summary_text": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The full, patient-facing entry text. Read-only for patients (docs/29 §7, docs/30 §2 \"doctors decide\") — no patient-editing endpoint exists or should exist for this field."
+    },
+    "source_ref": {
+      "type": "string",
+      "description": "Optional pointer to an already doctor-approved Phase 1.5 Consultation Summary record_id (docs/29 §7's second sourcing path), so its content isn't re-typed. Empty string when this entry was authored directly by staff with no linked Phase 1.5 record — the same legitimately-empty-until-set sentinel convention shared/schemas/login-token.schema.json's used_at already established, reused here rather than inventing a new null-handling rule."
+    },
+    "created_by": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Permanent — the staff identifier who created this record, an audit provenance field, never modified afterward."
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Permanent — set once at creation, never modified afterward. Distinct from entry_date; see that field's own description."
+    }
+  }
+}

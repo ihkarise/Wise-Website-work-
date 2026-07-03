@@ -83,7 +83,8 @@ var MANUAL_DROPDOWN_WRAPPERS = [
   'purgeExpiredRecipientEmails', // Retention.gs — manual/scheduled entry point
   'runFoundationTests', // FoundationTests.gs — Foundation's unit test entry point
   'createFoundationPatient', // PatientIdentity.gs — F3's manually-run patient creation
-  'createFoundationLoginToken' // FoundationLoginTokens.gs — IA-1's manually-run token creation
+  'createFoundationLoginToken', // FoundationLoginTokens.gs — IA-1's manually-run token creation
+  'createFoundationConsultationEntry' // FoundationConsultationHistory.gs — PA-3's manually-run entry creation
 ];
 
 function listGsFiles() {

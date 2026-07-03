@@ -33,6 +33,15 @@
  * rather than against a new schema (see docs/29 §15's IA-2 section for
  * this scope boundary stated explicitly).
  *
+ * Extended in Patient Access batch PA-3 with Stage 7, covering
+ * FoundationConsultationHistory.gs against the new
+ * shared/schemas/consultation-history.schema.json, plus the two new
+ * FoundationRouter.gs dispatch cases (get_timeline, get_timeline_entry)
+ * end to end — including the cross-patient-authorization check docs/40's
+ * identity-strategy review named as this batch's one new authorization
+ * shape (a client-supplied record_id must resolve only to its own
+ * patient_id, never anyone else's).
+ *
  * Run with: node conformance.js  (no dependencies beyond Node's
  * standard library).
  */
@@ -50,6 +59,7 @@ var responseEnvelopeSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'c
 var patientIdentitySchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/patient-identity.schema.json'), 'utf8'));
 var sessionSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/session.schema.json'), 'utf8'));
 var loginTokenSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/login-token.schema.json'), 'utf8'));
+var consultationHistorySchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/consultation-history.schema.json'), 'utf8'));
 
 var results = [];
 function record(name, pass, detail) {
@@ -403,6 +413,141 @@ var ctx = loadProject(h.sandbox);
       var spoofedBody = JSON.parse(spoofed._text);
       return spoofedBody.data.patient_id === stage6Patient.data.patient_id;
     })());
+})();
+
+// ============================================================
+// Stage 7 (PA-3) — FoundationConsultationHistory.gs -> consultation-history.schema.json,
+// plus FoundationRouter.gs's two new dispatch cases end to end.
+// ============================================================
+(function stage7_consultationHistory() {
+  var patientA = ctx.foundationCreatePatient_({
+    full_name: 'Stage7 Patient A', email: 'stage7-a@example.com',
+    condition_slug: 'mcas', created_by: 'conformance-harness'
+  });
+  var patientB = ctx.foundationCreatePatient_({
+    full_name: 'Stage7 Patient B', email: 'stage7-b@example.com',
+    condition_slug: 'mcas', created_by: 'conformance-harness'
+  });
+  record('Stage7: setup — two independent patients exist', patientA.status === 'ok' && patientB.status === 'ok');
+
+  var payload = ctx.foundationBuildConsultationEntryRecord_(
+    { patient_id: patientA.data.patient_id, entry_date: '2026-06-01', title: 'Visit 1', summary_text: 'Notes 1', source_ref: '', created_by: 'staff-1' },
+    'stage7-fixture-id', '2026-06-01T00:00:00.000Z'
+  );
+  var payloadResult = validate(consultationHistorySchema, payload);
+  record('Stage7: foundationBuildConsultationEntryRecord_() output conforms to consultation-history.schema.json',
+    payloadResult.valid === true, payloadResult.errors.join('; '));
+  record('Stage7: entry_type is always the fixed constant "consultation"', payload.entry_type === 'consultation');
+
+  var invalidCreate = ctx.foundationCreateConsultationEntry_({ patient_id: patientA.data.patient_id });
+  record('Stage7: foundationCreateConsultationEntry_() rejects missing required fields with FOUNDATION_INVALID_INPUT',
+    invalidCreate.status === 'error' && invalidCreate.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  // Three entries for patient A (out of chronological order, to prove
+  // sorting), one for patient B (to prove cross-patient isolation below).
+  var entryOld = ctx.foundationCreateConsultationEntry_({
+    patient_id: patientA.data.patient_id, entry_date: '2026-05-01', title: 'Oldest visit', summary_text: 'First visit notes.', created_by: 'staff-1'
+  });
+  var entryNew = ctx.foundationCreateConsultationEntry_({
+    patient_id: patientA.data.patient_id, entry_date: '2026-06-15', title: 'Newest visit', summary_text: 'Most recent visit notes.', created_by: 'staff-1'
+  });
+  var entryMid = ctx.foundationCreateConsultationEntry_({
+    patient_id: patientA.data.patient_id, entry_date: '2026-06-01', title: 'Middle visit', summary_text: 'Follow-up visit notes.', source_ref: 'phase15-record-123', created_by: 'staff-1'
+  });
+  var entryOtherPatient = ctx.foundationCreateConsultationEntry_({
+    patient_id: patientB.data.patient_id, entry_date: '2026-06-20', title: 'Patient B visit', summary_text: 'Should never appear in patient A\'s timeline.', created_by: 'staff-1'
+  });
+  record('Stage7: setup — four real entries created (three for patient A, one for patient B)',
+    [entryOld, entryNew, entryMid, entryOtherPatient].every(function (r) { return r.status === 'ok'; }));
+
+  var createdResult = validate(consultationHistorySchema, entryMid.data || {});
+  record('Stage7: a real foundationCreateConsultationEntry_() result conforms to consultation-history.schema.json',
+    createdResult.valid === true, createdResult.errors.join('; '));
+
+  var timeline = ctx.foundationGetPatientTimeline_(patientA.data.patient_id);
+  record('Stage7: foundationGetPatientTimeline_() succeeds', timeline.status === 'ok');
+  record('Stage7: the timeline contains only patient A\'s three entries, never patient B\'s',
+    timeline.data.length === 3 && timeline.data.every(function (e) { return e.patient_id === patientA.data.patient_id; }));
+  record('Stage7: the timeline is sorted newest-entry_date-first (docs/39 §3), independent of creation order',
+    timeline.data[0].record_id === entryNew.data.record_id &&
+    timeline.data[1].record_id === entryMid.data.record_id &&
+    timeline.data[2].record_id === entryOld.data.record_id);
+
+  var entryTimelineResult = validate(consultationHistorySchema, timeline.data[0]);
+  record('Stage7: a real timeline entry conforms to consultation-history.schema.json',
+    entryTimelineResult.valid === true, entryTimelineResult.errors.join('; '));
+
+  // ---- Ordering tiebreaker: same entry_date, different created_at ----
+  // Two real synchronous calls can land on the same millisecond timestamp
+  // (no defined "newer" between them), so — the same explicit-backdating
+  // technique Stage 5 already uses for expiry — tieOlder's stored
+  // created_at is patched directly to a provably earlier instant rather
+  // than relying on real wall-clock timing between two calls.
+  var tieOlder = ctx.foundationCreateConsultationEntry_({
+    patient_id: patientA.data.patient_id, entry_date: '2026-07-01', title: 'Tie — written first', summary_text: 'x', created_by: 'staff-1'
+  });
+  ctx.foundationDsUpdateById_(ctx.FOUNDATION_CONSULTATION_HISTORY_SHEET_, ctx.FOUNDATION_CONSULTATION_HISTORY_COLUMNS_, 'record_id', tieOlder.data.record_id,
+    { created_at: '2020-01-01T00:00:00.000Z' });
+  var tieNewer = ctx.foundationCreateConsultationEntry_({
+    patient_id: patientA.data.patient_id, entry_date: '2026-07-01', title: 'Tie — written second', summary_text: 'x', created_by: 'staff-1'
+  });
+  var timelineWithTie = ctx.foundationGetPatientTimeline_(patientA.data.patient_id);
+  var tieIndexNewer = timelineWithTie.data.findIndex(function (e) { return e.record_id === tieNewer.data.record_id; });
+  var tieIndexOlder = timelineWithTie.data.findIndex(function (e) { return e.record_id === tieOlder.data.record_id; });
+  record('Stage7: same-entry_date rows tiebreak on created_at descending (the more recently written row sorts first)',
+    tieIndexNewer !== -1 && tieIndexOlder !== -1 && tieIndexNewer < tieIndexOlder);
+
+  // ---- Detail view: found, and the cross-patient-authorization boundary (docs/40 Q3) ----
+  var ownEntry = ctx.foundationGetConsultationEntryById_(patientA.data.patient_id, entryMid.data.record_id);
+  record('Stage7: foundationGetConsultationEntryById_() resolves a patient\'s own entry by record_id',
+    ownEntry.status === 'ok' && ownEntry.data.record_id === entryMid.data.record_id);
+
+  var crossPatientAttempt = ctx.foundationGetConsultationEntryById_(patientB.data.patient_id, entryMid.data.record_id);
+  record('Stage7: a different patient requesting patient A\'s record_id is rejected, never leaking the row',
+    crossPatientAttempt.status === 'error' && crossPatientAttempt.error.code === 'FOUNDATION_NOT_FOUND' && crossPatientAttempt.data === null);
+
+  var unknownIdAttempt = ctx.foundationGetConsultationEntryById_(patientA.data.patient_id, 'this-record-id-was-never-created');
+  record('Stage7: an unknown record_id fails with the exact same code as a cross-patient attempt (anti-enumeration)',
+    unknownIdAttempt.status === 'error' && unknownIdAttempt.error.code === crossPatientAttempt.error.code &&
+    unknownIdAttempt.error.message === crossPatientAttempt.error.message);
+
+  // ---- FoundationRouter.gs — the two new dispatch cases, end to end ----
+  var sessionA = ctx.foundationIssueSessionToken_(patientA.data.patient_id);
+  var timelineHttp = ctx.handleFoundationRequest_({ foundation_action: 'get_timeline', session_token: sessionA });
+  var timelineBody = JSON.parse(timelineHttp._text);
+  record('Stage7: get_timeline (real HTTP dispatch) resolves the caller\'s own timeline from a valid session',
+    timelineBody.status === 'ok' && timelineBody.data.length === 5 &&
+    timelineBody.data.every(function (e) { return e.patient_id === patientA.data.patient_id; }));
+
+  var unauthedTimelineHttp = ctx.handleFoundationRequest_({ foundation_action: 'get_timeline', session_token: 'not-a-real-session-token' });
+  var unauthedTimelineBody = JSON.parse(unauthedTimelineHttp._text);
+  record('Stage7: get_timeline rejects an invalid session_token with FOUNDATION_UNAUTHORIZED, never leaking any data',
+    unauthedTimelineBody.status === 'error' && unauthedTimelineBody.error.code === 'FOUNDATION_UNAUTHORIZED' && unauthedTimelineBody.data === null);
+
+  var entryHttp = ctx.handleFoundationRequest_({ foundation_action: 'get_timeline_entry', session_token: sessionA, record_id: entryMid.data.record_id });
+  var entryBody = JSON.parse(entryHttp._text);
+  record('Stage7: get_timeline_entry (real HTTP dispatch) resolves the caller\'s own entry by record_id',
+    entryBody.status === 'ok' && entryBody.data.record_id === entryMid.data.record_id);
+
+  var sessionB = ctx.foundationIssueSessionToken_(patientB.data.patient_id);
+  var crossPatientHttp = ctx.handleFoundationRequest_({ foundation_action: 'get_timeline_entry', session_token: sessionB, record_id: entryMid.data.record_id });
+  var crossPatientHttpBody = JSON.parse(crossPatientHttp._text);
+  record('Stage7: get_timeline_entry over real HTTP dispatch still rejects a cross-patient record_id request, never leaking the row',
+    crossPatientHttpBody.status === 'error' && crossPatientHttpBody.error.code === 'FOUNDATION_NOT_FOUND' && crossPatientHttpBody.data === null);
+
+  record('Stage7: get_timeline_entry derives patient_id only from the verified session, never from a client-supplied field',
+    (function () {
+      var spoofed = ctx.handleFoundationRequest_({
+        foundation_action: 'get_timeline_entry', session_token: sessionB,
+        record_id: entryMid.data.record_id, patient_id: patientA.data.patient_id
+      });
+      var spoofedBody = JSON.parse(spoofed._text);
+      return spoofedBody.status === 'error' && spoofedBody.error.code === 'FOUNDATION_NOT_FOUND';
+    })());
+
+  var createdAuditRows = auditRowsOf(h, 'consultation_entry_created');
+  record('Stage7: every foundationCreateConsultationEntry_() call wrote its own consultation_entry_created AuditLog row',
+    createdAuditRows.length === 6);
 })();
 
 function auditRowsOf(h, eventType) {

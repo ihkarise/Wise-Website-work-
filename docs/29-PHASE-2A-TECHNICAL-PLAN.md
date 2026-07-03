@@ -368,7 +368,7 @@ nothing patient-facing is linked from public nav until the last batch.
 | **5A** | `Patients` sheet + new, separate Apps Script project skeleton + staff "create patient account" tool | Zero patient-facing surface. Fully reversible — delete the sheet/script. |
 | **5B** | `LoginTokens` sheet + passwordless magic-link login (`login.html`/`verify.html`) + session token issuance/verification + rate limiting — **fully delivered**, split across Identity & Access (backend: IA-1, IA-2, §15) and Patient Access (frontend: PA-1, §16) | Deployed unlisted/noindexed, not linked from nav yet. Reversible — remove the pages/endpoint. |
 | **5C** | `assets/site.css` token extraction + `/my-health-journey/index.html` dashboard shell with empty states, wired to 5B's session | Still unlisted. Additive plus one low-risk refactor. |
-| **5D** | `ConsultationHistory` sheet + staff entry tool + patient-facing Timeline/Consultation History (read-only) | Low risk — read-only, easily hidden if needed. |
+| **5D** | `ConsultationHistory` sheet + staff entry tool + patient-facing Timeline/Consultation History (read-only) — **complete** (Batch PA-3, §16) | Low risk — read-only, easily hidden if needed. |
 | **5E** | `SymptomLogs` sheet + patient-facing symptom log form + own-history view | First patient-writable feature — authorization scoping tested explicitly here. |
 | **5F** | `Reports` sheet + Drive integration + upload/list/download endpoints + validation | Highest risk — ships last, after the auth/authorization pattern is proven. |
 | **5G** | Add "Patient Login" to primary nav, un-noindex, sitemap entry | Only batch with real public visibility change — last, trivially reversible. |
@@ -1121,6 +1121,14 @@ bug fixes (docs/36-IDENTITY-AND-ACCESS-CLOSEOUT.md). Patient Access is the miles
 that builds the patient-facing surface against it, starting with the deferred frontend
 half of this document's original §13 Batch 5B.
 
+> **Update, 2026-07-03:** Batches PA-1 and PA-2 below — the dashboard shell (login,
+> verify, `assets/site.css`, and `/my-health-journey/`) — are now **complete and frozen
+> except for bug fixes**, per this session's explicit instruction. See
+> docs/38-PATIENT-ACCESS-DASHBOARD-SHELL-CLOSEOUT.md for the closeout summary and
+> Batch PA-3 entry criteria, and docs/39-CONSULTATION-TIMELINE-READINESS-REVIEW.md for
+> the pre-PA-3 readiness review. Neither PA-1 nor PA-2's implementation notes below were
+> altered to produce either document — both are reports on already-shipped work.
+
 ## Batch PA-1 (complete)
 
 Delivered exactly its stated scope: `login.html` (email-entry form, calls
@@ -1203,3 +1211,217 @@ remains Batch 5C's named first step, docs/29 §5); the "My Health Journey" dashb
 `verify.html`'s success state links toward (honestly stated as "coming soon" rather than
 a broken redirect to a page that doesn't exist yet); adding "Patient Login" to primary
 nav (Batch 5G, unchanged).
+
+## Batch PA-2 (complete)
+
+Delivered exactly its named scope (§13 Batch 5C, and this document's own PA-1 deferral
+note above): the `assets/site.css` token extraction, and the `/my-health-journey/`
+dashboard shell wired to PA-1's session — plus the two deferrals PA-1 named as its own
+follow-on (the dashboard itself, and `verify.html`'s success-state link now pointing at
+a real page instead of "coming soon"). Preceded by a dedicated pre-implementation review
+(docs/37-DASHBOARD-SHELL-READINESS-REVIEW.md), approved before any code was written, per
+this session's own instruction. **Zero backend modification** — confirmed via
+`git diff --name-only`: no `apps-script/` or `shared/` file appears; only frontend files
+(`assets/site.css`, `login.html`, `verify.html`, `my-health-journey/index.html`,
+`my-health-journey/dashboard.js`) and documentation changed.
+
+**Component Reuse Review, performed before writing any new markup.** Every shared
+pattern already established by `login.html`/`verify.html` — the `:root` token set, the
+`.card`/`.field`/`.submit`/`.secondary`/`.status`/`.skeleton`/`:focus-visible` component
+set, and the `fetch()`-with-`text/plain`-no-preflight calling convention — was extracted
+into `assets/site.css` rather than copied a third time into the new dashboard page,
+directly closing docs/20 §5's and this document's own §5's long-standing "duplicated
+per-page" note. `index.html`'s `.skip` skip-link component was ported into the shared
+stylesheet too, since the dashboard is the first Phase 2A page complex enough (header +
+nav + multiple cards) to need one. Deliberately **not** touched: `index.html` and
+`internal/consultation-summary.html` — both out of scope (the former is the public
+marketing site, docs/29 §0's "not a redesign"; the latter is a frozen Phase 1.5 file) —
+each keeps its own independent stylesheet, per docs/37 §7's explicit recommendation.
+
+**`assets/site.css` gains one new, small addition beyond a pure extraction:**
+`.status.warn`, using the `--color-warn-*` tokens already defined in the token set but
+previously only ever used inline by `internal/consultation-summary.html`'s staff banner.
+Needed for the session-expiry notice below — not a redesign of the token system, just
+its first patient-facing use.
+
+**Authenticated header — exactly the four elements of the approved design decision,
+no more:** Wise logo, "My Health Journey" (the page's one semantic `h1`, deliberately
+placed in the header rather than duplicated again in `<main>` — docs/37 §8's heading-
+hierarchy recommendation), the patient's real greeting (`full_name` from `get_profile`,
+Foundation's first authenticated route — the only real data anywhere in this batch), and
+a Sign out control.
+
+**Session guard, built before any dashboard markup depended on it (docs/37 §3/§9).**
+`my-health-journey/dashboard.js` reads `sessionStorage`, and — if a token is present —
+calls `get_profile` to verify it server-side before rendering anything dashboard-shaped;
+an absent token redirects to `/login.html` immediately, no message (never having been
+logged in isn't a privacy event). A **present-but-rejected** token (expired, tampered, or
+unknown — `FoundationRouteGuard.gs`'s `withFoundationAuth_()` collapses all three to the
+same `FOUNDATION_UNAUTHORIZED` code, unchanged) redirects to `/login.html?reason=expired`,
+clearing the stale token first. `login.html` reads that query parameter, shows the
+approved copy — "For your privacy, your secure session has ended. Please sign in
+again." — via the new `.status.warn` variant, and strips the parameter from the visible
+URL (the same history-hygiene pattern `verify.html` already uses for its own `?token=`).
+A network failure (the fetch itself failing, not a rejected session) is treated as
+distinct: the token is kept, and a friendly, non-technical retry message is shown instead
+of forcing a re-login on a connectivity blip (docs/04 Error State).
+
+**Three distinct Empty State types, per the approved design decision (docs/37 §5):**
+"No data yet" (a real, wired feature with zero rows — no card in this batch has a live
+data source, so this variant has no page consumer yet, the same "built, verified, real
+consumer arrives in a later batch" treatment already applied to several Foundation
+functions in F4/F5/IA-1 above), "Coming later in Phase 2A" (Timeline, Symptom Tracker,
+Reports — each already has a named, sequenced future batch, 5D/5E/5F), and "Planned for
+a future version" (Care Plan, Messages, Digital Twin — no architecture exists yet for
+any of the three, docs/29 §2.2, so the copy deliberately avoids implying a near-term
+date). All six of PA-2's dashboard cards render one of the latter two types; the first
+type is exercised directly (not reimplemented) by this batch's own test suite via a
+small, explicit test-support export (`window.WiseDashboard`), the same kind of "real
+function, not a re-guess of its behavior" verification discipline this document's
+Foundation batches have used throughout.
+
+**Loading state:** a full-shell skeleton (header greeting + six skeleton card frames)
+renders until the session-verification round trip resolves, then is replaced wholesale —
+chosen over a per-card independent skeleton because this batch has exactly one data
+call (`get_profile`); per-card independent loading becomes relevant once 5D/5E/5F each
+add their own real, separately-timed data call (docs/37 §4's own forward note).
+
+**Responsive:** the dashboard is the first Phase 2A page with more than one card, so —
+unlike `login.html`/`verify.html`'s single centered card — it needed an actual
+grid-to-stack breakpoint (`auto-fit`/`minmax(260px,1fr)`, collapsing to one column under
+640px), verified at a 375px viewport with the same zero-horizontal-overflow bar PA-1
+already set for the other two pages (now re-verified for them too, since both changed).
+
+**Verification performed** (all real, browser-driven, not assumed):
+`validation/pa-2-dashboard/browser-test.js` — a new, committed Playwright harness (the
+first Phase 2A frontend suite to be committed rather than run ad hoc, formalizing PA-1's
+own testing discipline the same way F5 formalized Foundation's ad hoc backend checks) —
+a local static server plus headless Chromium, the backend mocked at the network layer.
+**26/26 checks passed**, covering: the no-token redirect; a valid session rendering the
+real greeting and all six cards with the correct badge/tone split (3 "Coming later in
+Phase 2A", 3 "Planned for a future version"); the "No data yet" variant's own correctness
+via direct function invocation; a rejected session redirecting with the exact approved
+copy and the stale token actually cleared; sign-out clearing the token and redirecting;
+a network failure preserving the token and showing a friendly message instead of forcing
+re-login; zero horizontal overflow at 375px on all three touched pages; and real
+keyboard-driven (`page.keyboard.press('Tab')`, not a simulated `.focus()` call — the same
+technique that caught PA-1's own focus-visible regression) verification that the sign-out
+control is keyboard-reachable with a visible focus outline, plus a heading-hierarchy check
+(exactly one `h1`, one `h2` per card).
+
+`node validation/static-analysis/analyze.js` (0 findings), `node
+validation/phase-2a-foundation/conformance.js` (61/61), and `node
+validation/phase-1-5/validate.js` (42/42) all re-run clean and unchanged — expected and
+confirmed, since this batch touches no `apps-script/` or `shared/` file.
+
+**Deferred, not silently skipped:** real Timeline/Symptom Tracker/Reports data (Batches
+5D/5E/5F — this batch ships their card frames as Empty States only); adding "Patient
+Login" to primary nav (Batch 5G, unchanged); a shared cross-page session-guard/header
+JavaScript module (`my-health-journey/dashboard.js` is self-contained, matching
+`login.html`/`verify.html`'s existing per-page-script convention — worth revisiting only
+once a second authenticated page actually exists to reuse it, per the "don't build for a
+hypothetical second consumer" discipline this document has applied elsewhere).
+
+## Batch PA-3 (complete)
+
+Delivered exactly its named scope (§13 Batch 5D): the `ConsultationHistory` sheet and
+data-access layer, the patient-facing read-only Timeline (list + dashboard preview) and
+Consultation History detail view, and a manually-run staff entry mechanism. Preceded by
+a dedicated pre-implementation review (docs/39-CONSULTATION-TIMELINE-READINESS-REVIEW.md)
+and an architectural clarification (docs/40-CONSULTATION-IDENTITY-STRATEGY.md), both
+approved before any code was written, per this session's own instruction.
+
+**Frozen components were not modified beyond the disclosed, additive exceptions named
+below.** Per this session's explicit instruction ("do not modify frozen Foundation,
+Identity & Access, or PA-2 components except for bug fixes"), every change to an
+already-shipped file is named here, not silently made:
+
+- `apps-script/FoundationRouter.gs` gained two new `switch` cases (`get_timeline`,
+  `get_timeline_entry`) and their two thin wiring functions — the same category of
+  disclosed, additive exception as `Code.gs`'s own one-line dispatch shim in IA-2 (see
+  `FoundationRouter.gs`'s own header comment for the full reasoning: a new case in an
+  already-designed extension point, zero existing lines touched, zero existing behavior
+  changed).
+- `my-health-journey/dashboard.js` gained the Timeline card's real-data wiring
+  (`loadTimelinePreview()`, `timelinePreviewHtml()`, an `escapeHtmlForDisplay()` helper,
+  and an `id` attribute on each card's body `<div>`) — the explicitly-planned evolution
+  docs/38 §9 itself anticipated ("wiring real data into the dashboard's existing Empty
+  State cards"), not a restructuring of the shell or its session guard.
+- No other frozen file (`login.html`, `verify.html`, `assets/site.css`,
+  `my-health-journey/index.html`, any of the ten Foundation files, any of the five
+  Identity & Access files) was touched at all.
+
+**Consultation identity strategy, applied (docs/40).** `record_id` is the sole key for
+Timeline linking and detail-view fetches — never `entry_date`, never row/list position.
+`foundationGetConsultationEntryById_()` verifies the requested record's own `patient_id`
+matches the session-derived one before returning it; an unknown `record_id` and a
+cross-patient `record_id` return the identical `FOUNDATION_NOT_FOUND` envelope, so a
+caller can never distinguish "not yours" from "doesn't exist" (the same anti-enumeration
+discipline `login-token.md` already established for login tokens).
+
+**`entry_type` gap closed (docs/39 §2).** `ConsultationHistory`'s schema now includes
+`entry_type` (fixed to `"consultation"` in this version — see
+`shared/schemas/consultation-history.md` for why the enum stays deliberately narrow
+rather than widened speculatively to docs/33 §3.1's full Timeline Event set), avoiding a
+future migration the day a second Timeline Event source (Care Plan, Digital Twin) is
+built.
+
+**Ordering (docs/39 §3).** Timeline entries sort by `entry_date` descending, with
+`created_at` descending as an explicit tiebreaker — `entry_date` (the visit date) and
+`created_at` (when the row was written) can diverge, since staff may backfill an entry
+after the fact.
+
+**A deliberate simplification, stated openly: no staff-facing Web App tool.** docs/29 §7
+describes an "access-code-gated internal tool," but Foundation has no staff-authorization
+primitive of its own, and building one would mean either reopening `Code.gs` a second
+time or inventing new Foundation staff-auth infrastructure — both bigger moves than this
+batch's plan authorized. `createFoundationConsultationEntry()` is the same manually-run,
+no-route, no-Sheet-menu pattern `PatientIdentity.gs`/`FoundationLoginTokens.gs` already
+established for exactly this category of gap (see `FoundationConsultationHistory.gs`'s
+own header comment). A real staff tool remains future work, not silently dropped.
+
+**Component Reuse Review, performed before writing any new markup.** `assets/site.css`
+tokens/`.card`/`.status`/`.skeleton` and PA-2's Empty State pattern reused unchanged;
+`index.html`'s `.journey`/`.j-step` vertical-timeline visual adapted (not literally
+imported) into the new Timeline list page's own `.tl-track`/`.tl-item` styles, freshly
+implemented in the new pages' own `<style>` blocks specifically to avoid touching
+`index.html` (frozen, out of scope) or `my-health-journey/index.html` (frozen PA-2).
+docs/39 §7's "ripe for extraction" recommendation — a shared session-guard/header
+module, once a second authenticated page exists — was acted on via a **new** file,
+`my-health-journey/session-guard.js`, consumed only by the two new Timeline pages;
+`dashboard.js` keeps its own independent, unmodified-beyond-wiring implementation, per
+this session's explicit freeze instruction taking precedence over that recommendation's
+more general framing.
+
+**Verification performed** (all real, not assumed):
+- `node validation/static-analysis/analyze.js` — 0 findings (the manually-run wrapper
+  `createFoundationConsultationEntry` added to `MANUAL_DROPDOWN_WRAPPERS`, matching
+  `createFoundationPatient`/`createFoundationLoginToken`'s precedent; one real
+  false-positive on `foundationCompareConsultationEntriesDesc_` — passed to
+  `Array.prototype.sort` by reference, so the scanner's `name(` call-site check missed
+  it — resolved by wrapping the call in an explicit named invocation, not by changing
+  the tool, since this is a one-off code-level fix, not a recurring scan gap).
+- `node validation/phase-2a-foundation/conformance.js` — **81/81** (23 pre-existing +
+  Stage 7's 27 new checks), covering schema conformance, cross-patient-entry isolation,
+  ordering (including the same-`entry_date` tiebreaker, backdating one row's
+  `created_at` directly — the same time-manipulation technique this repo's other
+  harnesses already use), and the two new `FoundationRouter.gs` routes end to end,
+  including the cross-patient-authorization rejection at the real HTTP-dispatch layer
+  and confirming `patient_id` is never accepted from a client-supplied field.
+- `node validation/phase-1-5/validate.js` — 42/42, unchanged.
+- `validation/pa-2-dashboard/browser-test.js` — updated (not just re-run) to reflect the
+  Timeline card's real behavior: the mock now routes by `foundation_action` instead of
+  returning one blanket envelope, `phase2aCount` drops from 3 to 2 (Timeline is no
+  longer a placeholder), and a new check confirms the Timeline card renders a real,
+  live "No data yet" badge for a zero-entry patient — **28/28** passed.
+- `validation/pa-3-timeline/browser-test.js` — new, committed, mirroring
+  `pa-2-dashboard`'s discipline exactly — **29/29** passed, covering both new pages'
+  session guard, populated/empty/network-failure states, the full-vs-truncated summary
+  text distinction between list and detail views, the cross-patient/unknown-id rejection
+  at the frontend layer, sign-out, 375px responsive layout, and keyboard-driven
+  accessibility (ordered-list markup, heading hierarchy, focus visibility).
+
+**Deferred, not silently skipped:** a real staff-facing entry tool (above); Symptom
+Tracker (Batch 5E/PA-4) and Reports (Batch 5F) remain separate, independent dashboard
+cards — this batch deliberately does not merge either into the Timeline feed (docs/39
+§8/§9); adding "Patient Login" to primary nav (Batch 5G, unchanged).

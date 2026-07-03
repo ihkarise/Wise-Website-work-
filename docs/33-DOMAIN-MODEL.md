@@ -329,18 +329,26 @@ is a natural, well-justified next step once Appointment is built (see docs/34).
 
 # 3. Patient-Facing Data
 
-## 3.1 Timeline Event — *Planned*
+## 3.1 Timeline Event — *Implemented (Batch PA-3, one entry_type)*
 
 **Purpose:** A single entry in a patient's merged, reverse-chronological health feed —
 the general shape behind docs/29 §6's Timeline. Deliberately generalized here beyond
 docs/29's current scope (which sources only from Consultation Summary/
 ConsultationHistory) so future event sources (Care Plan updates, Digital Twin
-milestones) can plug into the same feed without a redesign.
+milestones) can plug into the same feed without a redesign. Concretely implemented as
+the `ConsultationHistory` sheet (`apps-script/FoundationConsultationHistory.gs`,
+`shared/schemas/consultation-history.schema.json`) — see
+docs/39-CONSULTATION-TIMELINE-READINESS-REVIEW.md §2 and
+`shared/schemas/consultation-history.md` for why the implemented schema's `entry_type`
+enum stays narrowed to `["consultation"]` rather than the full set below until a second
+source actually exists.
 
 **Attributes:** `record_id`, `patient_id`, `entry_date`, `entry_type`
-(consultation/note/milestone — extensible), `title`, `summary_text`, `source_ref`
-(pointer to the entity that produced this event — e.g., a Consultation Summary
-`record_id`), `created_by`, `created_at`.
+(consultation/note/milestone — extensible; only `consultation` has a real implementation
+today), `title`, `summary_text`, `source_ref` (pointer to the entity that produced this
+event — e.g., a Consultation Summary `record_id`), `created_by`, `created_at`.
+`record_id` is this entity's permanent identity — never `entry_date`, never row/list
+position (docs/40-CONSULTATION-IDENTITY-STRATEGY.md).
 
 **Relationships:** Belongs to one Patient Identity. `source_ref` points at whichever
 entity actually generated the event — today, only Consultation Summary; future
@@ -351,13 +359,17 @@ Consultation Summary reaches `approved`/`edited_and_approved`). Read-only for pa
 once created — never patient-edited (docs/30 §2).
 
 **Ownership:** Written by staff/doctor tooling only, mirroring Consultation Summary's
-review-gated write path.
+review-gated write path. Today, staff creation is a manually-run Apps Script editor
+function (`createFoundationConsultationEntry()`) — a real, access-code-gated staff Web
+App tool remains future work (docs/29 §16's Batch PA-3 notes state this simplification
+openly).
 
 **Future evolution:** As Care Plan (Phase 2B) and Digital Twin (Phase 2D) are built,
 each should emit Timeline Events through this same shape rather than the dashboard
 querying multiple sheets directly — keeps the Timeline read path stable regardless of
 how many source entities eventually feed it (ADR-009's replaceability principle,
-applied to a read model).
+applied to a read model). Widening `entry_type`'s enum is the concrete signal that
+moment has arrived — not before (`shared/schemas/consultation-history.md`).
 
 ---
 

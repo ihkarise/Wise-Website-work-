@@ -8,6 +8,175 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-03 — Patient Access Batch PA-3 (Consultation History, Timeline, Consultation History detail)
+
+Third Patient Access batch (docs/29 §13 Batch 5D), preceded by
+docs/39-CONSULTATION-TIMELINE-READINESS-REVIEW.md and an architectural clarification,
+docs/40-CONSULTATION-IDENTITY-STRATEGY.md, both approved before any code was written.
+**No unauthorized modification to any frozen file** — every touch to an
+already-shipped file is named below, none of them silent.
+
+### Added
+- `shared/schemas/consultation-history.schema.json` + `.md` — the `ConsultationHistory`
+  contract, including `entry_type` (closing a real gap between docs/29 §4 and docs/33
+  §3.1 found during the PA-3 readiness review) and the `record_id`-as-identity
+  strategy (docs/40).
+- `apps-script/FoundationConsultationHistory.gs` — staff-facing entry creation
+  (`foundationCreateConsultationEntry_()`, a manually-run editor wrapper — a real
+  staff Web App tool is a deliberate, stated simplification, not silently dropped),
+  patient-facing sorted/capped Timeline (`foundationGetPatientTimeline_()`), and
+  patient-facing single-entry lookup with a new record-ownership authorization check
+  (`foundationGetConsultationEntryById_()`).
+- `my-health-journey/timeline/index.html` + `timeline.js` — the Timeline list page:
+  real ordered entries, the "No data yet" Empty State for a zero-entry patient, a
+  network-failure fallback.
+- `my-health-journey/timeline/entry.html` + `entry.js` — the read-only Consultation
+  History detail view: full untruncated text, a "back to Timeline" link, the backend's
+  own rejection message shown verbatim (identical whether a `record_id` is unknown or
+  belongs to a different patient).
+- `my-health-journey/session-guard.js` — a new shared session-guard module, consumed
+  by the two new Timeline pages only (docs/39 §7's recommendation, acted on now that a
+  second and third authenticated page exist).
+- `validation/pa-3-timeline/browser-test.js` + `README.md` — a new, committed
+  Playwright suite (29/29 passing).
+
+### Changed
+- `apps-script/FoundationRouter.gs` — gained two new dispatch cases, `get_timeline`
+  and `get_timeline_entry`, and their thin wiring functions. A disclosed, additive
+  exception to "frozen except bug fixes," same category as `Code.gs`'s own one-line
+  dispatch shim in IA-2: a new case in an already-designed extension point, zero
+  existing lines touched, zero existing behavior changed.
+- `my-health-journey/dashboard.js` — the Timeline card now loads real data via its
+  own, independent `get_timeline` call, replacing its "Coming later in Phase 2A"
+  placeholder with real entries or the "No data yet" Empty State. The explicitly
+  planned evolution of the PA-2 shell (docs/38 §9), not a restructuring — the
+  session-guard logic itself is untouched.
+- `validation/phase-2a-foundation/harness.js` / `conformance.js` — extended with
+  `FoundationConsultationHistory.gs` and a new Stage 7 (27 new checks).
+- `validation/static-analysis/analyze.js` — `createFoundationConsultationEntry` added
+  to the manually-run-wrapper allowlist, matching `createFoundationPatient`/
+  `createFoundationLoginToken`'s precedent.
+- `validation/pa-2-dashboard/browser-test.js` — updated to reflect the Timeline card's
+  real behavior (mock now routes by `foundation_action`; badge-count assertions
+  updated; a new check confirms a real, live "No data yet" render).
+
+### Notes
+- **Consultation identity strategy (docs/40), applied concretely**: `record_id` is the
+  sole key for Timeline linking and detail-view fetches — never `entry_date`, never
+  row/list position. Timeline *display* order (`entry_date` descending, `created_at`
+  as an explicit tiebreaker) is a separate concern from entry *identity*.
+- **A deliberate simplification, stated openly**: no staff-facing Web App tool for
+  creating Consultation History entries exists yet — Foundation has no staff-RBAC
+  primitive of its own, and building one would mean a second `Code.gs` exception or
+  new architecture beyond this batch's approved plan. Future work, not silently
+  dropped.
+- Verified: `node validation/static-analysis/analyze.js` (0 findings — one real
+  false-positive on a function passed by reference to `Array.prototype.sort`,
+  resolved with an explicit named call, not a tool change);
+  `node validation/phase-2a-foundation/conformance.js` (**81/81**, 27 new in Stage 7,
+  including the cross-patient-authorization rejection at the real HTTP-dispatch
+  layer); `node validation/phase-1-5/validate.js` (42/42, unchanged);
+  `validation/pa-2-dashboard/browser-test.js` (**28/28**, updated for the Timeline
+  card's real behavior); `validation/pa-3-timeline/browser-test.js` (**29/29**, new).
+- `docs/29-PHASE-2A-TECHNICAL-PLAN.md` §16 gained a new Batch PA-3 entry (naming both
+  disclosed frozen-file exceptions in full); `docs/04-COMPONENT-LIBRARY.md` gained
+  concrete Timeline List/Consultation History Detail/Shared Session Guard entries;
+  `docs/24-ROADMAP.md` updated to reflect PA-3 shipped and name PA-4 (Symptom Tracker,
+  Batch 5E) next; `docs/33-DOMAIN-MODEL.md`'s Timeline Event entity updated from
+  *Planned* to *Implemented*; `docs/15-SECURITY-STANDARDS.md` gained a Batch PA-3
+  section documenting the new record-ownership authorization pattern;
+  `apps-script/README.md` gained a Batch PA-3 module table entry.
+
+## 2026-07-03 — Patient Access Dashboard Shell Closeout + Consultation Timeline Readiness Review (docs only)
+
+Documentation-only batch. No frontend page, `apps-script/*.gs` file, `shared/`
+contract, or architecture document was modified — confirmed via `git diff`.
+
+- Added `docs/38-PATIENT-ACCESS-DASHBOARD-SHELL-CLOSEOUT.md`: the official closeout of
+  Patient Access Batches PA-1–PA-2 (login/verify, `assets/site.css`, the
+  `/my-health-journey/` dashboard shell) — scope delivered, architecture summary, the
+  session-guard and three-Empty-State model as actually built, validation/regression/
+  static-analysis results re-verified fresh against the current merged state, deferred
+  work, lessons learned, and Batch PA-3 entry criteria.
+- **Patient Access Batches PA-1–PA-2 are now frozen except for bug fixes** — see
+  docs/38 §9. `login.html`, `verify.html`, `assets/site.css`, and
+  `my-health-journey/` join Identity & Access's frozen backend as stable, tested
+  surface.
+- Added `docs/39-CONSULTATION-TIMELINE-READINESS-REVIEW.md`: the pre-implementation
+  review for Batch PA-3 (docs/29 §13 Batch 5D), covering consultation information
+  architecture, the Timeline entry model (including a real `entry_type` schema gap
+  found between docs/29 §4 and docs/33 §3.1, and a recommendation to close it),
+  ordering, empty-state behavior, card layout, detail-view requirements, component
+  reuse (including a now-ripe session-guard extraction), relationship to Symptom
+  Tracker/Reports, required backend contracts (named, not designed), accessibility,
+  a recommended implementation sequence, and a scoped Repository Consistency Review.
+- `docs/29-PHASE-2A-TECHNICAL-PLAN.md` §16 gained a freeze notice; `docs/24-ROADMAP.md`
+  updated to reflect the freeze and point at both new documents.
+- Re-ran clean and unchanged: `node validation/static-analysis/analyze.js` (0
+  findings), `node validation/phase-2a-foundation/conformance.js` (61/61),
+  `node validation/phase-1-5/validate.js` (42/42), and
+  `validation/pa-2-dashboard/browser-test.js` (26/26).
+
+**Patient Access Batch PA-3 is the next milestone**, not yet started — approval
+required before it begins (docs/39).
+
+## 2026-07-03 — Patient Access Batch PA-2 (assets/site.css, My Health Journey dashboard shell)
+
+Second Patient Access batch (docs/29 §13 Batch 5C), preceded by a dedicated
+pre-implementation review (docs/37-DASHBOARD-SHELL-READINESS-REVIEW.md, approved before
+any code was written). **Zero backend modification** — confirmed via
+`git diff --name-only`: no `apps-script/` or `shared/` file changed.
+
+### Added
+- `assets/site.css` — the shared design-token and component set extracted out of
+  `login.html`/`verify.html`'s identical duplicated `<style>` blocks (docs/20 §5's
+  long-flagged item, finally closed). One small addition beyond a pure extraction:
+  `.status.warn`, for the new session-expiry notice below.
+- `my-health-journey/index.html` + `my-health-journey/dashboard.js` — the "My Health
+  Journey" dashboard shell. Authenticated header (Wise logo, "My Health Journey",
+  real patient greeting from `get_profile`, Sign out) plus a responsive six-card grid
+  (Timeline, Symptom Tracker, Reports, Care Plan, Messages, Digital Twin), every card
+  rendering one of three distinct Empty State types: **No data yet**, **Coming later
+  in Phase 2A**, **Planned for a future version**.
+- A session guard: verifies the stored session via `get_profile` before rendering
+  anything; redirects an absent token straight to `/login.html`, and a
+  present-but-rejected token to `/login.html?reason=expired` with the token cleared.
+
+### Changed
+- `login.html` — now links `assets/site.css` instead of duplicating its tokens; shows
+  "For your privacy, your secure session has ended. Please sign in again." when
+  redirected here with `?reason=expired`.
+- `verify.html` — now links `assets/site.css`; its success state links to the now-real
+  `/my-health-journey/` instead of "coming soon."
+
+### Notes
+- **Component Reuse Review performed before writing any new markup**: every shared
+  pattern already established by `login.html`/`verify.html` moved into
+  `assets/site.css` rather than being copied a third time. `index.html`'s `.skip`
+  skip-link was ported in too — the dashboard is the first Phase 2A page complex
+  enough to need one. `index.html` and `internal/consultation-summary.html`
+  deliberately untouched — out of scope, each keeps its own stylesheet.
+- **Three Empty State types**, not one generic message, so a patient isn't given the
+  same expectation for every unfinished feature — "coming later in Phase 2A" for
+  Timeline/Symptom Tracker/Reports (each has a named future batch, 5D/5E/5F) versus
+  "planned for a future version" for Care Plan/Messages/Digital Twin (no architecture
+  exists yet for any of them). The third type, "No data yet," has no live card
+  consumer in this batch and is verified directly via a small test-support export
+  rather than left unverified.
+- Verified with a new, committed Playwright harness
+  (`validation/pa-2-dashboard/browser-test.js` — the first Phase 2A frontend suite
+  committed rather than run ad hoc): **26/26 checks passed**, covering the session
+  guard's three paths (no token / valid / rejected), sign-out, a network-failure
+  fallback that preserves the token, 375px responsive layout on all three touched
+  pages, and real keyboard-driven focus-visibility and heading-hierarchy checks.
+- `node validation/static-analysis/analyze.js`, `node validation/phase-2a-foundation/conformance.js`,
+  and `node validation/phase-1-5/validate.js` all re-run clean and unchanged (0
+  findings, 61/61, 42/42) — expected, since no backend file was touched.
+- `docs/29-PHASE-2A-TECHNICAL-PLAN.md` gained a new Batch PA-2 entry under §16;
+  `docs/04-COMPONENT-LIBRARY.md` gained concrete Authenticated Header/Dashboard Card
+  Grid/Empty State/Session-Expiry Notice component entries; `docs/24-ROADMAP.md`
+  updated to reflect PA-2 shipped and name PA-3 (docs/29 §13 Batch 5D) as next.
+
 ## 2026-07-03 — Patient Access Batch PA-1 (login.html, verify.html)
 
 First Patient Access batch — the deferred frontend half of docs/29 §13's original

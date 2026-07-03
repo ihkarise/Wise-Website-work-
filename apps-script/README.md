@@ -613,6 +613,33 @@ Foundation freeze — never modify any of the ten files in the table above.
 This table grows as later Identity & Access work (login.html/verify.html, the dashboard
 shell, and beyond) lands.
 
+## Phase 2A Patient Access modules — Batch PA-3 (Consultation History)
+
+Identity & Access (above) and the PA-1/PA-2 dashboard shell are frozen except for bug
+fixes (docs/36, docs/38). Batch PA-3 (docs/29 §13 Batch 5D) adds the first
+patient-writable-by-staff, patient-readable data entity: Consultation History, backing
+the Timeline and Consultation History detail view. New file, non-`Foundation`-prefixed
+(same reasoning as `PatientIdentity.gs`/`FoundationLoginTokens.gs`, docs/29 §2):
+
+| File | Responsibility | Status |
+|---|---|---|
+| `FoundationConsultationHistory.gs` | `foundationCreateConsultationEntry_()` (staff-facing create), `foundationGetPatientTimeline_()` (patient-facing, session-scoped, sorted newest-first, capped at 50 — docs/29 §6), `foundationGetConsultationEntryById_()` (patient-facing, session-scoped, verifies the requested `record_id`'s own `patient_id` before returning it — docs/40's identity-strategy review, the first Foundation read to take a client-supplied identifier). Implements `shared/schemas/consultation-history.schema.json`. No staff-facing Web App tool — `createFoundationConsultationEntry()` is a manually-run editor wrapper, same pattern as `createFoundationPatient()`/`createFoundationLoginToken()` (see this file's own header comment for why a real staff tool is out of this batch's scope). | Added (PA-3) |
+
+**`FoundationRouter.gs` gained two new dispatch cases, `get_timeline` and
+`get_timeline_entry`** — a disclosed, additive exception to "never modifying" the six
+Identity & Access files (docs/36 §12), the same category as `Code.gs`'s own one-line
+dispatch shim in IA-2: a new `case` in an already-designed extension point, touching
+zero existing lines and changing zero existing behavior. See `FoundationRouter.gs`'s own
+header comment for the full reasoning. `harness.js`'s `FILES` list and `conformance.js`
+(Stage 7) were extended accordingly — test tooling, expected to evolve, per the same
+precedent IA-1 already established.
+
+**`assets/site.css`, `my-health-journey/dashboard.js`** (frontend) — see
+`docs/29-PHASE-2A-TECHNICAL-PLAN.md` §16's Batch PA-3 notes for the frontend half of
+this batch (Timeline list page, Consultation History detail page, the shared
+`my-health-journey/session-guard.js`, and the dashboard's Timeline card now wired to
+real data).
+
 ## Foundation/Phase 1.5 dispatch boundary (IA-2)
 
 Google Apps Script permits exactly one global `doPost()` per project, and docs/29 §14
