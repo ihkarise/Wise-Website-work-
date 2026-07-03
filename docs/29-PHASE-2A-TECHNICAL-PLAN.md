@@ -366,7 +366,7 @@ nothing patient-facing is linked from public nav until the last batch.
 | Batch | Delivers | Risk / reversibility |
 |---|---|---|
 | **5A** | `Patients` sheet + new, separate Apps Script project skeleton + staff "create patient account" tool | Zero patient-facing surface. Fully reversible — delete the sheet/script. |
-| **5B** | `LoginTokens` sheet + passwordless magic-link login (`login.html`/`verify.html`) + session token issuance/verification + rate limiting | Deployed unlisted/noindexed, not linked from nav yet. Reversible — remove the pages/endpoint. |
+| **5B** | `LoginTokens` sheet + passwordless magic-link login (`login.html`/`verify.html`) + session token issuance/verification + rate limiting — **fully delivered**, split across Identity & Access (backend: IA-1, IA-2, §15) and Patient Access (frontend: PA-1, §16) | Deployed unlisted/noindexed, not linked from nav yet. Reversible — remove the pages/endpoint. |
 | **5C** | `assets/site.css` token extraction + `/my-health-journey/index.html` dashboard shell with empty states, wired to 5B's session | Still unlisted. Additive plus one low-risk refactor. |
 | **5D** | `ConsultationHistory` sheet + staff entry tool + patient-facing Timeline/Consultation History (read-only) | Low risk — read-only, easily hidden if needed. |
 | **5E** | `SymptomLogs` sheet + patient-facing symptom log form + own-history view | First patient-writable feature — authorization scoping tested explicitly here. |
@@ -1111,3 +1111,95 @@ Layer 5 (Phase 1.5's own entry point, one deliberate edge)   Code.gs
 Every arrow still points from a higher layer down to a lower one; `Code.gs` is the one
 file above Foundation's own layering that now reaches into it, deliberately and singly,
 never the reverse.
+
+---
+
+# 16. Patient Access Implementation
+
+The Identity & Access backend (F1–F5, IA-1, IA-2) is complete and frozen except for
+bug fixes (docs/36-IDENTITY-AND-ACCESS-CLOSEOUT.md). Patient Access is the milestone
+that builds the patient-facing surface against it, starting with the deferred frontend
+half of this document's original §13 Batch 5B.
+
+## Batch PA-1 (complete)
+
+Delivered exactly its stated scope: `login.html` (email-entry form, calls
+`request_login_link`) and `verify.html` (reads `?token=`, calls `consume_login_link`,
+stores the returned session). **Zero modification to any backend file** — confirmed via
+`git diff --name-only`: only `login.html` and `verify.html` appear as new files;
+`apps-script/`, `shared/`, and every other frozen file are untouched.
+
+**Static HTML/CSS/vanilla JS, no framework** (docs/10, unchanged). Both pages consume
+the existing `foundation_action`-routed `doPost()` endpoint exactly as IA-2 shipped it —
+`request_login_link`, `consume_login_link` — using the same deployed Web App URL
+`internal/consultation-summary.html` already uses (Foundation and Phase 1.5 share one
+project/one `doPost()`, docs/29 §14 Decision 1).
+
+**Reuse over duplication, verified before writing any new markup.** Every reusable
+pattern in the repository was identified first: the `:root` design-token set including
+the warn/err/ok status-color triad, the `.wrap`/`.card`/`.field`/`.submit`/`.status`
+component set, and the `fetch()`-with-`text/plain`-no-preflight calling convention —
+all taken from `internal/consultation-summary.html`, the only existing page in this
+repo that already calls the Apps Script backend. The minimal "utility page" shell
+(heading + card, no full header/nav) follows the precedent independently established by
+`thanks.html`, `booking-received.html`, and `internal/consultation-summary.html` for
+single-purpose pages not yet linked from primary nav — deliberately not duplicating the
+full header/mobile-menu component, which Batch 5C's `assets/site.css` extraction will
+need to touch anyway.
+
+**A real accessibility defect was caught by testing, not assumed away.** Browser
+verification (Playwright, keyboard-driven focus, not a simulated `.focus()` call) found
+that `.field input:focus{outline:none;...}` — a rule copied from
+`internal/consultation-summary.html` — unconditionally strips the `:focus-visible`
+outline by CSS specificity, a real WCAG 2.2 AA violation (docs/14: "visible focus
+states") present in the source pattern being reused. Fixed in `login.html` before
+shipping: split into `.field input:focus{border-color:...}` (mouse and keyboard) plus
+`.field input:focus:not(:focus-visible){outline:none}` (mouse only) — the pre-existing
+`internal/consultation-summary.html` bug was not touched, as it is a Phase 1.5 file and
+out of this batch's scope, but this batch does not repeat it.
+
+**A deliberate security-motivated UX decision.** `verify.html` does not auto-submit
+`consume_login_link` on page load. Email-security link-scanners are a known real-world
+risk to magic-link flows — a scanner that pre-fetches the emailed link before the
+patient clicks it would otherwise burn the single-use token on the scanner's behalf,
+locking the real patient out. Instead, the page shows a "Continue to sign in" button;
+the consume call fires only on a genuine user click. Verified directly: a Playwright
+check confirms no network request fires merely from loading the page with a token
+present.
+
+**Requirements verification, all real, not assumed:**
+- `session_token` stored in `sessionStorage` only, on exactly one key, only after a
+  successful consume — verified directly (`Object.keys(sessionStorage).length === 1`).
+- `patient_id` is never stored client-side under any key, at any point — verified
+  directly (the returned `patient_id` is read from the response and never written to
+  storage).
+- Every response branch reads `data.status`/`data.error.code`/`data.error.message`
+  from the response-envelope body; no code path reads an HTTP status code (`response.ok`
+  or `response.status` off the `fetch()` `Response` is never referenced).
+- Backend `error.message` values are displayed verbatim rather than re-worded — a
+  single source of truth for user-facing copy, and the same anti-enumeration guarantee
+  IA-2 already built (docs/29 §3) is preserved exactly, since the frontend never adds
+  its own wording that could vary by outcome.
+- No horizontal overflow at a 375px viewport on either page (Playwright-measured,
+  `scrollWidth`–`clientWidth` = 0).
+- Labels correctly associated via `for`/`id`; keyboard `Tab` navigation reaches every
+  interactive control with a visible focus outline (post-fix).
+
+**Verification performed** (all real, browser-driven, not assumed): a local static
+server plus headless Chromium (Playwright) exercising both pages end to end with the
+backend mocked at the network layer — 20 checks covering native validation, the success
+and error paths for both endpoints (response-envelope branching, not HTTP status),
+network-failure handling, the no-auto-fire security property, `sessionStorage`
+contents (both what's stored and what's deliberately never stored), responsive layout,
+and keyboard accessibility. **20/20 passed**, one real defect found and fixed before
+shipping (above). `node validation/static-analysis/analyze.js`,
+`node validation/phase-2a-foundation/conformance.js`, and
+`node validation/phase-1-5/validate.js` all re-run clean and unchanged (0 findings,
+61/61, 42/42) — expected and confirmed, since this batch touches no backend file.
+
+**Deferred, not silently skipped:** `assets/site.css` extraction (still each page's own
+`<style>` block, matching every existing page's current convention — formal extraction
+remains Batch 5C's named first step, docs/29 §5); the "My Health Journey" dashboard
+`verify.html`'s success state links toward (honestly stated as "coming soon" rather than
+a broken redirect to a page that doesn't exist yet); adding "Patient Login" to primary
+nav (Batch 5G, unchanged).
