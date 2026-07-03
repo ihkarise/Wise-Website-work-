@@ -273,6 +273,12 @@ success) or `email_status = failed` plus `error_log` (on any failure —
 gate blocked or provider error) back to the row, and logs every outcome
 via `Logger.gs` — no failure is ever silently dropped (docs/25 §8.3).
 
+**Scoped to Phase 1.5.** `Email.gs` is the only module permitted to call a mail
+provider *for Phase 1.5's own domain*. `FoundationEmail.gs` (IA-2, below) is Foundation's
+independent equivalent for its own, structurally separate domain — see the "Phase 2A
+Identity & Access modules" table for why a second, equally-scoped mail sender is the
+correct read of ADR-009 here, not a violation of this section's rule.
+
 ## Retention purge (Batch 4F)
 
 `Retention.gs` is deliberately independent of `Review.gs`, `Send.gs`,
@@ -585,17 +591,48 @@ testing" below). See docs/29 §13/§14 for the batch sequence and what each one 
 ## Phase 2A Identity & Access modules
 
 Foundation (F1–F5, above) is complete and frozen except for bug fixes
-(docs/35-FOUNDATION-CLOSEOUT.md §9). Identity & Access is the next milestone, split into
-two independent batches (docs/29 §15): IA-1 (infrastructure only) and IA-2 (consumes
-IA-1, not yet started). New files follow the same non-`Foundation`-prefixed,
-named-for-the-entity convention `PatientIdentity.gs` established, and — per the
+(docs/35-FOUNDATION-CLOSEOUT.md §9). Identity & Access is the milestone that turns
+Foundation's primitives into a working login, split into two independent batches
+(docs/29 §15): **IA-1 (infrastructure only) and IA-2 (consumes IA-1's infrastructure —
+the magic-link request/consume flow, rate limiting, and the first real Web App route),
+both shipped.** New files follow the same non-`Foundation`-prefixed,
+named-for-the-entity convention `PatientIdentity.gs` established (except
+`FoundationRateLimit.gs`/`FoundationEmail.gs`/`FoundationRouter.gs`, which are
+cross-cutting infrastructure new to IA-2, not entities — hence the `Foundation` prefix,
+same reasoning as `FoundationSession.gs`/`FoundationRouteGuard.gs`), and — per the
 Foundation freeze — never modify any of the ten files in the table above.
 
 | File | Responsibility | Status |
 |---|---|---|
 | `FoundationLoginTokens.gs` | `foundationCreateLoginToken_()` / `foundationConsumeLoginToken_()`, implementing `shared/schemas/login-token.schema.json`. Generation, SHA-256 hashing, expiration, and single-use enforcement only — no route, no UI, no session issuance (IA-1's explicit scope boundary). Reuses `FoundationDataStore.gs`/`FoundationAudit.gs` unmodified. `createFoundationLoginToken()` is a manually-run editor wrapper, mirroring `createFoundationPatient()`. | Added (IA-1) |
+| `FoundationRateLimit.gs` | `foundationCheckAndIncrementRateLimit_(email)` — basic per-email rate limiting (3 requests / 15 minutes) for the public request-link endpoint, `CacheService`-backed (no Sheet — a counter is inherently ephemeral). Fails open on a `CacheService` error, a deliberate, documented ADR-010 exception (this is a supplementary mitigation; `FoundationLoginTokens.gs`'s single-use hashed tokens remain the real security boundary regardless). Per-IP limiting is not implemented — Apps Script's `doPost(e)` never exposes a caller's IP address, a real platform constraint, stated here rather than silently dropped. No dependency on any other module. | Added (IA-2) |
+| `FoundationEmail.gs` | `foundationSendLoginLinkEmail_(recipientEmail, rawToken)` — Foundation's own `MailApp` sender for the login-link email, deliberately independent of Phase 1.5's `Email.gs` (see "Email delivery layering" above for why one mail-provider-caller-per-domain, not one for the whole project, is the correct read of ADR-009 once two structurally separate domains share a project). `FOUNDATION_VERIFY_URL_BASE_` is a stated placeholder — the frontend page it points to (`verify.html`) is Batch 5B/5C, out of IA-2's backend-only scope. Depends on `FoundationUtils.gs`. | Added (IA-2) |
+| `FoundationLoginFlow.gs` | `foundationHandleRequestLoginLink_()` / `foundationHandleConsumeLoginLink_()` — the real magic-link orchestration IA-1 deliberately left undone. Request: looks up a patient by email (`foundationFindPatientByEmail_()`, a new consumer of `FoundationDataStore.gs`'s existing `foundationDsQuery_()`), rate-limits, issues a token, emails it — returning docs/29 §3's identical generic response regardless of match (anti-enumeration). Consume: calls `foundationConsumeLoginToken_()` then `foundationIssueSessionToken_()` on success. Depends on `FoundationDataStore.gs`, `FoundationContracts.gs`, `FoundationErrorHandling.gs`, `FoundationAudit.gs`, `FoundationLoginTokens.gs`, `FoundationSession.gs`, `FoundationRateLimit.gs`, `FoundationEmail.gs`, and `PatientIdentity.gs`'s sheet/column constants. | Added (IA-2) |
+| `FoundationRouter.gs` | `handleFoundationRequest_(input)` — the HTTP-level dispatcher `Code.gs`'s `doPost()` delegates to (see "Foundation/Phase 1.5 dispatch boundary" below). Routes `request_login_link`/`consume_login_link` to `FoundationLoginFlow.gs`, and `get_profile` (Foundation's **first authenticated Web App route** — IA-2's explicit deliverable) through `withFoundationAuth_()` to `foundationGetPatientById_()`, giving both functions their first real consumer (previously Deferred, docs/35 §6). Builds its own `ContentService` response directly rather than reusing `Code.gs`'s `jsonResponse_()`, to avoid a `status`-field shape collision between Phase 1.5's numeric convention and Foundation's `ok`/`error` envelope convention. Depends on `FoundationContracts.gs`, `FoundationLoginFlow.gs`, `FoundationRouteGuard.gs`, `PatientIdentity.gs`. | Added (IA-2) |
 
-This table grows as IA-2 and later Identity & Access batches land.
+This table grows as later Identity & Access work (login.html/verify.html, the dashboard
+shell, and beyond) lands.
+
+## Foundation/Phase 1.5 dispatch boundary (IA-2)
+
+Google Apps Script permits exactly one global `doPost()` per project, and docs/29 §14
+Decision 1 locked one shared project for all Phase 2A backend work — so IA-2's new,
+patient-facing Web App route cannot exist as a second, independent HTTP entry point.
+Two options were considered: reverting to §3's original separate-Apps-Script-project
+design (undoing Decision 1), or a minimal, additive dispatch line inside `Code.gs`'s
+existing `doPost()`. The second was chosen, as the narrowest possible exception to
+"never modifying Phase 1.5's existing files": `Code.gs` now checks for a
+`foundation_action` field — present on every Foundation request, absent from Phase
+1.5's own payload shape (`Validation.gs`'s complete field list has no collision) —
+before any Phase 1.5-specific parsing, sanitizing, or `STAFF_ACCESS_CODE` check runs.
+Present: the entire request is handed to `FoundationRouter.gs`'s
+`handleFoundationRequest_()`, whose response is returned unchanged. Absent: execution
+falls through to every line below, byte-for-byte unchanged from before IA-2 — proven,
+not just asserted, by `validation/phase-1-5/validate.js`'s Stage 9, which drives both
+paths through the real `doPost()` and confirms the fall-through case never touches the
+Sheet, the access-code gate, or the execution log, and that a normal Phase 1.5
+submission still writes exactly one row. `validation/phase-1-5/validate.js` remains
+42/42 clean after this change.
 
 ## Static analysis
 

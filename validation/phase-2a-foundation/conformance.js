@@ -21,6 +21,18 @@
  * FoundationLoginTokens.gs against shared/schemas/login-token.schema.json
  * — the same pattern this file already established, not a new one.
  *
+ * Extended in Identity & Access batch IA-2 with Stage 6, exercising the
+ * real magic-link request/consume flow (FoundationLoginFlow.gs), rate
+ * limiting (FoundationRateLimit.gs), email delivery (FoundationEmail.gs),
+ * and the full HTTP-level dispatch (FoundationRouter.gs's
+ * handleFoundationRequest_(), including the first authenticated route,
+ * get_profile) end to end through the real, unmodified source. No new
+ * shared/*.schema.json contract was introduced for IA-2 — its wire
+ * shapes (`{message}`, `{session_token, patient_id}`) are ad hoc action
+ * responses, not new persisted entities, so Stage 6 checks them directly
+ * rather than against a new schema (see docs/29 §15's IA-2 section for
+ * this scope boundary stated explicitly).
+ *
  * Run with: node conformance.js  (no dependencies beyond Node's
  * standard library).
  */
@@ -271,6 +283,126 @@ var ctx = loadProject(h.sandbox);
   var consumedAuditRows = auditRowsOf(h, 'login_token_consumed');
   record('Stage5: the successful consumption wrote exactly one login_token_consumed AuditLog row',
     consumedAuditRows.length === 1 && consumedAuditRows[0][2] === patient.data.patient_id);
+})();
+
+// ============================================================
+// Stage 6 (IA-2) — FoundationLoginFlow.gs, FoundationRateLimit.gs,
+// FoundationEmail.gs, FoundationRouter.gs: the real magic-link
+// request/consume flow and the first authenticated Web App route, end
+// to end through the real, unmodified source.
+// ============================================================
+(function stage6_loginFlowAndRouter() {
+  // ---- 6a: rate limiting, in isolation ----
+  var rlEmail = 'stage6-ratelimit@example.com';
+  var rlResults = [1, 2, 3, 4, 5].map(function () { return ctx.foundationCheckAndIncrementRateLimit_(rlEmail); });
+  record('Stage6a: the first 3 requests for the same email are allowed, the 4th and 5th are not (budget = 3)',
+    rlResults.join(',') === 'true,true,true,false,false');
+
+  var otherEmail = 'stage6-ratelimit-other@example.com';
+  record('Stage6a: a different email has its own independent budget',
+    ctx.foundationCheckAndIncrementRateLimit_(otherEmail) === true);
+
+  // ---- 6b: request-link — malformed input is the one distinct response ----
+  var malformed = ctx.foundationHandleRequestLoginLink_({ email: 'not-an-email' });
+  record('Stage6b: a syntactically invalid email is rejected distinctly (not an enumeration signal)',
+    malformed.status === 'error' && malformed.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  // ---- 6c: request-link — unmatched vs matched email get an identical response shape (anti-enumeration, docs/29 §3) ----
+  var unmatched = ctx.foundationHandleRequestLoginLink_({ email: 'stage6-unmatched@example.com' });
+  record('Stage6c: an unmatched (but well-formed and not rate-limited) email still returns a generic ok envelope',
+    unmatched.status === 'ok' && typeof unmatched.data.message === 'string');
+
+  var stage6Patient = ctx.foundationCreatePatient_({
+    full_name: 'Stage6 Conformance Patient', email: 'stage6-matched@example.com',
+    condition_slug: 'mcas', created_by: 'conformance-harness'
+  });
+  record('Stage6c: setup — a real patient exists to request a login link for', stage6Patient.status === 'ok');
+
+  h.mailLog.length = 0; // isolate this request's email from anything Stage5/earlier sent
+  var matched = ctx.foundationHandleRequestLoginLink_({ email: 'STAGE6-Matched@Example.com' }); // deliberately mixed case
+  record('Stage6c: a matched email returns the exact same ok-envelope shape as the unmatched case (byte-identical outward message)',
+    matched.status === 'ok' && matched.data.message === unmatched.data.message);
+
+  record('Stage6c: a matched, well-formed, not-rate-limited email actually sends one login-link email',
+    h.mailLog.length === 1 && h.mailLog[0].to === stage6Patient.data.email);
+
+  var linkMatch = /href="([^"]+)"/.exec(h.mailLog[0].htmlBody);
+  var emailedLink = linkMatch ? linkMatch[1].replace(/&amp;/g, '&') : null;
+  record('Stage6c: the emailed link points at the login-link URL with a token query parameter',
+    !!emailedLink && emailedLink.indexOf(ctx.FOUNDATION_VERIFY_URL_BASE_ + '?token=') === 0);
+  var rawTokenFromEmail = emailedLink ? decodeURIComponent(emailedLink.split('token=')[1]) : null;
+
+  var requestedAuditRows = auditRowsOf(h, 'login_link_requested');
+  var matchedReasonLogged = requestedAuditRows.some(function (row) { return row[2] === stage6Patient.data.patient_id && /reason=email_sent/.test(row[4]); });
+  var notFoundReasonLogged6 = requestedAuditRows.some(function (row) { return /reason=email_not_found/.test(row[4]); });
+  record('Stage6c: the specific reason (email_sent vs email_not_found) is still audit-logged internally, even though the outward response never varies',
+    matchedReasonLogged && notFoundReasonLogged6);
+
+  // ---- 6d: request-link — a rate-limited email still gets the identical generic response ----
+  var rlTargetEmail = 'stage6-ratelimit-target@example.com';
+  ctx.foundationHandleRequestLoginLink_({ email: rlTargetEmail });
+  ctx.foundationHandleRequestLoginLink_({ email: rlTargetEmail });
+  ctx.foundationHandleRequestLoginLink_({ email: rlTargetEmail });
+  var rateLimited = ctx.foundationHandleRequestLoginLink_({ email: rlTargetEmail }); // 4th — over budget
+  record('Stage6d: a rate-limited request still returns the exact same generic ok envelope, not a distinct error',
+    rateLimited.status === 'ok' && rateLimited.data.message === unmatched.data.message);
+  record('Stage6d: the rate-limited attempt is audit-logged internally as login_link_rate_limited',
+    auditRowsOf(h, 'login_link_rate_limited').length === 1);
+
+  // ---- 6e: consume-link — the real token emailed above, consumed into a real session ----
+  record('Stage6e: setup — a raw token was actually recovered from the emailed link', typeof rawTokenFromEmail === 'string' && rawTokenFromEmail.length > 0);
+  var consumedForSession = ctx.foundationHandleConsumeLoginLink_({ token: rawTokenFromEmail });
+  record('Stage6e: consuming the emailed token succeeds and resolves the same patient_id it was issued for',
+    consumedForSession.status === 'ok' && consumedForSession.data.patient_id === stage6Patient.data.patient_id);
+  record('Stage6e: consuming the emailed token issues a real, non-empty session_token',
+    typeof consumedForSession.data.session_token === 'string' && consumedForSession.data.session_token.length > 0);
+
+  var consumedForSessionEnvelopeResult = validate(responseEnvelopeSchema, consumedForSession);
+  record('Stage6e: foundationHandleConsumeLoginLink_() success path conforms to response-envelope.schema.json',
+    consumedForSessionEnvelopeResult.valid === true, consumedForSessionEnvelopeResult.errors.join('; '));
+
+  var reusedConsume = ctx.foundationHandleConsumeLoginLink_({ token: rawTokenFromEmail });
+  record('Stage6e: the emailed token cannot be consumed twice (single-use still enforced through the IA-2 wrapper)',
+    reusedConsume.status === 'error' && reusedConsume.error.code === 'FOUNDATION_LOGIN_TOKEN_INVALID');
+
+  var missingTokenConsume = ctx.foundationHandleConsumeLoginLink_({});
+  record('Stage6e: consuming with no token field fails with the same generic invalid code',
+    missingTokenConsume.status === 'error' && missingTokenConsume.error.code === 'FOUNDATION_LOGIN_TOKEN_INVALID');
+
+  // ---- 6f: FoundationRouter.gs — full HTTP-level dispatch, including the first authenticated route ----
+  var requestLinkHttp = ctx.handleFoundationRequest_({ foundation_action: 'request_login_link', email: 'stage6-router@example.com' });
+  var requestLinkBody = JSON.parse(requestLinkHttp._text);
+  record('Stage6f: handleFoundationRequest_() dispatches request_login_link and serializes a conformant envelope',
+    requestLinkBody.status === 'ok' && validate(responseEnvelopeSchema, requestLinkBody).valid === true);
+
+  var unknownActionHttp = ctx.handleFoundationRequest_({ foundation_action: 'not_a_real_action' });
+  var unknownActionBody = JSON.parse(unknownActionHttp._text);
+  record('Stage6f: handleFoundationRequest_() returns FOUNDATION_UNKNOWN_ACTION for an unrecognized action, never a thrown error',
+    unknownActionBody.status === 'error' && unknownActionBody.error.code === 'FOUNDATION_UNKNOWN_ACTION');
+
+  // Issue a second real session (independent of the one already consumed
+  // above) to drive get_profile through the real HTTP dispatch path.
+  var sessionForProfile = ctx.foundationIssueSessionToken_(stage6Patient.data.patient_id);
+  var profileHttp = ctx.handleFoundationRequest_({ foundation_action: 'get_profile', session_token: sessionForProfile });
+  var profileBody = JSON.parse(profileHttp._text);
+  record('Stage6f: get_profile (Foundation\'s first authenticated route) resolves the caller\'s own Patient record from a valid session',
+    profileBody.status === 'ok' && profileBody.data.patient_id === stage6Patient.data.patient_id);
+
+  var profileResult = validate(patientIdentitySchema, profileBody.data || {});
+  record('Stage6f: get_profile\'s resolved Patient record still conforms to patient-identity.schema.json',
+    profileResult.valid === true, profileResult.errors.join('; '));
+
+  var unauthedProfileHttp = ctx.handleFoundationRequest_({ foundation_action: 'get_profile', session_token: 'not-a-real-session-token' });
+  var unauthedProfileBody = JSON.parse(unauthedProfileHttp._text);
+  record('Stage6f: get_profile rejects an invalid session_token with FOUNDATION_UNAUTHORIZED, never leaking a Patient record',
+    unauthedProfileBody.status === 'error' && unauthedProfileBody.error.code === 'FOUNDATION_UNAUTHORIZED' && unauthedProfileBody.data === null);
+
+  record('Stage6f: get_profile derives patient_id only from the verified session, never from a client-supplied field',
+    (function () {
+      var spoofed = ctx.handleFoundationRequest_({ foundation_action: 'get_profile', session_token: sessionForProfile, patient_id: 'someone-elses-id' });
+      var spoofedBody = JSON.parse(spoofed._text);
+      return spoofedBody.data.patient_id === stage6Patient.data.patient_id;
+    })());
 })();
 
 function auditRowsOf(h, eventType) {

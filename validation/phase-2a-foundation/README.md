@@ -70,13 +70,18 @@ behavior difference from the mock (e.g., some undocumented edge case in
 real `Utilities.base64EncodeWebSafe`), a real `SESSION_SIGNING_SECRET`
 provisioning problem, or anything that only manifests once
 `FOUNDATION_CONFIG.PATIENT_SPREADSHEET_ID` points at a real, live
-spreadsheet. It also only validates the three schemas that exist as of
-F5 (`response-envelope`, `patient-identity`, `session`) — a future
-batch's new `shared/` schema needs its own new conformance stage added
-here, the same way this batch added Stage 2/3/4 for schemas F3/F4
-introduced.
+spreadsheet. It also only validates schemas that actually exist as
+`shared/*.schema.json` contracts (`response-envelope`, `patient-identity`,
+`session`, `login-token`) — a future batch's new `shared/` schema needs
+its own new conformance stage added here, the same way this file's Stage
+2/3/4/5 were each added for the schema the batch that introduced them
+shipped. IA-2 (Stage 6) introduced no new `shared/` schema — its wire
+shapes are ad hoc action responses, not new persisted entities (see this
+file's own header comment).
 
 ## Result (last run)
 
-23/23 conformance checks passed — see `docs/29-PHASE-2A-TECHNICAL-PLAN.md`
-§14's Batch F5 notes for the full breakdown.
+61/61 conformance checks passed (23 from F1–F5, 15 added in IA-1 — 13 in
+Stage 5 plus 2 in Stage 0 for the `used_at` sentinel — and 23 added in
+IA-2's Stage 6) — see `docs/29-PHASE-2A-TECHNICAL-PLAN.md` §14/§15 for
+the full, batch-by-batch breakdown.

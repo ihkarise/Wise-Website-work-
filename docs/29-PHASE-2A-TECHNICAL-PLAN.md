@@ -793,8 +793,7 @@ document's original §13 Batch 5B. By explicit instruction, this milestone is sp
 two independent batches: **IA-1** (infrastructure only — token generation, hashing,
 expiration, single-use enforcement; no route, no UI, no session issuance) and **IA-2**
 (consumes IA-1's completed infrastructure — expected to add the magic-link request/consume
-flow, the first real Web App route, and rate limiting). IA-2 has not begun; this section
-covers IA-1 only.
+flow, the first real Web App route, and rate limiting). Both batches are now complete.
 
 ## Batch IA-1 (complete)
 
@@ -919,3 +918,196 @@ by grep across every Phase 1.5 file for any reference to the four new
 **Dependency direction:** unchanged from F5's layering, with `FoundationLoginTokens.gs`
 joining Layer 2 (entities) alongside `PatientIdentity.gs` — still strictly one-way, no
 back-references, nothing in Layer 0/1 aware that Layer 2 grew.
+
+## Batch IA-2 (complete)
+
+Delivered exactly its stated scope (this session's instruction, echoing this section's
+own framing above): the magic-link request-link endpoint, the consume-link endpoint,
+Foundation's first authenticated Web App route, basic rate limiting, and
+account-enumeration protection. Concretely: `apps-script/FoundationRateLimit.gs`
+(`foundationCheckAndIncrementRateLimit_()` — per-email, `CacheService`-backed);
+`apps-script/FoundationEmail.gs` (`foundationSendLoginLinkEmail_()` — Foundation's own
+`MailApp` sender); `apps-script/FoundationLoginFlow.gs`
+(`foundationHandleRequestLoginLink_()` / `foundationHandleConsumeLoginLink_()` — the
+orchestration IA-1 deliberately left undone, per `FoundationLoginTokens.gs`'s own
+header: "IA-2 is what turns that into a real login"); `apps-script/FoundationRouter.gs`
+(`handleFoundationRequest_()` — the HTTP dispatcher, plus `get_profile`, the first
+authenticated route); and one narrowly-scoped, explicitly-approved addition to
+`apps-script/Code.gs` (below).
+
+### A real architectural conflict, surfaced and resolved before implementation, not guessed through
+
+IA-2's scope requires a real, callable Web App route. `apps-script/Code.gs` already
+defines the project's one and only `doPost()` — Google Apps Script permits exactly one
+per project, a hard platform constraint, not a style choice. §14 Decision 1 (above)
+locked one shared Apps Script project for all Phase 2A backend work and states
+Foundation work happens by "adding new files... never modifying Phase 1.5's existing
+files." These two facts are in genuine tension: no new, independently-routable HTTP
+entry point can exist without either modifying `Code.gs` or reverting Decision 1 back
+to a separate Apps Script project. This was surfaced explicitly and a decision was
+requested rather than guessed — the chosen resolution: the smallest possible additive
+change to `Code.gs`. Immediately after its own JSON-parse, `doPost()` now checks for a
+`foundation_action` field (absent from every field `Validation.gs` defines for Phase
+1.5's own payload — no collision) and, if present, hands the entire request to
+`FoundationRouter.gs`'s `handleFoundationRequest_()` unchanged, before any Phase
+1.5-specific parsing, sanitizing, or `STAFF_ACCESS_CODE` check runs. If absent,
+execution falls through to every line below it, byte-for-byte unchanged from before
+this batch. Full reasoning, and the alternative considered (a second Apps Script
+project) and not taken: `apps-script/README.md`'s "Foundation/Phase 1.5 dispatch
+boundary" section.
+
+This is the one exception to "never modifying Phase 1.5's existing files" this batch
+takes, and it is proven safe, not just argued to be: `validation/phase-1-5/validate.js`
+gained a new Stage 9 that drives the real `doPost()` through both branches — a
+`foundation_action` payload reaches a stubbed router before touching the Sheet, the
+access-code gate, or the execution log; a normal Phase 1.5 payload still writes exactly
+one row, exactly as before. **42/42** checks pass, zero regression.
+
+### A real, previously-undocumented platform limitation, stated openly rather than silently dropped
+
+docs/29 §10 (above) names "basic per-email/per-IP rate limiting." Google Apps Script's
+`doPost(e)` event object never exposes a caller's IP address — no field for it exists on
+this platform, confirmed against Apps Script's own `doPost(e)` contract (`parameter`,
+`parameters`, `postData`, `contentLength`, `queryString` only). Per-IP limiting is
+therefore not implemented — a real, verified platform constraint, not an oversight.
+Per-email limiting (`FoundationRateLimit.gs`, `CacheService`-backed, 3 requests / 15
+minutes, fails open on a `CacheService` error per an explicitly documented ADR-010
+exception) remains the real, working mitigation for both concerns §10 names — enumeration
+probing and email-bombing both require repeatedly naming an email address, which this
+file directly bounds regardless of network origin.
+
+### Foundation's own, independent email sender — not a modification to `Email.gs`
+
+`apps-script/Email.gs`'s own header states it is "the ONLY module in this project that
+may call a mail provider" — true for Phase 1.5's own domain. Foundation is a
+structurally separate domain sharing only the Apps Script project (§14 Decision 1), not
+the data, Sheets, or Script Properties. `FoundationEmail.gs` is Foundation's own,
+equally-scoped `MailApp` caller — the same precedent `FoundationDataStore.gs` already
+set by being Foundation's own independent `SpreadsheetApp` caller rather than reusing
+Phase 1.5's `Sheets.gs`. Zero modification to `Email.gs`.
+
+A real clickable link target does not exist yet: `login.html`/`verify.html` (originally
+§13 Batch 5B, now tracked as future Identity & Access work) are explicitly out of IA-2's
+backend-only scope, per this session's instruction. `FOUNDATION_VERIFY_URL_BASE_` is a
+stated placeholder pointing at a page that does not yet exist — the same
+"correct shape, real value pending a later/operational step" treatment
+`FoundationConfig.gs`'s `PATIENT_SPREADSHEET_ID` already gets, not a silently-assumed
+frontend.
+
+### Account-enumeration protection, extended to the request side
+
+IA-1 already made the consume-side rejection generic (`FOUNDATION_LOGIN_TOKEN_INVALID`
+for every failure mode). IA-2 extends the same discipline to the request side, per §3's
+own requirement: `foundationHandleRequestLoginLink_()` returns the exact same generic
+ok-envelope message whether the email is unmatched, matched, rate-limited, or matched
+and successfully emailed — verified by direct equality check in conformance testing
+(Stage 6c/6d), not just written to match the intent. The one distinct response is for a
+syntactically invalid email — that reflects only what the requester themselves typed,
+never a signal about a different person's account. The *specific* reason
+(`email_not_found` / `email_sent` / rate-limited) is still recorded in
+`FoundationAudit.gs`, exactly as IA-1 already did for the consume side.
+
+### `get_profile` — Foundation's first authenticated Web App route
+
+Deliberately minimal: derives `patient_id` only from a verified session
+(`withFoundationAuth_()`, never client-supplied — ADR-002) and returns the caller's own
+Patient record via `foundationGetPatientById_()`. This is a proof-of-the-primitive
+route, not the "My Health Journey" dashboard (§5, §13 Batch 5C) — that remains future
+work. In the process, it gives two of Foundation's six Deferred static-analysis findings
+(docs/35 §6) their first real consumers: `withFoundationAuth_()` (Deferred since F4)
+and `foundationGetPatientById_()` (Deferred since F3). `foundationDsQuery_()` (Deferred
+since F3) also gains its first real consumer here, via
+`foundationFindPatientByEmail_()`'s email lookup, and `foundationIssueSessionToken_()`
+(Deferred since F4) and `foundationConsumeLoginToken_()` (Deferred since IA-1) both gain
+theirs via the login flow. **All six of Foundation's previously-Deferred findings now
+have real consumers — zero remain.**
+
+### No new `shared/` schema
+
+IA-2 introduces no new persisted entity and no new `shared/*.schema.json` contract. Its
+wire shapes (`{message}` for request-link, `{session_token, patient_id}` for
+consume-link) are ad hoc action responses, validated directly in conformance testing
+against the already-existing `response-envelope`/`session`/`patient-identity` schemas —
+not new canonical contracts of their own, per `shared/README.md`'s scope (contracts for
+entities and cross-cutting shapes, not every individual action's response shape).
+
+**Verification performed** (all real, not assumed): `node --check` on every new `.gs`
+file and on the edited `Code.gs`; the static-analysis pass (below);
+`node conformance.js` — a new Stage 6, **23 new checks**, covering rate-limiting budget
+enforcement and independence across emails, malformed-input rejection, the byte-identical
+generic response across unmatched/matched/rate-limited request-link outcomes, a real
+email actually sent (checked via the mocked `MailApp` spy) with the correct recipient
+and a correctly-shaped link, recovering the real raw token from that emailed link and
+consuming it through the full IA-2 wrapper into a real session, single-use enforcement
+surviving through that wrapper, the full HTTP-level dispatch (`handleFoundationRequest_()`)
+including an unknown-action rejection and `get_profile`'s full authenticated round trip
+(valid session resolves the caller's own record; invalid session is rejected without
+leaking data; a client-supplied `patient_id` field is ignored in favor of the
+session-derived value) — **61/61 total conformance checks passed**, first run, no fixes
+needed; `validation/phase-1-5/validate.js` re-run clean (**42/42**, 3 new in this
+batch's Stage 9), confirming zero regression to Phase 1.5.
+
+**Static analysis: 0 findings — the cleanest result of any batch so far.** Every one of
+Foundation's six previously-Deferred findings (`escapeFoundationHtml_`,
+`foundationDsQuery_`, `foundationGetPatientById_`, `foundationIssueSessionToken_`,
+`withFoundationAuth_`, `foundationConsumeLoginToken_`) now has a real call-site
+introduced by this batch, and this batch introduced no new unused helper of its own.
+**0 Error, 0 Warning, 0 Intentional, 0 Deferred.**
+
+### IA-2 Dependency Map (architectural review artifact)
+
+Derived the same way as F5's and IA-1's — from the real call graph.
+
+**New files' dependencies (verified real call-sites):**
+
+| File | Depends on (calls into) |
+|---|---|
+| `FoundationRateLimit.gs` | *(none — leaf; `CacheService`/`Utilities` are platform primitives)* |
+| `FoundationEmail.gs` | `FoundationUtils.gs` |
+| `FoundationLoginFlow.gs` | `FoundationDataStore.gs`, `FoundationContracts.gs`, `FoundationErrorHandling.gs`, `FoundationAudit.gs`, `FoundationLoginTokens.gs`, `FoundationSession.gs`, `FoundationRateLimit.gs`, `FoundationEmail.gs`, and `PatientIdentity.gs`'s `FOUNDATION_PATIENTS_SHEET_`/`FOUNDATION_PATIENTS_COLUMNS_` globals (a variable read, the same category of scan gap F5 already hand-verified for `FOUNDATION_CONFIG`, called out here rather than silently omitted) |
+| `FoundationRouter.gs` | `FoundationContracts.gs`, `FoundationLoginFlow.gs`, `FoundationRouteGuard.gs`, `PatientIdentity.gs` |
+
+**One new edge into a Phase 1.5 file, deliberate and singular:** `Code.gs` →
+`FoundationRouter.gs` (`handleFoundationRequest_()`) — the dispatch shim above. This is
+the first edge ever introduced between the Foundation/Identity-&-Access family and
+Phase 1.5 in either direction; every prior batch (F1–F5, IA-1) confirmed zero. It is
+one-directional (Phase 1.5 → Foundation) and does not create a cycle: no
+Foundation/Identity-&-Access file calls into any Phase 1.5 file, confirmed by
+`validation/static-analysis/analyze.js`'s project-wide circular-dependency check
+(0 found) re-run against this batch's merged state.
+
+**Newly introduced dependencies, in full:** the edges listed above, all *from* the four
+new files *into* already-frozen Foundation infrastructure or IA-1's `FoundationLoginTokens.gs`,
+plus the one `Code.gs` → `FoundationRouter.gs` edge. **Zero new edges into any of the
+ten frozen Foundation-family files** (docs/35 §2) — none of the ten was modified, and
+none of the ten was given a new caller it didn't already have.
+
+**Inbound edges into IA-2's four new files:** `Code.gs` → `FoundationRouter.gs` (above)
+is the only external inbound edge; the other three (`FoundationRateLimit.gs`,
+`FoundationEmail.gs`, `FoundationLoginFlow.gs`) are only called by `FoundationRouter.gs`
+or `FoundationLoginFlow.gs` itself, both within this batch.
+
+**Circular dependencies: zero**, verified two ways — `validation/static-analysis/analyze.js`'s
+project-wide scan (now covering all 29 `apps-script/*.gs` files, including this batch's
+four new ones and the edited `Code.gs`), and a manual trace of the one cross-domain edge
+(`Code.gs` → `FoundationRouter.gs`) confirming nothing on the Foundation side calls back
+into `Code.gs` or any other Phase 1.5 file.
+
+**Dependency direction:** Foundation's existing layering (F5's diagram, unchanged) plus
+a new Layer 3.5 sitting between entities and the outside world —
+
+```
+Layer 2 (entities)        PatientIdentity.gs   FoundationSession.gs   FoundationLoginTokens.gs
+                                 ^                    ^                       ^
+Layer 3 (route/orchestration)  FoundationRouteGuard.gs   FoundationLoginFlow.gs
+                                        ^                          ^
+                            FoundationRateLimit.gs (leaf)   FoundationEmail.gs (leaf)
+                                                   ^
+Layer 4 (HTTP dispatch)                    FoundationRouter.gs
+                                                   ^
+Layer 5 (Phase 1.5's own entry point, one deliberate edge)   Code.gs
+```
+
+Every arrow still points from a higher layer down to a lower one; `Code.gs` is the one
+file above Foundation's own layering that now reaches into it, deliberately and singly,
+never the reverse.

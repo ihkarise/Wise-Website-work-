@@ -17,6 +17,12 @@
  * Foundation's own F3/F4 ad hoc verification passes already
  * established). `computeDigest` backs `FoundationLoginTokens.gs`'s
  * (IA-1) SHA-256 token hashing.
+ *
+ * Extended in Identity & Access batch IA-2 with `CacheService` (backing
+ * `FoundationRateLimit.gs`'s per-email counters) and `MailApp` (backing
+ * `FoundationEmail.gs`'s login-link send) — both simple, faithful
+ * in-memory/spy mocks, the same "mock the platform API, run the real
+ * logic" discipline already applied to `Utilities`.
  */
 
 var fs = require('fs');
@@ -35,7 +41,11 @@ var FILES = [
   'PatientIdentity.gs',
   'FoundationSession.gs',
   'FoundationRouteGuard.gs',
-  'FoundationLoginTokens.gs'
+  'FoundationLoginTokens.gs',
+  'FoundationRateLimit.gs',
+  'FoundationEmail.gs',
+  'FoundationLoginFlow.gs',
+  'FoundationRouter.gs'
 ];
 
 // ---------- Fake in-memory Spreadsheet (Patients + AuditLog sheets) ----------
@@ -82,6 +92,14 @@ function buildSandbox(opts) {
   var scriptProperties = Object.assign({}, opts.scriptProperties || {});
   var executionLog = [];
   var spreadsheet = makeFakeSpreadsheet();
+  var mailLog = [];
+  var mailImpl = opts.mailImpl || function () { return true; };
+  // A minimal, faithful in-memory CacheService.getScriptCache() mock —
+  // ignores the TTL argument (no test in this suite needs real
+  // expiration; FoundationRateLimit.gs's own header already documents
+  // that a Cache eviction/expiry is a "fails open" scenario, not a
+  // correctness-critical one to simulate here).
+  var cacheStore = {};
 
   function toSignedByteArray(buf) {
     var out = [];
@@ -144,11 +162,32 @@ function buildSandbox(opts) {
         executionLog.push(args.join(' '));
       }
     },
+    CacheService: {
+      getScriptCache: function () {
+        return {
+          get: function (key) { return Object.prototype.hasOwnProperty.call(cacheStore, key) ? cacheStore[key] : null; },
+          put: function (key, value) { cacheStore[key] = String(value); }
+        };
+      }
+    },
+    MailApp: {
+      sendEmail: function (msg) { mailLog.push(msg); return mailImpl(msg); }
+    },
+    ContentService: {
+      MimeType: { JSON: 'JSON' },
+      createTextOutput: function (text) {
+        return { _text: text, setMimeType: function () { return this; } };
+      }
+    },
     Object: Object, JSON: JSON, Date: Date, Array: Array, String: String,
     Number: Number, RegExp: RegExp, Math: Math, Error: Error, isNaN: isNaN
   };
   sandbox.global = sandbox;
-  return { sandbox: sandbox, spreadsheet: spreadsheet, scriptProperties: scriptProperties, executionLog: executionLog };
+  return {
+    sandbox: sandbox, spreadsheet: spreadsheet, scriptProperties: scriptProperties,
+    executionLog: executionLog, mailLog: mailLog, cacheStore: cacheStore,
+    setMailImpl: function (fn) { mailImpl = fn; }
+  };
 }
 
 function loadProject(sandbox) {

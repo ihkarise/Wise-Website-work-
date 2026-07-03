@@ -29,15 +29,22 @@ library — no `npm install` needed).
 
 ## Result (last run)
 
-**39/39 checks passed** — 1 for the existing 30-test `Tests.gs` suite
+**42/42 checks passed** — 1 for the existing 30-test `Tests.gs` suite
 (reported as a single pass/fail from `runAllTests_()`'s return value,
 includes the 4 `Auth.gs` access-code tests added for the free-account
-deployment) plus 38 new stage-level and end-to-end checks, including all
+deployment) plus 38 stage-level and end-to-end checks, including all
 three failure modes docs/25 §8.3 names explicitly (AI-call failure,
 Sheets-write failure, email-send failure) and the `Auth.gs` access-code
 gate (missing/wrong `access_code` rejected with 401, before any Sheet
-write). Re-run `node validate.js` at any time; it prints a `PASS`/`FAIL`
-line per check plus a final tally.
+write), plus 3 checks added in Identity & Access batch IA-2's Stage 9
+proving `Code.gs`'s Foundation dispatch shim (the one, deliberately
+narrow exception to this file never being modified — see
+`apps-script/README.md`'s "Foundation/Phase 1.5 dispatch boundary") is
+purely additive: a `foundation_action` payload is handed to a stubbed
+`handleFoundationRequest_` before touching the Sheet or access-code gate,
+and a normal Phase 1.5 payload still runs exactly as before. Re-run
+`node validate.js` at any time; it prints a `PASS`/`FAIL` line per check
+plus a final tally.
 
 ## What this does NOT prove
 

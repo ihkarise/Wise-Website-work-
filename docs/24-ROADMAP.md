@@ -75,12 +75,14 @@ See docs/29 §14 for batch-by-batch implementation notes and
 docs/35-FOUNDATION-CLOSEOUT.md for the closeout summary and next-phase
 entry criteria.
 
-Identity & Access is the active milestone, split into two independent
-batches (docs/29 §15): **IA-1 (infrastructure only — LoginToken
-generation, hashing, expiration, single-use enforcement) shipped.**
-IA-2 (consumes IA-1's infrastructure — magic-link flow, first real Web
-App route, rate limiting) has not started; approval required before it
-begins.
+Identity & Access, split into two independent batches (docs/29 §15), is
+now complete: **IA-1 (infrastructure only — LoginToken generation,
+hashing, expiration, single-use enforcement) and IA-2 (the magic-link
+request/consume flow, rate limiting, account-enumeration protection, and
+Foundation's first authenticated Web App route, `get_profile`) both
+shipped.** See docs/29 §15 for full batch-by-batch detail. Approval
+required before the next Identity & Access work (login.html/verify.html,
+the dashboard shell) begins.
 
 - Patient Login (passwordless, ADR-003)
 - Dashboard shell
