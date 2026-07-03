@@ -2,6 +2,27 @@
  * Web App entry point. Keep this file thin — it wires modules together
  * in order (parse -> sanitize -> validate -> persist -> log) and holds
  * no business logic of its own.
+ *
+ * Foundation/Phase 1.5 dispatch boundary (docs/29 §14 Decision 1 locked
+ * one shared Apps Script project, not a separate one, for all Phase 2A
+ * backend work — and Google Apps Script permits exactly one global
+ * doPost() per project, so a second, independently-routable HTTP entry
+ * point cannot exist alongside this one). `foundation_action` is a
+ * marker field Phase 1.5's own payload shape never uses (see
+ * Validation.gs's full field list: access_code, condition_slug,
+ * staff_submitted_note, patient_consent_confirmed, consent_confirmed_by,
+ * recipient_email — no collision). Its presence hands the entire request
+ * to FoundationRouter.gs's handleFoundationRequest_(), unchanged,
+ * *before* any Phase 1.5-specific parsing, sanitizing, or access-code
+ * check runs — Foundation's routes have their own, entirely different
+ * authentication model (a session token or none at all for the
+ * necessarily-public request-link step, docs/29 §3), not
+ * STAFF_ACCESS_CODE. Its absence falls through to every line below,
+ * unchanged, exactly as this function behaved before IA-2. This is the
+ * one, deliberately narrow exception to "never modifying Phase 1.5's
+ * existing files" — see apps-script/README.md's "Foundation/Phase 1.5
+ * dispatch boundary" section for the fuller reasoning and the
+ * alternative considered (a second Apps Script project) and not taken.
  */
 
 function doPost(e) {
@@ -11,6 +32,10 @@ function doPost(e) {
   } catch (err) {
     logEvent_('failed', null, 'Malformed JSON payload.');
     return jsonResponse_(400, { errors: ['Request body must be valid JSON.'] });
+  }
+
+  if (input && typeof input.foundation_action === 'string') {
+    return handleFoundationRequest_(input);
   }
 
   if (!verifyAccessCode_(input && input.access_code)) {

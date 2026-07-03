@@ -8,6 +8,80 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-03 — Identity & Access Batch IA-2 (login flow, rate limiting, first authenticated route)
+
+Second of two independent Identity & Access batches this milestone was split into
+(docs/29 §15) — consumes IA-1's `LoginTokens` infrastructure into an actual, working
+magic-link login. Scope: the request-link endpoint, the consume-link endpoint,
+Foundation's first authenticated Web App route, rate limiting, and account-enumeration
+protection.
+
+### Added
+- `apps-script/FoundationRateLimit.gs` — `foundationCheckAndIncrementRateLimit_()`,
+  basic per-email rate limiting (3 requests / 15 minutes), `CacheService`-backed, fails
+  open on a `CacheService` error (a documented ADR-010 exception). **Per-IP limiting is
+  not implemented** — Apps Script's `doPost(e)` never exposes a caller's IP address, a
+  real platform constraint stated openly, not silently dropped.
+- `apps-script/FoundationEmail.gs` — `foundationSendLoginLinkEmail_()`, Foundation's own
+  `MailApp` sender for the login-link email, independent of Phase 1.5's `Email.gs` (same
+  domain-separation precedent as `FoundationDataStore.gs` vs. `Sheets.gs`). The
+  link's frontend destination (`verify.html`) does not exist yet — a stated placeholder,
+  not an assumed page (`login.html`/`verify.html` remain future work, out of this
+  batch's backend-only scope).
+- `apps-script/FoundationLoginFlow.gs` — `foundationHandleRequestLoginLink_()` /
+  `foundationHandleConsumeLoginLink_()`, the orchestration IA-1 deliberately left
+  undone. Request-link: looks up a patient by email (`foundationFindPatientByEmail_()`,
+  a new consumer of `FoundationDataStore.gs`'s existing `foundationDsQuery_()`),
+  rate-limits, issues a token, emails it — returning the identical generic response
+  regardless of match (docs/29 §3, anti-enumeration). Consume-link: consumes the token
+  and issues a real session via `foundationIssueSessionToken_()`.
+- `apps-script/FoundationRouter.gs` — `handleFoundationRequest_()`, the HTTP-level
+  dispatcher, routing `request_login_link`/`consume_login_link`/`get_profile`.
+  `get_profile` is Foundation's **first authenticated Web App route** — derives
+  `patient_id` only from a verified session (`withFoundationAuth_()`, never
+  client-supplied) and returns the caller's own Patient record
+  (`foundationGetPatientById_()`).
+- `validation/phase-2a-foundation/conformance.js` Stage 6 (23 new checks) +
+  `harness.js` (four new files loaded, `CacheService`/`MailApp` mocked).
+  **61/61 total conformance checks passed.**
+- `validation/phase-1-5/validate.js` Stage 9 (3 new checks) + `harness.js`
+  (`handleFoundationRequest_` made injectable) — proves `Code.gs`'s new dispatch shim is
+  purely additive. **42/42 total Phase 1.5 checks passed, zero regression.**
+
+### Changed
+- `apps-script/Code.gs` — **the one, deliberately narrow exception to "never modifying
+  Phase 1.5's existing files."** Google Apps Script permits exactly one `doPost()` per
+  project; docs/29 §14 Decision 1 locked one shared project for all Phase 2A backend
+  work. These two facts leave no way to add a real, callable Foundation Web App route
+  without touching `Code.gs` — surfaced explicitly as a real architectural conflict
+  before any code was written, and a resolution was requested rather than guessed. The
+  approved fix: `doPost()` now checks for a `foundation_action` field (absent from every
+  field Phase 1.5's own payload uses — no collision) immediately after its JSON parse,
+  and delegates the entire request to `FoundationRouter.gs` if present; every line below
+  is otherwise byte-for-byte unchanged. Full reasoning: `apps-script/README.md`'s
+  "Foundation/Phase 1.5 dispatch boundary."
+
+### Notes
+- Static analysis: **0 findings** — the cleanest result of any batch so far. All six of
+  Foundation's previously-Deferred findings (`escapeFoundationHtml_`,
+  `foundationDsQuery_`, `foundationGetPatientById_`, `foundationIssueSessionToken_`,
+  `withFoundationAuth_`, `foundationConsumeLoginToken_`) now have real consumers; this
+  batch introduced no new unused helper of its own.
+- No new `shared/*.schema.json` contract — IA-2's wire shapes are ad hoc action
+  responses, not new persisted entities.
+- **IA-2 Dependency Map** (docs/29 §15): four new files depend only on already-frozen
+  Foundation infrastructure and IA-1's `FoundationLoginTokens.gs`. One new edge —
+  `Code.gs` → `FoundationRouter.gs` — the first ever between Phase 1.5 and the
+  Foundation/Identity-&-Access family in either direction; one-directional, non-cyclic,
+  confirmed by `validation/static-analysis/analyze.js`'s project-wide scan. Zero new
+  edges into any of the ten frozen Foundation-family files.
+- `docs/15-SECURITY-STANDARDS.md` gained a real "Phase 2A — Implementation Notes
+  (Identity & Access)" section (previously a forward-reference only);
+  `docs/24-ROADMAP.md` updated. `docs/12-DATA-ARCHITECTURE.md`'s Phase 2A section
+  remains a pre-existing, separately-tracked gap (docs/32) — not touched by this batch,
+  stated rather than silently left inconsistent.
+- Full build summary: this batch's pull request description.
+
 ## 2026-07-03 — Identity & Access Batch IA-1 (LoginToken infrastructure)
 
 First of two independent Identity & Access batches this milestone was explicitly split

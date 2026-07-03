@@ -388,6 +388,30 @@ function doPostJson(ctx, payload) {
 })();
 
 // ============================================================
+// STAGE 9 (IA-2) — Code.gs's Foundation dispatch shim is additive only
+// ============================================================
+(function foundationDispatchShim() {
+  const h = buildSandbox({ scriptProperties: { OPENROUTER_API_KEY: 'test-key', STAFF_ACCESS_CODE: 'test-access-code' } });
+  const calls = [];
+  h.setFoundationRouterImpl((input) => {
+    calls.push(input);
+    return { _text: JSON.stringify({ status: 'ok', data: { stub: true }, error: null }), setMimeType: function () { return this; } };
+  });
+  const ctx = loadProject(h.sandbox);
+
+  const result = doPostJson(ctx, { foundation_action: 'test_action', email: 'x@example.com' });
+  record('Stage9: doPost() hands a foundation_action payload to handleFoundationRequest_ with the parsed input, and returns its result unchanged',
+    calls.length === 1 && calls[0].foundation_action === 'test_action' && calls[0].email === 'x@example.com'
+    && result.status === 'ok' && result.data.stub === true);
+  record('Stage9: dispatching a foundation_action payload never touches Phase 1.5\'s Sheet, access-code gate, or execution log',
+    h.sheet.getLastRow() === 0 && h.executionLog.length === 0);
+
+  const normalResult = doPostJson(ctx, freshRow());
+  record('Stage9: a normal Phase 1.5 payload (no foundation_action field) still falls through and is processed exactly as before this batch',
+    calls.length === 1 && normalResult.record_id && h.sheet.getLastRow() === 2);
+})();
+
+// ============================================================
 // Summary
 // ============================================================
 const failed = results.filter(r => !r.pass);

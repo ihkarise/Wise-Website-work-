@@ -18,6 +18,17 @@
  * reimplementation of it — which is the strongest verification possible
  * without a live deployment. See validation/phase-1-5/README.md for
  * what this does and does not prove.
+ *
+ * Extended in Identity & Access batch IA-2 with an optional, injectable
+ * `handleFoundationRequest_` global (via `setFoundationRouterImpl`) —
+ * Code.gs's doPost() now calls this function by name when a request
+ * carries a `foundation_action` field (apps-script/FoundationRouter.gs's
+ * real implementation, deliberately NOT loaded by this harness — Phase
+ * 1.5's own test tooling stays scoped to Phase 1.5's files, the same
+ * domain separation validation/phase-2a-foundation/ already keeps in the
+ * other direction). This lets validate.js prove the dispatch shim itself
+ * — that it delegates correctly and *before* any Phase 1.5 logic runs —
+ * without pulling any Foundation-family source into this harness at all.
  */
 
 const fs = require('fs');
@@ -73,6 +84,7 @@ function buildSandbox(opts) {
   let urlFetchImpl = opts.urlFetchImpl || defaultOpenRouterMock;
   let mailImpl = opts.mailImpl || function () { return true; };
   let sessionEmail = opts.sessionEmail || 'dr.reviewer@wisehomeopathy.com';
+  let foundationRouterImpl = opts.foundationRouterImpl || null;
 
   const sandbox = {
     console,
@@ -134,13 +146,20 @@ function buildSandbox(opts) {
         executionLog.push(args.join(' '));
       }
     },
+    handleFoundationRequest_: function (input) {
+      if (!foundationRouterImpl) {
+        throw new Error('handleFoundationRequest_ stub not configured for this test — call setFoundationRouterImpl() first.');
+      }
+      return foundationRouterImpl(input);
+    },
     Object, JSON, Date, Array, String, Number, RegExp, Math, Error, isNaN
   };
   sandbox.global = sandbox;
   return { sandbox, sheet, scriptProperties, executionLog, mailLog, triggers,
     setUrlFetchImpl: (fn) => { urlFetchImpl = fn; },
     setMailImpl: (fn) => { mailImpl = fn; },
-    setSessionEmail: (email) => { sessionEmail = email; } };
+    setSessionEmail: (email) => { sessionEmail = email; },
+    setFoundationRouterImpl: (fn) => { foundationRouterImpl = fn; } };
 }
 
 function defaultOpenRouterMock(url, params) {
