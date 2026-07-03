@@ -8,6 +8,21 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-03 — Foundation Closeout (docs only)
+
+Documentation-only batch. Added `docs/35-FOUNDATION-CLOSEOUT.md`: the official closeout
+of Phase 2A's Foundation Implementation Plan (F1–F5) — scope, delivered modules,
+delivered `shared/` contracts, validation/regression/static-analysis/dependency
+summaries (each re-verified against the final merged state, not transcribed from prior
+batches' PR descriptions), what's intentionally excluded, a Foundation freeze
+statement, and entry criteria for the next implementation phase. No `apps-script/*.gs`
+file, `shared/` contract, or architecture document was modified — confirmed via
+`git diff`. `docs/24-ROADMAP.md` updated to point at it.
+
+**Foundation (F1–F5) is now frozen except for bug fixes** — see docs/35 §9. Future
+capability is delivered by adding new files / new schema versions, never by reopening
+the ten Foundation-family files this closeout documents.
+
 ## 2026-07-03 — Phase 2A implementation: Foundation Batch F5 (conformance testing)
 
 Fifth and final implementation batch of the approved Foundation Implementation Plan

@@ -70,8 +70,10 @@ Implementation in progress — Foundation batches F1 (scaffolding), F2
 (shared contracts + utilities), F3 (data layer + Patient Identity), F4
 (session issuance/verification + route protection), and F5 (schema-
 validator-based conformance testing) shipped — the full F1–F5 Foundation
-Implementation Plan is now complete. See docs/29 §14 for implementation
-notes.
+Implementation Plan is now complete and frozen except for bug fixes.
+See docs/29 §14 for batch-by-batch implementation notes and
+docs/35-FOUNDATION-CLOSEOUT.md for the closeout summary and next-phase
+entry criteria.
 
 - Patient Login (passwordless, ADR-003)
 - Dashboard shell
