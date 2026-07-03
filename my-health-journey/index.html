@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>My Health Journey | Wise Homeopathy</title>
+<meta name="description" content="Your Wise Homeopathy patient dashboard — timeline, symptom log, and reports in one place.">
+<link rel="icon" href="/assets/favicon.ico">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/site.css">
+<style>
+/* Dashboard-shell-specific layout. Shared tokens/.card/.skeleton/.status/etc.
+   come from assets/site.css (docs/29 §13 Batch 5C). These rules have a
+   single consumer today (this page) so they stay local rather than being
+   folded into the shared stylesheet prematurely. */
+.wrap{max-width:1040px}
+body{background:var(--color-surface)}
+
+.dash-header{position:sticky;top:0;z-index:10;background:var(--color-surface-base);border-bottom:1px solid var(--color-line)}
+.dash-header-inner{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding-top:16px;padding-bottom:16px}
+.dash-brand{display:flex;align-items:center;gap:10px}
+.dash-brand img{height:30px;width:auto}
+.dash-brand .dash-logo-mark{display:none;height:30px;width:30px;border-radius:50%;background:var(--color-brand);color:#fff;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:600}
+.dash-title{font-size:18px;color:var(--color-brand-strong);margin:0;text-align:left}
+.dash-user{display:flex;align-items:center;gap:14px}
+.dash-greeting{font-size:14px;color:var(--color-text-secondary)}
+.dash-greeting .skeleton{display:inline-block;width:110px;vertical-align:middle;margin:0}
+.dash-signout{background:transparent;border:1px solid var(--color-line);color:var(--color-brand-strong);font:600 13.5px var(--font-body);padding:9px 16px;border-radius:var(--radius-md);cursor:pointer;transition:background .15s ease,border-color .15s ease}
+.dash-signout:hover{background:var(--color-surface);border-color:var(--color-brand)}
+
+.dash-main{padding-top:clamp(24px,4vw,36px)}
+.dash-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px}
+
+.dash-card h2{font-family:var(--font-display);font-size:17px;color:var(--color-brand-strong);margin-bottom:10px}
+.dash-card .skeleton:nth-child(1){width:55%}
+.dash-card .skeleton:nth-child(2){width:80%}
+
+.empty-badge{display:inline-block;font-size:11.5px;font-weight:600;letter-spacing:.02em;text-transform:uppercase;padding:4px 10px;border-radius:999px;margin-bottom:10px}
+.badge-nodata{background:var(--color-surface);color:var(--color-text-secondary);border:1px solid var(--color-line)}
+.badge-phase2a{background:var(--color-ok-bg);color:var(--color-ok-text);border:1px solid var(--color-ok-line)}
+.badge-future{background:var(--color-surface);color:var(--color-text-faint);border:1px solid var(--color-line)}
+.empty-text{font-size:14px;color:var(--color-text-secondary);line-height:1.55}
+
+@media(max-width:640px){
+  .dash-header-inner{justify-content:center;text-align:center}
+  .dash-user{width:100%;justify-content:space-between}
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to main content</a>
+
+<header class="dash-header">
+  <div class="wrap dash-header-inner">
+    <div class="dash-brand">
+      <img src="/assets/logo.svg" alt="Wise Homeopathy Multispeciality Center" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+      <span class="dash-logo-mark" aria-hidden="true">W</span>
+      <h1 class="dash-title serif">My Health Journey</h1>
+    </div>
+    <div class="dash-user">
+      <span class="dash-greeting" id="greeting" aria-live="polite"><span class="skeleton"></span></span>
+      <button class="dash-signout" type="button" id="signOutBtn">Sign out</button>
+    </div>
+  </div>
+</header>
+
+<main id="main" class="wrap dash-main">
+  <div class="dash-grid" id="dashGrid" aria-busy="true">
+    <div class="card dash-card"><div class="skeleton"></div><div class="skeleton"></div></div>
+    <div class="card dash-card"><div class="skeleton"></div><div class="skeleton"></div></div>
+    <div class="card dash-card"><div class="skeleton"></div><div class="skeleton"></div></div>
+    <div class="card dash-card"><div class="skeleton"></div><div class="skeleton"></div></div>
+    <div class="card dash-card"><div class="skeleton"></div><div class="skeleton"></div></div>
+    <div class="card dash-card"><div class="skeleton"></div><div class="skeleton"></div></div>
+  </div>
+</main>
+
+<script src="/my-health-journey/dashboard.js"></script>
+</body>
+</html>

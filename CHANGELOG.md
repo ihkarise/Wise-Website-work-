@@ -8,6 +8,63 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-03 — Patient Access Batch PA-2 (assets/site.css, My Health Journey dashboard shell)
+
+Second Patient Access batch (docs/29 §13 Batch 5C), preceded by a dedicated
+pre-implementation review (docs/37-DASHBOARD-SHELL-READINESS-REVIEW.md, approved before
+any code was written). **Zero backend modification** — confirmed via
+`git diff --name-only`: no `apps-script/` or `shared/` file changed.
+
+### Added
+- `assets/site.css` — the shared design-token and component set extracted out of
+  `login.html`/`verify.html`'s identical duplicated `<style>` blocks (docs/20 §5's
+  long-flagged item, finally closed). One small addition beyond a pure extraction:
+  `.status.warn`, for the new session-expiry notice below.
+- `my-health-journey/index.html` + `my-health-journey/dashboard.js` — the "My Health
+  Journey" dashboard shell. Authenticated header (Wise logo, "My Health Journey",
+  real patient greeting from `get_profile`, Sign out) plus a responsive six-card grid
+  (Timeline, Symptom Tracker, Reports, Care Plan, Messages, Digital Twin), every card
+  rendering one of three distinct Empty State types: **No data yet**, **Coming later
+  in Phase 2A**, **Planned for a future version**.
+- A session guard: verifies the stored session via `get_profile` before rendering
+  anything; redirects an absent token straight to `/login.html`, and a
+  present-but-rejected token to `/login.html?reason=expired` with the token cleared.
+
+### Changed
+- `login.html` — now links `assets/site.css` instead of duplicating its tokens; shows
+  "For your privacy, your secure session has ended. Please sign in again." when
+  redirected here with `?reason=expired`.
+- `verify.html` — now links `assets/site.css`; its success state links to the now-real
+  `/my-health-journey/` instead of "coming soon."
+
+### Notes
+- **Component Reuse Review performed before writing any new markup**: every shared
+  pattern already established by `login.html`/`verify.html` moved into
+  `assets/site.css` rather than being copied a third time. `index.html`'s `.skip`
+  skip-link was ported in too — the dashboard is the first Phase 2A page complex
+  enough to need one. `index.html` and `internal/consultation-summary.html`
+  deliberately untouched — out of scope, each keeps its own stylesheet.
+- **Three Empty State types**, not one generic message, so a patient isn't given the
+  same expectation for every unfinished feature — "coming later in Phase 2A" for
+  Timeline/Symptom Tracker/Reports (each has a named future batch, 5D/5E/5F) versus
+  "planned for a future version" for Care Plan/Messages/Digital Twin (no architecture
+  exists yet for any of them). The third type, "No data yet," has no live card
+  consumer in this batch and is verified directly via a small test-support export
+  rather than left unverified.
+- Verified with a new, committed Playwright harness
+  (`validation/pa-2-dashboard/browser-test.js` — the first Phase 2A frontend suite
+  committed rather than run ad hoc): **26/26 checks passed**, covering the session
+  guard's three paths (no token / valid / rejected), sign-out, a network-failure
+  fallback that preserves the token, 375px responsive layout on all three touched
+  pages, and real keyboard-driven focus-visibility and heading-hierarchy checks.
+- `node validation/static-analysis/analyze.js`, `node validation/phase-2a-foundation/conformance.js`,
+  and `node validation/phase-1-5/validate.js` all re-run clean and unchanged (0
+  findings, 61/61, 42/42) — expected, since no backend file was touched.
+- `docs/29-PHASE-2A-TECHNICAL-PLAN.md` gained a new Batch PA-2 entry under §16;
+  `docs/04-COMPONENT-LIBRARY.md` gained concrete Authenticated Header/Dashboard Card
+  Grid/Empty State/Session-Expiry Notice component entries; `docs/24-ROADMAP.md`
+  updated to reflect PA-2 shipped and name PA-3 (docs/29 §13 Batch 5D) as next.
+
 ## 2026-07-03 — Patient Access Batch PA-1 (login.html, verify.html)
 
 First Patient Access batch — the deferred frontend half of docs/29 §13's original

@@ -87,11 +87,16 @@ Patient Access entry criteria.
 
 **Patient Access is the active milestone.** Batch PA-1 — `login.html` +
 `verify.html`, the frontend half of docs/29 §13's original Batch 5B —
-shipped. Zero backend modification; Identity & Access remains frozen
-except for bug fixes. See docs/29 §16 for full implementation notes.
-Next: Batch PA-2, the `assets/site.css` token extraction + "My Health
-Journey" dashboard shell (docs/29 §13 Batch 5C), wired to PA-1's session.
-Not yet started; approval required before it begins.
+shipped. Batch PA-2 — the `assets/site.css` token extraction and the
+`/my-health-journey/` dashboard shell (docs/29 §13 Batch 5C), wired to
+PA-1's session — has also now shipped. Zero backend modification across
+either batch; Identity & Access remains frozen except for bug fixes. See
+docs/29 §16 for full implementation notes and docs/37 for the pre-PA-2
+readiness review. Next: Batch PA-3 (docs/29 §13 Batch 5D) — the
+`ConsultationHistory` sheet, a staff entry tool, and the patient-facing
+read-only Timeline/Consultation History, which turns the dashboard's
+Timeline card from an empty state into real data. Not yet started;
+approval required before it begins.
 
 - Patient Login (passwordless, ADR-003)
 - Dashboard shell
