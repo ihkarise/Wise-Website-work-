@@ -1,0 +1,8 @@
+{
+  "name": "wise-website-validation-tooling",
+  "private": true,
+  "description": "Dev-only tooling manifest for this repository's committed validation/ test suites (Node + Playwright). Not a build system for any shipped page — every production page remains static HTML/CSS/JS (docs/10).",
+  "devDependencies": {
+    "playwright": "1.56.0"
+  }
+}

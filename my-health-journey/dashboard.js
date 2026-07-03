@@ -104,13 +104,71 @@
       });
   }
 
+  // Batch PA-4: the Symptom Tracker card is the second to leave the
+  // "Coming later in Phase 2A" placeholder behind (Timeline was the
+  // first, PA-3). Summarizes a submitted entry's scale values the same
+  // way FoundationTimeline.gs's foundationBuildSymptomLogTimelineSummary_()
+  // does server-side for the merged Timeline — this is a read-time,
+  // dashboard-local re-formatting of the same raw fields (get_symptom_logs
+  // returns raw rows, not the Timeline's pre-synthesized summary_text),
+  // never a second source of truth for what those fields mean.
+  function symptomLogSummaryText(row) {
+    var parts = [];
+    if (row.severity !== '') parts.push('Severity ' + row.severity);
+    if (row.sleep !== '') parts.push('Sleep ' + row.sleep);
+    if (row.energy !== '') parts.push('Energy ' + row.energy);
+    if (row.stress !== '') parts.push('Stress ' + row.stress);
+    return parts.length > 0 ? parts.join(' · ') : 'Entry logged';
+  }
+
+  function symptomPreviewHtml(history) {
+    if (history.draft) {
+      return '<p style="font-size:14px;color:var(--color-text-secondary);margin-bottom:14px">You have a draft in progress — private to you until you submit it.</p>' +
+        '<a class="secondary" href="/my-health-journey/symptom-tracker/">Continue draft</a>';
+    }
+    if (history.submitted.length === 0) {
+      return emptyStateHtml('nodata', 'Log how you\'re feeling and see your own history here.') +
+        '<a class="secondary" href="/my-health-journey/symptom-tracker/">Log your first entry</a>';
+    }
+    var latest = history.submitted[0];
+    return '<p style="margin-bottom:8px;font-size:14px;color:var(--color-text-secondary)">' +
+      '<strong style="color:var(--color-brand-strong)">' + escapeHtmlForDisplay(symptomLogSummaryText(latest)) + '</strong>' +
+      '</p>' +
+      '<p style="margin-bottom:14px;font-size:12.5px;color:var(--color-text-faint)">Last logged ' + escapeHtmlForDisplay(latest.submitted_at) + '</p>' +
+      '<a class="secondary" href="/my-health-journey/symptom-tracker/">Log a new entry</a>';
+  }
+
+  // Independent of renderDashboard()'s own get_profile call and of
+  // loadTimelinePreview() (docs/38 §5's own "per-card loading becomes real
+  // once a card has its own separately-timed data call" note, now
+  // exercised a second time). A failure here never disturbs the rest of
+  // the dashboard.
+  function loadSymptomPreview(sessionToken) {
+    var symptomsBody = document.getElementById('card-symptoms-body');
+    fetch(WEB_APP_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ foundation_action: 'get_symptom_logs', session_token: sessionToken })
+    })
+      .then(function (response) { return response.json(); })
+      .then(function (data) {
+        if (data.status === 'ok' && data.data) {
+          symptomsBody.innerHTML = symptomPreviewHtml(data.data);
+        } else {
+          symptomsBody.innerHTML = '<p class="empty-text">Could not load your symptom history. Check your connection and reload the page.</p>';
+        }
+      })
+      .catch(function () {
+        symptomsBody.innerHTML = '<p class="empty-text">Could not load your symptom history. Check your connection and reload the page.</p>';
+      });
+  }
+
   function renderDashboard(profile) {
     greeting.textContent = 'Hi, ' + profile.full_name;
     grid.setAttribute('aria-busy', 'false');
     grid.innerHTML =
       cardHtml('timeline', 'Timeline', '<div class="skeleton"></div><div class="skeleton"></div>') +
-      cardHtml('symptoms', 'Symptom Tracker', emptyStateHtml('phase2a',
-        'Log your symptoms and see your own history here once this feature ships.')) +
+      cardHtml('symptoms', 'Symptom Tracker', '<div class="skeleton"></div><div class="skeleton"></div>') +
       cardHtml('reports', 'Reports', emptyStateHtml('phase2a',
         'Upload and view your reports here once this feature ships.')) +
       cardHtml('careplan', 'Care Plan', emptyStateHtml('future',
@@ -141,6 +199,7 @@
       if (data.status === 'ok') {
         renderDashboard(data.data);
         loadTimelinePreview(token);
+        loadSymptomPreview(token);
       } else {
         goToLogin('expired');
       }

@@ -42,6 +42,15 @@
  * shape (a client-supplied record_id must resolve only to its own
  * patient_id, never anyone else's).
  *
+ * Extended in Patient Access batch PA-4 with Stage 8, covering
+ * FoundationSymptomLog.gs against the new
+ * shared/schemas/symptom-log.schema.json and FoundationTimeline.gs's merge
+ * output against the new shared/schemas/timeline-entry.schema.json — the
+ * platform's first patient-*writable* entity (draft create/edit/submit),
+ * its draft/submitted visibility rules (docs/41-SYMPTOM-TRACKER-READINESS-REVIEW.md),
+ * and get_timeline's now-merged output, end to end through
+ * FoundationRouter.gs's real dispatch.
+ *
  * Run with: node conformance.js  (no dependencies beyond Node's
  * standard library).
  */
@@ -60,6 +69,8 @@ var patientIdentitySchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'sc
 var sessionSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/session.schema.json'), 'utf8'));
 var loginTokenSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/login-token.schema.json'), 'utf8'));
 var consultationHistorySchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/consultation-history.schema.json'), 'utf8'));
+var symptomLogSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/symptom-log.schema.json'), 'utf8'));
+var timelineEntrySchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/timeline-entry.schema.json'), 'utf8'));
 
 var results = [];
 function record(name, pass, detail) {
@@ -515,9 +526,17 @@ var ctx = loadProject(h.sandbox);
   var sessionA = ctx.foundationIssueSessionToken_(patientA.data.patient_id);
   var timelineHttp = ctx.handleFoundationRequest_({ foundation_action: 'get_timeline', session_token: sessionA });
   var timelineBody = JSON.parse(timelineHttp._text);
+  // Updated by Batch PA-4, disclosed: get_timeline's response shape changed
+  // from a raw ConsultationHistory row array to the new, narrower
+  // timeline-entry contract (shared/schemas/timeline-entry.schema.json),
+  // which deliberately does not include patient_id (docs/41's approved
+  // Timeline-merge design) — isolation is still enforced upstream, inside
+  // the unmodified foundationGetPatientTimeline_(), which filters by
+  // patient_id before this response is ever built. This assertion checks
+  // entry_type/shape instead of the now-removed patient_id field.
   record('Stage7: get_timeline (real HTTP dispatch) resolves the caller\'s own timeline from a valid session',
     timelineBody.status === 'ok' && timelineBody.data.length === 5 &&
-    timelineBody.data.every(function (e) { return e.patient_id === patientA.data.patient_id; }));
+    timelineBody.data.every(function (e) { return e.entry_type === 'consultation'; }));
 
   var unauthedTimelineHttp = ctx.handleFoundationRequest_({ foundation_action: 'get_timeline', session_token: 'not-a-real-session-token' });
   var unauthedTimelineBody = JSON.parse(unauthedTimelineHttp._text);
@@ -548,6 +567,182 @@ var ctx = loadProject(h.sandbox);
   var createdAuditRows = auditRowsOf(h, 'consultation_entry_created');
   record('Stage7: every foundationCreateConsultationEntry_() call wrote its own consultation_entry_created AuditLog row',
     createdAuditRows.length === 6);
+})();
+
+// ============================================================
+// Stage 8 — Batch PA-4: FoundationSymptomLog.gs (draft/submit lifecycle)
+// against symptom-log.schema.json, and FoundationTimeline.gs's merge
+// output against timeline-entry.schema.json, end to end through
+// FoundationRouter.gs's real dispatch.
+// ============================================================
+(function stage8_symptomLogAndTimeline() {
+  var patientA = ctx.foundationCreatePatient_({
+    full_name: 'Stage8 Patient A', email: 'stage8-a@example.com',
+    condition_slug: 'mcas', created_by: 'conformance-harness'
+  });
+  var patientB = ctx.foundationCreatePatient_({
+    full_name: 'Stage8 Patient B', email: 'stage8-b@example.com',
+    condition_slug: 'eczema', created_by: 'conformance-harness'
+  });
+  record('Stage8: setup — two independent patients exist', patientA.status === 'ok' && patientB.status === 'ok');
+  var idA = patientA.data.patient_id;
+  var idB = patientB.data.patient_id;
+
+  // ---- Draft creation ----
+  var draft1 = ctx.foundationGetOrCreateSymptomLogDraft_(idA, patientA.data.condition_slug);
+  record('Stage8: foundationGetOrCreateSymptomLogDraft_() creates a new draft with status=draft and empty scale fields',
+    draft1.status === 'ok' && draft1.data.status === 'draft' &&
+    draft1.data.severity === '' && draft1.data.sleep === '' && draft1.data.energy === '' && draft1.data.stress === '');
+  record('Stage8: a new draft conforms to symptom-log.schema.json',
+    validate(symptomLogSchema, draft1.data).valid === true);
+  record('Stage8: condition_slug is copied from the patient\'s own profile at draft creation',
+    draft1.data.condition_slug === 'mcas');
+
+  var draft1Again = ctx.foundationGetOrCreateSymptomLogDraft_(idA, patientA.data.condition_slug);
+  record('Stage8: requesting a draft again returns the SAME existing draft, not a second one (one open draft per patient)',
+    draft1Again.status === 'ok' && draft1Again.data.record_id === draft1.data.record_id);
+
+  // ---- Editing a draft ----
+  var edited = ctx.foundationUpdateSymptomLogDraft_(idA, draft1.data.record_id, { severity: '6', sleep: '7', notes: 'Feeling better today.' });
+  record('Stage8: foundationUpdateSymptomLogDraft_() applies a partial edit and conforms to the schema',
+    edited.status === 'ok' && edited.data.severity === '6' && edited.data.sleep === '7' &&
+    edited.data.energy === '' && edited.data.notes === 'Feeling better today.' &&
+    validate(symptomLogSchema, edited.data).valid === true);
+  record('Stage8: editing updates updated_at without touching created_at',
+    edited.data.updated_at !== edited.data.created_at || edited.data.created_at === draft1.data.created_at);
+
+  var invalidEdit = ctx.foundationUpdateSymptomLogDraft_(idA, draft1.data.record_id, { severity: '11' });
+  record('Stage8: an out-of-range scale value is rejected with FOUNDATION_INVALID_INPUT',
+    invalidEdit.status === 'error' && invalidEdit.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  // ---- Cross-patient isolation on the write path (the new authorization surface this batch introduces) ----
+  var crossPatientEdit = ctx.foundationUpdateSymptomLogDraft_(idB, draft1.data.record_id, { severity: '3' });
+  record('Stage8: a different patient editing patient A\'s draft is rejected as FOUNDATION_NOT_FOUND, never leaking or altering the row',
+    crossPatientEdit.status === 'error' && crossPatientEdit.error.code === 'FOUNDATION_NOT_FOUND');
+  var unaffected = ctx.foundationGetOwnSymptomLogById_(idA, draft1.data.record_id);
+  record('Stage8: patient A\'s draft is unaffected by patient B\'s rejected cross-patient edit attempt',
+    unaffected.data.severity === '6');
+
+  // ---- Submit-time validation (re-checks live stored state, not the request body) ----
+  var emptyDraft = ctx.foundationGetOrCreateSymptomLogDraft_(idB, patientB.data.condition_slug);
+  var emptySubmitAttempt = ctx.foundationSubmitSymptomLogDraft_(idB, emptyDraft.data.record_id);
+  record('Stage8: submitting a fully-empty draft is rejected with FOUNDATION_INVALID_INPUT',
+    emptySubmitAttempt.status === 'error' && emptySubmitAttempt.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  // ---- Submit success ----
+  var submitted1 = ctx.foundationSubmitSymptomLogDraft_(idA, draft1.data.record_id);
+  record('Stage8: submitting a valid draft succeeds and transitions status to submitted',
+    submitted1.status === 'ok' && submitted1.data.status === 'submitted' && submitted1.data.submitted_at !== '');
+  record('Stage8: the submitted record conforms to symptom-log.schema.json',
+    validate(symptomLogSchema, submitted1.data).valid === true);
+
+  var editAfterSubmit = ctx.foundationUpdateSymptomLogDraft_(idA, draft1.data.record_id, { severity: '1' });
+  record('Stage8: editing an already-submitted entry is rejected with a specific, patient-facing message (not the generic cross-patient one)',
+    editAfterSubmit.status === 'error' && editAfterSubmit.error.code === 'FOUNDATION_INVALID_INPUT' &&
+    /already been submitted/.test(editAfterSubmit.error.message));
+
+  var doubleSubmit = ctx.foundationSubmitSymptomLogDraft_(idA, draft1.data.record_id);
+  record('Stage8: submitting an already-submitted entry a second time is rejected, not silently re-accepted',
+    doubleSubmit.status === 'error' && doubleSubmit.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  // ---- get_symptom_logs: draft + submitted, scoped strictly to the caller ----
+  var newDraftForA = ctx.foundationGetOrCreateSymptomLogDraft_(idA, patientA.data.condition_slug);
+  var ownHistory = ctx.foundationGetPatientSymptomLogs_(idA);
+  record('Stage8: foundationGetPatientSymptomLogs_() returns exactly one open draft and one submitted entry for patient A',
+    ownHistory.status === 'ok' && ownHistory.data.draft && ownHistory.data.draft.record_id === newDraftForA.data.record_id &&
+    ownHistory.data.submitted.length === 1 && ownHistory.data.submitted[0].record_id === submitted1.data.record_id);
+  record('Stage8: patient A\'s history never includes patient B\'s draft or submitted rows',
+    ownHistory.data.submitted.every(function (e) { return e.patient_id === idA; }));
+
+  // ---- FoundationTimeline.gs — the merge, drafts excluded ----
+  ctx.foundationCreateConsultationEntry_({
+    patient_id: idA, entry_date: '2026-06-01', title: 'Follow-up visit',
+    summary_text: 'Routine follow-up.', source_ref: '', created_by: 'stage8-harness'
+  });
+  var mergedTimeline = ctx.foundationGetPatientTimelineMerged_(idA);
+  record('Stage8: foundationGetPatientTimelineMerged_() succeeds', mergedTimeline.status === 'ok');
+  record('Stage8: the merged timeline includes both the consultation entry and the submitted symptom log, never the open draft',
+    mergedTimeline.data.length === 2 &&
+    mergedTimeline.data.some(function (e) { return e.entry_type === 'consultation'; }) &&
+    mergedTimeline.data.some(function (e) { return e.entry_type === 'symptom_log' && e.record_id === submitted1.data.record_id; }) &&
+    !mergedTimeline.data.some(function (e) { return e.record_id === newDraftForA.data.record_id; }));
+  record('Stage8: every merged timeline entry conforms to timeline-entry.schema.json',
+    mergedTimeline.data.every(function (e) { return validate(timelineEntrySchema, e).valid === true; }));
+  record('Stage8: the symptom_log entry\'s summary mentions the logged scale values',
+    mergedTimeline.data.filter(function (e) { return e.entry_type === 'symptom_log'; })[0].summary_text.indexOf('Severity 6') !== -1);
+
+  // ---- FoundationRouter.gs — the four new dispatch cases, end to end ----
+  var sessionA = ctx.foundationIssueSessionToken_(idA);
+  var sessionB = ctx.foundationIssueSessionToken_(idB);
+
+  var createHttp = ctx.handleFoundationRequest_({ foundation_action: 'create_symptom_draft', session_token: sessionB });
+  var createBody = JSON.parse(createHttp._text);
+  record('Stage8: create_symptom_draft (real HTTP dispatch) returns the caller\'s own draft',
+    createBody.status === 'ok' && createBody.data.patient_id === idB);
+
+  var updateHttp = ctx.handleFoundationRequest_({
+    foundation_action: 'update_symptom_draft', session_token: sessionB,
+    record_id: createBody.data.record_id, energy: '4', stress: '5'
+  });
+  var updateBody = JSON.parse(updateHttp._text);
+  record('Stage8: update_symptom_draft (real HTTP dispatch) applies the edit',
+    updateBody.status === 'ok' && updateBody.data.energy === '4' && updateBody.data.stress === '5');
+
+  var crossPatientUpdateHttp = ctx.handleFoundationRequest_({
+    foundation_action: 'update_symptom_draft', session_token: sessionA,
+    record_id: createBody.data.record_id, energy: '9'
+  });
+  var crossPatientUpdateBody = JSON.parse(crossPatientUpdateHttp._text);
+  record('Stage8: update_symptom_draft over real HTTP dispatch still rejects a cross-patient record_id, never leaking or altering the row',
+    crossPatientUpdateBody.status === 'error' && crossPatientUpdateBody.error.code === 'FOUNDATION_NOT_FOUND');
+
+  var submitHttp = ctx.handleFoundationRequest_({ foundation_action: 'submit_symptom_log', session_token: sessionB, record_id: createBody.data.record_id });
+  var submitBody = JSON.parse(submitHttp._text);
+  record('Stage8: submit_symptom_log (real HTTP dispatch) transitions the caller\'s own draft to submitted',
+    submitBody.status === 'ok' && submitBody.data.status === 'submitted');
+
+  var getLogsHttp = ctx.handleFoundationRequest_({ foundation_action: 'get_symptom_logs', session_token: sessionB });
+  var getLogsBody = JSON.parse(getLogsHttp._text);
+  record('Stage8: get_symptom_logs (real HTTP dispatch) resolves the caller\'s own history from a valid session',
+    getLogsBody.status === 'ok' && getLogsBody.data.submitted.some(function (e) { return e.record_id === createBody.data.record_id; }));
+
+  record('Stage8: update_symptom_draft derives patient_id only from the verified session, never from a client-supplied field',
+    (function () {
+      var freshDraft = ctx.foundationGetOrCreateSymptomLogDraft_(idA, patientA.data.condition_slug);
+      var spoofed = ctx.handleFoundationRequest_({
+        foundation_action: 'update_symptom_draft', session_token: sessionB,
+        record_id: freshDraft.data.record_id, severity: '2', patient_id: idA
+      });
+      var spoofedBody = JSON.parse(spoofed._text);
+      return spoofedBody.status === 'error' && spoofedBody.error.code === 'FOUNDATION_NOT_FOUND';
+    })());
+
+  var unauthedGetLogsHttp = ctx.handleFoundationRequest_({ foundation_action: 'get_symptom_logs', session_token: 'not-a-real-session-token' });
+  var unauthedGetLogsBody = JSON.parse(unauthedGetLogsHttp._text);
+  record('Stage8: get_symptom_logs rejects an invalid session_token with FOUNDATION_UNAUTHORIZED, never leaking any data',
+    unauthedGetLogsBody.status === 'error' && unauthedGetLogsBody.error.code === 'FOUNDATION_UNAUTHORIZED' && unauthedGetLogsBody.data === null);
+
+  var getTimelineHttp = ctx.handleFoundationRequest_({ foundation_action: 'get_timeline', session_token: sessionA });
+  var getTimelineBody = JSON.parse(getTimelineHttp._text);
+  record('Stage8: get_timeline (real HTTP dispatch) now returns the merged feed, including the submitted symptom log',
+    getTimelineBody.status === 'ok' &&
+    getTimelineBody.data.some(function (e) { return e.entry_type === 'symptom_log'; }) &&
+    getTimelineBody.data.some(function (e) { return e.entry_type === 'consultation'; }));
+
+  var draftCreatedAudit = auditRowsOf(h, 'symptom_log_draft_created');
+  var draftUpdatedAudit = auditRowsOf(h, 'symptom_log_draft_updated');
+  var submittedAudit = auditRowsOf(h, 'symptom_log_submitted');
+  // Exact counts, traced through this stage's real calls (not a guess):
+  // draft1 (A), emptyDraft (B), newDraftForA — 3 genuine creates;
+  // "get or create" calls that found an existing open draft (draft1Again,
+  // createHttp reusing emptyDraft, the spoofed-test's freshDraft reusing
+  // newDraftForA) correctly do NOT log a second create. edited + the real
+  // updateHttp — 2 genuine updates; every rejected edit (cross-patient,
+  // post-submit, the spoofed attempt) correctly logs nothing. submitted1 +
+  // the real submitHttp — 2 genuine submits; the empty-draft rejection and
+  // the double-submit rejection correctly log nothing.
+  record('Stage8: draft creation, edits, and submission each wrote their own AuditLog event type, and only for real state changes',
+    draftCreatedAudit.length === 3 && draftUpdatedAudit.length === 2 && submittedAudit.length === 2);
 })();
 
 function auditRowsOf(h, eventType) {

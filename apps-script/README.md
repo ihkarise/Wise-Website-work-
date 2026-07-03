@@ -640,6 +640,47 @@ this batch (Timeline list page, Consultation History detail page, the shared
 `my-health-journey/session-guard.js`, and the dashboard's Timeline card now wired to
 real data).
 
+## Phase 2A Patient Access modules — Batch PA-4 (Symptom Tracker)
+
+PA-3 (above) is frozen except for bug fixes. Batch PA-4 (docs/29 §13 Batch 5E) adds
+the platform's first **patient-writable** entity — Symptom Log — per
+docs/41-SYMPTOM-TRACKER-READINESS-REVIEW.md's approved decisions: a draft/submitted
+lifecycle (drafts editable and private to the patient; submitted entries immutable,
+Timeline-visible, and staff-visible), and no offline support (a friendly message on
+network failure, no local persistence, no background sync). Two new files, both
+non-`Foundation`-prefixed (same reasoning as `PatientIdentity.gs`/
+`FoundationConsultationHistory.gs`, docs/29 §2):
+
+| File | Responsibility | Status |
+|---|---|---|
+| `FoundationSymptomLog.gs` | `foundationGetOrCreateSymptomLogDraft_()` (one open draft per patient — returns the existing one rather than creating a second), `foundationUpdateSymptomLogDraft_()` (ownership + draft-status re-checked before every edit), `foundationSubmitSymptomLogDraft_()` (irreversible; re-validates the row's own *stored* values, never the request body), `foundationGetPatientSymptomLogs_()` (the patient's own draft + submitted history), `foundationGetSubmittedSymptomLogsForTimeline_()` (submitted-only, unwrapped, for `FoundationTimeline.gs`'s merge). Implements `shared/schemas/symptom-log.schema.json`. No manually-run staff wrapper — unlike every prior entity, this one is created entirely through its own real, patient-facing Web App routes from day one. | Added (PA-4) |
+| `FoundationTimeline.gs` | `foundationGetPatientTimelineMerged_()` — merges `FoundationConsultationHistory.gs`'s unmodified `foundationGetPatientTimeline_()` output with the patient's *submitted-only* Symptom Log entries (never drafts) into one reverse-chronological feed, capped once at 50. A new file, not a modification to `FoundationConsultationHistory.gs` — that file remains completely untouched. Implements the read side of `shared/schemas/timeline-entry.schema.json`, the concrete second-source implementation of docs/33 §3.1's originally general "Timeline Event" entity. | Added (PA-4) |
+
+**`FoundationRouter.gs` gained four new dispatch cases** (`create_symptom_draft`,
+`update_symptom_draft`, `submit_symptom_log`, `get_symptom_logs`) — the same disclosed,
+additive extension-point pattern PA-3 already used for its own two new cases. **One
+existing case's behavior changed, disclosed explicitly**: `get_timeline`'s handler now
+calls `FoundationTimeline.gs`'s `foundationGetPatientTimelineMerged_()` instead of
+`FoundationConsultationHistory.gs`'s `foundationGetPatientTimeline_()` directly — an
+intentional, approved product decision (submitted Symptom Log entries now appear in
+Timeline), not a restructuring of the route itself. `get_timeline_entry` is unchanged.
+`harness.js`'s `FILES` list and `conformance.js` (Stage 8) were extended accordingly.
+
+**`my-health-journey/dashboard.js`** gained the Symptom Tracker card's real-data wiring
+(`loadSymptomPreview()`, `symptomPreviewHtml()`, `symptomLogSummaryText()`) — the same
+kind of additive, disclosed exception PA-3 made for the Timeline card. See
+`docs/29-PHASE-2A-TECHNICAL-PLAN.md` §16's Batch PA-4 notes for the new
+`my-health-journey/symptom-tracker/` page itself (the platform's first
+patient-writable form).
+
+**A new repository-root `package.json`**, pinning `playwright` to the exact version
+whose bundled Chromium revision matches this environment's pre-provisioned browser —
+closing a real gap the PA-4 readiness review found: `validation/pa-2-dashboard/` and
+`validation/pa-3-timeline/` were already committed, already required `playwright`, but
+the repository had no installable dependency manifest for it. Dev-only tooling, not a
+build system for any shipped page (every production page remains static HTML/CSS/JS,
+docs/10) — `node_modules/` is `.gitignore`d.
+
 ## Foundation/Phase 1.5 dispatch boundary (IA-2)
 
 Google Apps Script permits exactly one global `doPost()` per project, and docs/29 §14

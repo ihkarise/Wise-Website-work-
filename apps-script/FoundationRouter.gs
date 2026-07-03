@@ -30,7 +30,16 @@
  *     Q3) — record_id's unguessability is not itself an authorization
  *     boundary, so FoundationConsultationHistory.gs's
  *     foundationGetConsultationEntryById_() performs that check, not this
- *     file.
+ *     file. Note: get_timeline now dispatches through
+ *     FoundationTimeline.gs's foundationGetPatientTimelineMerged_() (Batch
+ *     PA-4, see below), not FoundationConsultationHistory.gs's
+ *     foundationGetPatientTimeline_() directly — the only behavior change
+ *     in this file this batch makes; get_timeline_entry is unchanged.
+ *   - create_symptom_draft / update_symptom_draft / submit_symptom_log /
+ *     get_symptom_logs — Batch PA-4 additions (docs/29 §13 Batch 5E),
+ *     the platform's first patient-*writable* routes. All four derive
+ *     patient_id only from the verified session, never the request body,
+ *     the same discipline every route above already follows.
  *
  * A disclosed, additive exception, same category as Code.gs's own
  * one-line dispatch shim (IA-2): this file was previously listed among
@@ -38,10 +47,15 @@
  * (docs/36 §12). Adding a new `case` to the switch below for a wholly new,
  * additive action — touching zero existing lines, changing zero existing
  * behavior — is this router's designed extension point, the same way
- * get_profile's own case was added here in IA-2. Every future data-feature
- * batch (5E, 5F) will need the same kind of addition; the freeze protects
- * existing routes from being restructured, not this file from ever
- * gaining a new one.
+ * get_profile's own case was added here in IA-2. Batch PA-4 uses this
+ * extension point four more times, and additionally repoints
+ * get_timeline's one existing case at a new merge function (see above) —
+ * disclosed here rather than silently made, per this session's "do not
+ * modify frozen components except for bug fixes, and disclose any
+ * exception" instruction. The freeze protects existing routes from being
+ * restructured on their own terms, not this file from ever gaining a new
+ * one or from a later-approved product decision (Symptom Log entries
+ * appearing in Timeline) changing what an existing route returns.
  *
  * Uses ContentService directly, not Code.gs's own jsonResponse_() helper
  * — that helper wraps its body in a numeric-status envelope
@@ -54,7 +68,8 @@
  * file.
  *
  * Depends on FoundationContracts.gs, FoundationLoginFlow.gs,
- * FoundationRouteGuard.gs, PatientIdentity.gs, FoundationConsultationHistory.gs.
+ * FoundationRouteGuard.gs, PatientIdentity.gs, FoundationConsultationHistory.gs,
+ * FoundationTimeline.gs, FoundationSymptomLog.gs.
  */
 
 /**
@@ -68,13 +83,15 @@ function foundationHandleGetProfile_(input) {
 }
 
 /**
- * Batch PA-3: returns the caller's own Consultation History, sorted and
- * capped for Timeline display (docs/29 §6). patient_id is always
- * session-derived, never client-supplied.
+ * Batch PA-3, updated Batch PA-4: returns the caller's own merged
+ * Timeline — ConsultationHistory entries plus submitted (never draft)
+ * Symptom Log entries, sorted and capped together (docs/29 §6,
+ * docs/41-SYMPTOM-TRACKER-READINESS-REVIEW.md's approved decision).
+ * patient_id is always session-derived, never client-supplied.
  */
 function foundationHandleGetTimeline_(input) {
   return withFoundationAuth_(input && input.session_token, function (patientId) {
-    return foundationGetPatientTimeline_(patientId);
+    return foundationGetPatientTimelineMerged_(patientId);
   });
 }
 
@@ -88,6 +105,65 @@ function foundationHandleGetTimeline_(input) {
 function foundationHandleGetTimelineEntry_(input) {
   return withFoundationAuth_(input && input.session_token, function (patientId) {
     return foundationGetConsultationEntryById_(patientId, input && input.record_id);
+  });
+}
+
+/**
+ * Batch PA-4: returns the caller's own open Symptom Log draft, creating
+ * one if none exists yet (FoundationSymptomLog.gs's "one open draft per
+ * patient at a time" rule). condition_slug is copied from the caller's
+ * own Patient profile at creation time (docs/41 §10) — this is the one
+ * place a profile lookup precedes the entity call, since
+ * foundationGetOrCreateSymptomLogDraft_() itself never reaches into
+ * PatientIdentity.gs.
+ */
+function foundationHandleCreateSymptomDraft_(input) {
+  return withFoundationAuth_(input && input.session_token, function (patientId) {
+    var profile = foundationGetPatientById_(patientId);
+    if (profile.status === 'error') {
+      return profile; // unexpected — already a safe, generic envelope
+    }
+    return foundationGetOrCreateSymptomLogDraft_(patientId, profile.data.condition_slug);
+  });
+}
+
+/**
+ * Batch PA-4: edits the mutable fields of the caller's own draft.
+ * foundationUpdateSymptomLogDraft_() itself verifies ownership and draft
+ * status before applying any change.
+ */
+function foundationHandleUpdateSymptomDraft_(input) {
+  return withFoundationAuth_(input && input.session_token, function (patientId) {
+    return foundationUpdateSymptomLogDraft_(patientId, input && input.record_id, {
+      severity: input && input.severity,
+      sleep: input && input.sleep,
+      energy: input && input.energy,
+      stress: input && input.stress,
+      notes: input && input.notes
+    });
+  });
+}
+
+/**
+ * Batch PA-4: submits the caller's own draft — irreversible.
+ * foundationSubmitSymptomLogDraft_() re-validates the row's own stored
+ * values, never the request body, before allowing the transition.
+ */
+function foundationHandleSubmitSymptomLog_(input) {
+  return withFoundationAuth_(input && input.session_token, function (patientId) {
+    return foundationSubmitSymptomLogDraft_(patientId, input && input.record_id);
+  });
+}
+
+/**
+ * Batch PA-4: returns the caller's own Symptom Log history — their
+ * current open draft (or null) plus their submitted entries. Both halves
+ * are the patient's own data; drafts are private to the patient but never
+ * hidden from the patient themselves (docs/41).
+ */
+function foundationHandleGetSymptomLogs_(input) {
+  return withFoundationAuth_(input && input.session_token, function (patientId) {
+    return foundationGetPatientSymptomLogs_(patientId);
   });
 }
 
@@ -126,6 +202,18 @@ function handleFoundationRequest_(input) {
       break;
     case 'get_timeline_entry':
       envelope = foundationHandleGetTimelineEntry_(input);
+      break;
+    case 'create_symptom_draft':
+      envelope = foundationHandleCreateSymptomDraft_(input);
+      break;
+    case 'update_symptom_draft':
+      envelope = foundationHandleUpdateSymptomDraft_(input);
+      break;
+    case 'submit_symptom_log':
+      envelope = foundationHandleSubmitSymptomLog_(input);
+      break;
+    case 'get_symptom_logs':
+      envelope = foundationHandleGetSymptomLogs_(input);
       break;
     default:
       envelope = buildFoundationErrorEnvelope_('FOUNDATION_UNKNOWN_ACTION', 'Unknown request.');

@@ -285,12 +285,68 @@ explicitly-planned Timeline-wiring addition.
 
 ---
 
+## Phase 2A — Symptom Tracker Components (Batch PA-4)
+
+Built against docs/41's readiness review and the three decisions it confirmed before
+implementation (draft/submitted lifecycle; no offline support). Gives the Symptom
+Tracker card (PA-2) its first real data source and adds one new page, reusing
+`assets/site.css` and `my-health-journey/session-guard.js` unchanged.
+
+### Symptom Tracker Card (dashboard card, `my-health-journey/dashboard.js`)
+
+The card's Empty State is replaced with one of three real states once loaded: a
+draft-in-progress message + "Continue draft" link; the most recent submitted entry's
+summary + "Log a new entry" link; or the "No data yet" Empty State (its second real
+consumer, alongside Timeline) + "Log your first entry" link. A card-local skeleton
+shows while its own `get_symptom_logs` call is pending, independent of the header's
+`get_profile` call and of the Timeline card's own `get_timeline` call.
+
+### Symptom Log Form (`my-health-journey/symptom-tracker/`)
+
+The first genuinely **multi-field** authenticated form in Phase 2A (every prior form —
+Login, Verify — has exactly one field). Four scale inputs (`<input type="number"
+min="1" max="10">`, each optional, each with a real associated `<label for>`), an
+optional notes `<textarea>`, and two actions: "Save draft" (updates the draft in
+place, shows a confirmation status) and "Submit entry" (irreversible — saves any
+pending edits, then transitions the draft to submitted). A `role="status"
+aria-live="polite"` region carries save/submit confirmation and error feedback,
+including the backend's own message shown verbatim on rejection — the first Phase 2A
+form to give post-submission feedback without navigating away, so this live region is
+new territory relative to Login/Verify's own per-page status pattern.
+
+Only one of two states is ever shown for the draft section: the form itself (an open
+draft exists), or a single "Log a new entry" button (none exists yet — clicking it
+creates one). Never both, and never a draft silently created just by visiting the
+page.
+
+### Symptom Log History (read-only list, same page)
+
+Reuses PA-3's `.tl-track`/`.tl-item` vertical-list visual, adapted (not literally
+imported) into the page's own `<style>` block — the same "reverse-chronological list
+of dated entries" shape Timeline already established. Each item shows the submission
+date and a synthesized summary (e.g. "Severity 6, Sleep 7" plus any notes) — computed
+at render time from the raw stored fields, never a separately persisted summary field.
+No "View details" link — unlike a Consultation History entry, a symptom log entry's
+few scalar values don't warrant a separate detail page (docs/41 §2).
+
+### Offline / Network-Failure Messaging
+
+A new, specific variant of the Error State principle: on a network failure during
+save or submit, the form's typed values are left exactly as they were (never
+cleared, never queued to local storage or a background sync mechanism) and a friendly,
+specific message is shown — "You appear to be offline. Check your connection and try
+again — your entry has not been lost." Distinct from a rejected-session message
+(session-guard.js's own concern, unchanged) and from a validation error (the backend's
+own specific message, shown verbatim, not re-worded).
+
+---
+
 ## Future Components
 
 Reserved for later phases — real data wiring, not the shell itself
 
 - Personal Care Plan
 - Wise Digital Twin
-- Symptom Tracker (data entry + own history — shell placeholder shipped in PA-2)
+- Report Upload (Batch 5F)
 - AI Summary
 - Progress Cards

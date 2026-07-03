@@ -27,6 +27,10 @@
  * Extended in Patient Access batch PA-3 with `FoundationConsultationHistory.gs`
  * in the FILES list — no new mock needed, since it only reuses
  * SpreadsheetApp/Utilities/Logger primitives already mocked above.
+ *
+ * Extended in Patient Access batch PA-4 with `FoundationSymptomLog.gs` and
+ * `FoundationTimeline.gs` in the FILES list — again no new mock needed,
+ * both reuse only already-mocked primitives.
  */
 
 var fs = require('fs');
@@ -50,6 +54,8 @@ var FILES = [
   'FoundationEmail.gs',
   'FoundationLoginFlow.gs',
   'FoundationConsultationHistory.gs',
+  'FoundationSymptomLog.gs',
+  'FoundationTimeline.gs',
   'FoundationRouter.gs'
 ];
 

@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Symptom Tracker | My Health Journey | Wise Homeopathy</title>
+<meta name="description" content="Log how you're feeling and see your own symptom history.">
+<link rel="icon" href="/assets/favicon.ico">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/site.css">
+<style>
+/* Page-specific layout — header styles duplicated from my-health-journey/
+   index.html and my-health-journey/timeline/ (frozen PA-2/PA-3 files, not
+   touched by this batch) rather than shared, per this session's "do not
+   modify except for bug fixes" instruction; consistent with this repo's
+   existing per-page CSS convention. History list reuses the .tl-track/
+   .tl-item vertical pattern PA-3 already adapted for Timeline. */
+.wrap{max-width:720px}
+body{background:var(--color-surface)}
+
+.dash-header{position:sticky;top:0;z-index:10;background:var(--color-surface-base);border-bottom:1px solid var(--color-line)}
+.dash-header-inner{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding-top:16px;padding-bottom:16px}
+.dash-brand{display:flex;align-items:center;gap:10px}
+.dash-brand img{height:30px;width:auto}
+.dash-brand .dash-logo-mark{display:none;height:30px;width:30px;border-radius:50%;background:var(--color-brand);color:#fff;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:600}
+.dash-title{font-size:18px;color:var(--color-brand-strong);margin:0;text-align:left}
+.dash-user{display:flex;align-items:center;gap:14px}
+.dash-greeting{font-size:14px;color:var(--color-text-secondary)}
+.dash-greeting .skeleton{display:inline-block;width:110px;vertical-align:middle;margin:0}
+.dash-signout{background:transparent;border:1px solid var(--color-line);color:var(--color-brand-strong);font:600 13.5px var(--font-body);padding:9px 16px;border-radius:var(--radius-md);cursor:pointer;transition:background .15s ease,border-color .15s ease}
+.dash-signout:hover{background:var(--color-surface);border-color:var(--color-brand)}
+
+.st-main{padding-top:clamp(20px,4vw,32px)}
+.st-page-title{font-family:var(--font-display);font-size:22px;color:var(--color-brand-strong);margin-bottom:6px;text-align:left}
+.st-back{display:inline-block;margin-bottom:20px;font-size:13.5px;color:var(--color-brand);text-decoration:none;font-weight:500}
+.st-back:hover{text-decoration:underline}
+.st-section-title{font-family:var(--font-display);font-size:17px;color:var(--color-brand-strong);margin:28px 0 12px;text-align:left}
+
+.st-scale-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:16px;margin-bottom:18px}
+.st-scale-field label{display:block;font-size:13.5px;font-weight:500;margin-bottom:6px;color:var(--color-brand-strong)}
+.st-scale-field input{width:100%;padding:12px 14px;border:1px solid var(--color-line);border-radius:var(--radius-md);font:inherit;font-size:15px;background:var(--color-surface-base)}
+.st-scale-hint{font-size:12px;color:var(--color-text-faint);margin-top:4px}
+.st-notes textarea{width:100%;padding:13px 15px;border:1px solid var(--color-line);border-radius:var(--radius-md);font:inherit;font-size:15px;background:var(--color-surface-base);resize:vertical;min-height:90px}
+
+.st-actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:20px}
+.st-actions .submit{width:auto;flex:1;min-width:160px}
+.st-save{flex:none;background:transparent;border:1px solid var(--color-line);color:var(--color-brand-strong);font:600 15px var(--font-body);padding:14px 20px;border-radius:var(--radius-md);cursor:pointer}
+.st-save:hover{border-color:var(--color-brand)}
+.st-save:disabled,.st-actions .submit:disabled{opacity:.55;cursor:not-allowed}
+
+.tl-track{position:relative;max-width:680px}
+.tl-item{position:relative;display:flex;gap:16px;padding-bottom:26px}
+.tl-item:last-child{padding-bottom:0}
+.tl-item::before{content:'';position:absolute;left:9px;top:22px;bottom:0;width:2px;background:var(--color-line)}
+.tl-item:last-child::before{display:none}
+.tl-dot{flex:none;width:20px;height:20px;border-radius:50%;background:var(--color-brand);margin-top:2px}
+.tl-body{background:var(--color-surface-base);border:1px solid var(--color-line);border-radius:var(--radius-md);padding:14px 16px;flex:1}
+.tl-body h3{font-family:var(--font-display);font-size:15px;color:var(--color-brand-strong);margin-bottom:4px}
+.tl-date{font-size:12.5px;color:var(--color-text-faint);display:block;margin-bottom:6px}
+.tl-summary{font-size:14px;color:var(--color-text-secondary);line-height:1.55;margin:0}
+
+@media(max-width:640px){.dash-header-inner{justify-content:center;text-align:center}.dash-user{width:100%;justify-content:space-between}}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to main content</a>
+
+<header class="dash-header">
+  <div class="wrap dash-header-inner">
+    <div class="dash-brand">
+      <img src="/assets/logo.svg" alt="Wise Homeopathy Multispeciality Center" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+      <span class="dash-logo-mark" aria-hidden="true">W</span>
+      <h1 class="dash-title serif">My Health Journey</h1>
+    </div>
+    <div class="dash-user">
+      <span class="dash-greeting" id="greeting" aria-live="polite"><span class="skeleton"></span></span>
+      <button class="dash-signout" type="button" id="signOutBtn">Sign out</button>
+    </div>
+  </div>
+</header>
+
+<main id="main" class="wrap st-main">
+  <a class="st-back" href="/my-health-journey/">&larr; Back to Dashboard</a>
+  <h2 class="st-page-title serif">Symptom Tracker</h2>
+
+  <div id="draftSection" aria-busy="true">
+    <div class="card">
+      <div class="skeleton" style="width:60%"></div>
+      <div class="skeleton" style="width:85%"></div>
+    </div>
+  </div>
+
+  <div id="formStatus" class="status" role="status" aria-live="polite"></div>
+
+  <h3 class="st-section-title serif">Your history</h3>
+  <div id="historySection" aria-busy="true">
+    <div class="card" style="max-width:680px">
+      <div class="skeleton" style="width:50%"></div>
+      <div class="skeleton" style="width:75%"></div>
+    </div>
+  </div>
+</main>
+
+<script src="/my-health-journey/session-guard.js"></script>
+<script src="/my-health-journey/symptom-tracker/symptom-tracker.js"></script>
+</body>
+</html>

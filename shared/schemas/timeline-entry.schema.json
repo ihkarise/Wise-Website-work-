@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wisehomeopathy.com/shared/schemas/timeline-entry.schema.json",
+  "title": "Timeline Entry (merged Timeline API response item)",
+  "version": "1.0.0",
+  "description": "The shape of one item in get_timeline's response array, as distinct from a ConsultationHistory row (shared/schemas/consultation-history.schema.json) — the concrete implementation of docs/33-DOMAIN-MODEL.md §3.1's general 'Timeline Event' entity, which was deliberately generalized beyond any single source 'so future event sources... can plug into the same feed without a redesign' (docs/33 §3.1's own words). Batch PA-4 is the first time a second source (Symptom Log, submitted only) is merged into the Timeline, per docs/41-SYMPTOM-TRACKER-READINESS-REVIEW.md's approved decision that submitted Symptom Log entries appear in Timeline. Introduced as its own contract, separate from consultation-history.schema.json, rather than widening that schema's entry_type enum — see timeline-entry.md for why. Implemented by apps-script/FoundationTimeline.gs's foundationGetPatientTimelineMerged_().",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["record_id", "entry_date", "entry_type", "title", "summary_text"],
+  "properties": {
+    "record_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "For entry_type 'consultation', the underlying ConsultationHistory row's record_id (docs/40). For entry_type 'symptom_log', the underlying SymptomLogs row's record_id. Deliberately NOT used as a detail-view lookup key for symptom_log entries in this batch — no get_timeline_entry-style detail fetch exists for Symptom Log (docs/41 §2's finding that a per-entry detail page is unnecessary for scalar data); the Timeline list renders a symptom_log entry's summary inline instead of linking out."
+    },
+    "entry_date": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The Timeline's sort key (descending). For entry_type 'consultation', this is the ConsultationHistory row's own entry_date. For entry_type 'symptom_log', this is the SymptomLogs row's submitted_at — the moment the entry became real and Timeline-visible, mirroring entry_date's role as 'the meaningful date' for Consultation History."
+    },
+    "entry_type": {
+      "type": "string",
+      "enum": ["consultation", "symptom_log"],
+      "description": "Discriminates which source produced this Timeline item — the concrete widening docs/33 §3.1 and docs/39 §2 both anticipated ('widening entry_type's enum is the concrete signal that moment has arrived') now that a second source genuinely exists. Note this enum lives on the Timeline *response* item, not on ConsultationHistory's own row schema (which stays fixed at 'consultation' — see timeline-entry.md)."
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "description": "For 'consultation': the ConsultationHistory row's own title. For 'symptom_log': a fixed, generic label ('Symptom check-in') — there is no staff-authored title for a patient's own symptom entry."
+    },
+    "summary_text": {
+      "type": "string",
+      "minLength": 1,
+      "description": "For 'consultation': the ConsultationHistory row's own summary_text (unchanged). For 'symptom_log': synthesized at read time from the row's severity/sleep/energy/stress/notes (e.g. 'Severity 6, Sleep 7, Energy 5, Stress 4') — never the patient's raw notes field alone, and never persisted separately; this is a read-time projection, not a stored field of SymptomLogs itself."
+    }
+  }
+}

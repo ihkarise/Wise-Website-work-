@@ -101,6 +101,53 @@ just designed: `validation/phase-2a-foundation/conformance.js`'s Stage 7 confirm
 the direct-function check and the same rejection through the real HTTP dispatch layer,
 including that a spoofed `patient_id` field in the request body is still ignored.
 
+## Phase 2A — Implementation Notes (Batch PA-4, Symptom Tracker)
+
+**The platform's first patient-*writable* endpoints — the same ownership-check
+discipline PA-3 established for reads, extended to write actions for the first time.**
+`update_symptom_draft` and `submit_symptom_log` both accept a client-supplied
+`record_id`; `patient_id` is still derived exclusively from the verified session
+(ADR-002, unchanged) and `FoundationSymptomLog.gs`'s
+`foundationGetOwnSymptomLogById_()` independently verifies the row's own `patient_id`
+matches before any edit or submit proceeds — an unknown `record_id` and one belonging
+to a different patient return the identical `FOUNDATION_NOT_FOUND` envelope, the same
+anti-enumeration discipline docs/40 Q3 already established for reads, now covering a
+write path.
+
+**A second, narrower authorization check specific to a mutable record: state, not just
+ownership.** Once ownership is confirmed, an edit or submit against a row that is no
+longer `status: "draft"` is rejected too — but with a *specific*, patient-facing
+message ("This entry has already been submitted...") rather than the generic
+cross-patient one, since the confirmed owner learning their own record's state is not
+an enumeration risk. This is a new category of check Foundation hasn't needed before:
+every prior entity was either read-only for patients (Consultation History) or
+write-once (every other entity's `created_at`-style fields) — Symptom Log is the first
+with a real, patient-triggered state transition to guard.
+
+**Submit-time validation re-reads live, stored state — never trusts the request
+body.** `foundationSubmitSymptomLogDraft_()` validates the row's own currently-stored
+field values before allowing the `draft` → `submitted` transition, the same "re-read
+live state, never trust submission-time state" discipline Phase 1.5's
+`evaluateSendGate_()` already established for consent gating, applied here to a
+different kind of gate.
+
+**Draft privacy is an application-layer guarantee, not a storage-layer one — stated
+openly.** No Foundation route ever returns a `draft`-status row to anyone but its own
+owning patient. This is enforced entirely in application code (every read function
+filters by `status` and `patient_id`); it is **not** enforced by Google Sheets itself,
+which has no row-level access control. Anyone with direct edit access to the
+`SymptomLogs` spreadsheet could, in principle, view a draft row by opening the sheet
+tab directly — the same pre-existing limitation every other Foundation entity's
+Sheet-level access already has (docs/15's "least privilege" governs who has Sheet
+access at all, not row-level ACLs within one sheet). Not a new gap introduced by this
+batch.
+
+Verified, not just designed: `validation/phase-2a-foundation/conformance.js`'s Stage 8
+confirms cross-patient rejection on both edit and submit (direct function and real
+HTTP dispatch), the specific already-submitted rejection, submit-time re-validation
+against stored (not request-body) values, and that a spoofed `patient_id` field is
+still ignored on the write path.
+
 ## Phase 1.5 — Implementation Notes (Consultation Summary Pipeline)
 
 Full mapping of every standard above to its Phase 1.5 implementation is

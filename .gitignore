@@ -1,3 +1,8 @@
 # Environment-specific Apps Script deployment config (contains a real scriptId).
 # Copy apps-script/.clasp.json.example to apps-script/.clasp.json and fill it in locally.
 apps-script/.clasp.json
+
+# Dev-only tooling dependencies (Playwright, for validation/pa-*/browser-test.js).
+# package.json + package-lock.json are committed for reproducibility; the installed
+# packages themselves are not.
+node_modules/

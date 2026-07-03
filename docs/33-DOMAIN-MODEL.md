@@ -72,7 +72,14 @@ Calculator ──(patient variant)──> Patient Identity-scoped results (not y
 
 # 1. Identity & Access
 
-## 1.1 Patient — *Planned*
+## 1.1 Patient — *Implemented (Foundation Batch F3)*
+
+> Status corrected in the PA-4 documentation pass: this entity has been implemented
+> since Foundation's Batch F3 (`PatientIdentity.gs`, `shared/schemas/patient-identity.schema.json`)
+> and again via IA-2's `get_profile` route — the `*Planned*` label below was stale,
+> already flagged as an unresolved gap in docs/36 §12 and docs/39's own Repository
+> Consistency Review, and closed here per docs/39 Finding 2's recommendation to fix
+> these together in one pass rather than one at a time per batch.
 
 **Purpose:** The domain concept of a person under Wise's care — the full clinical and
 relationship context, as distinct from the bare technical identity that references it.
@@ -103,7 +110,10 @@ updating a phone number) is plausible without violating any current ADR.
 
 ---
 
-## 1.2 Patient Identity — *Planned*
+## 1.2 Patient Identity — *Implemented (Foundation Batch F3)*
+
+> Status corrected in the PA-4 documentation pass — same stale-label fix as §1.1 above,
+> same source (docs/36 §12, docs/39 Finding 2).
 
 **Purpose:** The minimal, permanent, technical identity every other record references.
 Deliberately kept smaller than "Patient" so that authentication method, contact
@@ -132,7 +142,10 @@ audited merge process — not solved now, flagged for when it's a real problem
 
 ---
 
-## 1.3 Session — *Planned*
+## 1.3 Session — *Implemented (Foundation Batch F4)*
+
+> Status corrected in the PA-4 documentation pass — same stale-label fix as §1.1/§1.2
+> above, same source (docs/36 §12, docs/39 Finding 2).
 
 **Purpose:** Proof that a specific request is genuinely coming from an authenticated
 Patient Identity, for a bounded window of time. The system's answer to "who is asking
@@ -329,7 +342,7 @@ is a natural, well-justified next step once Appointment is built (see docs/34).
 
 # 3. Patient-Facing Data
 
-## 3.1 Timeline Event — *Implemented (Batch PA-3, one entry_type)*
+## 3.1 Timeline Event — *Implemented (Batch PA-3, extended Batch PA-4 to a second source)*
 
 **Purpose:** A single entry in a patient's merged, reverse-chronological health feed —
 the general shape behind docs/29 §6's Timeline. Deliberately generalized here beyond
@@ -371,30 +384,71 @@ how many source entities eventually feed it (ADR-009's replaceability principle,
 applied to a read model). Widening `entry_type`'s enum is the concrete signal that
 moment has arrived — not before (`shared/schemas/consultation-history.md`).
 
+**Batch PA-4 update — the anticipated widening happened, at the response layer, not the
+row layer.** Per docs/41-SYMPTOM-TRACKER-READINESS-REVIEW.md's approved decision,
+submitted Symptom Log entries (§3.2) now feed this same Timeline. The implementation
+choice made: rather than widening `ConsultationHistory`'s own `entry_type` enum (which
+would conflate "what a `ConsultationHistory` row is" with "what the Timeline API
+returns"), a new contract — `shared/schemas/timeline-entry.schema.json` — defines the
+Timeline *response* item shape (`entry_type: "consultation" | "symptom_log"`) as its own
+thing, built by `apps-script/FoundationTimeline.gs`'s merge function from two unmodified
+sources (`FoundationConsultationHistory.gs`'s existing read, plus
+`FoundationSymptomLog.gs`'s submitted-only read). This is the concrete Timeline Event
+entity finally getting the general shape this section always described, decoupled from
+any one row-storage schema — see `shared/schemas/timeline-entry.md` for the full
+reasoning.
+
 ---
 
-## 3.2 Symptom Log — *Planned*
+## 3.2 Symptom Log — *Implemented (Batch PA-4)*
 
 **Purpose:** A patient's own, plain data-capture entry — severity, sleep, energy,
 stress, and optional notes — logged by the patient, about themselves. The only entity
-in this model a patient writes directly (docs/29 §9).
+in this model a patient writes directly (docs/29 §9). Per
+docs/41-SYMPTOM-TRACKER-READINESS-REVIEW.md's approved decisions, implemented with a
+two-state lifecycle no other entity in this model has: `draft` (editable, private to
+the patient, excluded from Timeline, not staff-visible, never AI-processed) and
+`submitted` (permanent from that point on, Timeline-visible, staff-visible, and
+eligible input for a future AI feature once one exists).
 
-**Attributes:** `record_id`, `patient_id`, `logged_at`, `severity`, `sleep`, `energy`,
-`stress`, `notes`, `condition_slug` (optional).
+**Attributes:** `record_id`, `patient_id`, `status` (`draft`/`submitted`), `severity`,
+`sleep`, `energy`, `stress` (each a 1-10 scale value or the empty-string "unset"
+sentinel while `draft`), `notes`, `condition_slug` (copied once from the patient's own
+profile at draft creation), `created_at`, `updated_at` (the first field in this model
+to track a genuine post-creation edit history), `submitted_at` (empty-string sentinel
+until submit — the field Timeline sorts a symptom-log-sourced entry by, playing the
+same role `entry_date` plays for Consultation History). Full detail:
+`shared/schemas/symptom-log.schema.json` and its companion `.md`.
 
 **Relationships:** Belongs to one Patient Identity, written by that same identity only
-(session-derived, never client-supplied — docs/29 §3, §10). Feeds Timeline Event
-(future extension) and, much later, Digital Twin's symptom-trend view (§4.3) — never
-directly analyzed or commented on by AI in Phase 2A (docs/29 §9's explicit boundary).
+(session-derived, never client-supplied — docs/29 §3, §10, and the first entity to
+extend this discipline to a write path). Feeds Timeline Event (§3.1) once
+`submitted` — never while `draft` — via `apps-script/FoundationTimeline.gs`'s merge, and
+will feed Digital Twin's future symptom-trend view (§4.3) the same way, once Phase 2D
+exists; that future consumer must read only `submitted` rows, never drafts. Never
+directly analyzed or commented on by AI in Phase 2A (docs/29 §9's explicit boundary) —
+unconditionally true regardless of status, since no AI exists anywhere in this phase.
 
-**Lifecycle:** Created by the patient at will; never edited or deleted by the patient
-once submitted (an honest, permanent self-report — consistent with an audit-style
-health record, not a mutable journal). Retained indefinitely, subject to future
+**Lifecycle:** Created by the patient at will as a `draft` (one open draft per patient
+at a time — a disclosed implementation simplification, not an architectural
+requirement); editable any number of times while `draft`; transitions to `submitted`
+exactly once, irreversibly, gated by a minimal re-validation of the row's own stored
+values (at least one scale value or a note must be present) — never trusting
+client-supplied values at submit time. Once `submitted`, never edited or deleted by the
+patient (an honest, permanent self-report — consistent with an audit-style health
+record, not a mutable journal). Retained indefinitely, subject to future
 "patient data belongs to the patient" mechanisms (docs/30 §3).
 
-**Ownership:** Patient-owned and patient-written; staff/doctor can view but not alter
-a patient's own entries — the health record belongs to the patient, not staff, for this
-one entity.
+**Ownership:** Patient-owned and patient-written for both states. Staff visibility for
+`submitted` rows is satisfied today via the same direct-Sheet-access model every other
+Foundation entity already uses — no dedicated staff Web App tool exists for this
+entity. **A disclosed, honest limitation:** "not visible to staff" for `draft` rows is
+an application-layer guarantee only (no Foundation route ever returns a draft to
+anyone but its owner) — Google Sheets itself has no row-level access control, so this
+is the same pre-existing limitation every other entity's Sheet-level access already
+has, not a new gap. No Foundation route allows staff or any other patient to alter a
+`submitted` row — the health record belongs to the patient, not staff, for this one
+entity.
 
 **Future evolution:** The natural first data source for Digital Twin's "symptom trends"
 (docs/09) once Phase 2D exists — no schema change anticipated, only a new consumer.
@@ -629,16 +683,16 @@ plausibly reuse the same batch pattern once scheduled.
 
 | Entity | Status | Phase (if any) |
 |---|---|---|
-| Patient | Planned | 2A |
-| Patient Identity | Planned | 2A |
-| Session | Planned | 2A |
+| Patient | Implemented | Foundation F3 |
+| Patient Identity | Implemented | Foundation F3 |
+| Session | Implemented | Foundation F4 |
 | Doctor | Conceptual (gap) | Unassigned |
 | Consultation | Conceptual | Unassigned |
 | Consultation Summary | Implemented | Phase 1.5 |
 | Doctor Instruction | Conceptual | Depends on Care Plan (2B) |
 | AI Summary | Conceptual (pattern) | Instantiated by Phase 1.5, 2D |
-| Timeline Event | Planned | 2A |
-| Symptom Log | Planned | 2A |
+| Timeline Event | Implemented | PA-3, extended PA-4 |
+| Symptom Log | Implemented | PA-4 |
 | Report | Planned | 2A |
 | Care Plan | Conceptual | Recommended 2B |
 | Digital Twin | Conceptual (view) | Recommended 2D |

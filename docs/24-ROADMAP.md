@@ -108,10 +108,26 @@ the two disclosed, additive exceptions (`FoundationRouter.gs`'s two new
 dispatch cases; `dashboard.js`'s Timeline-card wiring) are named in full
 in docs/29 §16's Batch PA-3 notes.
 
-Next: Batch PA-4 (docs/29 §13 Batch 5E) — the `SymptomLogs` sheet and
-the patient-facing Symptom Tracker (the first patient-*writable* Phase
-2A feature, per docs/29 §9). Not yet started; approval required before
-it begins.
+Batch PA-4 (docs/29 §13 Batch 5E) — the `SymptomLogs` sheet and the
+patient-facing Symptom Tracker (the first patient-*writable* Phase 2A
+feature, per docs/29 §9) — has also now shipped, preceded by
+docs/41-SYMPTOM-TRACKER-READINESS-REVIEW.md and three explicit decisions
+confirmed before implementation: a draft/submitted lifecycle (drafts
+editable and private to the patient; submitted entries immutable,
+Timeline-visible, and staff-visible) and no offline support. The Symptom
+Tracker card on `/my-health-journey/` now shows a draft-in-progress or
+most-recent-entry summary instead of an empty state, and submitted
+entries now appear in the merged Timeline alongside Consultation History.
+Zero unauthorized modification to any frozen file — the disclosed,
+additive exceptions (`FoundationRouter.gs`'s four new dispatch cases plus
+its repointed `get_timeline` handler; `dashboard.js`'s Symptom Tracker
+card wiring) are named in full in docs/29 §16's Batch PA-4 notes.
+
+Next: Batch 5F (Report Upload) — the highest-risk remaining Phase 2A
+feature (docs/29 §11), sequenced last among data features specifically
+so the write-authorization pattern is proven on lower-risk, non-file data
+first (now done, by PA-4). Not yet started; approval required before it
+begins.
 
 - Patient Login (passwordless, ADR-003)
 - Dashboard shell

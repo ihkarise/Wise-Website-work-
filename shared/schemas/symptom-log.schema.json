@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wisehomeopathy.com/shared/schemas/symptom-log.schema.json",
+  "title": "Symptom Log",
+  "version": "1.0.0",
+  "description": "The canonical shape of a SymptomLogs record — docs/29-PHASE-2A-TECHNICAL-PLAN.md §9's Symptom Tracker v1, and the concrete storage of docs/33-DOMAIN-MODEL.md §3.2's Symptom Log entity. Per docs/41-SYMPTOM-TRACKER-READINESS-REVIEW.md's approved decisions: supports a draft/submitted lifecycle (drafts editable and private to the patient; submitted entries immutable, Timeline-visible, and staff-visible). The only Foundation-family entity a patient can both write and edit before it becomes permanent. See symptom-log.md for the draft/submit state machine, the field-level validation split between draft and submit time, and the visibility rules for each status.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["record_id", "patient_id", "status", "severity", "sleep", "energy", "stress", "notes", "condition_slug", "created_at", "updated_at", "submitted_at"],
+  "properties": {
+    "record_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The permanent identity of this entry, generated once at draft creation and never reused — the same UUID identity strategy docs/40-CONSULTATION-IDENTITY-STRATEGY.md already established for Consultation History, applied here. Stable across the draft-to-submitted transition — submitting never changes record_id."
+    },
+    "patient_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The Patient Identity this entry belongs to (docs/33 §1.2, ADR-002). Always session-derived server-side, never client-supplied. Every fetch, edit, or submit of this record must verify this field matches the session-derived patient_id before acting on it — record_id alone is not an authorization boundary (docs/40 Q3's principle, applied identically here)."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["draft", "submitted"],
+      "description": "draft: editable by the owning patient, private to that patient — never returned by the Timeline feed, never visible to staff-facing tooling, never processed by AI. submitted: permanent and immutable from this point on; appears in the patient's merged Timeline; visible to clinic staff (via the same direct-Sheet-access model every other Foundation entity currently uses — no dedicated staff Web App tool exists for this entity, mirroring FoundationConsultationHistory.gs's own disclosed simplification); eligible input for future AI features (Digital Twin, Phase 2D) once those exist. A row moves draft -> submitted exactly once, never the reverse."
+    },
+    "severity": {
+      "type": "string",
+      "enum": ["", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"],
+      "description": "A 1-10 scale value (docs/29 §9), stored as a string per this project's existing convention (every Foundation schema so far stores scalar values as strings). Empty string is the legitimately-unset sentinel (the same convention shared/schemas/login-token.schema.json's used_at and shared/schemas/consultation-history.schema.json's source_ref already established) — only valid while status is draft; foundationValidateSymptomLogForSubmit_() requires at least one of severity/sleep/energy/stress/notes to be non-empty before a submit is accepted."
+    },
+    "sleep": {
+      "type": "string",
+      "enum": ["", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"],
+      "description": "Same shape and rules as severity."
+    },
+    "energy": {
+      "type": "string",
+      "enum": ["", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"],
+      "description": "Same shape and rules as severity."
+    },
+    "stress": {
+      "type": "string",
+      "enum": ["", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"],
+      "description": "Same shape and rules as severity."
+    },
+    "notes": {
+      "type": "string",
+      "description": "Optional free text, always optional (even at submit, provided at least one scale value is set — see the status field's description). HTML-escaped at render time by every consumer, never trusted as markup. Capped at 2000 characters by foundationValidateSymptomLogFieldValues_() (an application-level check; this schema's validator subset has no maxLength support, per validation/phase-2a-foundation/schema-validator.js's own documented scope)."
+    },
+    "condition_slug": {
+      "type": "string",
+      "description": "Optional. Copied automatically from the patient's own Patients.condition_slug at draft-creation time (docs/41 §10's recommendation to avoid exposing a manual slug picker in the UI for a value the patient's own record already has) — not independently validated against the canonical ALLOWED_CONDITION_SLUGS list, the same documented simplification shared/schemas/patient-identity.md already applies to Patients.condition_slug itself. Empty string if the patient's profile has none."
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Set once when the draft is first created. Never changes afterward, including after submit."
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Set at creation; updated every time the draft is edited, and updated one final time at submit (submitting is itself a write to this row). Frozen from that point on, since the row becomes immutable once submitted. The first Foundation-family field to track a genuine post-creation edit history — every other entity implemented so far is either never-edited (Symptom Log's own submitted state, Consultation History) or system-managed (Session, LoginTokens)."
+    },
+    "submitted_at": {
+      "type": "string",
+      "description": "Empty string while status is draft — the same legitimately-empty-until-set sentinel convention as login-token.schema.json's used_at. Set exactly once, at submit, and never changed afterward. This is the field the merged Timeline (shared/schemas/timeline-entry.schema.json) sorts a symptom-log-sourced entry by — the moment an entry becomes real and visible is the moment it is dated, mirroring Consultation History's entry_date playing the equivalent 'meaningful date' role for that entity. Deliberately not validated with format:date-time here (unlike created_at/updated_at) because it legitimately holds either an ISO timestamp or the empty-string sentinel — the same reason login-token.schema.json's used_at does not apply format:date-time to itself."
+    }
+  }
+}

@@ -32,11 +32,12 @@ pages; and real keyboard-driven focus-visibility and heading-hierarchy checks
 
 ## Running it
 
-Requires Playwright (see `validation/pa-2-dashboard/README.md`'s note on `NODE_PATH` if
-it's only installed globally in this environment):
+Requires Playwright — the root `package.json` (added in Batch PA-4) pins the exact
+version this environment's pre-provisioned Chromium matches:
 
 ```
-NODE_PATH=$(npm root -g) node validation/pa-3-timeline/browser-test.js
+npm install
+node validation/pa-3-timeline/browser-test.js
 ```
 
 No `apps-script/*.gs` file is exercised by this suite — backend conformance coverage is

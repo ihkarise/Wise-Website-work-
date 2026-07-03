@@ -31,7 +31,8 @@ delivery phase — a deliberate scope decision, recorded and justified in
 docs/32-ARCHITECTURE-REVIEW.md, not a silent expansion.
 
 **What Phase 2A is not:**
-- Not the Digital Twin (docs/09/docs/21 — Phase 2C).
+- Not the Digital Twin (docs/09/docs/21 — Phase 2D; corrected from a stale "Phase 2C"
+  reference in the PA-4 documentation pass, see this document's own Roadmap section).
 - Not WiseOS (docs/24 — Phase 3).
 - Not an AI chatbot or AI assistant of any kind. **No AI is used anywhere in this
   phase.** Symptom Tracker and Reports are pure data capture and display.
@@ -84,8 +85,12 @@ docs/32-ARCHITECTURE-REVIEW.md, not a silent expansion.
 
 ## 2.2 Out of Scope (deferred to a later phase, per docs/32's roadmap recommendation)
 - Personal Care Plan (no architecture exists yet — shown only as an empty state here).
-- Digital Twin, AI Summaries, Health Milestones, Progress Analytics (Phase 2C — depends
-  on ADR-001/004/005's AI-supervision pattern, not needed for anything in this phase).
+- Digital Twin, AI Summaries, Progress Analytics (**Phase 2D** — depends on
+  ADR-001/004/005's AI-supervision pattern, not needed for anything in this phase) and
+  Health Milestones (**Phase 2C** — no AI required, deliberately separated from Phase
+  2D's AI-supervised work). Corrected from a stale, conflated "Phase 2C" reference in
+  the PA-4 documentation pass — see this document's own Roadmap section, which already
+  states this split correctly.
 - Messages / Follow-up Center (no backend or design exists yet — empty state only).
 - Any SMS/Mobile OTP capability (no provider integrated; see ADR-003).
 - WiseOS, doctor dashboard, inventory, PillFill integration (Phase 3).
@@ -225,12 +230,18 @@ this purpose.
 # 6. Timeline Architecture
 
 Timeline is the **merged, read-only, reverse-chronological feed** of a patient's
-journey. For this phase it pulls from `ConsultationHistory` only (future phases add
-Care Plan milestones, Digital Twin events — not built here). One endpoint
-(`getPatientTimeline_`) reads and sorts by `entry_date`, capped (e.g., latest 50) for
-payload size/performance (docs/16). **No AI narrative generation** — that is
-explicitly Phase 2C's Digital Twin/AI Summary territory (ADR-001, ADR-004, ADR-005).
-This is a plain factual log of doctor-approved data only.
+journey. Originally scoped to `ConsultationHistory` only; per
+docs/41-SYMPTOM-TRACKER-READINESS-REVIEW.md's approved decision, Batch PA-4 adds
+submitted (never draft) Symptom Log entries as a second source, merged at read time by
+`apps-script/FoundationTimeline.gs` — `ConsultationHistory` and `SymptomLogs` remain
+independently unmodified; only the merged response combines them (Care Plan milestones,
+Digital Twin events remain future sources, not built here). Reads and sorts by
+`entry_date`, capped (e.g., latest 50) for payload size/performance (docs/16), applied
+once to the merged list. **No AI narrative generation** — that is explicitly **Phase
+2D's** Digital Twin/AI Summary territory (ADR-001, ADR-004, ADR-005; corrected from a
+stale "Phase 2C" reference in the PA-4 documentation pass, same fix as §9's). This is a
+plain factual log of doctor-approved and patient-submitted data only — never
+AI-generated, never AI-commented-on.
 
 ---
 
@@ -281,7 +292,31 @@ free-text note + optional `condition_slug` tag) → POST → row in `SymptomLogs
 `patient_id` taken from the verified session, never the request body. Display: the
 patient's own chronological log, at most a bare recent-value list. **Deliberately no
 trend analysis, no AI commentary, no insights** — that's Digital Twin/Progress
-Analytics territory (Phase 2C, ADR-001/004/005) and must not creep in here.
+Analytics territory (**Phase 2D**, ADR-001/004/005) and must not creep in here.
+(Corrected in the PA-4 documentation pass — this line previously misnamed Phase 2C;
+docs/24-ROADMAP.md, this document's own Roadmap section, and docs/33 §3.5 all
+consistently assign Digital Twin/AI Summaries/Progress Analytics to Phase 2D, with
+Phase 2C reserved for the non-AI Health Milestones work. A documentation-only fix,
+first surfaced by docs/41-SYMPTOM-TRACKER-READINESS-REVIEW.md's Repository Consistency
+Review.)
+
+**Approved before Batch PA-4 began (docs/41-SYMPTOM-TRACKER-READINESS-REVIEW.md,
+decisions confirmed prior to implementation):** Symptom Log has a draft/submitted
+lifecycle, extending this section's original single-step "form → POST → row" framing:
+
+- **Draft** — editable by the owning patient, private to that patient. Never appears
+  in Timeline, never visible to staff, never processed by AI (moot in Phase 2A, since
+  no AI exists anywhere in this phase, but a binding rule for a future AI feature).
+- **Submitted** — permanent and immutable from that point on. Appears in the patient's
+  merged Timeline (§6, updated below). Visible to clinic staff (via the same
+  direct-Sheet-access model every other Foundation entity already uses). Eligible input
+  for a future AI feature (Phase 2D's Digital Twin) once one exists.
+
+**Offline behavior, decided before implementation, not inferred:** no offline support
+in this batch. An active network connection is required for every Symptom Tracker
+action; a network failure shows a friendly, specific message and preserves the
+patient's in-progress, unsaved form values (never cleared) — no local persistence
+(`localStorage`/IndexedDB) and no background synchronization of any kind.
 
 ---
 
@@ -1425,3 +1460,138 @@ more general framing.
 Tracker (Batch 5E/PA-4) and Reports (Batch 5F) remain separate, independent dashboard
 cards — this batch deliberately does not merge either into the Timeline feed (docs/39
 §8/§9); adding "Patient Login" to primary nav (Batch 5G, unchanged).
+
+## Batch PA-4 (complete)
+
+Delivered exactly its named scope (§13 Batch 5E, §9 above): the `SymptomLogs` sheet, the
+platform's first patient-*writable* entity with a draft/submitted lifecycle, the
+Symptom Tracker page (quick-log form + own history), and the dashboard's Symptom
+Tracker card wired to real data. Preceded by a dedicated pre-implementation review
+(docs/41-SYMPTOM-TRACKER-READINESS-REVIEW.md), approved before any code was written,
+per this session's own instruction — including three explicit decisions confirmed
+before implementation began: a draft/submitted state machine (draft: editable, private,
+excluded from Timeline/staff/AI; submitted: immutable, Timeline-visible,
+staff-visible, future-AI-eligible), and no offline support (friendly message on network
+failure, no local persistence, no background sync).
+
+**Frozen components were not modified beyond the disclosed, additive exceptions named
+below.** Per this session's explicit instruction ("do not modify frozen Foundation,
+Identity & Access, PA-1/PA-2, or PA-3 components except for bug fixes"), every change
+to an already-shipped file is named here, not silently made:
+
+- `apps-script/FoundationRouter.gs` gained four new `switch` cases
+  (`create_symptom_draft`, `update_symptom_draft`, `submit_symptom_log`,
+  `get_symptom_logs`) and their thin wiring functions — the same category of disclosed,
+  additive exception PA-3 already used for its own two new cases. **One existing case's
+  behavior changed, disclosed explicitly:** `get_timeline`'s handler now calls the new
+  `FoundationTimeline.gs`'s `foundationGetPatientTimelineMerged_()` instead of
+  `FoundationConsultationHistory.gs`'s `foundationGetPatientTimeline_()` directly — an
+  intentional, approved product decision (submitted Symptom Log entries now appear in
+  Timeline), not a restructuring of the route itself. `get_timeline_entry` is
+  unchanged. `FoundationConsultationHistory.gs` itself was **not modified at all** —
+  the merge lives entirely in the new `FoundationTimeline.gs`, which only calls into
+  it.
+- `my-health-journey/dashboard.js` gained the Symptom Tracker card's real-data wiring
+  (`loadSymptomPreview()`, `symptomPreviewHtml()`, `symptomLogSummaryText()`) — the
+  explicitly-anticipated evolution of the PA-2 shell (docs/38 §9, already exercised
+  once by PA-3's own Timeline-card wiring), not a restructuring of the shell or its
+  session guard.
+- `validation/pa-2-dashboard/browser-test.js` was **updated, not just re-run** — the
+  Symptom Tracker card leaves the "Coming later in Phase 2A" placeholder the same way
+  Timeline did in PA-3, so the mock now also handles `get_symptom_logs` and the
+  badge-count assertions were adjusted accordingly (disclosed in that file itself, the
+  same way PA-3 disclosed its own equivalent update).
+- No other frozen file (`login.html`, `verify.html`, `assets/site.css`,
+  `my-health-journey/index.html`, `my-health-journey/session-guard.js`, any of the ten
+  Foundation files, any of the five Identity & Access files, `FoundationConsultationHistory.gs`,
+  the Timeline pages) was touched at all.
+
+**Draft/submit state machine, applied (docs/41).** `FoundationSymptomLog.gs` — one open
+draft per patient at a time (a disclosed simplification, not required by any approved
+architecture); every edit and submit re-verifies ownership first (anti-enumeration,
+generic `FOUNDATION_NOT_FOUND` for "not found" and "not yours" alike — extending
+docs/40's identity discipline to a write path for the first time), then checks draft
+status (a specific, patient-facing rejection for "already submitted," since the
+confirmed owner's own state is not an enumeration risk). Submit re-validates the row's
+own *stored* values, never the request body (the same "re-read live state" discipline
+Phase 1.5's `evaluateSendGate_()` already established for consent).
+
+**Timeline merge, applied (docs/33 §3.1, docs/41).** A new file,
+`FoundationTimeline.gs`, not a modification to `FoundationConsultationHistory.gs` —
+merges that file's unmodified `foundationGetPatientTimeline_()` output with
+`FoundationSymptomLog.gs`'s submitted-only entries into the shape defined by a new
+contract, `shared/schemas/timeline-entry.schema.json` (not a widened
+`consultation-history.schema.json` — see that schema's own `.md` for why keeping the
+two separate is the more correct read of ADR-009's replaceability principle here).
+
+**`shared/constants/` remains empty — the F3-deferred `condition_slug` validation was
+not added in this batch either, stated openly.** `symptom-log.md` records this as a
+recommended follow-up (a genuine second consumer, alongside `Patients.condition_slug`,
+now exists) rather than acted on here, to avoid inconsistently enforcing validation on
+one consumer and not the other.
+
+**Component Reuse Review, performed before writing any new markup.** `assets/site.css`
+tokens/`.card`/`.status`/`.skeleton` and the Empty State pattern reused unchanged;
+PA-3's `.tl-track`/`.tl-item` vertical list pattern reused for the Symptom Tracker's own
+submitted-history list (freshly implemented in the new page's own `<style>` block, same
+"avoid touching a frozen file" reasoning PA-3 itself used for the Timeline list);
+`my-health-journey/session-guard.js` reused unchanged for the new page — the fourth
+consumer of the module docs/39 §7 originally extracted for a second one.
+`login.html`/`verify.html`'s `.field`/`.submit` form components extended, for the first
+time in Phase 2A, into a genuinely multi-field form.
+
+**A disclosed information-architecture simplification, not literally matching this
+document's own §5 wording.** §5 describes the dashboard's Symptom Tracker card as
+having a "quick-log control" living directly on the card. This batch instead gives the
+card a summary plus a single link to a dedicated `/my-health-journey/symptom-tracker/`
+page containing the actual form — matching the pattern already established for
+Timeline (card = preview + link, dedicated page = full interaction) rather than
+duplicating form/validation/accessibility logic in two places. Chosen deliberately
+during implementation, recorded here rather than silently deviating from §5's
+original wording.
+
+**Verification performed** (all real, not assumed):
+- `node validation/static-analysis/analyze.js` — 0 findings (one real false-positive on
+  two functions passed by reference to `Array.prototype.map` — the same category of
+  scan gap PA-3 already found and fixed for `Array.prototype.sort` — resolved with an
+  explicit named call, not a tool change, per that batch's own precedent).
+- `node validation/phase-2a-foundation/conformance.js` — **111/111** (81 pre-existing +
+  Stage 8's 30 new checks), covering the draft/submit lifecycle end to end, cross-patient
+  isolation on the write path (the new authorization surface this batch introduces),
+  submit-time re-validation, the Timeline merge (schema conformance, draft exclusion,
+  correct sort), and all four new `FoundationRouter.gs` routes plus the changed
+  `get_timeline` route through the real HTTP dispatch layer — including that a
+  client-supplied `patient_id` field is still ignored in favor of the session-derived
+  value. One pre-existing Stage 7 assertion was updated, disclosed in `conformance.js`
+  itself: `get_timeline`'s HTTP-dispatch check no longer asserts `patient_id` on
+  returned rows, since the new merged-Timeline response shape
+  (`timeline-entry.schema.json`) deliberately excludes it — isolation remains enforced
+  upstream, inside the unmodified `foundationGetPatientTimeline_()`.
+- `node validation/phase-1-5/validate.js` — 42/42, unchanged.
+- `validation/pa-2-dashboard/browser-test.js` — updated (not just re-run): **29/29**
+  passed (28 pre-existing + 1 new), reflecting the Symptom Tracker card's real
+  behavior.
+- `validation/pa-3-timeline/browser-test.js` — re-run unchanged: **29/29** passed,
+  confirming zero regression to Timeline/Consultation History from this batch's
+  `get_timeline` behavior change.
+- `validation/pa-4-symptom-tracker/browser-test.js` — new, committed, mirroring
+  `pa-3-timeline`'s discipline exactly — **38/38** passed, covering the full
+  draft-create/edit/save/submit lifecycle, the approved offline-message behavior
+  (network failure preserves in-progress values, confirms zero `localStorage` use),
+  backend validation errors shown verbatim, the submitted-history list, the dashboard
+  card's draft-in-progress vs. most-recent-entry states, sign-out, 375px responsive
+  layout, and keyboard-driven accessibility (label association, heading hierarchy,
+  live-region status, focus visibility).
+- A repository-root `package.json` was added this batch, pinning `playwright` to the
+  exact version whose bundled Chromium matches this environment's pre-provisioned
+  browser — closing a real gap: `pa-2-dashboard/` and `pa-3-timeline/` were already
+  committed, already required `playwright`, but the repository had no installable
+  dependency manifest. `node_modules/` is `.gitignore`d; `package.json`/
+  `package-lock.json` are committed for reproducibility.
+
+**Deferred, not silently skipped:** a per-entry Symptom Tracker detail view (docs/41 §2
+found no need for one — a handful of scale values doesn't warrant its own page the way
+Consultation History's full text does); Report Upload (Batch 5F) remains a separate,
+independent dashboard card; adding "Patient Login" to primary nav (Batch 5G,
+unchanged); populating `shared/constants/` with the canonical condition-slug list
+(recommended, not required, by this batch — see above).

@@ -36,13 +36,19 @@ re-implementing the logic in the test.
 
 ## Running it
 
-Requires Playwright (this environment has it installed globally with
-Chromium pre-fetched; a project-local `npm install playwright` also works).
-If Playwright is only available globally:
+Requires Playwright. Batch PA-4 added a root `package.json` pinning `playwright` to
+the exact version whose bundled Chromium revision matches what this environment
+pre-provisions — closing the gap where this suite (and `pa-3-timeline/`'s) were
+already committed but had no installable dependency manifest:
 
 ```
-NODE_PATH=$(npm root -g) node validation/pa-2-dashboard/browser-test.js
+npm install
+node validation/pa-2-dashboard/browser-test.js
 ```
+
+If a future environment only has Playwright available globally instead, the older
+`NODE_PATH=$(npm root -g) node validation/pa-2-dashboard/browser-test.js` form still
+works.
 
 No `apps-script/*.gs` file is touched by this batch or exercised by this
 suite — backend regression coverage remains
@@ -61,5 +67,8 @@ real, deployed Web App URL.
 
 ## Result (last run)
 
-26/26 checks passed. See `docs/29-PHASE-2A-TECHNICAL-PLAN.md` §16's Batch
-PA-2 notes for the full breakdown.
+26/26 → updated to 29/29 in Batch PA-4: the Symptom Tracker card now also resolves via
+its own `get_symptom_logs` call, the same way PA-3 already updated this suite when the
+Timeline card was wired (`phase2aCount`/`nodataCount` assertions adjusted accordingly).
+See `docs/29-PHASE-2A-TECHNICAL-PLAN.md` §16's Batch PA-2 and PA-4 notes for the full
+breakdown.

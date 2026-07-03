@@ -8,6 +8,106 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-03 — Patient Access Batch PA-4 (Symptom Tracker — draft/submit lifecycle)
+
+Fourth Patient Access batch (docs/29 §13 Batch 5E), preceded by
+docs/41-SYMPTOM-TRACKER-READINESS-REVIEW.md and three explicit decisions confirmed
+before implementation began: a draft/submitted lifecycle (drafts editable and private
+to the patient, excluded from Timeline/staff/AI; submitted entries immutable,
+Timeline-visible, staff-visible, future-AI-eligible) and no offline support (friendly
+message on network failure, no local persistence, no background sync). **The
+platform's first patient-writable feature.** **No unauthorized modification to any
+frozen file** — every touch to an already-shipped file is named below, none silent.
+
+### Added
+- `shared/schemas/symptom-log.schema.json` + `.md` — the `SymptomLogs` contract,
+  including the draft/submitted state machine and the field-level validation split
+  between draft time (permissive) and submit time (a minimal, one-rule gate).
+- `shared/schemas/timeline-entry.schema.json` + `.md` — a new contract for the merged
+  Timeline API response item, decoupled from `consultation-history.schema.json`'s own,
+  narrower row shape — the concrete second-source implementation of docs/33 §3.1's
+  originally general "Timeline Event" entity.
+- `apps-script/FoundationSymptomLog.gs` — draft create/edit/submit
+  (`foundationGetOrCreateSymptomLogDraft_()`, `foundationUpdateSymptomLogDraft_()`,
+  `foundationSubmitSymptomLogDraft_()`), the patient's own draft+submitted history
+  (`foundationGetPatientSymptomLogs_()`), and a submitted-only feed for the Timeline
+  merge. The first entity where ownership *and* state (draft vs. submitted) both gate
+  every write.
+- `apps-script/FoundationTimeline.gs` — merges `FoundationConsultationHistory.gs`'s
+  unmodified Timeline read with submitted (never draft) Symptom Log entries into one
+  reverse-chronological feed, capped once at 50.
+- `my-health-journey/symptom-tracker/index.html` + `symptom-tracker.js` — the Symptom
+  Tracker page: the platform's first multi-field authenticated form (four optional
+  1-10 scale inputs + notes), draft save/submit with a live status region, and a
+  read-only submitted-history list reusing PA-3's `.tl-track`/`.tl-item` pattern.
+- `validation/pa-4-symptom-tracker/browser-test.js` + `README.md` — a new, committed
+  Playwright suite (38/38 passing), including the approved offline-message behavior
+  (network failure preserves in-progress values; confirms zero `localStorage` use).
+- Root `package.json` (+ `package-lock.json`) — pins `playwright` to the exact version
+  matching this environment's pre-provisioned Chromium, closing a real gap:
+  `pa-2-dashboard/` and `pa-3-timeline/` were already committed, already required
+  `playwright`, but the repository had no installable dependency manifest for it.
+  `node_modules/` is `.gitignore`d.
+
+### Changed
+- `apps-script/FoundationRouter.gs` — gained four new dispatch cases
+  (`create_symptom_draft`, `update_symptom_draft`, `submit_symptom_log`,
+  `get_symptom_logs`), the same disclosed, additive extension-point pattern PA-3 used.
+  **One existing case's behavior changed, disclosed explicitly:** `get_timeline` now
+  calls the new merge function instead of reading `ConsultationHistory` directly — an
+  intentional, approved product decision, not a restructuring of the route.
+  `get_timeline_entry` is unchanged; `FoundationConsultationHistory.gs` itself was not
+  modified at all.
+- `my-health-journey/dashboard.js` — the Symptom Tracker card now loads real data via
+  its own `get_symptom_logs` call, replacing its "Coming later in Phase 2A" placeholder
+  with a draft-in-progress message, the most recent submitted entry's summary, or the
+  "No data yet" Empty State.
+- `validation/phase-2a-foundation/harness.js` / `conformance.js` — extended with
+  `FoundationSymptomLog.gs`, `FoundationTimeline.gs`, and a new Stage 8 (30 new
+  checks).
+- `validation/pa-2-dashboard/browser-test.js` — updated (not just re-run) to reflect
+  the Symptom Tracker card's real behavior, the same kind of update PA-3 already made
+  for the Timeline card (mock extended for `get_symptom_logs`; badge-count assertions
+  adjusted; 29/29).
+
+### Notes
+- **Draft/submit state machine, applied (docs/41).** One open draft per patient at a
+  time (a disclosed simplification); every edit/submit re-verifies ownership first
+  (anti-enumeration, matching docs/40's discipline), then draft status (a specific,
+  patient-facing rejection for "already submitted" — the confirmed owner's own state is
+  not an enumeration risk); submit re-validates the row's own *stored* values, never
+  the request body.
+- **A disclosed, honest limitation, stated openly, not silently assumed away:** "not
+  visible to staff" for a draft row is an application-layer guarantee only — Google
+  Sheets has no row-level access control, so this is the same pre-existing limitation
+  every other Foundation entity's Sheet-level access already has, not a new gap.
+- **A disclosed information-architecture simplification:** the dashboard's Symptom
+  Tracker card links to a dedicated page rather than hosting a "quick-log control"
+  directly on the card (docs/29 §5's original wording) — matching the pattern already
+  established for Timeline (card = preview + link, page = full interaction) rather than
+  duplicating form/validation/accessibility logic twice.
+- Verified: `node validation/static-analysis/analyze.js` (0 findings — two functions
+  passed by reference to `Array.prototype.map`, the same category of scan gap PA-3
+  already found and fixed for `.sort`, resolved with an explicit named call);
+  `node validation/phase-2a-foundation/conformance.js` (**111/111**, 30 new in Stage 8);
+  `node validation/phase-1-5/validate.js` (42/42, unchanged);
+  `validation/pa-2-dashboard/browser-test.js` (**29/29**, updated);
+  `validation/pa-3-timeline/browser-test.js` (**29/29**, re-run unchanged, confirming
+  zero regression to Timeline/Consultation History from `get_timeline`'s behavior
+  change); `validation/pa-4-symptom-tracker/browser-test.js` (**38/38**, new).
+- `docs/29-PHASE-2A-TECHNICAL-PLAN.md` §16 gained a new Batch PA-4 entry (naming both
+  disclosed frozen-file exceptions in full) and §9/§6 were corrected for a stale
+  "Phase 2C" reference (should read Phase 2D, first found by docs/41's Repository
+  Consistency Review); `docs/04-COMPONENT-LIBRARY.md` gained concrete Symptom Tracker
+  Card/Form/History/Offline-messaging entries; `docs/24-ROADMAP.md` updated to reflect
+  PA-4 shipped and name Report Upload (Batch 5F) next; `docs/33-DOMAIN-MODEL.md`'s
+  Symptom Log entity updated from *Planned* to *Implemented*, Timeline Event's entry
+  extended to note the second source, and three separately-known-stale `*Planned*`
+  labels (Patient, Patient Identity, Session) and one Summary Table drift (Timeline
+  Event) were corrected in the same pass, per docs/39 Finding 2's own recommendation to
+  batch these fixes together; `docs/15-SECURITY-STANDARDS.md` gained a Batch PA-4
+  section documenting the new write-path authorization pattern.
+
 ## 2026-07-03 — Patient Access Batch PA-3 (Consultation History, Timeline, Consultation History detail)
 
 Third Patient Access batch (docs/29 §13 Batch 5D), preceded by

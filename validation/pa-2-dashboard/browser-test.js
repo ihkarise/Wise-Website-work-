@@ -64,13 +64,18 @@ const FAKE_TOKEN = 'fake-session-token-for-tests';
 // routes by the parsed request's foundation_action so that call gets a
 // realistic, empty-timeline response (rendering the real "No data yet"
 // Empty State) rather than being silently mismatched against whatever
-// envelope a given test passed in for get_profile.
+// envelope a given test passed in for get_profile. Batch PA-4 adds the
+// same treatment for get_symptom_logs (dashboard.js's loadSymptomPreview()).
 async function mockGetProfile(page, envelope) {
   await page.route('**/macros/s/**/exec', async (route) => {
     let action = null;
     try { action = JSON.parse(route.request().postData()).foundation_action; } catch (e) { /* not JSON — fall through */ }
     if (action === 'get_timeline') {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'ok', data: [] }) });
+      return;
+    }
+    if (action === 'get_symptom_logs') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'ok', data: { draft: null, submitted: [] } }) });
       return;
     }
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(envelope) });
@@ -132,7 +137,10 @@ async function main() {
       // Batch PA-3: the Timeline card now resolves via its own, separate
       // get_timeline call (dashboard.js's loadTimelinePreview()) — wait for
       // that card's own skeleton to clear before asserting on badge counts.
+      // Batch PA-4: the Symptom Tracker card now resolves the same way via
+      // get_symptom_logs (loadSymptomPreview()) — wait for its skeleton too.
       await page.waitForSelector('#card-timeline-body:not(:has(.skeleton))');
+      await page.waitForSelector('#card-symptoms-body:not(:has(.skeleton))');
 
       const greetingText = await page.textContent('#greeting');
       check('Dashboard: greeting shows the real patient name from get_profile', greetingText.indexOf('Asha Menon') !== -1);
@@ -144,12 +152,18 @@ async function main() {
       const phase2aCount = await page.$$eval('.badge-phase2a', (els) => els.length);
       const futureCount = await page.$$eval('.badge-future', (els) => els.length);
       const nodataCount = await page.$$eval('.badge-nodata', (els) => els.length);
-      check('Dashboard: Symptom Tracker/Reports use the "Coming later in Phase 2A" badge (Timeline is now wired — PA-3)', phase2aCount === 2);
+      // Batch PA-4: Symptom Tracker also leaves the "Coming later" state
+      // (only Reports remains, since 5F hasn't shipped) — phase2aCount
+      // drops from 2 to 1, the same kind of update PA-3 already made to
+      // this exact assertion when Timeline was wired.
+      check('Dashboard: Reports still uses the "Coming later in Phase 2A" badge (Timeline and Symptom Tracker are now wired — PA-3/PA-4)', phase2aCount === 1);
       check('Dashboard: Care Plan/Messages/Digital Twin use the "Planned for a future version" badge', futureCount === 3);
-      check('Dashboard: Timeline card renders the real "No data yet" badge for a patient with zero entries (PA-3, real render, not just the exposed function)',
-        nodataCount === 1);
+      check('Dashboard: Timeline AND Symptom Tracker cards render the real "No data yet" badge for a patient with zero entries (PA-3/PA-4, real render, not just the exposed function)',
+        nodataCount === 2);
       const timelineBadgeParent = await page.$eval('#card-timeline-body', (el) => el.querySelector('.badge-nodata') !== null);
-      check('Dashboard: the "No data yet" badge specifically belongs to the Timeline card', timelineBadgeParent);
+      check('Dashboard: the "No data yet" badge belongs to the Timeline card', timelineBadgeParent);
+      const symptomsBadgeParent = await page.$eval('#card-symptoms-body', (el) => el.querySelector('.badge-nodata') !== null);
+      check('Dashboard: the "No data yet" badge also belongs to the Symptom Tracker card', symptomsBadgeParent);
 
       const badgeText = await page.$eval('.badge-phase2a', (el) => el.textContent);
       check('Dashboard: Phase 2A badge copy matches the approved wording', badgeText === 'Coming later in Phase 2A');
