@@ -8,6 +8,52 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-02 — Phase 2A implementation: Foundation Batch F4 (session + route protection)
+
+Fourth implementation batch of Phase 2A, per the approved Foundation Implementation
+Plan. Delivers exactly the scope two forward references already committed in F3:
+`apps-script/README.md`'s module table and `FoundationConfig.gs`'s comment both named
+`FoundationSession.gs`/`FoundationRouteGuard.gs` and PropertiesService consumption as
+landing in F4.
+
+### Added
+- `shared/schemas/session.schema.json` (v1.0.0) + `.md` — the canonical Session
+  payload (`patient_id`, `issued_at`, `expires_at`) and wire-format contract (docs/33
+  §1.3). Committed ahead of its implementation, in its own commit, per
+  `shared/README.md`'s rule — F3 was the last batch eligible for the create-together
+  bootstrap exception.
+- `apps-script/FoundationSession.gs` — `foundationIssueSessionToken_()` /
+  `foundationVerifySessionToken_()`, HMAC-SHA256-signed session tokens (ADR-002,
+  ADR-003, ADR-010). Pure payload/expiry/shape logic and a constant-time signature
+  comparison are split from the real, `PropertiesService`-reading entry points via a
+  `WithSecret_` core, so the full issue-verify round trip is testable offline.
+- `apps-script/FoundationRouteGuard.gs` — `withFoundationAuth_()`, gating a handler
+  behind a verified session and deriving `patient_id` only from the token, never
+  client input. Logs a `session_rejected` audit event on every rejection.
+- `apps-script/FoundationTests.gs` extended — pure-logic coverage for both new files
+  plus a full offline issue-then-verify round trip against an explicit test secret.
+- `FoundationConfig.gs`'s `SESSION_TTL_SECONDS` (3600 — 60 minutes, the low end of
+  docs/29 §3's 60–90 minute range, per ADR-010's security-over-convenience default).
+
+### Not in scope (deferred, tracked in docs/29 §13/§14)
+- `LoginTokens` (the sheet, and the magic-link request/consume flow that resolves an
+  email to a `patient_id` in the first place) — F3's forward references named only
+  Session and route protection, not this.
+- Any Web App route wiring `withFoundationAuth_()` to a real, callable endpoint.
+
+### Notes
+- Static analysis: 2 new findings (`foundationIssueSessionToken_`,
+  `withFoundationAuth_` — both real entry points with no consumer yet, exactly the
+  "infrastructure built ahead of its consumer" pattern F3 already established, not a
+  bug). Combined with F2/F3's 4 already-accepted findings, 6 total, all Deferred.
+- `validation/phase-1-5/validate.js` re-run clean (39/39) — zero regression.
+- A cryptographic primitive (HMAC-SHA256) is deliberately never hand-rolled into a
+  portable reference file — `shared/schemas/session.md` states why; the schema
+  defines the payload/wire-format contract only, and each runtime's own native HMAC
+  implementation computes the signature.
+- Full build summary (modules, tests, static analysis, deferred findings, validation,
+  regression, documentation, CHANGELOG): this batch's pull request description.
+
 ## 2026-07-02 — Phase 2A implementation: Foundation Batch F3 (data layer + Patient Identity)
 
 Third implementation batch of Phase 2A, per the approved Foundation Implementation

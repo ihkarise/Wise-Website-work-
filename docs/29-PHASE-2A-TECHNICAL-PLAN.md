@@ -568,3 +568,84 @@ docs/28 treated Phase 1.5's live deployment as separate from "software complete"
 `FoundationDataStore.gs`'s `foundationDsGetOrCreateSheet_()` creates the `Patients` and
 `AuditLog` tabs (with the correct header) automatically on first real use once a real
 ID is set; nothing about that step is simulated or assumed complete here.
+
+## Batch F4 (complete)
+
+Delivered exactly the scope named by two forward references already merged in F3:
+`apps-script/README.md`'s Foundation module table ("`FoundationSession.gs`/
+`FoundationRouteGuard.gs` coverage lands in F4") and `FoundationConfig.gs`'s comment
+("Script Properties key names Foundation modules will read via PropertiesService, from
+F4 onward"). Concretely: `shared/schemas/session.schema.json` (v1.0.0) + `.md`;
+`apps-script/FoundationSession.gs` (session token issuance/verification, ADR-002/
+ADR-003/ADR-010); `apps-script/FoundationRouteGuard.gs` (`withFoundationAuth_()`, route
+protection deriving `patient_id` only from a verified token, never client input);
+`apps-script/FoundationTests.gs` extended with pure-logic and full-round-trip coverage
+for both new files; `FoundationConfig.gs` extended with `SESSION_TTL_SECONDS` (3600 —
+60 minutes, the low end of §3's 60–90 minute range, per ADR-010).
+
+**Not in scope, and not silently expanded into:** `LoginTokens` (the sheet and the
+magic-link request/consume flow that actually produces a `patient_id` to issue a
+session for), and any Web App route (`doPost`) wiring `withFoundationAuth_()` to a real
+endpoint. Neither was named in F3's forward references, and building either here would
+have been exactly the kind of undirected scope growth this plan's batch sequencing
+exists to prevent. `foundationIssueSessionToken_()` takes an already-resolved
+`patient_id` as its input specifically so it doesn't need to assume a particular
+upstream login mechanism — see `shared/schemas/session.md`'s "Relationship to
+LoginTokens." Both remain open, tracked under §13's Batch 5B and this section's own
+F5+ continuation.
+
+**A cryptographic primitive is never hand-rolled for "portability."** `shared/utils/
+core.reference.js` (F2) ports small algorithmic helpers as plain, portable JS because
+their contract *is* the algorithm. HMAC-SHA256 is different — every real runtime
+already provides it natively, and re-implementing a cryptographic primitive in portable
+JS "for portability" is a known anti-pattern, not a style choice.
+`shared/schemas/session.md` states this explicitly: the schema defines the payload
+shape and the wire format; the actual signature computation is Apps Script's own
+`Utilities.computeHmacSha256Signature`, mirrored only by Node's standard `crypto`
+module in this batch's ad hoc verification pass (a faithful mock of a standard
+algorithm, not a guess) — the same "mock the platform API, run the real logic"
+discipline `validation/phase-1-5/` and F3 already established for `SpreadsheetApp`.
+
+**Signature comparison is constant-time, deliberately.** `foundationConstantTimeEquals_()`
+avoids a naive `===`, which short-circuits on the first differing character and can
+leak timing information about a forged signature (ADR-010: the more secure default).
+
+**Test design keeps `FoundationTests.gs` genuinely offline.** Every new function that
+needs the real signing secret or Apps Script's HMAC primitive is split into a
+`WithSecret_`-suffixed core (secret and clock passed explicitly) and a real entry point
+that reads `PropertiesService`. `FoundationTests.gs` exercises the full issue-then-
+verify round trip, tampering rejection, wrong-secret rejection, and expiry entirely
+through the `WithSecret_` cores with an explicit test secret — never touching
+`PropertiesService`, so the suite has zero risk of reading or clobbering a real
+`FOUNDATION_SESSION_SIGNING_SECRET`. `FoundationRouteGuard.gs`'s functions are
+excluded from this suite for the same reason `PatientIdentity.gs`'s Sheet-touching
+functions were in F3: `withFoundationAuth_()`'s rejection path calls
+`foundationLogAuditEvent_()`, a live-Sheet write — verified instead by the ad hoc
+functional pass below.
+
+**Verification performed** (all real, not assumed): the static-analysis pass (below);
+`node --check` on every new `.gs` file; every pure function in `FoundationTests.gs`
+(payload construction, expiry boundary — before/at/after `expires_at` — payload-shape
+validation, constant-time comparison, and the full `WithSecret_` round trip) executed
+directly in Node via `vm`, no Apps Script dependency; a separate ad hoc functional pass
+mocking `Utilities` (HMAC via Node's `crypto`, faithfully), `PropertiesService`, and a
+minimal in-memory `SpreadsheetApp` (same shape F3's mock used) exercising the *real*
+entry points — `foundationIssueSessionToken_()` → `foundationVerifySessionToken_()`
+round trip, tampered-token rejection, fail-closed behavior (not a thrown exception)
+when the signing secret is unset, `withFoundationAuth_()` calling `handlerFn` with the
+server-derived `patientId` on a valid token, `withFoundationAuth_()` rejecting an
+invalid token without ever calling `handlerFn`, confirming exactly one
+`session_rejected` `AuditLog` row is written on rejection, and cross-patient isolation
+(two different patients' tokens resolve to their own, non-interchangeable
+`patientId`) — 9/9 ad hoc checks passed; the issued payload's shape independently
+checked against `session.schema.json`'s `required`/`properties`/`additionalProperties`
+constraints — all passed; `validation/phase-1-5/validate.js` re-run clean (39/39),
+confirming zero regression to Phase 1.5.
+
+**Static analysis: 2 new findings, both expected, same pattern as F3.**
+`foundationIssueSessionToken_` and `withFoundationAuth_` report zero call-sites —
+both are real entry points with no consumer yet, because their consumer (a `LoginTokens`
+magic-link flow for the former, an actual protected Web App route for the latter) is
+explicitly out of this batch's scope (above). Not fixed by inventing a call-site.
+Combined with F2/F3's 4 already-accepted findings (unchanged), this batch's full run
+reports 6 total findings, all Deferred, zero Error/Warning/Intentional.
