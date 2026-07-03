@@ -75,14 +75,20 @@ See docs/29 §14 for batch-by-batch implementation notes and
 docs/35-FOUNDATION-CLOSEOUT.md for the closeout summary and next-phase
 entry criteria.
 
-Identity & Access, split into two independent batches (docs/29 §15), is
-now complete: **IA-1 (infrastructure only — LoginToken generation,
-hashing, expiration, single-use enforcement) and IA-2 (the magic-link
-request/consume flow, rate limiting, account-enumeration protection, and
-Foundation's first authenticated Web App route, `get_profile`) both
-shipped.** See docs/29 §15 for full batch-by-batch detail. Approval
-required before the next Identity & Access work (login.html/verify.html,
-the dashboard shell) begins.
+Identity & Access backend, split into two independent batches (docs/29
+§15), is now complete and **frozen except for bug fixes**: IA-1
+(infrastructure only — LoginToken generation, hashing, expiration,
+single-use enforcement) and IA-2 (the magic-link request/consume flow,
+rate limiting, account-enumeration protection, and Foundation's first
+authenticated Web App route, `get_profile`) both shipped. See docs/29
+§14/§15 for full batch-by-batch detail and
+docs/36-IDENTITY-AND-ACCESS-CLOSEOUT.md for the closeout summary and
+Patient Access entry criteria.
+
+**Patient Access is the next milestone** — the frontend half of docs/29
+§13's original Batch 5B (`login.html`/`verify.html`), recommended as the
+first Patient Access batch by docs/36 §12, followed by the dashboard
+shell (Batch 5C). Not yet started; approval required before it begins.
 
 - Patient Login (passwordless, ADR-003)
 - Dashboard shell

@@ -8,6 +8,28 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-03 — Identity & Access Closeout (docs only)
+
+Documentation-only batch. Added `docs/36-IDENTITY-AND-ACCESS-CLOSEOUT.md`: the
+official closeout of the Identity & Access backend (batches IA-1, IA-2) — objectives,
+delivered scope, architecture and authentication-flow summary, security model, shared
+contracts, validation/regression/static-analysis results (each re-verified fresh
+against the final merged state, not transcribed from prior PR descriptions), deferred
+work, lessons learned, and Patient Access entry criteria. No `apps-script/*.gs` file,
+`shared/` contract, or architecture document was modified — confirmed via `git diff`.
+`docs/24-ROADMAP.md` updated to point at it.
+
+**Identity & Access backend is now frozen except for bug fixes** — see docs/36 §12.
+The five files IA-1/IA-2 delivered (`FoundationLoginTokens.gs`,
+`FoundationRateLimit.gs`, `FoundationEmail.gs`, `FoundationLoginFlow.gs`,
+`FoundationRouter.gs`) plus `Code.gs`'s one-line dispatch shim join Foundation's ten
+frozen files as stable, tested infrastructure. Future capability is delivered by
+adding new files, never by reopening these six.
+
+**Patient Access is the next milestone**, not yet started — recommended first batch
+(docs/36 §12): `login.html`/`verify.html`, the deferred frontend half of docs/29 §13's
+original Batch 5B, before Batch 5C's dashboard shell.
+
 ## 2026-07-03 — Identity & Access Batch IA-2 (login flow, rate limiting, first authenticated route)
 
 Second of two independent Identity & Access batches this milestone was split into
