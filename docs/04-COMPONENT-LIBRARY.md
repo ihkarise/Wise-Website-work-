@@ -222,11 +222,10 @@ the next action") into three tones, so a patient isn't given the same
 expectation for every unfinished feature:
 
 - **No data yet** — a real, wired feature with zero rows for this specific
-  patient. No card in this batch has a live data source, so this variant has
-  no page consumer yet — built and directly verified
-  (`validation/pa-2-dashboard/browser-test.js`, via the page's own exposed
-  `window.WiseDashboard.emptyStateHtml()`), with its first real consumer
-  arriving whichever of Batches 5D/5E/5F ships first.
+  patient. Built and verified in PA-2 with no live consumer yet; Batch PA-3
+  gave it its first real one (the Timeline card and the Timeline list page,
+  for a patient with zero Consultation History entries) — see the Batch PA-3
+  section below.
 - **Coming later in Phase 2A** — Timeline, Symptom Tracker, Reports. Named,
   sequenced batches already exist for each (5D/5E/5F).
 - **Planned for a future version** — Care Plan, Messages, Digital Twin. No
@@ -245,6 +244,47 @@ rejection reason, mirroring `FOUNDATION_UNAUTHORIZED`'s own generic code.
 
 ---
 
+## Phase 2A — Timeline & Consultation History Components (Batch PA-3)
+
+Built against docs/39's readiness review and docs/40's identity-strategy
+clarification. Gives the Timeline card (PA-2) its first real data source and adds two
+new pages, both reusing `assets/site.css` unchanged.
+
+### Timeline Preview (dashboard card, `my-health-journey/dashboard.js`)
+
+The Timeline card's Empty State is replaced with real data once loaded: the three
+most recent entries (date + title) plus a "View full timeline" link — or the "No data
+yet" Empty State for a patient with zero entries. A card-local skeleton shows while
+its own `get_timeline` call is pending, independent of the header's `get_profile` call.
+
+### Timeline List (`my-health-journey/timeline/`)
+
+A real ordered list (`<ol>`), one `<li>` per entry — chronological order is content,
+not decoration. Each entry: date, title (`h3`), a truncated summary, and a "View
+details" link keyed by the entry's `record_id` (docs/40) — never by list position.
+Visually adapted from the public site's `.journey`/`.j-step` vertical-timeline pattern
+(docs/29 §5's named reuse target), freshly implemented rather than imported, to avoid
+touching the frozen public stylesheet. Empty and error states follow the same
+Empty-State/Error-State conventions as the dashboard shell.
+
+### Consultation History Detail (`my-health-journey/timeline/entry.html`)
+
+Read-only — full, untruncated entry text (unlike the list's truncated preview), a
+"back to Timeline" link (no dead ends), and the backend's own error message displayed
+verbatim on rejection (never a raw or invented message) — whether the requested
+`record_id` doesn't exist or belongs to a different patient, the message and behavior
+are identical, so no page ever reveals which case occurred.
+
+### Shared Session Guard (`my-health-journey/session-guard.js`)
+
+New — the first cross-page shared script in Phase 2A, consumed by the Timeline list
+and detail pages (docs/39 §7's "ripe for extraction" recommendation, acted on now that
+a second and third authenticated page exist). Deliberately does not replace
+`dashboard.js`'s own independent implementation, which stays frozen except for its
+explicitly-planned Timeline-wiring addition.
+
+---
+
 ## Future Components
 
 Reserved for later phases — real data wiring, not the shell itself
@@ -254,4 +294,3 @@ Reserved for later phases — real data wiring, not the shell itself
 - Symptom Tracker (data entry + own history — shell placeholder shipped in PA-2)
 - AI Summary
 - Progress Cards
-- Health Timeline (data — shell placeholder shipped in PA-2)

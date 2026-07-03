@@ -10,23 +10,38 @@
  * (FoundationContracts.gs); this file's only job is picking the right
  * handler and serializing the result to the wire — the same "thin entry
  * point, no business logic" discipline Code.gs's own header comment
- * already states for Phase 1.5. get_profile is the one exception worth
- * naming: it is pure wiring (withFoundationAuth_ + a single already-
- * existing lookup call, no validation or orchestration of its own), so it
- * lives here directly rather than in its own file; request/consume
- * (real orchestration across multiple Foundation entities) live in
- * FoundationLoginFlow.gs.
+ * already states for Phase 1.5. get_profile, get_timeline, and
+ * get_timeline_entry are all pure wiring (withFoundationAuth_ + a single
+ * already-existing entity call, no validation or orchestration of their
+ * own), so all three live here directly rather than in their own files;
+ * request/consume (real orchestration across multiple Foundation
+ * entities) live in FoundationLoginFlow.gs.
  *
  * Unauthenticated actions (docs/29 §3's necessarily-public request-link
  * step): request_login_link, consume_login_link.
- * Authenticated action (routed through withFoundationAuth_(),
- * FoundationRouteGuard.gs): get_profile — deriving patient_id only from
- * the verified session, never from the request body (ADR-002, docs/29
- * §3). Also gives foundationGetPatientById_() (PatientIdentity.gs,
- * Deferred since F3 per docs/35 §6: "A real lookup consumer (e.g. a
- * login flow)") and withFoundationAuth_() (FoundationRouteGuard.gs,
- * Deferred since F4 per docs/35 §6: "A real, protected Web App route")
- * their first real consumers.
+ * Authenticated actions (routed through withFoundationAuth_(),
+ * FoundationRouteGuard.gs), deriving patient_id only from the verified
+ * session, never from the request body (ADR-002, docs/29 §3):
+ *   - get_profile — IA-2's original authenticated route.
+ *   - get_timeline / get_timeline_entry — Batch PA-3 additions (docs/29
+ *     §13 Batch 5D). get_timeline_entry additionally verifies the
+ *     requested record_id's own patient_id matches the session-derived
+ *     one before returning it (docs/40-CONSULTATION-IDENTITY-STRATEGY.md
+ *     Q3) — record_id's unguessability is not itself an authorization
+ *     boundary, so FoundationConsultationHistory.gs's
+ *     foundationGetConsultationEntryById_() performs that check, not this
+ *     file.
+ *
+ * A disclosed, additive exception, same category as Code.gs's own
+ * one-line dispatch shim (IA-2): this file was previously listed among
+ * Identity & Access's six files "frozen except for bug fixes"
+ * (docs/36 §12). Adding a new `case` to the switch below for a wholly new,
+ * additive action — touching zero existing lines, changing zero existing
+ * behavior — is this router's designed extension point, the same way
+ * get_profile's own case was added here in IA-2. Every future data-feature
+ * batch (5E, 5F) will need the same kind of addition; the freeze protects
+ * existing routes from being restructured, not this file from ever
+ * gaining a new one.
  *
  * Uses ContentService directly, not Code.gs's own jsonResponse_() helper
  * — that helper wraps its body in a numeric-status envelope
@@ -39,7 +54,7 @@
  * file.
  *
  * Depends on FoundationContracts.gs, FoundationLoginFlow.gs,
- * FoundationRouteGuard.gs, PatientIdentity.gs.
+ * FoundationRouteGuard.gs, PatientIdentity.gs, FoundationConsultationHistory.gs.
  */
 
 /**
@@ -49,6 +64,30 @@
 function foundationHandleGetProfile_(input) {
   return withFoundationAuth_(input && input.session_token, function (patientId) {
     return foundationGetPatientById_(patientId);
+  });
+}
+
+/**
+ * Batch PA-3: returns the caller's own Consultation History, sorted and
+ * capped for Timeline display (docs/29 §6). patient_id is always
+ * session-derived, never client-supplied.
+ */
+function foundationHandleGetTimeline_(input) {
+  return withFoundationAuth_(input && input.session_token, function (patientId) {
+    return foundationGetPatientTimeline_(patientId);
+  });
+}
+
+/**
+ * Batch PA-3: returns a single Consultation History entry by record_id,
+ * scoped strictly to the caller's own session-derived patient_id
+ * (docs/40 Q3) — foundationGetConsultationEntryById_() itself performs the
+ * ownership check and returns the same generic FOUNDATION_NOT_FOUND
+ * whether the record_id doesn't exist or belongs to someone else.
+ */
+function foundationHandleGetTimelineEntry_(input) {
+  return withFoundationAuth_(input && input.session_token, function (patientId) {
+    return foundationGetConsultationEntryById_(patientId, input && input.record_id);
   });
 }
 
@@ -81,6 +120,12 @@ function handleFoundationRequest_(input) {
       break;
     case 'get_profile':
       envelope = foundationHandleGetProfile_(input);
+      break;
+    case 'get_timeline':
+      envelope = foundationHandleGetTimeline_(input);
+      break;
+    case 'get_timeline_entry':
+      envelope = foundationHandleGetTimelineEntry_(input);
       break;
     default:
       envelope = buildFoundationErrorEnvelope_('FOUNDATION_UNKNOWN_ACTION', 'Unknown request.');

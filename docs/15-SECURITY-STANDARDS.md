@@ -80,6 +80,27 @@ requirements above, now real for the first time:
   validated server-side before use, and no signing secret or API key is ever returned
   in a response.
 
+## Phase 2A — Implementation Notes (Batch PA-3, Consultation History)
+
+A new authorization shape, beyond what IA-2's `get_profile` needed: **record-ownership
+verification for a client-supplied identifier.** Every route through Batch PA-3
+(`get_timeline`, `get_timeline_entry`) still derives `patient_id` exclusively from the
+verified session (ADR-002, unchanged) — but `get_timeline_entry` additionally accepts a
+client-supplied `record_id`, the first time any Foundation route has taken one. Session
+verification alone is necessary but not sufficient here:
+`foundationGetConsultationEntryById_()` (`FoundationConsultationHistory.gs`)
+independently checks that the fetched row's own `patient_id` equals the session-derived
+`patient_id` before returning it — "unguessable" (the `record_id` is a random UUID) and
+"authorized" are two separate properties, and only the session-derived ownership check
+is the real boundary (see docs/40-CONSULTATION-IDENTITY-STRATEGY.md Q3 for the full
+reasoning). An unknown `record_id` and a `record_id` belonging to a different patient
+return the identical `FOUNDATION_NOT_FOUND` envelope — the same anti-enumeration
+discipline already applied to login tokens and session rejection, extended to this new
+case: a caller can never distinguish "not yours" from "doesn't exist." Verified, not
+just designed: `validation/phase-2a-foundation/conformance.js`'s Stage 7 confirms both
+the direct-function check and the same rejection through the real HTTP dispatch layer,
+including that a spoofed `patient_id` field in the request body is still ignored.
+
 ## Phase 1.5 — Implementation Notes (Consultation Summary Pipeline)
 
 Full mapping of every standard above to its Phase 1.5 implementation is

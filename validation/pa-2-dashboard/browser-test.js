@@ -59,8 +59,20 @@ function startServer() {
 // is mocked at the network layer for every case in this suite.
 const FAKE_TOKEN = 'fake-session-token-for-tests';
 
+// Batch PA-3 wired the dashboard's Timeline card to a real, separate
+// get_timeline call (dashboard.js's loadTimelinePreview()) — this mock now
+// routes by the parsed request's foundation_action so that call gets a
+// realistic, empty-timeline response (rendering the real "No data yet"
+// Empty State) rather than being silently mismatched against whatever
+// envelope a given test passed in for get_profile.
 async function mockGetProfile(page, envelope) {
   await page.route('**/macros/s/**/exec', async (route) => {
+    let action = null;
+    try { action = JSON.parse(route.request().postData()).foundation_action; } catch (e) { /* not JSON — fall through */ }
+    if (action === 'get_timeline') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'ok', data: [] }) });
+      return;
+    }
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(envelope) });
   });
 }
@@ -117,6 +129,10 @@ async function main() {
       await withSessionToken(page, baseUrl, FAKE_TOKEN);
       await page.goto(`${baseUrl}/my-health-journey/`);
       await page.waitForSelector('#greeting:not(:has(.skeleton))');
+      // Batch PA-3: the Timeline card now resolves via its own, separate
+      // get_timeline call (dashboard.js's loadTimelinePreview()) — wait for
+      // that card's own skeleton to clear before asserting on badge counts.
+      await page.waitForSelector('#card-timeline-body:not(:has(.skeleton))');
 
       const greetingText = await page.textContent('#greeting');
       check('Dashboard: greeting shows the real patient name from get_profile', greetingText.indexOf('Asha Menon') !== -1);
@@ -127,19 +143,25 @@ async function main() {
 
       const phase2aCount = await page.$$eval('.badge-phase2a', (els) => els.length);
       const futureCount = await page.$$eval('.badge-future', (els) => els.length);
-      check('Dashboard: Timeline/Symptom Tracker/Reports use the "Coming later in Phase 2A" badge', phase2aCount === 3);
+      const nodataCount = await page.$$eval('.badge-nodata', (els) => els.length);
+      check('Dashboard: Symptom Tracker/Reports use the "Coming later in Phase 2A" badge (Timeline is now wired — PA-3)', phase2aCount === 2);
       check('Dashboard: Care Plan/Messages/Digital Twin use the "Planned for a future version" badge', futureCount === 3);
+      check('Dashboard: Timeline card renders the real "No data yet" badge for a patient with zero entries (PA-3, real render, not just the exposed function)',
+        nodataCount === 1);
+      const timelineBadgeParent = await page.$eval('#card-timeline-body', (el) => el.querySelector('.badge-nodata') !== null);
+      check('Dashboard: the "No data yet" badge specifically belongs to the Timeline card', timelineBadgeParent);
 
       const badgeText = await page.$eval('.badge-phase2a', (el) => el.textContent);
       check('Dashboard: Phase 2A badge copy matches the approved wording', badgeText === 'Coming later in Phase 2A');
       const futureText = await page.$eval('.badge-future', (el) => el.textContent);
       check('Dashboard: future-version badge copy matches the approved wording', futureText === 'Planned for a future version');
 
-      // The 'nodata' empty-state type has no live card consumer yet (no
-      // feature has a real, wired, zero-row data source in this batch) —
-      // exercised directly through the real function, not reimplemented.
+      // Direct function check too (not just the real render above) — the
+      // 'nodata' variant now has a real card consumer (Timeline, PA-3), but
+      // this still confirms the underlying formatter is correct in
+      // isolation, independent of which card happens to use it.
       const nodataHtml = await page.evaluate(() => window.WiseDashboard.emptyStateHtml('nodata', 'test message'));
-      check('Dashboard: the "No data yet" empty-state type renders its own distinct badge (built, verified, no live consumer yet)',
+      check('Dashboard: the "No data yet" empty-state formatter itself is correct',
         nodataHtml.indexOf('badge-nodata') !== -1 && nodataHtml.indexOf('No entries yet') !== -1 && nodataHtml.indexOf('test message') !== -1);
 
       const ariaBusy = await page.getAttribute('#dashGrid', 'aria-busy');
@@ -223,6 +245,7 @@ async function main() {
       await withSessionToken(page, baseUrl, FAKE_TOKEN);
       await page.goto(`${baseUrl}/my-health-journey/`);
       await page.waitForSelector('#greeting:not(:has(.skeleton))');
+      await page.waitForSelector('#card-timeline-body:not(:has(.skeleton))');
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       check('Dashboard: zero horizontal overflow at 375px viewport', overflow === 0);
       await context.close();
@@ -254,6 +277,7 @@ async function main() {
       await withSessionToken(page, baseUrl, FAKE_TOKEN);
       await page.goto(`${baseUrl}/my-health-journey/`);
       await page.waitForSelector('#greeting:not(:has(.skeleton))');
+      await page.waitForSelector('#card-timeline-body:not(:has(.skeleton))');
 
       const h1Count = await page.$$eval('h1', (els) => els.length);
       check('Dashboard: exactly one h1 on the page', h1Count === 1);

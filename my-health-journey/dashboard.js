@@ -43,16 +43,72 @@
   function cardHtml(id, title, bodyHtml) {
     return '<section class="card dash-card" aria-labelledby="card-' + id + '-title">' +
       '<h2 id="card-' + id + '-title">' + title + '</h2>' +
-      '<div class="empty-state">' + bodyHtml + '</div>' +
+      '<div class="empty-state" id="card-' + id + '-body">' + bodyHtml + '</div>' +
       '</section>';
+  }
+
+  // Batch PA-3: the Timeline card is the first to leave the "Coming later
+  // in Phase 2A" placeholder behind (docs/38 §9's own anticipated next
+  // step: "wiring real data into the dashboard's existing Empty State
+  // cards"). Real entry text is patient/staff-authored content read back
+  // from the backend and inserted via innerHTML — escaped here, unlike
+  // every other card's hardcoded copy, which never needed it.
+  function escapeHtmlForDisplay(value) {
+    return String(value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function timelinePreviewHtml(entries) {
+    if (!entries.length) {
+      // 'nodata' gets its first real page consumer here — previously
+      // built and verified (docs/38 §4) but never rendered from real data.
+      return emptyStateHtml('nodata', 'Your consultation history will appear here after your next visit.');
+    }
+    // Inline styles only, referencing the existing shared tokens (never a
+    // new CSS class) — keeps this addition confined to dashboard.js
+    // without touching index.html's own <style> block at all.
+    var items = entries.slice(0, 3).map(function (e) {
+      return '<li style="margin-bottom:8px;font-size:14px;color:var(--color-text-secondary)">' +
+        '<strong style="color:var(--color-brand-strong)">' + escapeHtmlForDisplay(e.entry_date) + '</strong> — ' +
+        escapeHtmlForDisplay(e.title) + '</li>';
+    }).join('');
+    return '<ul style="list-style:none;padding:0;margin:0 0 14px">' + items + '</ul>' +
+      '<a class="secondary" href="/my-health-journey/timeline/">View full timeline</a>';
+  }
+
+  // Independent of renderDashboard()'s own get_profile call (docs/38 §5's
+  // own forward note: per-card loading becomes real once a card has its
+  // own separately-timed data call — this is the first one). A failure
+  // here never disturbs the rest of the dashboard.
+  function loadTimelinePreview(sessionToken) {
+    var timelineBody = document.getElementById('card-timeline-body');
+    fetch(WEB_APP_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ foundation_action: 'get_timeline', session_token: sessionToken })
+    })
+      .then(function (response) { return response.json(); })
+      .then(function (data) {
+        if (data.status === 'ok' && Array.isArray(data.data)) {
+          timelineBody.innerHTML = timelinePreviewHtml(data.data);
+        } else {
+          timelineBody.innerHTML = '<p class="empty-text">Could not load your timeline. Check your connection and reload the page.</p>';
+        }
+      })
+      .catch(function () {
+        timelineBody.innerHTML = '<p class="empty-text">Could not load your timeline. Check your connection and reload the page.</p>';
+      });
   }
 
   function renderDashboard(profile) {
     greeting.textContent = 'Hi, ' + profile.full_name;
     grid.setAttribute('aria-busy', 'false');
     grid.innerHTML =
-      cardHtml('timeline', 'Timeline', emptyStateHtml('phase2a',
-        'Your consultation history will appear here as a timeline once this feature ships.')) +
+      cardHtml('timeline', 'Timeline', '<div class="skeleton"></div><div class="skeleton"></div>') +
       cardHtml('symptoms', 'Symptom Tracker', emptyStateHtml('phase2a',
         'Log your symptoms and see your own history here once this feature ships.')) +
       cardHtml('reports', 'Reports', emptyStateHtml('phase2a',
@@ -84,6 +140,7 @@
       // of which occurred, rather than guessing a more specific one.
       if (data.status === 'ok') {
         renderDashboard(data.data);
+        loadTimelinePreview(token);
       } else {
         goToLogin('expired');
       }

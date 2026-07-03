@@ -23,6 +23,10 @@
  * `FoundationEmail.gs`'s login-link send) — both simple, faithful
  * in-memory/spy mocks, the same "mock the platform API, run the real
  * logic" discipline already applied to `Utilities`.
+ *
+ * Extended in Patient Access batch PA-3 with `FoundationConsultationHistory.gs`
+ * in the FILES list — no new mock needed, since it only reuses
+ * SpreadsheetApp/Utilities/Logger primitives already mocked above.
  */
 
 var fs = require('fs');
@@ -45,6 +49,7 @@ var FILES = [
   'FoundationRateLimit.gs',
   'FoundationEmail.gs',
   'FoundationLoginFlow.gs',
+  'FoundationConsultationHistory.gs',
   'FoundationRouter.gs'
 ];
 

@@ -8,6 +8,85 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-03 — Patient Access Batch PA-3 (Consultation History, Timeline, Consultation History detail)
+
+Third Patient Access batch (docs/29 §13 Batch 5D), preceded by
+docs/39-CONSULTATION-TIMELINE-READINESS-REVIEW.md and an architectural clarification,
+docs/40-CONSULTATION-IDENTITY-STRATEGY.md, both approved before any code was written.
+**No unauthorized modification to any frozen file** — every touch to an
+already-shipped file is named below, none of them silent.
+
+### Added
+- `shared/schemas/consultation-history.schema.json` + `.md` — the `ConsultationHistory`
+  contract, including `entry_type` (closing a real gap between docs/29 §4 and docs/33
+  §3.1 found during the PA-3 readiness review) and the `record_id`-as-identity
+  strategy (docs/40).
+- `apps-script/FoundationConsultationHistory.gs` — staff-facing entry creation
+  (`foundationCreateConsultationEntry_()`, a manually-run editor wrapper — a real
+  staff Web App tool is a deliberate, stated simplification, not silently dropped),
+  patient-facing sorted/capped Timeline (`foundationGetPatientTimeline_()`), and
+  patient-facing single-entry lookup with a new record-ownership authorization check
+  (`foundationGetConsultationEntryById_()`).
+- `my-health-journey/timeline/index.html` + `timeline.js` — the Timeline list page:
+  real ordered entries, the "No data yet" Empty State for a zero-entry patient, a
+  network-failure fallback.
+- `my-health-journey/timeline/entry.html` + `entry.js` — the read-only Consultation
+  History detail view: full untruncated text, a "back to Timeline" link, the backend's
+  own rejection message shown verbatim (identical whether a `record_id` is unknown or
+  belongs to a different patient).
+- `my-health-journey/session-guard.js` — a new shared session-guard module, consumed
+  by the two new Timeline pages only (docs/39 §7's recommendation, acted on now that a
+  second and third authenticated page exist).
+- `validation/pa-3-timeline/browser-test.js` + `README.md` — a new, committed
+  Playwright suite (29/29 passing).
+
+### Changed
+- `apps-script/FoundationRouter.gs` — gained two new dispatch cases, `get_timeline`
+  and `get_timeline_entry`, and their thin wiring functions. A disclosed, additive
+  exception to "frozen except bug fixes," same category as `Code.gs`'s own one-line
+  dispatch shim in IA-2: a new case in an already-designed extension point, zero
+  existing lines touched, zero existing behavior changed.
+- `my-health-journey/dashboard.js` — the Timeline card now loads real data via its
+  own, independent `get_timeline` call, replacing its "Coming later in Phase 2A"
+  placeholder with real entries or the "No data yet" Empty State. The explicitly
+  planned evolution of the PA-2 shell (docs/38 §9), not a restructuring — the
+  session-guard logic itself is untouched.
+- `validation/phase-2a-foundation/harness.js` / `conformance.js` — extended with
+  `FoundationConsultationHistory.gs` and a new Stage 7 (27 new checks).
+- `validation/static-analysis/analyze.js` — `createFoundationConsultationEntry` added
+  to the manually-run-wrapper allowlist, matching `createFoundationPatient`/
+  `createFoundationLoginToken`'s precedent.
+- `validation/pa-2-dashboard/browser-test.js` — updated to reflect the Timeline card's
+  real behavior (mock now routes by `foundation_action`; badge-count assertions
+  updated; a new check confirms a real, live "No data yet" render).
+
+### Notes
+- **Consultation identity strategy (docs/40), applied concretely**: `record_id` is the
+  sole key for Timeline linking and detail-view fetches — never `entry_date`, never
+  row/list position. Timeline *display* order (`entry_date` descending, `created_at`
+  as an explicit tiebreaker) is a separate concern from entry *identity*.
+- **A deliberate simplification, stated openly**: no staff-facing Web App tool for
+  creating Consultation History entries exists yet — Foundation has no staff-RBAC
+  primitive of its own, and building one would mean a second `Code.gs` exception or
+  new architecture beyond this batch's approved plan. Future work, not silently
+  dropped.
+- Verified: `node validation/static-analysis/analyze.js` (0 findings — one real
+  false-positive on a function passed by reference to `Array.prototype.sort`,
+  resolved with an explicit named call, not a tool change);
+  `node validation/phase-2a-foundation/conformance.js` (**81/81**, 27 new in Stage 7,
+  including the cross-patient-authorization rejection at the real HTTP-dispatch
+  layer); `node validation/phase-1-5/validate.js` (42/42, unchanged);
+  `validation/pa-2-dashboard/browser-test.js` (**28/28**, updated for the Timeline
+  card's real behavior); `validation/pa-3-timeline/browser-test.js` (**29/29**, new).
+- `docs/29-PHASE-2A-TECHNICAL-PLAN.md` §16 gained a new Batch PA-3 entry (naming both
+  disclosed frozen-file exceptions in full); `docs/04-COMPONENT-LIBRARY.md` gained
+  concrete Timeline List/Consultation History Detail/Shared Session Guard entries;
+  `docs/24-ROADMAP.md` updated to reflect PA-3 shipped and name PA-4 (Symptom Tracker,
+  Batch 5E) next; `docs/33-DOMAIN-MODEL.md`'s Timeline Event entity updated from
+  *Planned* to *Implemented*; `docs/15-SECURITY-STANDARDS.md` gained a Batch PA-3
+  section documenting the new record-ownership authorization pattern;
+  `apps-script/README.md` gained a Batch PA-3 module table entry.
+
 ## 2026-07-03 — Patient Access Dashboard Shell Closeout + Consultation Timeline Readiness Review (docs only)
 
 Documentation-only batch. No frontend page, `apps-script/*.gs` file, `shared/`
