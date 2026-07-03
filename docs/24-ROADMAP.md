@@ -75,6 +75,13 @@ See docs/29 §14 for batch-by-batch implementation notes and
 docs/35-FOUNDATION-CLOSEOUT.md for the closeout summary and next-phase
 entry criteria.
 
+Identity & Access is the active milestone, split into two independent
+batches (docs/29 §15): **IA-1 (infrastructure only — LoginToken
+generation, hashing, expiration, single-use enforcement) shipped.**
+IA-2 (consumes IA-1's infrastructure — magic-link flow, first real Web
+App route, rate limiting) has not started; approval required before it
+begins.
+
 - Patient Login (passwordless, ADR-003)
 - Dashboard shell
 - Health Timeline (read-only)

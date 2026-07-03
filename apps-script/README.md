@@ -582,6 +582,21 @@ testing" below). See docs/29 §13/§14 for the batch sequence and what each one 
 | `runFoundationTests()` | `runFoundationTests_()` (`FoundationTests.gs`) |
 | `createFoundationPatient()` | `foundationCreatePatient_()` (`PatientIdentity.gs`) — edit the placeholder values inside the function body before running; this is intentionally not a form or a Sheet menu, per F3's minimal scope |
 
+## Phase 2A Identity & Access modules
+
+Foundation (F1–F5, above) is complete and frozen except for bug fixes
+(docs/35-FOUNDATION-CLOSEOUT.md §9). Identity & Access is the next milestone, split into
+two independent batches (docs/29 §15): IA-1 (infrastructure only) and IA-2 (consumes
+IA-1, not yet started). New files follow the same non-`Foundation`-prefixed,
+named-for-the-entity convention `PatientIdentity.gs` established, and — per the
+Foundation freeze — never modify any of the ten files in the table above.
+
+| File | Responsibility | Status |
+|---|---|---|
+| `FoundationLoginTokens.gs` | `foundationCreateLoginToken_()` / `foundationConsumeLoginToken_()`, implementing `shared/schemas/login-token.schema.json`. Generation, SHA-256 hashing, expiration, and single-use enforcement only — no route, no UI, no session issuance (IA-1's explicit scope boundary). Reuses `FoundationDataStore.gs`/`FoundationAudit.gs` unmodified. `createFoundationLoginToken()` is a manually-run editor wrapper, mirroring `createFoundationPatient()`. | Added (IA-1) |
+
+This table grows as IA-2 and later Identity & Access batches land.
+
 ## Static analysis
 
 `validation/static-analysis/analyze.js` scans every file in this directory for

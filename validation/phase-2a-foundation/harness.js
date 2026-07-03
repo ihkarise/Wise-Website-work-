@@ -10,11 +10,13 @@
  *
  * Mocks Utilities, PropertiesService, SpreadsheetApp, and Logger — the
  * only Apps Script globals any Foundation-family file touches.
- * `Utilities.computeHmacSha256Signature` is backed by Node's real
- * `crypto` module — a faithful mock of a standard, well-specified
- * algorithm, not a guess (the same "mock the platform API, run the real
- * logic" discipline validation/phase-1-5/ and Foundation's own F3/F4 ad
- * hoc verification passes already established).
+ * `Utilities.computeHmacSha256Signature`/`computeDigest` are backed by
+ * Node's real `crypto` module — a faithful mock of standard,
+ * well-specified algorithms, not a guess (the same "mock the platform
+ * API, run the real logic" discipline validation/phase-1-5/ and
+ * Foundation's own F3/F4 ad hoc verification passes already
+ * established). `computeDigest` backs `FoundationLoginTokens.gs`'s
+ * (IA-1) SHA-256 token hashing.
  */
 
 var fs = require('fs');
@@ -32,7 +34,8 @@ var FILES = [
   'FoundationAudit.gs',
   'PatientIdentity.gs',
   'FoundationSession.gs',
-  'FoundationRouteGuard.gs'
+  'FoundationRouteGuard.gs',
+  'FoundationLoginTokens.gs'
 ];
 
 // ---------- Fake in-memory Spreadsheet (Patients + AuditLog sheets) ----------
@@ -111,6 +114,12 @@ function buildSandbox(opts) {
       getUuid: function () { return crypto.randomUUID(); },
       computeHmacSha256Signature: function (data, secret) {
         var digest = crypto.createHmac('sha256', secret).update(data, 'utf8').digest();
+        return toSignedByteArray(digest);
+      },
+      DigestAlgorithm: { SHA_256: 'SHA_256' },
+      computeDigest: function (algorithm, data) {
+        var nodeAlgo = algorithm === 'SHA_256' ? 'sha256' : algorithm;
+        var digest = crypto.createHash(nodeAlgo).update(data, 'utf8').digest();
         return toSignedByteArray(digest);
       },
       base64EncodeWebSafe: function (input) {
