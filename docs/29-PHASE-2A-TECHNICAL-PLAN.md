@@ -781,3 +781,141 @@ ever called back up into Layer 2+ — the same one-way, narrow-interface discipl
 ADR-009 requires, holding in practice, not just by convention. This is an architectural
 review artifact only, produced by observing the existing, already-shipped module
 boundaries — no module was restructured to make this diagram cleaner.
+
+---
+
+# 15. Identity & Access Implementation
+
+Foundation (F1–F5) is complete and frozen except for bug fixes (docs/35-FOUNDATION-CLOSEOUT.md
+§9). Identity & Access is the milestone that turns Foundation's session/route-protection
+primitives into an actual, working login — the remaining, not-yet-built half of this
+document's original §13 Batch 5B. By explicit instruction, this milestone is split into
+two independent batches: **IA-1** (infrastructure only — token generation, hashing,
+expiration, single-use enforcement; no route, no UI, no session issuance) and **IA-2**
+(consumes IA-1's completed infrastructure — expected to add the magic-link request/consume
+flow, the first real Web App route, and rate limiting). IA-2 has not begun; this section
+covers IA-1 only.
+
+## Batch IA-1 (complete)
+
+Delivered exactly its stated scope: `shared/schemas/login-token.schema.json` (v1.0.0) +
+`.md` — committed in its own commit, ahead of the implementation, per `shared/README.md`'s
+standard rule (no bootstrap exception available post-F3); `apps-script/FoundationLoginTokens.gs`
+— `foundationCreateLoginToken_()` (generation + SHA-256 hashing + storage),
+`foundationConsumeLoginToken_()` (lookup + expiration check + single-use enforcement +
+mark-used), plus pure helpers (`foundationBuildLoginTokenRecord_()`,
+`foundationIsLoginTokenExpired_()`, `foundationIsLoginTokenUsed_()`,
+`foundationEvaluateLoginTokenRecord_()`) and a manually-run editor wrapper
+(`createFoundationLoginToken()`, mirroring `PatientIdentity.gs`'s F3 precedent).
+
+**Zero modification to any of the ten frozen Foundation-family files.** `FoundationLoginTokens.gs`
+is a new, eleventh entity file, reusing `FoundationDataStore.gs`'s existing generic
+insert/getById/updateById operations and `FoundationAudit.gs`'s existing
+`foundationLogAuditEvent_()` exactly as both were already designed to be reused (ADR-009)
+— neither needed a single line changed. The token TTL (900 seconds / 15 minutes, per §3's
+"≈15 minutes") is declared as a local constant inside the new file rather than added to
+`FoundationConfig.gs`, specifically to avoid reopening a frozen file for one new value —
+consistent with every other entity file's existing convention of declaring its own
+sheet/column/TTL constants locally. Verified via `git diff --name-only`: only
+`apps-script/FoundationLoginTokens.gs` (new) appears under `apps-script/`.
+
+**Deliberately does not issue a session.** `foundationConsumeLoginToken_()` returns
+`{patient_id}` and nothing else — confirmed both by design review and by the Dependency
+Map below, which shows zero call-graph edge from `FoundationLoginTokens.gs` to
+`FoundationSession.gs`. IA-2 is responsible for calling `foundationIssueSessionToken_()`
+with the resolved `patient_id`.
+
+**A plain SHA-256 hash, not HMAC — a deliberate choice, not an inconsistency with
+`FoundationSession.gs`.** `shared/schemas/login-token.md` states the reasoning: HMAC
+authenticates a message using a shared secret (needed for `FoundationSession.gs`'s
+attacker-supplied session payload); a login token is server-generated, high-entropy,
+and random, so hashing it is only ever "fingerprint a secret we already control" — a
+plain digest already does that correctly, without adding a second Script-Property secret
+for no real security benefit (ADR-006's "avoid over-abstraction" reasoning, applied here).
+
+**A new pattern for this repository: a legitimately-empty-until-set field.** Every prior
+Foundation schema has exclusively always-set fields. `used_at` is the first exception —
+empty string means "not yet used," reusing `FoundationDataStore.gs`'s existing
+empty-cell convention rather than inventing a new null-handling rule. `login-token.schema.json`
+deliberately does not apply `format: "date-time"` to `used_at` for exactly this reason —
+verified by `conformance.js`'s Stage 0 (accepts the empty-string sentinel, rejects `null`).
+
+**Rejection is deliberately generic.** Every failure mode — unknown token, expired,
+already used, malformed input — returns the same `FOUNDATION_LOGIN_TOKEN_INVALID` code
+and message. The specific reason is still recorded, but only in a `FoundationAudit.gs`
+`login_token_rejected` event's `detail` field, never in the outward envelope — the same
+anti-enumeration reasoning (ADR-010) §3 already applies to the request-link step, extended
+here to the consume step. Verified: `conformance.js`'s Stage 5 confirms all three specific
+reasons (`expired`, `already_used`, `not_found`) are present in the audit log while the
+outward envelope stays identical across all of them.
+
+**Test tooling extended, no Foundation file touched to do it.** `validation/phase-2a-foundation/harness.js`'s
+`FILES` list gained `FoundationLoginTokens.gs`, and its `Utilities` mock gained
+`computeDigest`/`DigestAlgorithm` (backed by Node's real `crypto`, mirroring the same
+faithful-mock discipline already applied to `computeHmacSha256Signature`).
+`validation/static-analysis/analyze.js`'s `MANUAL_DROPDOWN_WRAPPERS` list gained
+`createFoundationLoginToken` (a real omission caught by the tool itself immediately
+flagging it as unused on the first run — fixed before this batch shipped, not after).
+None of these three files is part of the ten-file frozen set (docs/35 §2) — they are test
+tooling, expected to evolve as new modules are added, exactly as `validation/phase-2a-foundation/`
+was designed to (its own README: "a future batch's new `shared/` schema needs its own new
+conformance stage added here").
+
+**Verification performed** (all real, not assumed): `node --check` on the new `.gs` file;
+the static-analysis pass (below); `node conformance.js` — Stage 5, **12 new checks**,
+covering pure payload construction against the schema, a real
+`foundationCreateLoginToken_()` call, reading back the *actual persisted row* (not the
+function's return value) and validating it against `login-token.schema.json`, confirming
+the persisted row's `token_hash` differs from the raw token ever handed to a caller, a
+real `foundationConsumeLoginToken_()` success resolving the correct `patient_id`,
+single-use enforcement (a second consume attempt on the same token fails), an
+unknown-token rejection, a malformed-input rejection, and an expired-token rejection
+(the stored row backdated directly, the same time-manipulation technique this repo's
+other harnesses already use rather than a real 15-minute wait) — plus 2 new Stage 0
+checks proving the validator handles the `used_at` sentinel correctly. **38/38 total
+conformance checks passed**, first run, no fixes needed; `validation/phase-1-5/validate.js`
+re-run clean (39/39), confirming zero regression to Phase 1.5.
+
+**Static analysis: one finding resolved, one new, net unchanged at 6.**
+`foundationDsUpdateById_` — Deferred since F3 for having "no consumer yet" — now has a
+real one (`foundationConsumeLoginToken_()`'s mark-used step) and drops off the list.
+`foundationConsumeLoginToken_` itself is new: a real entry point with no consumer yet
+(IA-2 supplies one). `createFoundationLoginToken` was caught as a false "unused" finding
+by the tool on the first run — not a real problem, a missing tooling-list entry, fixed
+immediately (see above). Final count: 6 total findings (`escapeFoundationHtml_`,
+`foundationDsQuery_`, `foundationGetPatientById_`, `foundationIssueSessionToken_`,
+`withFoundationAuth_`, `foundationConsumeLoginToken_`), all Deferred, zero Error/Warning/Intentional.
+
+### IA-1 Dependency Map (architectural review artifact)
+
+Derived the same way as F5's Foundation Dependency Map — from the real call graph, not
+transcribed from comments.
+
+**New file's dependencies (verified real call-sites):**
+
+`FoundationLoginTokens.gs` → `FoundationAudit.gs`, `FoundationContracts.gs`,
+`FoundationDataStore.gs`, `FoundationErrorHandling.gs`, `FoundationUtils.gs` — structurally
+identical to `PatientIdentity.gs`'s dependency set (both are Layer 2 entities built on the
+same Layer 0/1 infrastructure).
+
+**Newly introduced dependencies:** exactly the five edges above — all *from* the one new
+file *into* already-frozen, already-verified infrastructure. **Zero new edges into any of
+the ten frozen files** — confirmed by `git diff`, none of the ten was modified.
+
+**Confirmed absent, deliberately:** `FoundationLoginTokens.gs` → `FoundationSession.gs`.
+Grepping the new file for `foundationIssueSessionToken_`/`withFoundationAuth_` finds only
+comment references explaining the boundary, never a real call — direct, automated
+confirmation that IA-1 does not issue sessions.
+
+**Inbound edges into `FoundationLoginTokens.gs`:** none yet — expected; IA-2 is its first
+consumer.
+
+**Circular dependencies: zero**, verified two ways (project-wide `analyze.js` scan;
+an eleven-file-family-restricted scan including `FoundationLoginTokens.gs`). **Zero edges
+in either direction** between the Foundation/IA-1 family and any Phase 1.5 file, confirmed
+by grep across every Phase 1.5 file for any reference to the four new
+`FoundationLoginTokens.gs` functions.
+
+**Dependency direction:** unchanged from F5's layering, with `FoundationLoginTokens.gs`
+joining Layer 2 (entities) alongside `PatientIdentity.gs` — still strictly one-way, no
+back-references, nothing in Layer 0/1 aware that Layer 2 grew.

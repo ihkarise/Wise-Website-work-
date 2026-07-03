@@ -8,6 +8,41 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-03 — Identity & Access Batch IA-1 (LoginToken infrastructure)
+
+First of two independent Identity & Access batches this milestone was explicitly split
+into (docs/29 §15). Infrastructure only — no route, no UI, no session issuance.
+**Zero modification to any of the ten frozen Foundation-family files**; reuses
+`FoundationDataStore.gs`/`FoundationAudit.gs` exactly as-is.
+
+### Added
+- `shared/schemas/login-token.schema.json` (v1.0.0) + `.md` — the `LoginTokens`
+  contract (`token_hash`, `patient_id`, `issued_at`, `expires_at`, `used_at`), the
+  first Foundation-family schema with a legitimately-empty-until-consumed field.
+  Committed in its own commit, ahead of the implementation.
+- `apps-script/FoundationLoginTokens.gs` — `foundationCreateLoginToken_()` (256-bit
+  token generation via three concatenated UUIDs, SHA-256 hashing, never stores the
+  raw token) / `foundationConsumeLoginToken_()` (expiration + single-use enforcement,
+  resolves only a `patient_id`, deliberately never issues a session).
+  `createFoundationLoginToken()` manually-run editor wrapper, mirroring
+  `PatientIdentity.gs`'s F3 precedent.
+- `validation/phase-2a-foundation/conformance.js` Stage 5 (12 new checks) +
+  `harness.js` (`FoundationLoginTokens.gs` loaded, `Utilities.computeDigest` mocked
+  via Node's real `crypto`). **38/38 total conformance checks passed.**
+
+### Notes
+- Static analysis: `foundationDsUpdateById_` (Deferred since F3) now has a real
+  consumer and drops off the findings list; `foundationConsumeLoginToken_` is new
+  (Deferred — IA-2 supplies its consumer). Net unchanged at 6 total findings, all
+  Deferred, 0 Error/Warning. A missing `MANUAL_DROPDOWN_WRAPPERS` tooling entry for
+  `createFoundationLoginToken` was caught by the tool itself and fixed immediately.
+- `validation/phase-1-5/validate.js` re-run clean (39/39) — zero regression.
+- **IA-1 Dependency Map** (docs/29 §15): `FoundationLoginTokens.gs` depends on five
+  already-frozen infrastructure files only; zero new edges into any frozen file;
+  confirmed zero dependency on `FoundationSession.gs` (no session issuance); zero
+  circular dependencies; zero edges to/from Phase 1.5.
+- Full build summary: this batch's pull request description.
+
 ## 2026-07-03 — Foundation Closeout (docs only)
 
 Documentation-only batch. Added `docs/35-FOUNDATION-CLOSEOUT.md`: the official closeout

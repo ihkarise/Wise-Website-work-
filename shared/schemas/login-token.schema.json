@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wisehomeopathy.com/shared/schemas/login-token.schema.json",
+  "title": "Login Token",
+  "version": "1.0.0",
+  "description": "The canonical shape of a LoginTokens record — docs/29-PHASE-2A-TECHNICAL-PLAN.md §4's already-locked sheet, and the single-use artifact that resolves a patient's registered email to a patient_id and, once consumed, a Session (docs/33 §1.3, ADR-002, ADR-003). Only the token's hash is ever part of this shape — the raw token itself is never stored, never part of this schema, and exists only transiently in memory between generation and delivery. See login-token.md for the hashing rationale and the used_at sentinel-value note.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["token_hash", "patient_id", "issued_at", "expires_at", "used_at"],
+  "properties": {
+    "token_hash": {
+      "type": "string",
+      "minLength": 32,
+      "description": "SHA-256 hex digest (64 hex characters) of the raw, single-use login token. The raw token is never stored anywhere, including here — this field exists specifically so a stolen datastore export can never be used to authenticate (ADR-010)."
+    },
+    "patient_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The Patient Identity this token, once consumed, resolves to (docs/33 §1.2, ADR-002). Set once at issuance, never modified."
+    },
+    "issued_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "The instant this token was generated. Set once, never modified."
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "The instant this token becomes permanently invalid, regardless of use. No renewal — a caller presenting an expired token must request a new one (docs/29 §3: \"checks not-expired\")."
+    },
+    "used_at": {
+      "type": "string",
+      "description": "Empty string until this single-use token is consumed exactly once; a non-empty value is the ISO 8601 instant it was consumed (docs/29 §3: \"not-already-used, single-use, enforced server-side\"). Deliberately NOT format:\"date-time\"-constrained at the schema level — an empty string is the documented, intentional \"not yet used\" sentinel, consistent with FoundationDataStore.gs's existing empty-cell convention for every other Foundation entity. See login-token.md."
+    }
+  }
+}
