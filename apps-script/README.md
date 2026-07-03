@@ -570,8 +570,9 @@ a contract independently.
 | `FoundationRouteGuard.gs` | Route protection. `withFoundationAuth_(sessionToken, handlerFn)` verifies the session before calling `handlerFn(patientId)` — `patientId` is always server-derived from the verified token, never client-supplied (ADR-002, docs/29 §3/§10). Logs a `session_rejected` `FoundationAudit.gs` event on every rejection. Depends on `FoundationSession.gs`, `FoundationContracts.gs`, `FoundationAudit.gs`. No Web App route calls it yet — this batch delivers the gate, ready for whichever future batch wires an endpoint through it. | Added (F4) |
 | `FoundationTests.gs` | Apps Script-native unit tests for Foundation's pure-logic functions, mirroring Phase 1.5's `Tests.gs` discipline — no live Sheet or network calls. Run `runFoundationTests()` from the editor dropdown. Covers `FoundationContracts.gs`, `FoundationDataStore.gs`'s pure helpers, `PatientIdentity.gs`'s input validation, and `FoundationSession.gs`'s pure payload/expiry/signature-comparison helpers plus a full issue-then-verify round trip against an explicit test secret. `FoundationRouteGuard.gs`'s functions are intentionally excluded (their rejection path writes to a live Sheet via `FoundationAudit.gs` — verified instead by an ad hoc functional pass, same as `PatientIdentity.gs`'s Sheet-touching functions). | Added (F3), extended (F4) |
 
-This table grows as later Foundation batches (F5) land — see docs/29 §13/§14 for the
-batch sequence and what each one delivers.
+This table covers every `apps-script/*.gs` file Foundation has added through batch F5 —
+F5 itself added no new `.gs` file (Node-only conformance tooling, see "Conformance
+testing" below). See docs/29 §13/§14 for the batch sequence and what each one delivers.
 
 **Foundation's own trailing-underscore wrappers**, same convention as the table above
 ("A note on trailing underscores"):
@@ -589,3 +590,13 @@ helpers, circular dependencies, and Apps Script namespace collisions — see its
 header comment and `validation/static-analysis/README.md` for full detail. Introduced
 in Foundation batch F3; runs before validation on every Foundation batch from F3
 onward, per docs/29 §14.
+
+## Conformance testing
+
+`validation/phase-2a-foundation/conformance.js` loads the real, unmodified
+Foundation-family `.gs` files (via a mocked Apps Script runtime,
+`validation/phase-2a-foundation/harness.js`) and checks their actual output against the
+real `shared/*.schema.json` contracts using a generic, dependency-free JSON Schema
+validator (`schema-validator.js`) — not per-field hand-coded assertions. Introduced in
+Foundation batch F5, the deliverable F2's own implementation notes named ahead of time.
+See `validation/phase-2a-foundation/README.md` for full detail.
