@@ -8,6 +8,47 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-03 — Phase 2A implementation: Foundation Batch F5 (conformance testing)
+
+Fifth and final implementation batch of the approved Foundation Implementation Plan
+(F1–F5, docs/29 §14). Delivers the one deliverable F2's own implementation notes named
+ahead of time: "Automated, schema-validator-based conformance testing
+(`validation/phase-2a-foundation/conformance.js`) remains an F5 deliverable, not built
+early." Node-only test tooling — zero `apps-script/*.gs` files touched.
+
+### Added
+- `validation/phase-2a-foundation/schema-validator.js` — a generic, dependency-free
+  JSON Schema (Draft 2020-12 subset) validator: `type`, `required`, `properties`,
+  `additionalProperties`, `enum`, `const`, `format` (`email`, `date-time`),
+  `minLength`, `oneOf`.
+- `validation/phase-2a-foundation/harness.js` — mocked Apps Script runtime
+  (`SpreadsheetApp`, `PropertiesService`, `Utilities`, `Logger`) loading the real
+  Foundation-family `.gs` source, mirroring `validation/phase-1-5/harness.js`.
+- `validation/phase-2a-foundation/conformance.js` — Stage 0 proves the validator
+  itself against deliberately-broken fixtures; Stages 1–4 check real
+  `FoundationContracts.gs`/`PatientIdentity.gs`/`FoundationSession.gs`/
+  `FoundationRouteGuard.gs` output against the real `shared/*.schema.json` files.
+  23/23 checks passed.
+- `validation/phase-2a-foundation/README.md`.
+
+### Notes
+- **Foundation Dependency Map** (architectural review artifact, docs/29 §14's F5
+  section has the full breakdown): module dependencies verified from the real call
+  graph plus a hand-checked `FOUNDATION_CONFIG` variable-read edge the automated scan
+  can't detect; zero new intra-`apps-script/` dependencies introduced (F5 adds no
+  `.gs` file); **zero circular dependencies**, verified two ways; dependency direction
+  strictly layered, one-way, no back-references. Review artifact only — no module was
+  restructured to make the map cleaner.
+- Static analysis: unchanged from F4 — 6 total findings, all previously triaged as
+  Deferred, none new (this batch adds no `apps-script/*.gs` code).
+- `validation/phase-1-5/validate.js` re-run clean (39/39) — zero regression.
+- A test-assertion bug in this batch's own `conformance.js` (an `AuditLog` row-count
+  check that didn't account for shared state across test stages) was caught and fixed
+  before shipping, not after — see docs/29 §14 for detail.
+- Full build summary (modules, tests, static analysis, deferred findings, validation,
+  regression, documentation, CHANGELOG, dependency map): this batch's pull request
+  description.
+
 ## 2026-07-02 — Phase 2A implementation: Foundation Batch F4 (session + route protection)
 
 Fourth implementation batch of Phase 2A, per the approved Foundation Implementation

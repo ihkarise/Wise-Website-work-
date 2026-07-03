@@ -649,3 +649,135 @@ magic-link flow for the former, an actual protected Web App route for the latter
 explicitly out of this batch's scope (above). Not fixed by inventing a call-site.
 Combined with F2/F3's 4 already-accepted findings (unchanged), this batch's full run
 reports 6 total findings, all Deferred, zero Error/Warning/Intentional.
+
+## Batch F5 (complete)
+
+Delivered exactly the one deliverable F2's own implementation notes (above) already
+named: "Automated, schema-validator-based conformance testing
+(`validation/phase-2a-foundation/conformance.js`) remains an F5 deliverable, not built
+early." Concretely: `validation/phase-2a-foundation/schema-validator.js` (a generic,
+dependency-free JSON Schema Draft 2020-12 subset validator — `type`, `required`,
+`properties`, `additionalProperties`, `enum`, `const`, `format`, `minLength`, `oneOf`
+— covering exactly what this repo's `shared/*.schema.json` files actually use, no
+more); `validation/phase-2a-foundation/harness.js` (a mocked Apps Script runtime —
+`SpreadsheetApp`, `PropertiesService`, `Utilities`, `Logger` — loading the real,
+unmodified Foundation-family `.gs` source, mirroring `validation/phase-1-5/harness.js`'s
+structure exactly); `validation/phase-2a-foundation/conformance.js` (the test runner —
+Stage 0 proves the validator itself against deliberately-broken fixtures before
+trusting it, Stages 1–4 exercise the real `FoundationContracts.gs`,
+`PatientIdentity.gs`, `FoundationSession.gs`, and `FoundationRouteGuard.gs` functions
+and check their actual output against the real, committed `shared/*.schema.json`
+files); `validation/phase-2a-foundation/README.md`.
+
+**Zero `apps-script/*.gs` files were touched.** This batch is Node-only tooling — no
+new Apps Script logic, no new shared/ contract, no architecture change. `git diff`
+against F4's merged state confirms this.
+
+**Formalizes, rather than repeats, F2/F3/F4's ad hoc verification.** Each prior batch
+wrote fresh, uncommitted Node checks against that batch's own output shape — real, but
+not reusable. `schema-validator.js` is generic (reads a schema, checks any instance
+against it) specifically so a future batch's new `shared/` schema plugs into the same
+tool with a new conformance stage, not a new bespoke validator.
+
+**Verification performed** (all real, not assumed): `node --check` on every new
+`.js` file; `node conformance.js` — 23/23 checks passed, covering the validator's own
+correctness (Stage 0, 7 checks against deliberately-broken fixtures) and real,
+schema-checked output from `buildFoundationOkEnvelope_()`/`buildFoundationErrorEnvelope_()`,
+`foundationCreatePatient_()`/`foundationGetPatientById_()` (including the
+`FOUNDATION_NOT_FOUND` path), `foundationBuildSessionPayload_()` and a full real
+`foundationIssueSessionToken_()` → `foundationVerifySessionToken_()` round trip, and
+`withFoundationAuth_()`'s both success and rejection paths (including confirming the
+rejection's `session_rejected` `AuditLog` row — correctly scoped to that specific event,
+not a raw row count, since `AuditLog` is shared, cumulative state across the whole
+conformance run and Stage 2 already wrote a `patient_created` row before Stage 4 runs);
+the static-analysis pass re-run clean against F4's unchanged 6 findings (below);
+`validation/phase-1-5/validate.js` re-run clean (39/39), confirming zero regression to
+Phase 1.5.
+
+**A test-assertion bug was caught and fixed during this batch's own development, not
+shipped.** `conformance.js`'s Stage 4 originally asserted `AuditLog` had exactly one
+row after the rejection call — true in isolation, false in the real run, because
+Stage 2's `foundationCreatePatient_()` had already written a `patient_created` row
+earlier in the same shared in-memory spreadsheet. Fixed by filtering for the specific
+`session_rejected` event rather than asserting total row count — a bug in this batch's
+own test code, not in any Foundation module, caught by actually running the harness
+before treating it as done.
+
+**Static analysis: unchanged from F4.** 6 total findings, all previously triaged as
+Deferred (`escapeFoundationHtml_`, `foundationDsQuery_`, `foundationDsUpdateById_`,
+`foundationGetPatientById_`, `foundationIssueSessionToken_`, `withFoundationAuth_`) —
+expected, since this batch adds no new `apps-script/*.gs` code for the tool to scan.
+
+### Foundation Dependency Map (architectural review artifact — F5)
+
+Derived from the real call graph (not transcribed from header comments, which are
+cross-checked against this, not trusted blindly) — the same declaration-extraction and
+comment/string-aware call-site scan `validation/static-analysis/analyze.js` already
+uses for its own circular-dependency check, restricted to the ten Foundation-family
+files and re-run standalone for this map. One real gap in the automated scan is called
+out explicitly below rather than silently omitted.
+
+**Module dependencies (verified real call-sites):**
+
+| File | Depends on (calls into) |
+|---|---|
+| `FoundationConfig.gs` | *(none — leaf)* |
+| `FoundationUtils.gs` | *(none — leaf)* |
+| `FoundationContracts.gs` | *(none — leaf)* |
+| `FoundationDataStore.gs` | *(none — leaf; see config-variable note below)* |
+| `FoundationSession.gs` | *(none — leaf; see config-variable note below)* |
+| `FoundationErrorHandling.gs` | `FoundationContracts.gs` |
+| `FoundationAudit.gs` | `FoundationDataStore.gs`, `FoundationUtils.gs` |
+| `PatientIdentity.gs` | `FoundationAudit.gs`, `FoundationContracts.gs`, `FoundationDataStore.gs`, `FoundationErrorHandling.gs`, `FoundationUtils.gs` |
+| `FoundationRouteGuard.gs` | `FoundationAudit.gs`, `FoundationContracts.gs`, `FoundationSession.gs` |
+| `FoundationTests.gs` | `FoundationContracts.gs`, `FoundationDataStore.gs`, `FoundationSession.gs`, `PatientIdentity.gs` |
+
+**A real limitation in the automated scan, checked by hand:** the call-graph scan only
+detects function-call sites (`name(`), so it misses `FOUNDATION_CONFIG` — a `var`, read
+as `FOUNDATION_CONFIG.SOME_KEY`, never called as a function. Grepping for
+`FOUNDATION_CONFIG\.` confirms two real, additional configuration-read dependencies not
+captured above: `FoundationSession.gs` → `FoundationConfig.gs` (`SESSION_TTL_SECONDS`,
+`SCRIPT_PROPERTY_KEYS.SESSION_SIGNING_SECRET`) and `FoundationDataStore.gs` →
+`FoundationConfig.gs` (`PATIENT_SPREADSHEET_ID`). Included here so the map is accurate,
+not just what the tool happened to catch.
+
+**Newly introduced dependencies (this batch):** none within `apps-script/`'s namespace
+— F5 adds no `.gs` files and modifies no existing one. The only new dependency edges
+this batch introduces are external, Node-only, and one-directional *into* Foundation
+from outside the Apps Script project: `validation/phase-2a-foundation/harness.js` reads
+(via `vm`, unmodified) all ten Foundation-family `.gs` files; `conformance.js` reads
+the three `shared/*.schema.json` files. Neither is a runtime dependency of anything
+under `apps-script/` — the relationship is strictly test tooling consuming production
+source, never the reverse (same "validation never modifies or is loaded by
+`apps-script/`" rule `validation/phase-1-5/README.md` and
+`validation/static-analysis/README.md` already state).
+
+**Circular dependencies: zero**, verified two ways — (1) `validation/static-analysis/analyze.js`'s
+own project-wide cycle detector, re-run clean; (2) a second cycle check restricted to
+just the ten-file Foundation family (including the two hand-verified `FOUNDATION_CONFIG`
+edges above), independently confirming none. Also confirmed: zero edges in either
+direction between the Foundation family and any Phase 1.5 file — Foundation never calls
+into Phase 1.5 (by design, docs/29 §14 Decision 1), and no Phase 1.5 file has ever been
+modified to reference anything Foundation-prefixed.
+
+**Dependency direction:** strictly layered, one-way, no back-references —
+
+```
+Layer 0 (infra, leaf)     FoundationConfig.gs  FoundationUtils.gs  FoundationContracts.gs  FoundationDataStore.gs
+                                 ^                    ^                     ^                       ^
+Layer 1 (cross-cutting)   FoundationErrorHandling.gs ------------------------+                       |
+                                 ^                                                                    |
+                           FoundationAudit.gs ------------------------------------------------------- +
+                                 ^
+Layer 2 (entities)        PatientIdentity.gs   FoundationSession.gs (leaf; config-read only)
+                                 ^                    ^
+Layer 3 (route protection)                     FoundationRouteGuard.gs
+                                 ^                    ^
+Layer 4 (tests, top)       FoundationTests.gs (depends on Layer 2/1/0, calls nothing calls it)
+```
+
+Every arrow points from a higher layer down to a lower one; nothing in Layer 0 or 1 has
+ever called back up into Layer 2+ — the same one-way, narrow-interface discipline
+ADR-009 requires, holding in practice, not just by convention. This is an architectural
+review artifact only, produced by observing the existing, already-shipped module
+boundaries — no module was restructured to make this diagram cleaner.
