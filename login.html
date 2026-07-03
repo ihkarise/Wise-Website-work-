@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Patient Login | Wise Homeopathy</title>
+<meta name="description" content="Sign in to your Wise Homeopathy patient account with a secure, passwordless login link sent to your email.">
+<link rel="icon" href="/assets/favicon.ico">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --color-brand:#27498C;--color-brand-strong:#1B3463;--color-brand-deep:#13264A;
+  --color-accent:#D62E4D;--color-accent-strong:#B8273F;
+  --color-ink:#0B0B0B;--color-text-secondary:#5B6472;--color-text-faint:#9AA3B2;
+  --color-line:#E7EBF1;--color-surface:#F4F7FB;--color-surface-base:#FFFFFF;
+  --color-warn-bg:#FFF4E5;--color-warn-line:#F0C36D;--color-warn-text:#7A5200;
+  --color-err-bg:#FCEBEC;--color-err-line:#E8A3AC;--color-err-text:#8A1F2C;
+  --color-ok-bg:#EAF3EC;--color-ok-line:#9CC9A6;--color-ok-text:#245C34;
+  --font-display:'Fraunces',Georgia,serif;--font-body:'Poppins',Arial,sans-serif;
+  --radius-md:13px;--radius-lg:22px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font-body);font-size:15.5px;color:var(--color-ink);background:var(--color-surface);line-height:1.6;-webkit-font-smoothing:antialiased}
+.wrap{max-width:480px;margin:0 auto;padding:clamp(24px,5vw,48px) clamp(18px,4vw,32px);min-height:100vh;display:flex;flex-direction:column;justify-content:center}
+.serif{font-family:var(--font-display)}
+:focus-visible{outline:3px solid var(--color-accent);outline-offset:3px;border-radius:4px}
+.brand{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:28px}
+.brand img{height:34px;width:auto}
+.brand .mark{display:none;height:34px;width:34px;border-radius:50%;background:var(--color-brand);color:#fff;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:600}
+.brand .txt{display:none;font-family:var(--font-display);font-weight:600;font-size:15px;color:var(--color-brand-deep)}
+h1{font-family:var(--font-display);font-size:clamp(24px,4vw,30px);color:var(--color-brand-strong);text-align:center;margin-bottom:6px}
+.sub{color:var(--color-text-secondary);font-size:14.5px;text-align:center;margin-bottom:28px}
+.card{background:var(--color-surface-base);border:1px solid var(--color-line);border-radius:var(--radius-lg);padding:clamp(20px,4vw,32px)}
+.field{margin-bottom:18px}
+.field label{display:block;font-size:13.5px;font-weight:500;margin-bottom:6px;color:var(--color-brand-strong)}
+.field input{width:100%;padding:13px 15px;border:1px solid var(--color-line);border-radius:var(--radius-md);font:inherit;font-size:15px;background:var(--color-surface-base);transition:border-color .15s ease}
+.field input:focus{border-color:var(--color-brand)}
+.field input:focus:not(:focus-visible){outline:none}
+.submit{width:100%;background:var(--color-accent);color:#fff;border:none;padding:15px;border-radius:var(--radius-md);font:600 15.5px var(--font-body);cursor:pointer;transition:transform .15s ease,box-shadow .2s ease}
+.submit:hover{transform:translateY(-2px);box-shadow:0 12px 28px rgba(214,46,77,.34)}
+.submit:disabled{opacity:.55;cursor:not-allowed;transform:none;box-shadow:none}
+.status{margin-top:16px;padding:13px 16px;border-radius:var(--radius-md);font-size:14px;display:none}
+.status.ok{display:block;background:var(--color-ok-bg);border:1px solid var(--color-ok-line);color:var(--color-ok-text)}
+.status.err{display:block;background:var(--color-err-bg);border:1px solid var(--color-err-line);color:var(--color-err-text)}
+.status.loading{display:block;background:var(--color-surface);border:1px solid var(--color-line);color:var(--color-text-secondary)}
+.foot{margin-top:24px;text-align:center;font-size:13.5px;color:var(--color-text-faint)}
+.foot a{color:var(--color-brand);text-decoration:none;font-weight:500}
+.foot a:hover{text-decoration:underline}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <main>
+    <div class="brand" aria-hidden="false">
+      <img src="/assets/logo.svg" alt="Wise Homeopathy Multispeciality Center" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';this.nextElementSibling.nextElementSibling.style.display='block'">
+      <span class="mark" aria-hidden="true">W</span>
+      <span class="txt">Wise Homeopathy</span>
+    </div>
+
+    <h1 class="serif">Patient Login</h1>
+    <p class="sub">Enter the email address on your patient record and we'll send you a secure sign-in link. No password needed.</p>
+
+    <div class="card">
+      <form id="loginForm" novalidate>
+        <div class="field">
+          <label for="email">Email address</label>
+          <input id="email" name="email" type="email" required autocomplete="email" placeholder="you@example.com">
+        </div>
+        <button class="submit" type="submit" id="submitBtn">Send login link</button>
+        <div class="status" id="statusBox" role="status" aria-live="polite"></div>
+      </form>
+    </div>
+
+    <p class="foot">Not yet a patient? <a href="/contact.html">Book a consultation</a> to get started, or <a href="/index.html">return to the homepage</a>.</p>
+  </main>
+</div>
+
+<script>
+(function () {
+  // Same Apps Script Web App deployment as internal/consultation-summary.html —
+  // Foundation and Phase 1.5 share one project/one doPost (docs/29 §14
+  // Decision 1); Code.gs's dispatch shim (IA-2) routes this page's requests
+  // to FoundationRouter.gs by their foundation_action field.
+  var WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwrAx9jPnji2U-ngBpYTtV2p_SJnnFrYa7fKYo589zeVfRrwuz3N5aIS0xeiQeuFvMhIQ/exec';
+
+  var form = document.getElementById('loginForm');
+  var submitBtn = document.getElementById('submitBtn');
+  var emailField = document.getElementById('email');
+  var statusBox = document.getElementById('statusBox');
+
+  function showStatus(kind, message) {
+    statusBox.className = 'status ' + kind;
+    statusBox.textContent = message;
+  }
+
+  form.addEventListener('submit', function (event) {
+    event.preventDefault();
+
+    if (WEB_APP_URL.indexOf('REPLACE_WITH') === 0) {
+      showStatus('err', 'This form is not yet connected to a deployed Apps Script Web App. See apps-script/README.md.');
+      return;
+    }
+
+    if (!form.checkValidity()) {
+      form.reportValidity();
+      return;
+    }
+
+    submitBtn.disabled = true;
+    showStatus('loading', 'Sending…');
+
+    fetch(WEB_APP_URL, {
+      method: 'POST',
+      // text/plain avoids a CORS preflight; the Apps Script doPost still
+      // parses the body as JSON regardless of Content-Type (docs/29 §3).
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        foundation_action: 'request_login_link',
+        email: emailField.value
+      })
+    })
+      .then(function (response) { return response.json(); })
+      .then(function (data) {
+        // Every Foundation response is a response-envelope
+        // (shared/contracts/response-envelope.schema.json): branch on
+        // data.status ('ok'/'error'), never on an HTTP status code —
+        // Apps Script Web Apps always transport as HTTP 200 regardless.
+        if (data.status === 'ok') {
+          // The server's own message is already the anti-enumeration-safe
+          // generic copy (docs/29 §3) — displayed verbatim, not
+          // re-worded, so this page never invents wording that could
+          // accidentally leak more or less than the backend intends.
+          showStatus('ok', data.data.message);
+          form.reset();
+        } else {
+          // error.message is already human-readable and non-technical
+          // (FoundationContracts.gs's own contract) — safe to display
+          // directly for every error.code, known or not.
+          showStatus('err', (data.error && data.error.message) || 'Something went wrong. Please try again.');
+        }
+        submitBtn.disabled = false;
+      })
+      .catch(function () {
+        showStatus('err', 'Could not reach the login service. Check your internet connection and try again.');
+        submitBtn.disabled = false;
+      });
+  });
+})();
+</script>
+</body>
+</html>

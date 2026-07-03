@@ -85,10 +85,13 @@ authenticated Web App route, `get_profile`) both shipped. See docs/29
 docs/36-IDENTITY-AND-ACCESS-CLOSEOUT.md for the closeout summary and
 Patient Access entry criteria.
 
-**Patient Access is the next milestone** — the frontend half of docs/29
-§13's original Batch 5B (`login.html`/`verify.html`), recommended as the
-first Patient Access batch by docs/36 §12, followed by the dashboard
-shell (Batch 5C). Not yet started; approval required before it begins.
+**Patient Access is the active milestone.** Batch PA-1 — `login.html` +
+`verify.html`, the frontend half of docs/29 §13's original Batch 5B —
+shipped. Zero backend modification; Identity & Access remains frozen
+except for bug fixes. See docs/29 §16 for full implementation notes.
+Next: Batch PA-2, the `assets/site.css` token extraction + "My Health
+Journey" dashboard shell (docs/29 §13 Batch 5C), wired to PA-1's session.
+Not yet started; approval required before it begins.
 
 - Patient Login (passwordless, ADR-003)
 - Dashboard shell

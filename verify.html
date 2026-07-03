@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Sign In | Wise Homeopathy</title>
+<meta name="description" content="Complete your secure, passwordless sign-in to Wise Homeopathy.">
+<link rel="icon" href="/assets/favicon.ico">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --color-brand:#27498C;--color-brand-strong:#1B3463;--color-brand-deep:#13264A;
+  --color-accent:#D62E4D;--color-accent-strong:#B8273F;
+  --color-ink:#0B0B0B;--color-text-secondary:#5B6472;--color-text-faint:#9AA3B2;
+  --color-line:#E7EBF1;--color-surface:#F4F7FB;--color-surface-base:#FFFFFF;
+  --color-warn-bg:#FFF4E5;--color-warn-line:#F0C36D;--color-warn-text:#7A5200;
+  --color-err-bg:#FCEBEC;--color-err-line:#E8A3AC;--color-err-text:#8A1F2C;
+  --color-ok-bg:#EAF3EC;--color-ok-line:#9CC9A6;--color-ok-text:#245C34;
+  --font-display:'Fraunces',Georgia,serif;--font-body:'Poppins',Arial,sans-serif;
+  --radius-md:13px;--radius-lg:22px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font-body);font-size:15.5px;color:var(--color-ink);background:var(--color-surface);line-height:1.6;-webkit-font-smoothing:antialiased}
+.wrap{max-width:480px;margin:0 auto;padding:clamp(24px,5vw,48px) clamp(18px,4vw,32px);min-height:100vh;display:flex;flex-direction:column;justify-content:center}
+.serif{font-family:var(--font-display)}
+:focus-visible{outline:3px solid var(--color-accent);outline-offset:3px;border-radius:4px}
+.brand{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:28px}
+.brand img{height:34px;width:auto}
+.brand .mark{display:none;height:34px;width:34px;border-radius:50%;background:var(--color-brand);color:#fff;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:600}
+.brand .txt{display:none;font-family:var(--font-display);font-weight:600;font-size:15px;color:var(--color-brand-deep)}
+h1{font-family:var(--font-display);font-size:clamp(24px,4vw,30px);color:var(--color-brand-strong);text-align:center;margin-bottom:6px}
+.sub{color:var(--color-text-secondary);font-size:14.5px;text-align:center;margin-bottom:28px}
+.card{background:var(--color-surface-base);border:1px solid var(--color-line);border-radius:var(--radius-lg);padding:clamp(20px,4vw,32px);text-align:center}
+.submit{width:100%;background:var(--color-accent);color:#fff;border:none;padding:15px;border-radius:var(--radius-md);font:600 15.5px var(--font-body);cursor:pointer;transition:transform .15s ease,box-shadow .2s ease}
+.submit:hover{transform:translateY(-2px);box-shadow:0 12px 28px rgba(214,46,77,.34)}
+.submit:disabled{opacity:.55;cursor:not-allowed;transform:none;box-shadow:none}
+.secondary{display:inline-block;margin-top:14px;background:var(--color-brand);color:#fff;text-decoration:none;font-weight:600;font-size:14.5px;padding:12px 22px;border-radius:var(--radius-md)}
+.status{margin-top:16px;padding:13px 16px;border-radius:var(--radius-md);font-size:14px;display:none;text-align:left}
+.status.ok{display:block;background:var(--color-ok-bg);border:1px solid var(--color-ok-line);color:var(--color-ok-text)}
+.status.err{display:block;background:var(--color-err-bg);border:1px solid var(--color-err-line);color:var(--color-err-text)}
+.status.loading{display:block;background:var(--color-surface);border:1px solid var(--color-line);color:var(--color-text-secondary);text-align:center}
+.skeleton{height:14px;border-radius:7px;background:linear-gradient(90deg,var(--color-line) 25%,#f4f6fa 37%,var(--color-line) 63%);background-size:400% 100%;animation:shimmer 1.4s ease infinite;margin:6px 0}
+@keyframes shimmer{0%{background-position:100% 0}100%{background-position:0 0}}
+.foot{margin-top:24px;text-align:center;font-size:13.5px;color:var(--color-text-faint)}
+.foot a{color:var(--color-brand);text-decoration:none;font-weight:500}
+.foot a:hover{text-decoration:underline}
+[hidden]{display:none !important}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <main>
+    <div class="brand">
+      <img src="/assets/logo.svg" alt="Wise Homeopathy Multispeciality Center" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';this.nextElementSibling.nextElementSibling.style.display='block'">
+      <span class="mark" aria-hidden="true">W</span>
+      <span class="txt">Wise Homeopathy</span>
+    </div>
+
+    <h1 class="serif">Sign In</h1>
+
+    <div class="card">
+      <!-- State: no token in the URL at all -->
+      <div id="noTokenState" hidden>
+        <p class="sub" style="margin-bottom:0">This sign-in link is missing its token. Please request a new one.</p>
+        <a class="secondary" href="/login.html">Request a new login link</a>
+      </div>
+
+      <!-- State: token present, waiting for the user to confirm (not
+           auto-submitted — see login.html/verify.html's build notes on
+           why: an email-security link-scanner that pre-fetches this page
+           must never be able to spend a single-use token on the real
+           user's behalf). -->
+      <div id="readyState" hidden>
+        <p class="sub" style="margin-bottom:18px">Click below to finish signing in to your Wise Homeopathy account.</p>
+        <button class="submit" type="button" id="continueBtn">Continue to sign in</button>
+        <div class="status" id="statusBox" role="status" aria-live="polite"></div>
+      </div>
+
+      <!-- State: verifying (skeleton, not a spinner, per docs/04) -->
+      <div id="loadingState" hidden aria-live="polite">
+        <div class="skeleton" style="width:70%;margin-left:auto;margin-right:auto"></div>
+        <div class="skeleton" style="width:45%;margin-left:auto;margin-right:auto"></div>
+      </div>
+
+      <!-- State: success -->
+      <div id="successState" hidden>
+        <p class="sub" style="margin-bottom:0">You're signed in ✓</p>
+        <p class="sub">My Health Journey — your patient dashboard — is coming soon. You can close this tab; your session will stay active for the next 60 minutes.</p>
+      </div>
+
+      <!-- State: failure -->
+      <div id="errorState" hidden>
+        <p class="sub" id="errorMessage" style="margin-bottom:18px"></p>
+        <a class="secondary" href="/login.html">Request a new login link</a>
+      </div>
+    </div>
+
+    <p class="foot"><a href="/index.html">Return to the homepage</a></p>
+  </main>
+</div>
+
+<script>
+(function () {
+  // Same Apps Script Web App deployment login.html uses — Foundation and
+  // Phase 1.5 share one project/one doPost (docs/29 §14 Decision 1).
+  var WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwrAx9jPnji2U-ngBpYTtV2p_SJnnFrYa7fKYo589zeVfRrwuz3N5aIS0xeiQeuFvMhIQ/exec';
+
+  var states = {
+    noToken: document.getElementById('noTokenState'),
+    ready: document.getElementById('readyState'),
+    loading: document.getElementById('loadingState'),
+    success: document.getElementById('successState'),
+    error: document.getElementById('errorState')
+  };
+  var continueBtn = document.getElementById('continueBtn');
+  var statusBox = document.getElementById('statusBox');
+  var errorMessage = document.getElementById('errorMessage');
+
+  function showState(name) {
+    Object.keys(states).forEach(function (key) {
+      states[key].hidden = key !== name;
+    });
+  }
+
+  function showStatus(kind, message) {
+    statusBox.className = 'status ' + kind;
+    statusBox.textContent = message;
+  }
+
+  var token = new URLSearchParams(window.location.search).get('token');
+
+  // Strip the token from the visible URL/history as soon as we've read it
+  // — a minor hygiene step so it doesn't linger in browser history or get
+  // re-shared accidentally if the page URL is copied after this point.
+  if (token && window.history && window.history.replaceState) {
+    window.history.replaceState({}, document.title, window.location.pathname);
+  }
+
+  if (!token) {
+    showState('noToken');
+    return;
+  }
+
+  showState('ready');
+
+  continueBtn.addEventListener('click', function () {
+    if (WEB_APP_URL.indexOf('REPLACE_WITH') === 0) {
+      showStatus('err', 'This page is not yet connected to a deployed Apps Script Web App. See apps-script/README.md.');
+      return;
+    }
+
+    continueBtn.disabled = true;
+    showState('loading');
+
+    fetch(WEB_APP_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        foundation_action: 'consume_login_link',
+        token: token
+      })
+    })
+      .then(function (response) { return response.json(); })
+      .then(function (data) {
+        if (data.status === 'ok') {
+          // Store ONLY the session token, and ONLY in sessionStorage
+          // (cleared on tab close, never localStorage — docs/29 §3).
+          // patient_id is never stored separately, client-side, anywhere
+          // — every future authenticated call derives it server-side
+          // from this same token (ADR-002).
+          window.sessionStorage.setItem('wise_session_token', data.data.session_token);
+          showState('success');
+        } else {
+          errorMessage.textContent = (data.error && data.error.message) || 'This login link is invalid or has expired.';
+          showState('error');
+        }
+      })
+      .catch(function () {
+        errorMessage.textContent = 'Could not reach the login service. Check your internet connection and try again.';
+        showState('error');
+      });
+  });
+})();
+</script>
+</body>
+</html>

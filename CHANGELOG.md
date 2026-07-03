@@ -8,6 +8,51 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-03 — Patient Access Batch PA-1 (login.html, verify.html)
+
+First Patient Access batch — the deferred frontend half of docs/29 §13's original
+Batch 5B, built against the now-frozen Identity & Access backend (IA-1, IA-2).
+**Zero backend modification** — confirmed via `git diff --name-only` (only
+`login.html`, `verify.html`, and documentation changed).
+
+### Added
+- `login.html` — email-entry form calling `request_login_link`. Single field, one
+  primary CTA, friendly loading/error states, the backend's own anti-enumeration-safe
+  message displayed verbatim.
+- `verify.html` — reads `?token=` from the URL, requires an explicit "Continue to
+  sign in" click before calling `consume_login_link` (does **not** auto-submit on
+  page load — a deliberate defense against email-security link-scanners pre-fetching
+  and burning the single-use token before the patient clicks it). On success, stores
+  only `session_token` in `sessionStorage`; `patient_id` is never stored client-side
+  under any key.
+
+### Notes
+- **Reused, not duplicated**: the `:root` design tokens, `.card`/`.field`/`.submit`/`.status`
+  component set, and the `fetch()`-with-`text/plain`-no-CORS-preflight calling
+  convention, all from `internal/consultation-summary.html` — the only existing page
+  that already talks to the Apps Script backend. Both pages use the same minimal
+  "utility page" shell (no full header/nav) that `thanks.html`/`booking-received.html`/
+  `internal/consultation-summary.html` already independently established for
+  single-purpose, not-yet-nav-linked pages.
+- **A real accessibility defect was caught by keyboard-driven browser testing, not
+  assumed away**: `.field input:focus{outline:none}`, copied from
+  `internal/consultation-summary.html`, silently defeated the `:focus-visible` rule by
+  CSS specificity — a WCAG 2.2 AA violation. Fixed in `login.html` before shipping
+  (`internal/consultation-summary.html` itself untouched — out of this batch's scope).
+- Verified with a local static server + headless Chromium (Playwright), backend mocked
+  at the network layer: **20/20 checks passed** — response-envelope branching (never
+  an HTTP status code), the no-auto-fire security property, `sessionStorage` contents
+  (both what's stored and what's deliberately never stored), 375px responsive layout,
+  and keyboard focus visibility.
+- `node validation/static-analysis/analyze.js`, `node validation/phase-2a-foundation/conformance.js`,
+  and `node validation/phase-1-5/validate.js` all re-run clean and unchanged (0
+  findings, 61/61, 42/42) — expected, since no backend file was touched.
+- `docs/29-PHASE-2A-TECHNICAL-PLAN.md` gained a new §16 (Patient Access
+  Implementation, Batch PA-1 notes) and a §13 table annotation marking Batch 5B fully
+  delivered; `docs/04-COMPONENT-LIBRARY.md` gained concrete Login Form / Sign-In-Verify
+  entries (docs/29 §12's own tracked doc-impact item); `docs/24-ROADMAP.md` updated.
+- Full build summary: this batch's pull request description.
+
 ## 2026-07-03 — Identity & Access Closeout (docs only)
 
 Documentation-only batch. Added `docs/36-IDENTITY-AND-ACCESS-CLOSEOUT.md`: the

@@ -157,6 +157,35 @@ Never technical.
 
 ---
 
+## Phase 2A — Identity & Access Components (Batch PA-1)
+
+Built against the general Forms/Loading State/Error State principles above — not new
+component types, concrete instances of them.
+
+### Login Form (`login.html`)
+
+Contains:
+- Email field (single field, per the Forms principle above: "Few fields")
+- Primary CTA ("Send login link")
+- Status region (loading / ok / err), reusing the Loading State and Error State
+  patterns — the "ok" message is the backend's own generic, anti-enumeration-safe
+  copy, displayed verbatim rather than re-authored client-side
+
+### Sign-In / Verify (`verify.html`)
+
+A multi-state single card, not a form — five mutually exclusive states swapped by
+`hidden`, never more than one shown at once (one primary action per screen, docs/05):
+- No token present — Error State variant, links back to Login Form
+- Ready — explains the next step, one primary CTA ("Continue to sign in"); does not
+  auto-advance (a deliberate security choice, docs/29 §16)
+- Verifying — Loading State (skeleton bars, no spinner)
+- Signed in — confirmation, honestly states any not-yet-built next step as "coming
+  soon" (Empty State principle) rather than linking somewhere that doesn't exist yet
+- Failed — Error State, backend's own friendly `error.message`, links back to Login
+  Form
+
+---
+
 ## Future Components
 
 Reserved for Phase 2
