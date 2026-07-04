@@ -132,10 +132,23 @@ file — the disclosed, additive exceptions (`FoundationRouter.gs`'s three new
 dispatch cases; `dashboard.js`'s Reports-card wiring) are named in full in
 docs/29 §16's Batch PA-5 notes.
 
-Next: Batch PA-6 (docs/29 §13 Batch 5G) — add "Patient Login" to primary nav,
-un-noindex the patient-facing pages, and add a sitemap entry, the only
-remaining batch with a real public-visibility change. Not yet started;
-approval required before it begins.
+Batch PA-6 (docs/29 §13 Batch 5G) — adding "Patient Login" to primary nav,
+un-noindexing the real patient-facing pages, and a `sitemap.xml` entry for the
+login entry point — has also now shipped, preceded by re-confirming PA-5's
+deployment-verification fixes were still live and a full clean re-run of every
+existing validation suite. This was the only batch in Phase 2A with a real
+public-visibility change; My Health Journey is now genuinely reachable from
+the public website rather than unlisted. Zero backend change of any kind
+(verified via `git diff --name-only`). One deliberate, disclosed exception:
+`my-health-journey/timeline/entry.html` (the per-record Consultation Detail
+view) keeps its noindex tag, since it has no stable canonical URL to index —
+recorded in docs/29 §16's Batch PA-6 notes, not a silent narrowing of scope.
+
+Next: Batch 5H (docs/29 §13) — a dedicated validation-harness closeout pass
+for the Apps Script modules Patient Access has shipped so far, plus the
+docs/12/docs/15 documentation gaps docs/29 §12 already names as open. Not yet
+started; approval required before it begins, per this repository's standing
+one-batch-at-a-time workflow.
 
 - Patient Login (passwordless, ADR-003)
 - Dashboard shell

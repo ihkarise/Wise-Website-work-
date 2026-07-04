@@ -20,7 +20,11 @@ Every click should naturally lead to the next helpful step.
 - Resources
 - Contact
 
-Patient Login (future) is a separate action button.
+Patient Login is a separate action link, live in primary nav since Batch PA-6
+(docs/29 §13 Batch 5G), pointing to `/login.html`. It sits last, immediately
+before the Book Now/Book Consultation CTA — a plain nav link, deliberately not
+styled as the accent CTA, so it reads as a distinct action rather than a
+second "book" button.
 
 ---
 
