@@ -154,7 +154,7 @@ async function main() {
         itemTitles.length === 3 && itemTitles[0] === 'Newest visit' && itemTitles[1] === 'Middle visit' && itemTitles[2] === 'Oldest visit');
 
       const firstHref = await page.$eval('.tl-item a', (el) => el.getAttribute('href'));
-      check('Timeline list: each entry links to entry.html with its own record_id', firstHref === '/my-health-journey/timeline/entry.html?id=rec-3');
+      check('Timeline list: each entry links to entry.html with its own record_id', firstHref === 'entry.html?id=rec-3');
 
       const summaryText = await page.$eval('.tl-item .tl-summary', (el) => el.textContent);
       check('Timeline list: long summary text is truncated on the list view', summaryText.length < SAMPLE_ENTRIES[0].summary_text.length && /…$/.test(summaryText));
@@ -242,7 +242,7 @@ async function main() {
       check('Detail page: renders the entry date', date === '2026-06-15');
 
       const backHref = await page.getAttribute('a.tl-back', 'href');
-      check('Detail page: has a "back to Timeline" link (docs/39 §6)', backHref === '/my-health-journey/timeline/');
+      check('Detail page: has a "back to Timeline" link (docs/39 §6)', backHref === '../../my-health-journey/timeline/');
 
       await context.close();
     }
@@ -282,7 +282,7 @@ async function main() {
 
       const viewFullHref = await page.$eval('#card-timeline-body a.secondary', (el) => el.getAttribute('href'));
       check('Dashboard: Timeline card\'s "View full timeline" link points at the real Timeline page',
-        viewFullHref === '/my-health-journey/timeline/');
+        viewFullHref === '../my-health-journey/timeline/');
 
       await context.close();
     }

@@ -35,7 +35,7 @@
       '<span class="tl-date">' + escapeHtmlForDisplay(entry.entry_date) + '</span>' +
       '<h3>' + escapeHtmlForDisplay(entry.title) + '</h3>' +
       '<p class="tl-summary">' + escapeHtmlForDisplay(truncate(entry.summary_text, 140)) + '</p>' +
-      '<a href="/my-health-journey/timeline/entry.html?id=' + encodeURIComponent(entry.record_id) + '">View details</a>' +
+      '<a href="entry.html?id=' + encodeURIComponent(entry.record_id) + '">View details</a>' +
       '</div>' +
       '</li>';
   }

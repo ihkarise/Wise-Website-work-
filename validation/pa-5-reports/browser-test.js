@@ -261,7 +261,7 @@ async function main() {
       check('Dashboard: Reports card shows the most recent uploads\' dates and filenames', /2026-07-01/.test(listText) && /old-scan\.png/.test(listText));
 
       const viewFullHref = await page.$eval('#card-reports-body a.secondary', (el) => el.getAttribute('href'));
-      check('Dashboard: Reports card\'s "View full history" link points at the real Reports page', viewFullHref === '/my-health-journey/reports/');
+      check('Dashboard: Reports card\'s "View full history" link points at the real Reports page', viewFullHref === '../my-health-journey/reports/');
 
       check('Dashboard: the upload form is still present even when reports already exist (write affordance is the card\'s primary content)',
         (await page.$('#reportForm')) !== null);

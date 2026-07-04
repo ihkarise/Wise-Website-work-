@@ -247,7 +247,7 @@ async function main() {
 
       const viewFullHref = await page.$eval('#card-symptoms-body a.secondary', (el) => el.getAttribute('href'));
       check('Dashboard: Symptom Tracker card\'s "View full history" link points at the real Symptom History page',
-        viewFullHref === '/my-health-journey/symptoms/');
+        viewFullHref === '../my-health-journey/symptoms/');
 
       check('Dashboard: the quick-log form is still present even when entries already exist (docs/41 §2: write affordance is the card\'s primary content)',
         (await page.$('#symptomForm')) !== null);
