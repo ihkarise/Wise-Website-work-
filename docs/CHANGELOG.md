@@ -1,6 +1,13 @@
 # CHANGELOG
 
-## Unreleased
+> **Superseded.** This file was the changelog through Phase 1.5's approval. Every
+> batch since — Phase 1.5 implementation, Foundation, Identity & Access, and Patient
+> Access PA-1 through PA-6 — is recorded in the root `CHANGELOG.md`, the authoritative
+> changelog per docs/29 §12 and docs/25 §12's own documentation-impact tables.
+> Everything below this notice is historical record, kept as-is; do not add new
+> entries here.
+
+## Unreleased (as of Phase 1.5 approval — since superseded, see notice above)
 
 ### Changed
 - docs/25-PHASE-1.5-TECHNICAL-PLAN.md moved from PROPOSED to APPROVED. All six
@@ -9,7 +16,7 @@
   the Phase 1.5 Architecture Readiness Review, with no change to the underlying
   architecture, scope, or Product Vision.
 
-### Planned
+### Planned (all since shipped — see root CHANGELOG.md)
 - Resources Hub
 - Condition Landing Pages
 - My Health Journey foundation

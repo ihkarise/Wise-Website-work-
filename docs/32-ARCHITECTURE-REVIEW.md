@@ -205,12 +205,12 @@ this session.
 **Three conditions should be satisfied before Batch 5A is approved to begin** (none of
 these are resolved by this session, all are cheap to resolve):
 1. Part 1.6's governance gap (docs/28's sign-off) closed.
-2. Part 1.1 and 1.3's conflicts (docs/09 Entry Point wording, docs/12's Sheets-as-
-   principle wording) resolved, since docs/29 already depends on the corrected version
-   of both.
-3. A dedicated security review of the magic-link/session-token mechanism (docs/29
+2. ~~Part 1.1 and 1.3's conflicts~~ (docs/09 Entry Point wording, docs/12's Sheets-as-
+   principle wording) — **done**, per docs/34.
+3. ~~A dedicated security review of the magic-link/session-token mechanism~~ (docs/29
    §11, item 2) — the hardest, most novel piece of engineering in this phase, and the
-   one place a subtle bug has the highest cost.
+   one place a subtle bug has the highest cost — **done**, during the PA-7 closeout
+   batch. See docs/15-SECURITY-STANDARDS.md; no vulnerabilities found.
 
 **Not yet stable for anything beyond docs/29's scope.** Personal Care Plan and Digital
 Twin/AI Summaries have no technical plan and should not begin implementation under this
