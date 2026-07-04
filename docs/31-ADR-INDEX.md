@@ -1,5 +1,5 @@
 # 31 - Architectural Decision Record Index
-## Version 1.0 — 2026-07-02
+## Version 1.1 — 2026-07-04
 
 > This is the canonical index of every Architectural Decision Record (ADR) for the
 > Wise Platform. Full records live in `/adr/`. This index is the entry point — check
@@ -35,7 +35,7 @@ deprecates any ADR.
 |---|---|---|---|
 | ADR-001 | Knowledge Engine Is the Primary Knowledge Source | Accepted | `/adr/ADR-001-knowledge-engine-primary-source.md` |
 | ADR-002 | Patient Identity Is Independent of Authentication | Accepted | `/adr/ADR-002-patient-identity-independent-of-authentication.md` |
-| ADR-003 | Authentication Is Passwordless by Default | Accepted | `/adr/ADR-003-passwordless-authentication-by-default.md` |
+| ADR-003 | Authentication Is Passwordless by Default | Accepted — amended in part by ADR-011 | `/adr/ADR-003-passwordless-authentication-by-default.md` |
 | ADR-004 | Digital Twin Never Generates Diagnosis or Treatment | Accepted | `/adr/ADR-004-digital-twin-no-diagnosis-or-treatment.md` |
 | ADR-005 | AI Always Operates Under Doctor Supervision | Accepted | `/adr/ADR-005-ai-under-doctor-supervision.md` |
 | ADR-006 | Google Sheets Is an Implementation Detail, Not a Product Dependency | Accepted | `/adr/ADR-006-sheets-as-implementation-detail.md` |
@@ -43,15 +43,18 @@ deprecates any ADR.
 | ADR-008 | Every Phase Must Be Independently Deployable | Accepted | `/adr/ADR-008-phases-independently-deployable.md` |
 | ADR-009 | Every Module Must Be Independently Replaceable | Accepted | `/adr/ADR-009-modules-independently-replaceable.md` |
 | ADR-010 | Security Decisions Always Take Precedence Over Convenience | Accepted | `/adr/ADR-010-security-before-convenience.md` |
+| ADR-011 | A Persistent Credential (PIN/Password) May Be Added as an Optional Second Factor, Magic Link Remains the Mandatory Baseline | Accepted — amends ADR-003 | `/adr/ADR-011-persistent-credential-as-additional-factor.md` |
+| ADR-012 | Patient Dashboard Capabilities Are Registry-Driven, With Per-Patient Enablement | Accepted | `/adr/ADR-012-dashboard-modules-are-registry-driven.md` |
+| ADR-013 | Calculators Are Deterministic and Never AI-Generated | Accepted | `/adr/ADR-013-calculators-are-deterministic-never-ai-generated.md` |
 
 ---
 
 # Grouped by Concern
 
-**Identity & Access** — ADR-002, ADR-003, ADR-010
-**AI & Clinical Authority** — ADR-001, ADR-004, ADR-005
+**Identity & Access** — ADR-002, ADR-003, ADR-010, ADR-011
+**AI & Clinical Authority** — ADR-001, ADR-004, ADR-005, ADR-013
 **Data & Storage** — ADR-002, ADR-006
-**Modularity & Delivery** — ADR-008, ADR-009
+**Modularity & Delivery** — ADR-008, ADR-009, ADR-012
 **Governance & Documentation** — ADR-007
 
 ---
@@ -65,6 +68,8 @@ deprecates any ADR.
   this ADR set — every architecture choice in it cites the ADR that governs it.
 - `docs/32-ARCHITECTURE-REVIEW.md` records where existing pre-ADR documentation
   conflicts with these decisions, and what should change to resolve each conflict.
+- `docs/44-PHASE-2B-TECHNICAL-PLAN.md` is the first implementation plan built against
+  ADR-011/012/013 — see it for how each is applied.
 
 ---
 

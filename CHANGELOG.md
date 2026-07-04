@@ -8,6 +8,60 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-04 — Phase 2B Architecture-Freeze Pass (documentation only, no code)
+
+Produced the architecture-freeze pass docs/24/docs/32/docs/43 all required before any
+Phase 2B implementation could begin. **No production code was written or modified** —
+this is a documentation-only batch, per this session's explicit instruction.
+
+### Added
+- `docs/44-PHASE-2B-TECHNICAL-PLAN.md` — full architecture for persistent authentication
+  (password/PIN, additive to magic link), Patient Profile, Doctor-Assigned Conditions, a
+  Module Engine, a Template Engine, Personalized Daily Check-ins (the designed successor
+  to Symptom Tracker v1), a Calculator Framework (Patient variant), Personal Care Plan,
+  dashboard evolution, per-patient feature enablement, AI boundaries, and Digital Twin
+  integration scope. Includes a nine-batch implementation sequence (PCP-1 through
+  PCP-9) — none authorized to begin by this document.
+- `docs/45-PHASE-2B-ARCHITECTURE-READINESS-REVIEW.md` — critiques every proposal in
+  docs/44, ranks risks (persistent-credential hashing on Google Apps Script is the
+  highest), and states what must be settled before which batch.
+- `docs/46-PHASE-2B-REPOSITORY-CONSISTENCY-REVIEW.md` — duplication, contradiction, and
+  roadmap-gap check of this pass's own output against the full existing documentation
+  set, mirroring docs/34's method.
+- `/adr/ADR-011-persistent-credential-as-additional-factor.md` — resolves the direct
+  conflict between ADR-003 ("no patient password is ever collected, stored, or reset")
+  and the requested persistent-authentication capability: magic link remains mandatory
+  and is the sole recovery path; a PIN/password is strictly opt-in and additive.
+- `/adr/ADR-012-dashboard-modules-are-registry-driven.md` — the patient dashboard moves
+  to a module-registry pattern with per-patient enablement for every *new* Phase 2B
+  capability; existing Phase 2A cards are not required to migrate.
+- `/adr/ADR-013-calculators-are-deterministic-never-ai-generated.md` — freezes
+  Calculator results as always deterministic, never AI-computed, before implementation
+  begins (mirrors ADR-004's Digital-Twin boundary pattern).
+
+### Changed
+- `docs/31-ADR-INDEX.md` — added ADR-011/012/013; marked ADR-003 "amended in part by
+  ADR-011."
+- `/adr/ADR-003-passwordless-authentication-by-default.md` — added a forward-pointing
+  status note to ADR-011 (original decision text unchanged, per ADR-007's
+  never-silently-edit rule).
+- `docs/33-DOMAIN-MODEL.md` — promoted Doctor Instruction, Care Plan, and Calculator
+  (Patient variant) from *Conceptual* to *Designed, not yet implemented*; added a new
+  §6 "Phase 2B Entities" for Patient Profile, Condition Assignment, Module Registry /
+  Patient Module State, Check-In Template / Check-In Response, and Patient Credential;
+  updated the Summary Table.
+- `docs/24-ROADMAP.md` — expanded the previously one-line Phase 2B entry to reflect the
+  actual scope of this pass and reference docs/44/45/46.
+
+### Notes
+- The GitHub release tag `v2.0.0-phase2a` was verified to already exist (both as a git
+  tag and a published GitHub Release) pointing at the correct Phase 2A closeout commit —
+  an earlier session report that it was missing was based on an incomplete local check
+  (tags hadn't been fetched) and is corrected here, not acted on further per this
+  session's explicit instruction not to create it.
+- Static Analysis, Conformance, and Phase 1.5 Regression suites were re-run after this
+  batch and are unaffected, since no `apps-script/*.gs` or `shared/*` file was touched.
+
 ## 2026-07-04 — Patient Access Batch PA-7 / Batch 5H (Phase 2A Closeout)
 
 The Phase 2A closeout batch (docs/29 §13 Batch 5H) — not a feature batch. Confirmed

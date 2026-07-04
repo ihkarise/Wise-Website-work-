@@ -1,7 +1,12 @@
 # ADR-003: Authentication Is Passwordless by Default
 
 ## Status
-Accepted
+Accepted. **Amended in part by ADR-011** (2026-07-04): the Decision's absolute "no
+patient password is ever collected, stored, or reset" clause no longer holds without
+qualification — see ADR-011 for the exact, constrained exception (an opt-in persistent
+credential, magic link remaining the mandatory default and sole recovery path). The
+passwordless-by-default principle recorded below is otherwise unchanged and still
+governs every patient who does not opt in.
 
 ## Context
 docs/09-PHASE-2-ARCHITECTURE.md specifies "Patient ID + Password or Mobile OTP." Neither

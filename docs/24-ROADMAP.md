@@ -1,5 +1,5 @@
 # 24 - Wise Product Roadmap
-## Version 1.0
+## Version 1.1 — 2026-07-04
 
 # Phase 1 — Public Website
 Status: In Progress
@@ -172,10 +172,31 @@ docs/32-ARCHITECTURE-REVIEW.md Part 2 — Personal Care Plan is no longer
 grouped into Phase 2A; it did not have a designed architecture and is
 moved to its own phase below. Batch-level sequencing (5A–5H): docs/29 §13.
 
-# Phase 2B — Personal Care Plan
-Requires its own architecture-freeze pass (a technical plan and any new
-ADRs it needs) before implementation begins — no technical plan exists
-yet, per docs/32's recommendation.
+# Phase 2B — Personal Care Plan, Module Engine & Personalized Check-ins
+Status: **Architecture-freeze pass complete. Implementation not yet
+authorized.** This entry originally named only "Personal Care Plan," per
+docs/32 Part 2's recommendation. The actual architecture-freeze pass
+(2026-07-04) was scoped broader, at explicit request: persistent
+authentication (password/PIN, additive to magic link), Patient Profile,
+Doctor-Assigned Conditions, a Module Engine, a Template Engine,
+Personalized Daily Check-ins (the designed successor to Symptom Tracker
+v1, coexisting with it before any retirement — see docs/44 §9.1), a
+Calculator Framework (Patient variant only — the Public/no-login variant
+remains an unclaimed roadmap gap, docs/46 Part 3), Personal Care Plan
+itself, dashboard evolution, and per-patient feature enablement. See
+docs/44-PHASE-2B-TECHNICAL-PLAN.md for the full design, docs/45-PHASE-2B-
+ARCHITECTURE-READINESS-REVIEW.md for the critique of every proposal and
+open questions, docs/46-PHASE-2B-REPOSITORY-CONSISTENCY-REVIEW.md for the
+consistency check, and ADR-011/012/013 for the three new binding
+decisions this pass required (persistent-credential-as-additional-factor,
+registry-driven dashboard modules, deterministic-only calculators).
+
+**Implementation has not begun and is not authorized by any of the above
+documents** — docs/44 §21 lists nine proposed batches (PCP-1 through
+PCP-9); each requires its own separate, explicit approval, per docs/43
+§12's Phase 2B gate. docs/45 Part 5 flags `PatientCredential` (batch
+PCP-4) as requiring a dedicated security review before it specifically
+can be approved, independent of the rest of the plan.
 
 # Phase 2C — Health Milestones
 - Scheduled progress reviews (30/90 days, 6 months, 1 year, per docs/21)
