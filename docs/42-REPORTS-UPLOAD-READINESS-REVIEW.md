@@ -312,16 +312,15 @@ has used, plus the two mechanisms unique to file content:
 
 - **MIME type** — validated server-side against an allowlist (PDF/JPG/PNG) **by actual
   content, not file extension or the client-declared MIME string** (docs/29 §8, already
-  approved). **A genuine, unresolved implementation question this review surfaces
-  rather than assumes an answer to:** Google Apps Script has no general-purpose
-  magic-byte-sniffing library built in. `Utilities.newBlob(bytes)` can infer a content
-  type from certain well-known byte signatures without an explicit `contentType`
-  argument for some formats, but this behavior is not documented as a complete,
-  guaranteed allowlist-validation mechanism for exactly PDF/JPG/PNG. This must be
-  concretely resolved (and its actual behavior verified against real byte signatures,
-  not assumed from documentation) before `shared/schemas/report.schema.json` and
-  `FoundationReports.gs` are written — the same "resolve before the contract is
-  written" discipline docs/41 §10 applied to Symptom Log's open questions.
+  approved). **Resolved by live deployment verification (2026-07-04):** this review
+  originally flagged `Utilities.newBlob(bytes)`'s undocumented content-type inference as
+  an open, unverified question. Real-deployment testing found that
+  `Utilities.newBlob(bytes)` with no explicit `contentType`/filename hint returns `null`
+  for a genuinely valid PNG — every real upload was being rejected as a result.
+  `FoundationReports.gs`'s `foundationDetectActualMimeType_()` was corrected to check
+  each allowed type's own fixed magic-number byte signature directly, rather than
+  depending on that platform behavior — still authoritative and content-based, just
+  implemented explicitly instead of assumed.
 - **File size** — a server-enforced cap is required (docs/29 §8: "enforces a size cap
   server-side"), but **no specific number appears anywhere in the approved
   architecture** (docs/29 §8, §11; docs/33 §3.3; docs/16-PERFORMANCE-STANDARDS.md has no

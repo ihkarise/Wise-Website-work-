@@ -8,6 +8,26 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-04 — Deployment Verification (Phase 2A first live deployment)
+
+First real deployment of all Phase 2A code (Foundation through PA-5) to the live Apps
+Script project — previously software-complete but never deployed. Verification found
+and fixed two real, previously-unverified assumptions that only surfaced against the
+real platform (both were disclosed open questions in the source docs, not silent bugs):
+
+- **`apps-script/FoundationReports.gs`** — `foundationDetectActualMimeType_()` relied on
+  `Utilities.newBlob(bytes).getContentType()` to infer a file's real MIME type from its
+  bytes. On the real deployment this returned `null` for a genuinely valid PNG with no
+  filename/`contentType` hint, rejecting every real upload. Replaced with a direct
+  magic-number byte-signature check (PDF/JPEG/PNG). See
+  `docs/42-REPORTS-UPLOAD-READINESS-REVIEW.md` §11 and
+  `shared/constants/upload-limits.md`, updated to record the resolution.
+- **`apps-script/FoundationConsultationHistory.gs`** — `entry_date` (contractually a
+  plain `YYYY-MM-DD` string per `shared/schemas/consultation-history.schema.json`) was
+  found coming back as a full timestamp, because Google Sheets silently converts a
+  plain date string written to a cell into a real date value. Added
+  `foundationNormalizeEntryDate_()` to restore the plain-string contract on read.
+
 ## 2026-07-04 — Patient Access Batch PA-5 (Report Upload — Reports sheet, Drive integration)
 
 Fifth Patient Access batch (docs/29 §13 Batch 5F), preceded by
