@@ -80,6 +80,34 @@ requirements above, now real for the first time:
   validated server-side before use, and no signing secret or API key is ever returned
   in a response.
 
+### Security review of the magic-link/session-token mechanism (PA-7 closeout, 2026-07-04)
+
+Closes the dedicated review docs/29 §11 item 2, docs/32 Part 3, and docs/34 both
+required before this mechanism could be considered done, tracked as still-pending
+through the Identity & Access closeout (docs/36) and never actually performed until
+now. Manual code review of `FoundationLoginTokens.gs`, `FoundationSession.gs`,
+`FoundationLoginFlow.gs`, `FoundationRateLimit.gs`, `FoundationRouteGuard.gs`, and the
+`login.html`/`verify.html` frontend, cross-checked against `validation/phase-1-5/`'s
+and `validation/phase-2a-foundation/`'s existing auth-specific conformance checks.
+
+**No vulnerabilities found.** Specifically verified: login tokens are ~384-bit entropy
+(three concatenated UUIDv4s), only their SHA-256 hash is ever persisted, single-use is
+enforced via a checked `used_at` sentinel before any read of the record succeeds,
+expiry fails closed on an unparsable date; session tokens are HMAC-SHA256 signed with
+a signature comparison done in constant time (`foundationConstantTimeEquals_()`), fail
+closed if the signing secret is unprovisioned, and never silently renew; both the
+login-link-request and login-link-consume responses are generic/anti-enumerating
+independent of whether an account exists (only the audit log, staff-visible only,
+records the real reason); `verify.html` strips the token from the visible
+URL/browser history via `history.replaceState()` immediately on read and requires an
+explicit user click before spending it — mitigating email-scanner link-prefetch
+consuming a single-use token before the real recipient does (the risk docs/29 line
+~1175 names); the resulting session token is stored only in `sessionStorage`, never
+`localStorage`. This matches, rather than merely restates, the extensive
+auth-specific coverage already in `validation/phase-1-5/validate.js` and
+`validation/phase-2a-foundation/conformance.js` (session rejection, cross-patient
+isolation, anti-enumeration, audit logging).
+
 ## Phase 2A — Implementation Notes (Batch PA-3, Consultation History)
 
 A new authorization shape, beyond what IA-2's `get_profile` needed: **record-ownership

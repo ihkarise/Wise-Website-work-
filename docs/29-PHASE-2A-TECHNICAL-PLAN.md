@@ -322,7 +322,8 @@ convenient one).
 2. **Auth is genuinely security-sensitive** — hand-rolled HMAC token issuance/
    verification on a stateless backend is materially harder than anything in Phase
    1.5. Requires a dedicated `/security-review` pass before this batch is considered
-   done, before implementation is approved to begin.
+   done, before implementation is approved to begin. **Done** — performed during the
+   PA-7 closeout batch (docs/15-SECURITY-STANDARDS.md; no vulnerabilities found).
 3. **Report upload is the single highest-risk feature** — cross-patient authorization
    bugs here are the worst-case outcome of this phase. Sequenced last among
    data-features specifically so the authorization pattern is proven on lower-risk

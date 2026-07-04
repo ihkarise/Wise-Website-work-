@@ -201,9 +201,11 @@ zero patient-facing surface) specifically.
    not a documentation task.
 2. ~~Resolve docs/32 §1.1 and §1.3~~ — **done**, in the documentation-synchronization
    batch this review called for.
-3. A dedicated security review of the magic-link/session-token mechanism before Batch
-   5B specifically (Batch 5A itself has no auth logic and does not require this first)
-   — still pending, scheduled for when Batch 5B is reached.
+3. ~~A dedicated security review of the magic-link/session-token mechanism before
+   Batch 5B specifically~~ — **done**, during the PA-7 closeout batch (docs/29 §11
+   item 2's requirement was tracked but never actually performed until then). See
+   docs/15-SECURITY-STANDARDS.md's "Security review of the magic-link/session-token
+   mechanism" section for the record — no vulnerabilities found.
 
 ## What does not need to happen before Batch 5A
 

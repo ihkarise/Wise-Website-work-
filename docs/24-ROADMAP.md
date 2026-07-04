@@ -63,10 +63,12 @@ Remaining
   decision, not further code or deployment work.
 
 # Phase 2A — My Health Journey v1
-Status: Architecture approved (docs/29-PHASE-2A-TECHNICAL-PLAN.md,
-docs/30-ARCHITECTURE-PRINCIPLES.md, docs/31-ADR-INDEX.md,
-docs/33-DOMAIN-MODEL.md, docs/34-ARCHITECTURE-CONSISTENCY-REVIEW.md).
-Implementation in progress — Foundation batches F1 (scaffolding), F2
+Status: **Software Complete, Deployment Verified, Frozen except for bug
+fixes** (docs/43-PHASE-2A-CLOSEOUT.md). Architecture approved
+(docs/29-PHASE-2A-TECHNICAL-PLAN.md, docs/30-ARCHITECTURE-PRINCIPLES.md,
+docs/31-ADR-INDEX.md, docs/33-DOMAIN-MODEL.md,
+docs/34-ARCHITECTURE-CONSISTENCY-REVIEW.md).
+Foundation batches F1 (scaffolding), F2
 (shared contracts + utilities), F3 (data layer + Patient Identity), F4
 (session issuance/verification + route protection), and F5 (schema-
 validator-based conformance testing) shipped — the full F1–F5 Foundation
@@ -144,11 +146,19 @@ the public website rather than unlisted. Zero backend change of any kind
 view) keeps its noindex tag, since it has no stable canonical URL to index —
 recorded in docs/29 §16's Batch PA-6 notes, not a silent narrowing of scope.
 
-Next: Batch 5H (docs/29 §13) — a dedicated validation-harness closeout pass
-for the Apps Script modules Patient Access has shipped so far, plus the
-docs/12/docs/15 documentation gaps docs/29 §12 already names as open. Not yet
-started; approval required before it begins, per this repository's standing
-one-batch-at-a-time workflow.
+Batch 5H / PA-7 (docs/29 §13) — the Phase 2A closeout batch — has also now
+shipped: a full repository consistency review (architecture, schema, contract,
+security, and documentation cross-checks), a clean re-run of every existing
+validation suite (static analysis, conformance, Phase 1.5 regression, all five
+browser-test suites — zero code changes required), the dedicated security
+review of the magic-link/session-token mechanism docs/29 §11/docs/32/docs/34
+had tracked as still-pending since Identity & Access (see
+docs/15-SECURITY-STANDARDS.md; no vulnerabilities found), and a documentation
+pass closing the one other genuine gap found (a stale, pre-Phase-1.5
+`docs/CHANGELOG.md` superseded by root `CHANGELOG.md`, now marked as such).
+**Phase 2A is now software-complete, deployment-verified, and frozen except
+for bug fixes.** See docs/43-PHASE-2A-CLOSEOUT.md for the full closeout
+report.
 
 - Patient Login (passwordless, ADR-003)
 - Dashboard shell

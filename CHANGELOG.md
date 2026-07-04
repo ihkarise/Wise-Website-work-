@@ -8,6 +8,39 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-04 — Patient Access Batch PA-7 / Batch 5H (Phase 2A Closeout)
+
+The Phase 2A closeout batch (docs/29 §13 Batch 5H) — not a feature batch. Confirmed
+PA-1 through PA-6 remain frozen with zero code drift from `main`, re-ran every existing
+validation suite fresh (static analysis, conformance, Phase 1.5 regression, and all
+five browser-test suites — 337/337 checks passing, zero code changes required), and
+performed a 16-dimension repository consistency review. Three genuine, documentation-
+only inconsistencies were found and fixed; no code, schema, or contract was changed.
+See `docs/43-PHASE-2A-CLOSEOUT.md` for the full closeout report.
+
+### Fixed
+- **A dedicated security review of the magic-link/session-token mechanism, required by
+  docs/29 §11 item 2 / docs/32 / docs/34 before that work could be considered done, had
+  been tracked as still-pending since the Identity & Access closeout and never actually
+  performed.** Performed it now — manual review of `FoundationLoginTokens.gs`,
+  `FoundationSession.gs`, `FoundationLoginFlow.gs`, `FoundationRateLimit.gs`,
+  `FoundationRouteGuard.gs`, `login.html`, and `verify.html` — no vulnerabilities found.
+  Recorded in `docs/15-SECURITY-STANDARDS.md`; docs/29/32/34 updated to mark the
+  requirement done rather than silently stale.
+- `docs/CHANGELOG.md` (distinct from this file) was a stale, pre-Phase-1.5 changelog
+  still claiming Phase 1.5/Foundation/Identity & Access/Patient Access were
+  "Unreleased"/"Planned." Marked superseded, pointing to this file as authoritative
+  (which it has been all along, per docs/29 §12's documentation-impact table);
+  historical entries left intact.
+- `docs/24-ROADMAP.md`'s "Next: Batch 5H... not yet started" pointer was stale the
+  moment this batch began. Updated to record Batch 5H / PA-7 shipped and Phase 2A
+  closed.
+
+### Added
+- `docs/43-PHASE-2A-CLOSEOUT.md` — the Phase 2A closeout report: batch history,
+  validation summary (337 automated checks, 0 failures), the security review record,
+  final project statistics, and the release recommendation (`v2.0.0-phase2a`).
+
 ## 2026-07-04 — Patient Access Batch PA-6 (Public Visibility — nav, noindex, sitemap)
 
 Sixth and final-named Patient Access batch (docs/29 §13 Batch 5G) — the only batch in
