@@ -88,9 +88,9 @@ async function main() {
       await blockExternalFonts(context);
       const page = await context.newPage();
       await page.goto(`${baseUrl}${PATTERN_A_PAGE}`);
-      const link = page.locator('.nav-links a[href="/login.html"]');
-      check('Home: primary nav includes a "Patient Login" link pointing at /login.html', await link.count() === 1 && (await link.textContent()).trim() === 'Patient Login');
-      const mobileLink = page.locator('.mobile-menu a[href="/login.html"]');
+      const link = page.locator('.nav-links a[href="login.html"]');
+      check('Home: primary nav includes a "Patient Login" link pointing at login.html', await link.count() === 1 && (await link.textContent()).trim() === 'Patient Login');
+      const mobileLink = page.locator('.mobile-menu a[href="login.html"]');
       check('Home: mobile menu also includes the "Patient Login" link', await mobileLink.count() === 1);
       await context.close();
     }
@@ -101,8 +101,8 @@ async function main() {
       await blockExternalFonts(context);
       const page = await context.newPage();
       await page.goto(`${baseUrl}${PATTERN_B_PAGE}`);
-      const link = page.locator('.nav-links a[href="/login.html"]');
-      check('Contact: primary nav includes a "Patient Login" link pointing at /login.html', await link.count() === 1 && (await link.textContent()).trim() === 'Patient Login');
+      const link = page.locator('.nav-links a[href="login.html"]');
+      check('Contact: primary nav includes a "Patient Login" link pointing at login.html', await link.count() === 1 && (await link.textContent()).trim() === 'Patient Login');
       // docs/08/docs/20: Patient Login must be a separate action, distinct
       // from the Book Now CTA it now sits beside in the same list.
       const bookNow = page.locator('.nav-links a.nav-cta');
@@ -116,7 +116,7 @@ async function main() {
       await blockExternalFonts(context);
       const page = await context.newPage();
       await page.goto(`${baseUrl}${PATTERN_A_PAGE}`);
-      await page.click('.nav-links a[href="/login.html"]');
+      await page.click('.nav-links a[href="login.html"]');
       await page.waitForURL('**/login.html');
       check('Home -> Patient Login: clicking the nav link actually navigates to /login.html', page.url() === `${baseUrl}/login.html`);
       const h1 = await page.textContent('h1').catch(() => null);

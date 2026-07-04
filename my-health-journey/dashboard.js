@@ -11,7 +11,7 @@
 
   function goToLogin(reason) {
     window.sessionStorage.removeItem(SESSION_KEY);
-    window.location.href = '/login.html' + (reason ? '?reason=' + reason : '');
+    window.location.href = '../login.html' + (reason ? '?reason=' + reason : '');
   }
 
   signOutBtn.addEventListener('click', function () {
@@ -84,7 +84,7 @@
         escapeHtmlForDisplay(e.title) + '</li>';
     }).join('');
     return '<ul style="list-style:none;padding:0;margin:0 0 14px">' + items + '</ul>' +
-      '<a class="secondary" href="/my-health-journey/timeline/">View full timeline</a>';
+      '<a class="secondary" href="../my-health-journey/timeline/">View full timeline</a>';
   }
 
   // Batch PA-4: the Symptom Tracker card's canonical condition-slug
@@ -147,7 +147,7 @@
         escapeHtmlForDisplay(r.file_name) + '</li>';
     }).join('');
     return '<ul style="list-style:none;padding:0;margin:0 0 14px">' + items + '</ul>' +
-      '<a class="secondary" href="/my-health-journey/reports/">View full history</a>';
+      '<a class="secondary" href="../my-health-journey/reports/">View full history</a>';
   }
 
   // Reads a File as a base64 string (no "data:...;base64," prefix) via
@@ -307,7 +307,7 @@
       'severity ' + escapeHtmlForDisplay(latest.severity) + ', sleep ' + escapeHtmlForDisplay(latest.sleep) +
       ', energy ' + escapeHtmlForDisplay(latest.energy) + ', stress ' + escapeHtmlForDisplay(latest.stress) +
       '</p>' +
-      '<a class="secondary" href="/my-health-journey/symptoms/">View full history</a>';
+      '<a class="secondary" href="../my-health-journey/symptoms/">View full history</a>';
   }
 
   // Independent of loadTimelinePreview()'s own call, same "per-card
