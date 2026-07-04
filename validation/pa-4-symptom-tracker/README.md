@@ -54,9 +54,11 @@ that only manifests against the real, deployed Web App URL.
 
 ## Result (last run)
 
-28/28 checks passed — executed in Batch PA-5's environment (Playwright available via
-this environment's global `node_modules`; see `validation/pa-2-dashboard/README.md`'s
-`NODE_PATH` note), re-run as this batch's zero-regression check on the frontend files
-PA-5 does not touch. The gap this section previously recorded (no `package.json` or
-committed Playwright dependency anywhere in this repository) is unchanged and still
-real — only this one session happened to have Playwright installed globally.
+**Not executed in this batch's environment** — same disclosed gap
+`docs/41-SYMPTOM-TRACKER-READINESS-REVIEW.md` Finding 5 already recorded for
+`pa-2-dashboard`/`pa-3-timeline`: no `package.json` exists anywhere in this repository
+to declare the `playwright` dependency, and no `node_modules/playwright` is present in
+this session. This suite is committed, written to the same discipline as
+`pa-3-timeline`'s (which last ran 29/29), and should be run in an environment with
+Playwright installed before this batch is considered fully closed out — stated openly
+rather than silently claimed as passing.

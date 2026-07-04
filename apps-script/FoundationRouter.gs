@@ -36,18 +36,6 @@
  *     log_symptom's patient_id is session-derived exactly like every
  *     read route above — the write path reuses the same authorization
  *     primitive, not a new one (docs/41 §12).
- *   - upload_report / get_reports / download_report — Batch PA-5
- *     additions (docs/29 §13 Batch 5F), the platform's highest-risk
- *     feature. upload_report's patient_id (and uploaded_by) are
- *     session-derived exactly like log_symptom's. download_report
- *     additionally verifies the requested record_id's own patient_id
- *     matches the session-derived one before ever calling DriveApp
- *     (docs/40-CONSULTATION-IDENTITY-STRATEGY.md Q3's discipline, applied
- *     here to Drive content) — FoundationReports.gs's
- *     foundationGetReportById_()/foundationDownloadReport_() perform that
- *     check, not this file. Drive's own sharing permission is never the
- *     authorization boundary (docs/42) — this router never returns a
- *     Drive URL, only server-fetched, base64-encoded file bytes.
  *
  * A disclosed, additive exception, same category as Code.gs's own
  * one-line dispatch shim (IA-2): this file was previously listed among
@@ -72,7 +60,7 @@
  *
  * Depends on FoundationContracts.gs, FoundationLoginFlow.gs,
  * FoundationRouteGuard.gs, PatientIdentity.gs, FoundationConsultationHistory.gs,
- * FoundationSymptomLog.gs, FoundationReports.gs.
+ * FoundationSymptomLog.gs.
  */
 
 /**
@@ -144,53 +132,6 @@ function foundationHandleGetSymptomLogs_(input) {
 }
 
 /**
- * Batch PA-5: creates a new Report entry for the caller. patient_id and
- * uploaded_by are both derived exclusively from the verified session —
- * the same authorization primitive log_symptom already uses, applied
- * here to the platform's highest-risk feature (docs/29 §8, docs/42).
- * Every other field (file_name, mime_type, file_base64) comes from the
- * request body and is validated by foundationCreateReport_() itself,
- * including the real, content-based MIME check once the bytes are
- * decoded.
- */
-function foundationHandleUploadReport_(input) {
-  return withFoundationAuth_(input && input.session_token, function (patientId) {
-    return foundationCreateReport_({
-      patient_id: patientId,
-      file_name: input && input.file_name,
-      mime_type: input && input.mime_type,
-      file_base64: input && input.file_base64,
-      uploaded_by: patientId
-    });
-  });
-}
-
-/**
- * Batch PA-5: returns the caller's own Report metadata, sorted and capped
- * for the full-history/dashboard-preview display. patient_id is always
- * session-derived, never client-supplied. No file content is returned
- * here — see download_report for that.
- */
-function foundationHandleGetReports_(input) {
-  return withFoundationAuth_(input && input.session_token, function (patientId) {
-    return foundationGetPatientReports_(patientId);
-  });
-}
-
-/**
- * Batch PA-5: returns a single report's file content, base64-encoded,
- * scoped strictly to the caller's own session-derived patient_id.
- * foundationDownloadReport_() itself performs the ownership check (via
- * foundationGetReportById_()) before ever calling DriveApp — Drive's own
- * permission state is never consulted as part of this authorization.
- */
-function foundationHandleDownloadReport_(input) {
-  return withFoundationAuth_(input && input.session_token, function (patientId) {
-    return foundationDownloadReport_(patientId, input && input.record_id);
-  });
-}
-
-/**
  * Serializes a response-envelope-shaped value to the wire. Apps Script
  * Web Apps cannot set a real HTTP status code (every response transports
  * as HTTP 200 regardless — the same platform fact Code.gs's own
@@ -231,15 +172,6 @@ function handleFoundationRequest_(input) {
       break;
     case 'get_symptom_logs':
       envelope = foundationHandleGetSymptomLogs_(input);
-      break;
-    case 'upload_report':
-      envelope = foundationHandleUploadReport_(input);
-      break;
-    case 'get_reports':
-      envelope = foundationHandleGetReports_(input);
-      break;
-    case 'download_report':
-      envelope = foundationHandleDownloadReport_(input);
       break;
     default:
       envelope = buildFoundationErrorEnvelope_('FOUNDATION_UNKNOWN_ACTION', 'Unknown request.');
