@@ -84,8 +84,7 @@ var MANUAL_DROPDOWN_WRAPPERS = [
   'runFoundationTests', // FoundationTests.gs — Foundation's unit test entry point
   'createFoundationPatient', // PatientIdentity.gs — F3's manually-run patient creation
   'createFoundationLoginToken', // FoundationLoginTokens.gs — IA-1's manually-run token creation
-  'createFoundationConsultationEntry', // FoundationConsultationHistory.gs — PA-3's manually-run entry creation
-  'createFoundationReportForExistingDriveFile' // FoundationReports.gs — PA-5's manually-run staff-attributed upload wrapper
+  'createFoundationConsultationEntry' // FoundationConsultationHistory.gs — PA-3's manually-run entry creation
 ];
 
 function listGsFiles() {

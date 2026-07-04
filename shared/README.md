@@ -89,10 +89,6 @@ same name). `apps-script/Config.gs` and `internal/consultation-summary.html` (bo
 Phase 1.5 files) still hand-duplicate their own copies of this same list, per docs/25
 §11 — neither was updated to read from this file, since both are out of Phase 2A's
 scope; a future cleanup batch could point them at this canonical definition instead.
-Batch PA-5 added `constants/upload-limits.json` (the Report Upload size cap and
-allowed-file-type list — the bootstrap exception, created alongside its first
-implementation, `apps-script/FoundationReports.gs`) and
-`schemas/report.schema.json` (the `Reports` record shape).
 
 ---
 

@@ -22,18 +22,6 @@
  * validation/pa-4-symptom-tracker/browser-test.js's own coverage, not
  * duplicated here.
  *
- * Updated again in Batch PA-5: mockGetProfile() now also routes
- * get_reports (the Reports card's new loadReportsPreview() call);
- * phase2aCount drops from 1 to 0 (Reports was the last remaining "Coming
- * later in Phase 2A" placeholder — every dashboard card now shows real
- * data or an explicit "planned for a future version" state); nodataCount
- * rises from 2 to 3 (Reports renders its own real "No data yet" badge
- * alongside its always-present upload form, the same "write affordance is
- * the card's primary content" pattern PA-4 already established for
- * Symptom Tracker). The Reports card's own upload-form/download behavior
- * is validation/pa-5-reports/browser-test.js's own coverage, not
- * duplicated here.
- *
  * Run: node validation/pa-2-dashboard/browser-test.js
  */
 
@@ -85,15 +73,13 @@ const FAKE_TOKEN = 'fake-session-token-for-tests';
 // Batch PA-3 wired the dashboard's Timeline card to a real, separate
 // get_timeline call (dashboard.js's loadTimelinePreview()); Batch PA-4 adds
 // the same kind of separate call for the Symptom Tracker card
-// (loadSymptomPreview()/get_symptom_logs); Batch PA-5 adds one more for the
-// Reports card (loadReportsPreview()/get_reports) — this mock routes by the
-// parsed request's foundation_action so each gets a realistic, empty-data
-// response (rendering the real "No data yet" Empty State) rather than being
-// silently mismatched against whatever envelope a given test passed in for
-// get_profile. log_symptom/upload_report are not needed by this suite's own
-// tests — the Symptom Tracker's and Reports' own write-affordance behavior
-// is validation/pa-4-symptom-tracker/'s and validation/pa-5-reports/'s own
-// coverage, respectively.
+// (loadSymptomPreview()/get_symptom_logs) — this mock routes by the parsed
+// request's foundation_action so each gets a realistic, empty-data response
+// (rendering the real "No data yet" Empty State) rather than being silently
+// mismatched against whatever envelope a given test passed in for
+// get_profile. log_symptom is not needed by this suite's own tests — the
+// quick-log form's submit behavior is validation/pa-4-symptom-tracker/
+// browser-test.js's own coverage.
 async function mockGetProfile(page, envelope) {
   await page.route('**/macros/s/**/exec', async (route) => {
     let action = null;
@@ -103,10 +89,6 @@ async function mockGetProfile(page, envelope) {
       return;
     }
     if (action === 'get_symptom_logs') {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'ok', data: [] }) });
-      return;
-    }
-    if (action === 'get_reports') {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'ok', data: [] }) });
       return;
     }
@@ -173,7 +155,6 @@ async function main() {
       // settle before asserting on badge counts.
       await page.waitForSelector('#card-timeline-body:not(:has(.skeleton))');
       await page.waitForSelector('#sxSummary .badge-nodata');
-      await page.waitForSelector('#reportsList .badge-nodata');
 
       const greetingText = await page.textContent('#greeting');
       check('Dashboard: greeting shows the real patient name from get_profile', greetingText.indexOf('Asha Menon') !== -1);
@@ -185,23 +166,19 @@ async function main() {
       const phase2aCount = await page.$$eval('.badge-phase2a', (els) => els.length);
       const futureCount = await page.$$eval('.badge-future', (els) => els.length);
       const nodataCount = await page.$$eval('.badge-nodata', (els) => els.length);
-      check('Dashboard: zero "Coming later in Phase 2A" placeholders remain — Reports (PA-5) was the last one (Timeline PA-3, Symptom Tracker PA-4 were wired earlier)', phase2aCount === 0);
+      check('Dashboard: Reports is the only remaining "Coming later in Phase 2A" placeholder (Timeline PA-3, Symptom Tracker PA-4 are now both wired)', phase2aCount === 1);
       check('Dashboard: Care Plan/Messages/Digital Twin use the "Planned for a future version" badge', futureCount === 3);
-      check('Dashboard: Timeline, Symptom Tracker, and Reports cards each render their own real "No data yet" badge for a patient with zero rows (PA-3/PA-4/PA-5)',
-        nodataCount === 3);
+      check('Dashboard: Timeline and Symptom Tracker cards each render their own real "No data yet" badge for a patient with zero rows (PA-3/PA-4)',
+        nodataCount === 2);
       const timelineBadgeParent = await page.$eval('#card-timeline-body', (el) => el.querySelector('.badge-nodata') !== null);
       check('Dashboard: the Timeline card carries its own "No data yet" badge', timelineBadgeParent);
       const symptomsBadgeParent = await page.$eval('#card-symptoms-body', (el) => el.querySelector('.badge-nodata') !== null);
       check('Dashboard: the Symptom Tracker card carries its own "No data yet" badge (PA-4)', symptomsBadgeParent);
       const symptomFormPresent = await page.$eval('#card-symptoms-body', (el) => el.querySelector('#symptomForm') !== null);
       check('Dashboard: the Symptom Tracker card still shows its quick-log form alongside the empty summary (docs/41 §2: write affordance is the card\'s primary content)', symptomFormPresent);
-      const reportsBadgeParent = await page.$eval('#card-reports-body', (el) => el.querySelector('.badge-nodata') !== null);
-      check('Dashboard: the Reports card carries its own "No data yet" badge (PA-5)', reportsBadgeParent);
-      const reportFormPresent = await page.$eval('#card-reports-body', (el) => el.querySelector('#reportForm') !== null);
-      check('Dashboard: the Reports card still shows its upload form alongside the empty list (docs/29 §5: write affordance is the card\'s primary content)', reportFormPresent);
-      const reportFileLabelFor = await page.getAttribute('#card-reports-body label', 'for');
-      check('Dashboard: the Reports upload field has a real, associated <label for>', reportFileLabelFor === 'reportFile');
 
+      const badgeText = await page.$eval('.badge-phase2a', (el) => el.textContent);
+      check('Dashboard: Phase 2A badge copy matches the approved wording', badgeText === 'Coming later in Phase 2A');
       const futureText = await page.$eval('.badge-future', (el) => el.textContent);
       check('Dashboard: future-version badge copy matches the approved wording', futureText === 'Planned for a future version');
 
@@ -296,7 +273,6 @@ async function main() {
       await page.waitForSelector('#greeting:not(:has(.skeleton))');
       await page.waitForSelector('#card-timeline-body:not(:has(.skeleton))');
       await page.waitForSelector('#sxSummary .badge-nodata');
-      await page.waitForSelector('#reportsList .badge-nodata');
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       check('Dashboard: zero horizontal overflow at 375px viewport', overflow === 0);
       await context.close();
@@ -330,7 +306,6 @@ async function main() {
       await page.waitForSelector('#greeting:not(:has(.skeleton))');
       await page.waitForSelector('#card-timeline-body:not(:has(.skeleton))');
       await page.waitForSelector('#sxSummary .badge-nodata');
-      await page.waitForSelector('#reportsList .badge-nodata');
 
       const h1Count = await page.$$eval('h1', (els) => els.length);
       check('Dashboard: exactly one h1 on the page', h1Count === 1);

@@ -213,11 +213,10 @@ Reports, Care Plan, Messages, Digital Twin — each a `.card` instance (reused
 from the Forms/Login Form component, unchanged) with its own `h2` and one
 Empty State body. No card has a live data source in this batch (docs/29 §13
 Batches 5D/5E/5F are what wire Timeline/Symptom Tracker/Reports respectively)
-— every card in PA-2 renders an Empty State. Timeline (PA-3), Symptom
-Tracker (PA-4), and Reports (PA-5) have since all been wired to real data —
-see their own sections below. Every dashboard card now shows real data or an
-honest "planned for a future version" state; none shows the original
-"Coming later in Phase 2A" placeholder anymore.
+— every card in PA-2 renders an Empty State. Timeline (PA-3) and Symptom
+Tracker (PA-4) have since been wired to real data — see their own sections
+below; Reports (Batch 5F) remains the only card still showing this original
+placeholder.
 
 ### Empty State — three distinct types (Batch PA-2)
 
@@ -230,12 +229,8 @@ expectation for every unfinished feature:
   gave it its first real one (the Timeline card and the Timeline list page,
   for a patient with zero Consultation History entries) — see the Batch PA-3
   section below.
-- **Coming later in Phase 2A** — used by Timeline, Symptom Tracker, and
-  Reports before each was wired (Batches 5D/5E/5F respectively). No card
-  renders it anymore as of Batch PA-5 (Reports was the last one) — the
-  badge/CSS class are kept, unremoved, for the same "built, verified, no
-  current consumer" reason the "No data yet" variant was kept through
-  PA-2/PA-3 before it had one.
+- **Coming later in Phase 2A** — Timeline, Symptom Tracker, Reports. Named,
+  sequenced batches already exist for each (5D/5E/5F).
 - **Planned for a future version** — Care Plan, Messages, Digital Twin. No
   architecture exists yet for any of the three (docs/29 §2.2); the copy
   deliberately does not imply a near-term date.
@@ -327,46 +322,6 @@ as markup), and the optional condition tag. Visually adapted from PA-3's own
 `.tl-track`/`.tl-item` pattern (the same "reuse this pattern rather than invent a third
 list style" discipline docs/41 §14 names), not a fresh list style. Empty and error
 states follow the same conventions as Timeline and the dashboard shell. Reuses
-`my-health-journey/session-guard.js` unchanged — the next consumer that module's own
-PA-3 introduction anticipated.
-
----
-
-## Phase 2A — Report Upload Components (Batch PA-5)
-
-Built against docs/42's readiness review — the platform's highest-risk feature. Gives
-the Reports card (PA-2) its first real data source and adds one new page, reusing
-`assets/site.css` unchanged (zero new shared rules — even the file input reuses `.field
-input` as-is).
-
-### Report Upload Form (dashboard card, `my-health-journey/dashboard.js`)
-
-The Reports card's Empty State is replaced with a real, always-present upload form — the
-same "write affordance is the card's primary content" pattern PA-4's Symptom Tracker
-card already established, now applied to a file picker instead of scale inputs. A
-single `<input type="file" accept="...">` restricted to PDF/JPG/PNG, with a real `<label
-for>`, plus an "Upload report" submit button. Client-side size/type pre-checks
-(ported from `shared/constants/upload-limits.json`) give an immediate, friendly
-rejection before any file is read or sent — UX only; the server performs the real,
-content-based validation regardless (docs/29 §8, docs/42 §2). Submission feedback
-reuses the existing `.status`/`role="status"`/`aria-live="polite"` component. Once
-reports exist, a bare "recent uploads" list (date + filename, no thumbnails, no
-preview) plus a "View full history" link appears below the form; a zero-report patient
-sees the "No data yet" Empty State instead, with the form still present either way.
-
-### Reports (`my-health-journey/reports/`)
-
-A real ordered list (`<ol>`), one `<li>` per entry — reverse-chronological, visually
-adapted from PA-3's/PA-4's own `.tl-track`/`.tl-item` pattern (the same "reuse this
-pattern rather than invent a third list style" discipline docs/41 §14 named, extended
-here to a fourth). Each entry shows its upload date, filename (HTML-escaped, never
-trusted as markup), detected MIME type and a human-readable size, and a "Download"
-button — the only per-entry action, since Reports has no edit/delete operation
-(docs/42 §4/§5). Downloading never follows a Drive URL: clicking "Download" calls the
-same session-gated `download_report` action, decodes the returned base64 payload
-client-side, and triggers a real browser file download via a Blob/`<a download>` — the
-patient's browser is never given any Drive-level access of its own (docs/42 §3). Empty
-and error states follow the same conventions as Timeline and Symptom History. Reuses
 `my-health-journey/session-guard.js` unchanged — the next consumer that module's own
 PA-3 introduction anticipated.
 

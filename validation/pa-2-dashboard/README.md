@@ -61,7 +61,5 @@ real, deployed Web App URL.
 
 ## Result (last run)
 
-32/32 checks passed — re-run in Batch PA-5 after updating this suite for the
-Reports card's own real data wiring (6 new checks; see this file's own header
-comment and `docs/29-PHASE-2A-TECHNICAL-PLAN.md` §16's Batch PA-5 notes for
-the full breakdown).
+26/26 checks passed. See `docs/29-PHASE-2A-TECHNICAL-PLAN.md` §16's Batch
+PA-2 notes for the full breakdown.

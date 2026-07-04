@@ -26,14 +26,7 @@
   //             static-analysis findings already use (docs/29 §14 F4/F5).
   //             Exercised directly (not reimplemented) by
   //             validation/pa-2-dashboard/browser-test.js via window.WiseDashboard.
-  //  - phase2a: named, sequenced later in this same phase (5D/5E/5F). Batch
-  //             PA-5 (5F, Reports) was this badge's last live consumer —
-  //             no card renders it anymore, but it is kept, unremoved, for
-  //             the same "built, verified, no current consumer" reason
-  //             'nodata' above was kept through PA-2/PA-3: still exercised
-  //             by validation/pa-2-dashboard/browser-test.js via
-  //             window.WiseDashboard, and available again the moment a
-  //             future card needs a "coming later" state of its own.
+  //  - phase2a: named, sequenced later in this same phase (5D/5E/5F).
   //  - future:  no architecture exists yet for this feature at all (docs/29 §2.2).
   var EMPTY_STATE_BADGES = {
     nodata: ['badge-nodata', 'No entries yet'],
@@ -108,167 +101,6 @@
     return '<option value="">— None —</option>' + CONDITION_OPTIONS.map(function (c) {
       return '<option value="' + c.slug + '">' + escapeHtmlForDisplay(c.label) + '</option>';
     }).join('');
-  }
-
-  // Batch PA-5: manually adapted from shared/constants/upload-limits.json
-  // version 1.0.0 — the same "port a shared/ definition into a consuming
-  // file" convention CONDITION_OPTIONS already uses. A UX-only pre-check
-  // (docs/29 §8: "client-side limits are UX only, never trusted") — the
-  // server performs the real, content-based, authorization-grade
-  // validation regardless (apps-script/FoundationReports.gs).
-  var REPORT_MAX_UPLOAD_BYTES = 5242880;
-  var REPORT_ALLOWED_MIME_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
-  var REPORT_ACCEPT_ATTR = '.pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png';
-
-  // The Reports card's write affordance (docs/29 §5/§8) — a file picker
-  // plus an upload button, the same .field/.submit/.status pattern the
-  // Symptom Tracker card's form already established. Reuses .field input
-  // unchanged for the file input itself — no new CSS rule needed.
-  function reportsFormHtml() {
-    return '<form id="reportForm">' +
-      '<div class="field"><label for="reportFile">Choose a file (PDF, JPG, or PNG — up to 5 MB)</label>' +
-      '<input id="reportFile" type="file" accept="' + REPORT_ACCEPT_ATTR + '" required></div>' +
-      '<button class="submit" type="submit" id="reportSubmitBtn">Upload report</button>' +
-      '<div class="status" id="reportStatus" role="status" aria-live="polite"></div>' +
-      '</form>' +
-      '<div id="reportsList" style="margin-top:14px"></div>';
-  }
-
-  // "Recent uploads" (docs/29 §5) — date + filename only, the same bare
-  // preview style timelinePreviewHtml() already uses, capped to 3 with a
-  // link to the full history page.
-  function reportsListHtml(entries) {
-    if (!entries.length) {
-      return emptyStateHtml('nodata', 'Your uploaded reports will appear here once you upload your first one.');
-    }
-    var items = entries.slice(0, 3).map(function (r) {
-      return '<li style="margin-bottom:8px;font-size:14px;color:var(--color-text-secondary)">' +
-        '<strong style="color:var(--color-brand-strong)">' + escapeHtmlForDisplay(String(r.uploaded_at).slice(0, 10)) + '</strong> — ' +
-        escapeHtmlForDisplay(r.file_name) + '</li>';
-    }).join('');
-    return '<ul style="list-style:none;padding:0;margin:0 0 14px">' + items + '</ul>' +
-      '<a class="secondary" href="/my-health-journey/reports/">View full history</a>';
-  }
-
-  // Reads a File as a base64 string (no "data:...;base64," prefix) via
-  // FileReader — the browser-side half of the upload payload
-  // FoundationReports.gs's foundationCreateReport_() decodes server-side.
-  function readFileAsBase64(file) {
-    return new Promise(function (resolve, reject) {
-      var reader = new FileReader();
-      reader.onload = function () {
-        var result = String(reader.result);
-        var commaIndex = result.indexOf(',');
-        resolve(commaIndex === -1 ? result : result.slice(commaIndex + 1));
-      };
-      reader.onerror = function () { reject(reader.error); };
-      reader.readAsDataURL(file);
-    });
-  }
-
-  // Independent of loadReportsPreview()'s own initial call, same
-  // "per-card loading, one failure never disturbs another card"
-  // discipline PA-3/PA-4 already established.
-  function refreshReportsList(sessionToken) {
-    var listEl = document.getElementById('reportsList');
-    if (!listEl) return;
-    fetch(WEB_APP_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ foundation_action: 'get_reports', session_token: sessionToken })
-    })
-      .then(function (response) { return response.json(); })
-      .then(function (data) {
-        if (data.status === 'ok' && Array.isArray(data.data)) {
-          listEl.innerHTML = reportsListHtml(data.data);
-        } else {
-          listEl.innerHTML = '<p class="empty-text">Could not load your reports. Check your connection and reload the page.</p>';
-        }
-      })
-      .catch(function () {
-        listEl.innerHTML = '<p class="empty-text">Could not load your reports. Check your connection and reload the page.</p>';
-      });
-  }
-
-  // Submission feedback via the existing .status/role=status/aria-live
-  // component (the same pattern wireSymptomForm() already uses).
-  function wireReportForm(sessionToken) {
-    var form = document.getElementById('reportForm');
-    var fileInput = document.getElementById('reportFile');
-    var submitBtn = document.getElementById('reportSubmitBtn');
-    var statusBox = document.getElementById('reportStatus');
-
-    form.addEventListener('submit', function (event) {
-      event.preventDefault();
-      if (!form.checkValidity()) {
-        form.reportValidity();
-        return;
-      }
-      var file = fileInput.files[0];
-      if (!file) return;
-
-      // Client-side pre-checks are UX only (docs/29 §8) — an immediate,
-      // friendly rejection before ever uploading a whole file; the server
-      // performs the real, content-based validation regardless.
-      if (file.size > REPORT_MAX_UPLOAD_BYTES) {
-        statusBox.className = 'status err';
-        statusBox.textContent = 'That file is larger than the ' + (REPORT_MAX_UPLOAD_BYTES / (1024 * 1024)) + ' MB limit.';
-        return;
-      }
-      if (REPORT_ALLOWED_MIME_TYPES.indexOf(file.type) === -1) {
-        statusBox.className = 'status err';
-        statusBox.textContent = 'That file type is not supported. Please upload a PDF, JPG, or PNG.';
-        return;
-      }
-
-      submitBtn.disabled = true;
-      statusBox.className = 'status loading';
-      statusBox.textContent = 'Uploading…';
-
-      readFileAsBase64(file)
-        .then(function (base64) {
-          return fetch(WEB_APP_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({
-              foundation_action: 'upload_report',
-              session_token: sessionToken,
-              file_name: file.name,
-              mime_type: file.type,
-              file_base64: base64
-            })
-          });
-        })
-        .then(function (response) { return response.json(); })
-        .then(function (data) {
-          submitBtn.disabled = false;
-          if (data.status === 'ok') {
-            statusBox.className = 'status ok';
-            statusBox.textContent = 'Uploaded. Thank you.';
-            form.reset();
-            refreshReportsList(sessionToken);
-          } else {
-            statusBox.className = 'status err';
-            statusBox.textContent = (data.error && data.error.message) || 'Something went wrong. Please try again.';
-          }
-        })
-        .catch(function () {
-          // A network failure keeps the patient's chosen file selected
-          // (no form.reset()) rather than making them re-pick it
-          // (docs/04 Error State), the same discipline wireSymptomForm()
-          // already applies to its own in-progress values.
-          submitBtn.disabled = false;
-          statusBox.className = 'status err';
-          statusBox.textContent = 'Could not reach the server. Check your connection and try again.';
-        });
-    });
-  }
-
-  function loadReportsPreview(sessionToken) {
-    var reportsBody = document.getElementById('card-reports-body');
-    reportsBody.innerHTML = reportsFormHtml();
-    wireReportForm(sessionToken);
-    refreshReportsList(sessionToken);
   }
 
   // The Symptom Tracker card's write affordance (docs/29 §9, docs/41 §2) —
@@ -428,7 +260,8 @@
     grid.innerHTML =
       cardHtml('timeline', 'Timeline', '<div class="skeleton"></div><div class="skeleton"></div>') +
       cardHtml('symptoms', 'Symptom Tracker', '<div class="skeleton"></div><div class="skeleton"></div>') +
-      cardHtml('reports', 'Reports', '<div class="skeleton"></div><div class="skeleton"></div>') +
+      cardHtml('reports', 'Reports', emptyStateHtml('phase2a',
+        'Upload and view your reports here once this feature ships.')) +
       cardHtml('careplan', 'Care Plan', emptyStateHtml('future',
         'A personalised care plan is planned for a future version of Wise Homeopathy.')) +
       cardHtml('messages', 'Messages', emptyStateHtml('future',
@@ -458,7 +291,6 @@
         renderDashboard(data.data);
         loadTimelinePreview(token);
         loadSymptomPreview(token);
-        loadReportsPreview(token);
       } else {
         goToLogin('expired');
       }
@@ -482,10 +314,6 @@
     symptomFormHtml: symptomFormHtml,
     symptomSummaryHtml: symptomSummaryHtml,
     conditionOptionsHtml: conditionOptionsHtml,
-    CONDITION_OPTIONS: CONDITION_OPTIONS,
-    reportsFormHtml: reportsFormHtml,
-    reportsListHtml: reportsListHtml,
-    REPORT_MAX_UPLOAD_BYTES: REPORT_MAX_UPLOAD_BYTES,
-    REPORT_ALLOWED_MIME_TYPES: REPORT_ALLOWED_MIME_TYPES
+    CONDITION_OPTIONS: CONDITION_OPTIONS
   };
 })();
