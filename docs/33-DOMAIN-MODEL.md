@@ -401,7 +401,7 @@ one entity.
 
 ---
 
-## 3.3 Report — *Planned*
+## 3.3 Report — *Implemented (Batch PA-5)*
 
 **Purpose:** A document (lab result, prescription received elsewhere, prior medical
 record) a patient uploads to their own record. The platform's first arbitrary
@@ -639,7 +639,7 @@ plausibly reuse the same batch pattern once scheduled.
 | AI Summary | Conceptual (pattern) | Instantiated by Phase 1.5, 2D |
 | Timeline Event | Implemented | 2A (Batch PA-3, one entry_type) |
 | Symptom Log | Implemented | 2A (Batch PA-4) |
-| Report | Planned | 2A |
+| Report | Implemented | 2A (Batch PA-5) |
 | Care Plan | Conceptual | Recommended 2B |
 | Digital Twin | Conceptual (view) | Recommended 2D |
 | Appointment | Conceptual (gap) | Unassigned |

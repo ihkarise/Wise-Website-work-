@@ -67,3 +67,43 @@ same row without changing this schema.
 `/conditions/` (`mcas`, `hashimotos-thyroiditis`, `chronic-urticaria`,
 `eczema`, `allergic-rhinitis`, `eosinophilic-esophagitis`, `pots`,
 `dermographism`) — confirms docs/20 §5's "the slug is the ID" decision.
+
+## Phase 2A — Report Upload Schema (Batch PA-5)
+
+Closes this document's own long-open item (docs/29 §12's Documentation Impact table:
+"Add the schema in §4 once built; reword 'Google Sheets as primary datastore' per
+ADR-006"), for the Reports entity specifically — per
+docs/42-REPORTS-UPLOAD-READINESS-REVIEW.md §16 step 7's explicit call to close it as
+part of this batch. Full plan: docs/29-PHASE-2A-TECHNICAL-PLAN.md §8. Source of truth
+for the code: `apps-script/FoundationReports.gs` (see `apps-script/README.md`'s
+"Phase 2A Patient Access modules — Batch PA-5" section for module detail).
+
+**The first schema in this document whose data spans two independent storage
+systems**, not one — a deliberate departure from every other row-in-one-Sheet schema
+above, per this document's own "Future" rule ("design for migration... without changing
+frontend APIs") still being honored: the metadata row is what would migrate to SQL; the
+binary content's storage backend (Drive today) is already treated as swappable
+(ADR-006), exactly like Sheets itself.
+
+**Sheet:** `Reports` — one row per uploaded document, `record_id` (UUID) as the stable
+primary key, metadata only. **Binary storage:** Google Drive, one fixed private folder
+(never patient-partitioned by subfolder — access control is enforced at the application
+layer, not by Drive folder boundaries, docs/42 §5), the Drive object named from
+`record_id` alone, never the patient-supplied filename and never `patient_id`.
+
+**Columns:** `record_id`, `patient_id`, `uploaded_at`, `file_name`, `drive_file_id`,
+`mime_type`, `size_bytes`, `uploaded_by` — full detail and rationale per column in
+`shared/schemas/report.schema.json`/`.md`.
+
+**Endpoint:** the same shared Apps Script Web App `doPost` every Phase 2A route uses
+(docs/29 §14 Decision 1), three new `foundation_action` values (`upload_report`,
+`get_reports`, `download_report`) dispatched through `FoundationRouter.gs`. Every list/
+download call re-derives `patient_id` from the session; `download_report` additionally
+verifies the requested `record_id`'s own `patient_id` before ever touching Drive
+(docs/40 Q3's pattern, extended to Drive content).
+
+**Not yet documented here — a real, pre-existing gap this batch does not backfill.**
+`Patients`, `ConsultationHistory`, and `SymptomLogs` (Foundation/PA-3/PA-4's own
+schemas) remain undocumented in this file, a gap spanning the whole Phase 2A milestone
+predating this batch — named here rather than silently left inconsistent, not fixed by
+this batch (out of PA-5's own approved scope).

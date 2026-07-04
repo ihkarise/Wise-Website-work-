@@ -133,6 +133,93 @@ batch's scope to fix, since Foundation's ten files remain frozen).
 real HTTP dispatch — writes its own `symptom_log_created` `AuditLog` row, the same
 "every write logged" discipline every other Foundation entity already follows.
 
+## Phase 2A — Implementation Notes (Batch PA-5, Report Upload)
+
+The platform's highest-risk feature (docs/29 §8/§11) — the first arbitrary
+file-handling surface. Preceded by a dedicated pre-implementation review
+(docs/42-REPORTS-UPLOAD-READINESS-REVIEW.md) that resolved several open architecture
+questions by explicit approval before any code was written.
+
+**Authorization always begins with the application; Drive permissions are
+defense-in-depth only, never the boundary.** `upload_report` derives `patient_id` (and
+`uploaded_by`) exclusively from the verified session (ADR-002, unchanged) — the same
+primitive `log_symptom` already established for a write. `download_report` is this
+batch's own new authorization shape, beyond what PA-3's `get_timeline_entry` needed:
+`foundationGetReportById_()` verifies the requested `record_id`'s own `patient_id`
+matches the session-derived one *before* `foundationDownloadReport_()` ever calls
+`DriveApp` — the ownership check happens first. `download_report` never hands the
+browser a Drive URL; the server fetches bytes inside its own already-authorized
+execution and returns them base64-encoded.
+
+**Drive sharing is explicitly enforced, not assumed (docs/42 §6: "the single most
+important property to design for and test explicitly in this batch").** Every file the
+patient-upload path creates has `foundationEnsureReportFilePrivate_()` called
+immediately after `DriveApp.createFile()`, explicitly setting
+`DriveApp.Access.PRIVATE`/`DriveApp.Permission.NONE` — never left at an unverified
+default. Verified, not just designed: `validation/phase-2a-foundation/conformance.js`'s
+Stage 9 directly asserts the created file's sharing access and permission, distinct
+from merely asserting the file exists.
+
+**A partial-write failure (Drive succeeds, Sheets fails) is handled, not silently
+possible.** The platform's first entity whose lifecycle spans two independent storage
+systems (docs/42 §1). `foundationCreateReport_()` writes Drive first, then Sheets; if
+the Sheets write then fails, it rolls back by trashing the just-created Drive file
+(`setTrashed(true)`) and audit-logs the rollback (`report_upload_rolled_back`) before
+returning the standard generic error envelope. If the rollback attempt itself fails,
+the file is left as an accepted, explicitly audit-logged orphan
+(`report_upload_orphaned_file`) rather than silently disappearing from any record.
+Stage 9 forces this failure (a deliberately corrupted Sheets header, the same
+"mock the platform, run the real logic" technique this harness already uses) and
+asserts both the rollback and its audit trail.
+
+**MIME validation — three layers, one disclosed limitation, per the approved
+architecture decision to use every mechanism realistically available and never imply
+stronger validation than actually exists.** The filename extension and the
+client-declared `mime_type` are both checked (`foundationValidateReportUploadInput_()`)
+but neither is trusted alone — both are spoofable, and are checked only to fail fast
+before any bytes are decoded. The authoritative check is server-side and content-based:
+`Utilities.newBlob(bytes).getContentType()`, whose documented behavior sniffs the actual
+byte structure. Stage 9 proves this is a *real, independent* check, not just named in a
+comment — a fixture whose real bytes are plain text is rejected even though its filename
+extension and declared `mime_type` both claim `application/pdf`. **A genuinely open
+item, disclosed rather than silently resolved:** docs/42 §11 names the exact behavior of
+`Utilities.newBlob()`'s detection for PDF/JPG/PNG as unverified against a live Apps
+Script deployment; that live verification has not been performed in this environment
+(`shared/constants/upload-limits.md` records this explicitly). Separately, this remains
+a byte-signature heuristic, not a parser or a malware/virus scanner — no scanning
+capability exists anywhere in this stack, the same accepted risk docs/29 §8 already
+names.
+
+**Size validation, enforced against real decoded bytes.** `FOUNDATION_REPORT_MAX_UPLOAD_BYTES_`
+(5 MB, ported from the canonical `shared/constants/upload-limits.json`, never hardcoded
+independently) is checked against `Utilities.base64Decode()`'s actual output length —
+never a client-reported file size. Stage 9 proves a file exceeding this cap is rejected
+regardless of what the request otherwise claims.
+
+**Drive object naming excludes both the client-supplied filename and `patient_id`
+(docs/42 §5).** The Drive object is named from the generated `record_id` alone — never
+the patient-supplied filename (a path/naming-collision risk), and never `patient_id`
+either, closing the same "avoid another place patient_id could leak into a name"
+concern docs/42 §5 raised about folder structure, applied here to file naming too.
+
+**Metadata is immutable after upload; no delete exists.** No update or delete function
+exists in `FoundationReports.gs` — verified as an absence in Stage 9, not merely omitted
+from a feature list, per the approved architecture decision.
+
+**No staff Web App route.** `FoundationRouter.gs` gained no staff-facing case for this
+batch. The one staff-attributed path,
+`createFoundationReportForExistingDriveFile()`, is a manually-run Apps Script editor
+wrapper — never reachable over the network — that runs the identical content-based
+validation before writing any metadata, the same no-route pattern
+`createFoundationConsultationEntry()` already established. Unlike the patient-upload
+path, this wrapper does not alter the referenced file's Drive sharing — that file's
+placement/permissions remain staff's own responsibility, since it was never created by
+this application.
+
+**Audit logging.** Every successful upload — via the patient route, the real HTTP
+dispatch, or the staff wrapper — writes its own `report_uploaded` `AuditLog` row, the
+same "every write logged" discipline every other Foundation entity already follows.
+
 ## Phase 1.5 — Implementation Notes (Consultation Summary Pipeline)
 
 Full mapping of every standard above to its Phase 1.5 implementation is

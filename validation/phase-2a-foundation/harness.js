@@ -30,6 +30,41 @@
  *
  * Extended in Patient Access batch PA-4 with `FoundationSymptomLog.gs` in
  * the FILES list — again no new mock needed, for the same reason.
+ *
+ * Extended in Patient Access batch PA-5 with `FoundationReports.gs` in the
+ * FILES list, plus new mocks it actually needs — the first entirely new
+ * platform primitive this harness has had to mock (docs/42-REPORTS-UPLOAD-
+ * READINESS-REVIEW.md §5: "a repository-wide search confirms zero existing
+ * use of DriveApp anywhere in apps-script/"):
+ *   - `DriveApp` — `getFolderById()`/`createFile()`/`getFileById()`, a
+ *     simple in-memory file store, PLUS `setSharing()`/`getSharingAccess()`/
+ *     `getSharingPermission()` and `setTrashed()`/`isTrashed()`. The
+ *     sharing/trash surface exists specifically so
+ *     `validation/phase-2a-foundation/conformance.js`'s Stage 9 can
+ *     directly assert two properties docs/42 names as this batch's most
+ *     important ones to verify, not just design for: that a created
+ *     report's Drive file is actually private (§6, "a default is not the
+ *     same as a verified guarantee"), and that a Sheets-write failure
+ *     after a successful Drive write is actually rolled back (§1/§15's
+ *     named partial-failure mode), not merely assumed handled.
+ *   - `Utilities.base64Decode`/`base64Encode` (the standard, non-web-safe
+ *     alphabet — real file uploads are not URL-safe-encoded, unlike
+ *     `FoundationSession.gs`'s token segments).
+ *   - `Utilities.newBlob()`'s content-type parameter, plus a best-effort
+ *     magic-byte content-type *detection* for when no content type is
+ *     supplied. Disclosed here, deliberately, as an approximation: real
+ *     Apps Script's `Utilities.newBlob(data)` is documented to "attempt to
+ *     determine the correct extension and content-type of the data based
+ *     on the structure of the byte array," but the exact algorithm is not
+ *     independently specified beyond that sentence, and this repository
+ *     has not verified the real platform's behavior against a live
+ *     deployment (docs/42 §11's own named open item, still open — see
+ *     shared/constants/upload-limits.md). This mock recognizes the three
+ *     real magic-byte signatures Batch PA-5 actually needs (PDF, JPEG,
+ *     PNG) and falls back to `application/octet-stream` otherwise, the
+ *     same "mock the platform API, run the real logic" discipline as every
+ *     other mock in this file, but with its one genuine uncertainty named
+ *     rather than silently assumed identical to the real platform.
  */
 
 var fs = require('fs');
@@ -54,6 +89,7 @@ var FILES = [
   'FoundationLoginFlow.gs',
   'FoundationConsultationHistory.gs',
   'FoundationSymptomLog.gs',
+  'FoundationReports.gs',
   'FoundationRouter.gs'
 ];
 
@@ -122,6 +158,57 @@ function buildSandbox(opts) {
     return Buffer.from(byteArray.map(function (b) { return b < 0 ? b + 256 : b; }));
   }
 
+  // Best-effort magic-byte content-type detection — see this file's own
+  // header comment for the disclosed uncertainty this approximates (real
+  // Apps Script's exact newBlob() detection algorithm is not
+  // independently specified, and has not been verified against a live
+  // deployment for this repository). Recognizes only the three
+  // signatures Batch PA-5 actually needs; anything else falls back to
+  // Apps Script's own documented default for unrecognized binary data.
+  function detectMimeTypeFromBytes(buf) {
+    if (buf.length >= 4 && buf[0] === 0x25 && buf[1] === 0x50 && buf[2] === 0x44 && buf[3] === 0x46) { // '%PDF'
+      return 'application/pdf';
+    }
+    if (buf.length >= 3 && buf[0] === 0xFF && buf[1] === 0xD8 && buf[2] === 0xFF) { // JPEG SOI marker
+      return 'image/jpeg';
+    }
+    if (buf.length >= 8 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4E && buf[3] === 0x47
+      && buf[4] === 0x0D && buf[5] === 0x0A && buf[6] === 0x1A && buf[7] === 0x0A) { // PNG signature
+      return 'image/png';
+    }
+    return 'application/octet-stream';
+  }
+
+  // ---------- Fake in-memory Drive (Reports' binary storage) ----------
+  // Real Apps Script default: a file created by DriveApp.createFile() is
+  // private to the script's own Drive, not "anyone"/"anyone with the
+  // link" — this mock starts every file at PRIVATE/NONE to match, but
+  // FoundationReports.gs's foundationEnsureReportFilePrivate_() still
+  // explicitly calls setSharing() rather than relying on this default
+  // (docs/42 §6: "a default is not the same as a verified guarantee") —
+  // this mock's own default is deliberately not the only thing Stage 9's
+  // privacy assertion depends on.
+  var driveFilesById = {};
+  var driveFileCounter = 0;
+  function makeFakeDriveFile(blob) {
+    driveFileCounter++;
+    var id = 'fake-drive-file-' + driveFileCounter;
+    var trashed = false;
+    var sharingAccess = 'PRIVATE';
+    var sharingPermission = 'NONE';
+    var file = {
+      getId: function () { return id; },
+      getBlob: function () { return blob; },
+      setSharing: function (access, permission) { sharingAccess = access; sharingPermission = permission; return file; },
+      getSharingAccess: function () { return sharingAccess; },
+      getSharingPermission: function () { return sharingPermission; },
+      setTrashed: function (value) { trashed = !!value; return file; },
+      isTrashed: function () { return trashed; }
+    };
+    driveFilesById[id] = file;
+    return file;
+  }
+
   var sandbox = {
     console: console,
     SpreadsheetApp: {
@@ -157,12 +244,41 @@ function buildSandbox(opts) {
         var normalized = str.replace(/-/g, '+').replace(/_/g, '/');
         return toSignedByteArray(Buffer.from(normalized, 'base64'));
       },
-      newBlob: function (input) {
+      // Standard (non-web-safe) alphabet — Batch PA-5's uploaded file
+      // content is not URL-safe-encoded, unlike FoundationSession.gs's
+      // token segments.
+      base64Encode: function (input) {
         var buf = Array.isArray(input) ? toUnsignedBuffer(input) : Buffer.from(String(input), 'utf8');
+        return buf.toString('base64');
+      },
+      base64Decode: function (str) {
+        return toSignedByteArray(Buffer.from(String(str), 'base64'));
+      },
+      newBlob: function (input, contentType, name) {
+        var buf = Array.isArray(input) ? toUnsignedBuffer(input) : Buffer.from(String(input), 'utf8');
+        var resolvedType = contentType || detectMimeTypeFromBytes(buf);
         return {
           getBytes: function () { return toSignedByteArray(buf); },
-          getDataAsString: function () { return buf.toString('utf8'); }
+          getDataAsString: function () { return buf.toString('utf8'); },
+          getContentType: function () { return resolvedType; },
+          getName: function () { return name || null; }
         };
+      }
+    },
+    DriveApp: {
+      Access: { ANYONE: 'ANYONE', ANYONE_WITH_LINK: 'ANYONE_WITH_LINK', PRIVATE: 'PRIVATE' },
+      Permission: { NONE: 'NONE', VIEW: 'VIEW' },
+      getFolderById: function () {
+        return {
+          createFile: function (blob) { return makeFakeDriveFile(blob); }
+        };
+      },
+      getFileById: function (id) {
+        var file = driveFilesById[id];
+        if (!file) {
+          throw new Error('DriveApp mock: no such file id "' + id + '"');
+        }
+        return file;
       }
     },
     Logger: {
@@ -195,7 +311,19 @@ function buildSandbox(opts) {
   return {
     sandbox: sandbox, spreadsheet: spreadsheet, scriptProperties: scriptProperties,
     executionLog: executionLog, mailLog: mailLog, cacheStore: cacheStore,
-    setMailImpl: function (fn) { mailImpl = fn; }
+    setMailImpl: function (fn) { mailImpl = fn; },
+    // Exposed so conformance.js can directly assert Drive-file
+    // sharing/trash state (docs/42 §6/§15's named required checks) and
+    // seed a "pre-existing Drive file" fixture for the staff-wrapper path
+    // (createFoundationReportForExistingDriveFile_()), which reads a file
+    // that was never created through foundationCreateReport_()'s own
+    // folder.createFile() call.
+    driveFilesById: driveFilesById,
+    seedDriveFile: function (bytes, contentType, name) {
+      var signedBytes = Buffer.isBuffer(bytes) ? toSignedByteArray(bytes) : bytes;
+      var blob = sandbox.Utilities.newBlob(signedBytes, contentType, name);
+      return makeFakeDriveFile(blob).getId();
+    }
   };
 }
 
