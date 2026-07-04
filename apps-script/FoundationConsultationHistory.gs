@@ -121,6 +121,29 @@ function foundationCompareConsultationEntriesDesc_(a, b) {
   return 0;
 }
 
+/**
+ * Deployment verification (2026-07-04) found that Google Sheets silently
+ * converts a plain date string like "2026-07-01" written to a cell into a
+ * real date value — so reading it back via SpreadsheetApp yields a native
+ * Date object, not the original string. FOUNDATION_CONSULTATION_HISTORY's
+ * entry_date is contractually a plain string (shared/schemas/
+ * consultation-history.schema.json), so this normalizes any such Date
+ * object back to a bare YYYY-MM-DD string before it ever reaches a caller.
+ * Apps Script/Sheets anchors a date-only cell's value to UTC midnight
+ * regardless of script/spreadsheet timezone, so the UTC getters below are
+ * the correct, timezone-independent way to recover the original date.
+ * A value that is already a string (e.g. a record just built in-memory by
+ * foundationCreateConsultationEntry_(), never round-tripped through
+ * Sheets) passes through unchanged.
+ */
+function foundationNormalizeEntryDate_(value) {
+  if (Object.prototype.toString.call(value) !== '[object Date]') {
+    return value;
+  }
+  var pad = function (n) { return n < 10 ? '0' + n : String(n); };
+  return value.getUTCFullYear() + '-' + pad(value.getUTCMonth() + 1) + '-' + pad(value.getUTCDate());
+}
+
 // ---- Sheets-backed operations ----
 
 /**
@@ -155,6 +178,7 @@ function foundationGetPatientTimeline_(patientId) {
     var rows = foundationDsQuery_(FOUNDATION_CONSULTATION_HISTORY_SHEET_, FOUNDATION_CONSULTATION_HISTORY_COLUMNS_, function (row) {
       return row.patient_id === patientId;
     });
+    rows.forEach(function (row) { row.entry_date = foundationNormalizeEntryDate_(row.entry_date); });
     rows.sort(function (a, b) { return foundationCompareConsultationEntriesDesc_(a, b); });
     return rows.slice(0, FOUNDATION_CONSULTATION_HISTORY_MAX_ENTRIES_);
   });
@@ -181,6 +205,7 @@ function foundationGetConsultationEntryById_(patientId, recordId) {
   if (!row || row.patient_id !== patientId) {
     return buildFoundationErrorEnvelope_('FOUNDATION_NOT_FOUND', 'We could not find that consultation entry.');
   }
+  row.entry_date = foundationNormalizeEntryDate_(row.entry_date);
   return buildFoundationOkEnvelope_(row);
 }
 

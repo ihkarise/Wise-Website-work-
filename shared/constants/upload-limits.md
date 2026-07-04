@@ -42,28 +42,28 @@ it. Three independent, defense-in-depth checks are all layered against this same
    form) — also spoofable by any client capable of crafting its own HTTP request; useful
    for UX (an immediate "unsupported file type" message) but not trusted as the
    authorization-grade check.
-3. **Server-side content-based detection** — `apps-script/FoundationReports.gs` decodes
-   the uploaded bytes and asks Apps Script's `Utilities.newBlob(bytes)` to infer the
-   content type from the byte structure itself (documented Apps Script behavior:
-   `newBlob(data)` "attempts to determine the correct extension and content-type of the
-   data based on the structure of the byte array"). This is the only one of the three
+3. **Server-side content-based detection** — `apps-script/FoundationReports.gs` checks
+   the decoded bytes directly against each allowed type's own fixed magic-number byte
+   signature (`foundationDetectActualMimeType_()`). This is the only one of the three
    checks that inspects the file's actual bytes rather than caller-supplied metadata.
 
-## An explicitly disclosed limitation — not silently implied as stronger than it is
+## Resolved by live deployment verification (2026-07-04)
 
-`docs/42-REPORTS-UPLOAD-READINESS-REVIEW.md` §11 names this precisely: "Google Apps
-Script has no general-purpose magic-byte-sniffing library built in... this behavior is
-not documented as a complete, guaranteed allowlist-validation mechanism for exactly
-PDF/JPG/PNG," and recommends it be "concretely resolved... and its actual behavior
-verified against real byte signatures... before `shared/schemas/report.schema.json` and
-`FoundationReports.gs` are written." **That live-environment verification has not been
-performed in this environment** — this repository's Node-only conformance suite
-(`validation/phase-2a-foundation/harness.js`) mocks `Utilities.newBlob()`'s content-type
-inference using well-known magic-byte signatures for exactly these three formats
-(disclosed in the harness's own header comment as a best-effort approximation, not a
-guarantee the real platform behaves identically), so the check is proven correct
-against the mock, not against a live Apps Script deployment. This is recorded as an
-explicit, open pre-production step, not something this batch silently assumes resolved.
+`docs/42-REPORTS-UPLOAD-READINESS-REVIEW.md` §11 originally named this precisely as an
+open question: whether Apps Script's `Utilities.newBlob(bytes)` could be trusted to
+infer a file's real content type from its bytes alone, recommending it be "concretely
+resolved... and its actual behavior verified against real byte signatures... before
+`shared/schemas/report.schema.json` and `FoundationReports.gs` are written." That
+verification has now been performed against a real, live Apps Script deployment: calling
+`Utilities.newBlob(bytes).getContentType()` with no explicit `contentType`/filename hint
+returned `null` for a genuinely valid PNG — every real upload was being rejected as a
+result. `foundationDetectActualMimeType_()` was corrected to check each allowed type's
+own fixed magic-number byte signature directly (PDF's `%PDF` header, JPEG's `FF D8 FF`,
+PNG's 8-byte signature) instead of depending on that undocumented platform behavior —
+still an authoritative, content-based check, just implemented explicitly. The Node-only
+conformance suite (`validation/phase-2a-foundation/harness.js`) continues to mock this
+check using the same well-known signatures and still passes against the corrected
+implementation.
 
 Separately, and independent of whether the detection mechanism itself is fully verified:
 content-based detection, even if perfectly accurate, is a byte-signature heuristic, not
