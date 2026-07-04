@@ -669,6 +669,51 @@ frontend half of this batch (the dashboard's Symptom Tracker card now carrying a
 quick-log form and most-recent-value summary, and the new Symptom History full-list
 page).
 
+## Phase 2A Patient Access modules — Batch PA-5 (Report Upload)
+
+PA-4 (above) is now frozen except for bug fixes. Batch PA-5 (docs/29 §13 Batch 5F,
+preceded by `docs/42-REPORTS-UPLOAD-READINESS-REVIEW.md`) adds the platform's
+highest-risk data entity: Report, the first whose content is an opaque binary blob
+(stored in Google Drive) rather than typed Sheet columns. New file, non-`Foundation`-
+prefixed (same reasoning as `FoundationSymptomLog.gs`, docs/29 §2) — also the only
+Foundation-family file that calls `DriveApp`, mirroring `FoundationDataStore.gs`'s
+"only file calling `SpreadsheetApp`" precedent:
+
+| File | Responsibility | Status |
+|---|---|---|
+| `FoundationReports.gs` | `foundationCreateReport_()` (patient-facing, session-scoped create — three-layer MIME validation, server-measured size enforcement, Drive object named from `record_id` alone, sharing explicitly set to private via `foundationEnsureReportFilePrivate_()`, and a rollback-on-partial-failure path if the Sheets write fails after the Drive write succeeds), `foundationGetPatientReports_()` (patient-facing, session-scoped, sorted newest-first by `uploaded_at`, capped at 50), `foundationGetReportById_()`/`foundationDownloadReport_()` (patient-facing, session-scoped, verifies the requested `record_id`'s own `patient_id` before ever calling `DriveApp` — the same record-ownership check `foundationGetConsultationEntryById_()` established, extended to Drive content). Implements `shared/schemas/report.schema.json`. No update, no delete. `createFoundationReportForExistingDriveFile()` is a manually-run editor wrapper for the one staff-attributed path (no staff Web App route exists) — same pattern as `createFoundationConsultationEntry()`/`createFoundationPatient()`. | Added (PA-5) |
+
+**`FoundationRouter.gs` gained three new dispatch cases, `upload_report`,
+`get_reports`, and `download_report`** — the same disclosed, additive-extension-point
+pattern PA-3's/PA-4's own new cases already established, applied here to the platform's
+highest-risk feature. `harness.js`'s `FILES` list and `conformance.js` (Stage 9) were
+extended accordingly.
+
+**`validation/phase-2a-foundation/harness.js` gained a `DriveApp` mock** — the first
+entirely new platform primitive this harness has had to mock (a repository-wide search
+confirmed zero prior `DriveApp` use anywhere in `apps-script/`), including
+`setSharing()`/`getSharingAccess()`/`getSharingPermission()` and
+`setTrashed()`/`isTrashed()` specifically so Stage 9 can directly assert two properties
+docs/42 names as this batch's most important to verify, not just design for: that a
+created report's Drive file is actually private, and that a Sheets-write failure after
+a successful Drive write is actually rolled back. Also gained `Utilities.base64Decode`/
+`base64Encode` (the standard, non-web-safe alphabet) and a disclosed best-effort
+`Utilities.newBlob()` content-type detection mock — see the harness's own header
+comment for why this is an approximation, not a verified match to the real platform
+(docs/42 §11's own named open item).
+
+**`shared/constants/upload-limits.json`/`.md` created, the bootstrap exception**
+(`shared/README.md`) — the canonical 5 MB size cap and PDF/JPG/PNG allowed-type list,
+created alongside its first implementation (`FoundationReports.gs`), the same exception
+PA-4's `condition-slugs.json` used.
+
+**`assets/site.css`, `my-health-journey/dashboard.js`, `my-health-journey/reports/`**
+(frontend) — see `docs/29-PHASE-2A-TECHNICAL-PLAN.md` §16's Batch PA-5 notes for the
+frontend half of this batch (the dashboard's Reports card now carrying a real upload
+form and recent-uploads list, and the new Reports full-history page with a real,
+session-gated file download). `assets/site.css` itself was not touched — the file
+input reuses `.field input` unchanged.
+
 ## Foundation/Phase 1.5 dispatch boundary (IA-2)
 
 Google Apps Script permits exactly one global `doPost()` per project, and docs/29 §14

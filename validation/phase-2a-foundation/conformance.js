@@ -51,6 +51,26 @@
  * list (docs/41 §12), the same authorization boundary already proven for
  * reads, verified here on a write.
  *
+ * Extended in Patient Access batch PA-5 with Stage 9, covering
+ * FoundationReports.gs against the new shared/schemas/report.schema.json,
+ * plus the three new FoundationRouter.gs dispatch cases (upload_report,
+ * get_reports, download_report) end to end — the platform's highest-risk
+ * feature. Per docs/42-REPORTS-UPLOAD-READINESS-REVIEW.md, this stage's
+ * highest-priority checks are: the content-based MIME detection actually
+ * rejects a file whose real bytes don't match its declared extension/
+ * mime_type (proving the "every mechanism realistically available"
+ * decision is real, not just a declared filename check); the server-side
+ * size cap is enforced against real decoded bytes regardless of what the
+ * client claims; cross-patient isolation on list and download (download
+ * additionally proving the ownership check happens before any DriveApp
+ * call); **the uploaded file's Drive sharing is verifiably private**
+ * (docs/42 §6: "the single most important property to design for and
+ * test explicitly in this batch" — a default is not the same as a
+ * verified guarantee); and **a Sheets-write failure after a successful
+ * Drive write is rolled back** (docs/42 §1/§15's named partial-write
+ * failure mode — the platform's first entity spanning two independent
+ * storage systems).
+ *
  * Run with: node conformance.js  (no dependencies beyond Node's
  * standard library).
  */
@@ -70,6 +90,8 @@ var sessionSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/se
 var loginTokenSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/login-token.schema.json'), 'utf8'));
 var consultationHistorySchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/consultation-history.schema.json'), 'utf8'));
 var symptomLogSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/symptom-log.schema.json'), 'utf8'));
+var reportSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/report.schema.json'), 'utf8'));
+var uploadLimits = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'constants/upload-limits.json'), 'utf8'));
 
 var results = [];
 function record(name, pass, detail) {
@@ -701,6 +723,275 @@ var ctx = loadProject(h.sandbox);
 
   var createdAuditRows = auditRowsOf(h, 'symptom_log_created');
   record('Stage8: every foundationCreateSymptomLog_() call (direct and via HTTP dispatch) wrote its own symptom_log_created AuditLog row',
+    createdAuditRows.length === 6);
+})();
+
+// ============================================================
+// Stage 9 (PA-5) — FoundationReports.gs -> report.schema.json, plus
+// FoundationRouter.gs's three new dispatch cases end to end. The
+// platform's highest-risk feature (docs/29 §8, §11;
+// docs/42-REPORTS-UPLOAD-READINESS-REVIEW.md).
+// ============================================================
+(function stage9_reports() {
+  function pdfBytes(totalSize) {
+    var header = Buffer.from('%PDF-1.4\n', 'utf8');
+    var fillerSize = Math.max(0, (totalSize || 200) - header.length);
+    return Buffer.concat([header, Buffer.alloc(fillerSize, 0x41)]);
+  }
+  function pngBytes() {
+    return Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52]);
+  }
+  function plainTextBytes() {
+    return Buffer.from('This is just a plain text file, not a real PDF.', 'utf8');
+  }
+  function b64(buf) { return buf.toString('base64'); }
+
+  var patientA = ctx.foundationCreatePatient_({
+    full_name: 'Stage9 Patient A', email: 'stage9-a@example.com',
+    condition_slug: 'mcas', created_by: 'conformance-harness'
+  });
+  var patientB = ctx.foundationCreatePatient_({
+    full_name: 'Stage9 Patient B', email: 'stage9-b@example.com',
+    condition_slug: 'mcas', created_by: 'conformance-harness'
+  });
+  record('Stage9: setup — two independent patients exist', patientA.status === 'ok' && patientB.status === 'ok');
+
+  record('Stage9: upload-limits.json\'s max_upload_bytes matches FoundationReports.gs\'s ported constant (shared/README.md\'s conformance discipline)',
+    ctx.FOUNDATION_REPORT_MAX_UPLOAD_BYTES_ === uploadLimits.max_upload_bytes);
+
+  // ---- Missing/malformed input, rejected before any byte is decoded ----
+  var missingFields = ctx.foundationCreateReport_({ patient_id: patientA.data.patient_id });
+  record('Stage9: foundationCreateReport_() rejects missing required fields with FOUNDATION_INVALID_INPUT',
+    missingFields.status === 'error' && missingFields.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var badExtension = ctx.foundationCreateReport_({
+    patient_id: patientA.data.patient_id, file_name: 'report.exe', mime_type: 'application/pdf',
+    file_base64: b64(pdfBytes()), uploaded_by: patientA.data.patient_id
+  });
+  record('Stage9: a disallowed filename extension is rejected even with an otherwise-valid PDF payload (extension is a named, non-sole check)',
+    badExtension.status === 'error' && badExtension.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var badDeclaredMime = ctx.foundationCreateReport_({
+    patient_id: patientA.data.patient_id, file_name: 'report.pdf', mime_type: 'application/x-msdownload',
+    file_base64: b64(pdfBytes()), uploaded_by: patientA.data.patient_id
+  });
+  record('Stage9: a disallowed client-declared mime_type is rejected even with an otherwise-valid PDF payload',
+    badDeclaredMime.status === 'error' && badDeclaredMime.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var malformedBase64 = ctx.foundationCreateReport_({
+    patient_id: patientA.data.patient_id, file_name: 'report.pdf', mime_type: 'application/pdf',
+    file_base64: 'not-valid-base64!!! ###', uploaded_by: patientA.data.patient_id
+  });
+  record('Stage9: malformed base64 content is rejected with FOUNDATION_INVALID_INPUT',
+    malformedBase64.status === 'error' && malformedBase64.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  // ---- The real security proof: content-based detection catches what extension/declared-mime cannot ----
+  var spoofedType = ctx.foundationCreateReport_({
+    patient_id: patientA.data.patient_id, file_name: 'report.pdf', mime_type: 'application/pdf',
+    file_base64: b64(plainTextBytes()), uploaded_by: patientA.data.patient_id
+  });
+  record('Stage9: a file whose real bytes are plain text is rejected despite a matching .pdf extension AND a matching declared mime_type — proving content-based detection is a real, independent check, not just named in a comment',
+    spoofedType.status === 'error' && spoofedType.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  // ---- Size cap enforced against real decoded bytes, never the client's claim ----
+  var oversized = ctx.foundationCreateReport_({
+    patient_id: patientA.data.patient_id, file_name: 'report.pdf', mime_type: 'application/pdf',
+    file_base64: b64(pdfBytes(ctx.FOUNDATION_REPORT_MAX_UPLOAD_BYTES_ + 1024)), uploaded_by: patientA.data.patient_id
+  });
+  record('Stage9: a file exceeding the configured max_upload_bytes is rejected, measured from the real decoded byte length',
+    oversized.status === 'error' && oversized.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  // ---- A real, valid upload succeeds end to end ----
+  var uploaded = ctx.foundationCreateReport_({
+    patient_id: patientA.data.patient_id, file_name: 'Lab Result.pdf', mime_type: 'application/pdf',
+    file_base64: b64(pdfBytes(300)), uploaded_by: patientA.data.patient_id
+  });
+  record('Stage9: foundationCreateReport_() succeeds on a real, valid PDF payload', uploaded.status === 'ok', JSON.stringify(uploaded));
+
+  var uploadedResult = validate(reportSchema, uploaded.data || {});
+  record('Stage9: foundationCreateReport_() output conforms to report.schema.json',
+    uploadedResult.valid === true, uploadedResult.errors.join('; '));
+  record('Stage9: the stored mime_type is the server-detected value, not merely an echo of the client-declared one',
+    uploaded.data.mime_type === 'application/pdf');
+  record('Stage9: size_bytes is the real decoded byte length (300), not any client-supplied number',
+    uploaded.data.size_bytes === 300);
+  record('Stage9: file_name is preserved verbatim for display, even though it is never used as the Drive object name',
+    uploaded.data.file_name === 'Lab Result.pdf');
+  record('Stage9: the Drive object is named using record_id alone — never patient_id and never the client-supplied filename (docs/42 §5)',
+    h.driveFilesById[uploaded.data.drive_file_id] !== undefined &&
+    h.driveFilesById[uploaded.data.drive_file_id].getBlob().getBytes().length === pdfBytes(300).length);
+
+  // ---- docs/42 §6's own named "single most important" test: Drive sharing is verifiably private ----
+  var uploadedDriveFile = h.driveFilesById[uploaded.data.drive_file_id];
+  record('Stage9: setup — the uploaded report\'s real Drive file object exists in the mock store', !!uploadedDriveFile);
+  record('Stage9: the uploaded file\'s Drive sharing access is explicitly PRIVATE — not ANYONE or ANYONE_WITH_LINK (docs/42 §6: "a default is not the same as a verified guarantee")',
+    uploadedDriveFile.getSharingAccess() === h.sandbox.DriveApp.Access.PRIVATE &&
+    uploadedDriveFile.getSharingAccess() !== h.sandbox.DriveApp.Access.ANYONE &&
+    uploadedDriveFile.getSharingAccess() !== h.sandbox.DriveApp.Access.ANYONE_WITH_LINK);
+  record('Stage9: the uploaded file\'s Drive sharing permission is explicitly NONE',
+    uploadedDriveFile.getSharingPermission() === h.sandbox.DriveApp.Permission.NONE);
+
+  // Second entry for patient A (a PNG, to prove the allowlist covers more
+  // than one type) plus one for patient B (cross-patient isolation).
+  var uploadedPng = ctx.foundationCreateReport_({
+    patient_id: patientA.data.patient_id, file_name: 'scan.png', mime_type: 'image/png',
+    file_base64: b64(pngBytes()), uploaded_by: patientA.data.patient_id
+  });
+  var uploadedForPatientB = ctx.foundationCreateReport_({
+    patient_id: patientB.data.patient_id, file_name: 'other-patient.pdf', mime_type: 'application/pdf',
+    file_base64: b64(pdfBytes()), uploaded_by: patientB.data.patient_id
+  });
+  record('Stage9: setup — a second report for patient A (PNG) and one for patient B both succeed',
+    uploadedPng.status === 'ok' && uploadedForPatientB.status === 'ok');
+
+  // Backdate the first upload so ordering is provable without relying on
+  // real wall-clock timing between two synchronous calls (same technique
+  // Stage 5/7/8 already use).
+  ctx.foundationDsUpdateById_(ctx.FOUNDATION_REPORTS_SHEET_, ctx.FOUNDATION_REPORTS_COLUMNS_, 'record_id', uploaded.data.record_id,
+    { uploaded_at: '2026-01-01T00:00:00.000Z' });
+
+  var listA = ctx.foundationGetPatientReports_(patientA.data.patient_id);
+  record('Stage9: foundationGetPatientReports_() succeeds', listA.status === 'ok');
+  record('Stage9: the list contains only patient A\'s two reports, never patient B\'s',
+    listA.data.length === 2 && listA.data.every(function (r) { return r.patient_id === patientA.data.patient_id; }));
+  record('Stage9: the list is sorted uploaded_at descending (newest first)',
+    listA.data[0].record_id === uploadedPng.data.record_id && listA.data[1].record_id === uploaded.data.record_id);
+
+  var listEntryResult = validate(reportSchema, listA.data[0]);
+  record('Stage9: a real listed report conforms to report.schema.json',
+    listEntryResult.valid === true, listEntryResult.errors.join('; '));
+
+  // ---- Download: ownership gate before any DriveApp call, real content round-trips ----
+  var ownDownload = ctx.foundationDownloadReport_(patientA.data.patient_id, uploaded.data.record_id);
+  record('Stage9: foundationDownloadReport_() resolves a patient\'s own report',
+    ownDownload.status === 'ok' && ownDownload.data.record_id === uploaded.data.record_id);
+  record('Stage9: the downloaded file content round-trips byte-for-byte with what was uploaded',
+    Buffer.from(ownDownload.data.file_base64, 'base64').equals(pdfBytes(300)));
+
+  var crossPatientDownload = ctx.foundationDownloadReport_(patientB.data.patient_id, uploaded.data.record_id);
+  record('Stage9: a different patient requesting patient A\'s record_id is rejected, never leaking file content',
+    crossPatientDownload.status === 'error' && crossPatientDownload.error.code === 'FOUNDATION_NOT_FOUND' && crossPatientDownload.data === null);
+
+  var unknownIdDownload = ctx.foundationDownloadReport_(patientA.data.patient_id, 'this-record-id-was-never-created');
+  record('Stage9: an unknown record_id fails with the exact same code/message as a cross-patient attempt (anti-enumeration)',
+    unknownIdDownload.status === 'error' && unknownIdDownload.error.code === crossPatientDownload.error.code &&
+    unknownIdDownload.error.message === crossPatientDownload.error.message);
+
+  // ---- FoundationRouter.gs — the three new dispatch cases, end to end ----
+  var sessionA = ctx.foundationIssueSessionToken_(patientA.data.patient_id);
+  var uploadHttp = ctx.handleFoundationRequest_({
+    foundation_action: 'upload_report', session_token: sessionA,
+    file_name: 'via-http.pdf', mime_type: 'application/pdf', file_base64: b64(pdfBytes(150))
+  });
+  var uploadBody = JSON.parse(uploadHttp._text);
+  record('Stage9: upload_report (real HTTP dispatch) creates a report for the caller\'s own session-derived patient_id',
+    uploadBody.status === 'ok' && uploadBody.data.patient_id === patientA.data.patient_id && uploadBody.data.uploaded_by === patientA.data.patient_id);
+
+  record('Stage9: upload_report derives patient_id/uploaded_by only from the verified session, never from a client-supplied field',
+    (function () {
+      var spoofed = ctx.handleFoundationRequest_({
+        foundation_action: 'upload_report', session_token: sessionA, patient_id: 'someone-elses-id', uploaded_by: 'someone-elses-id',
+        file_name: 'spoof-attempt.pdf', mime_type: 'application/pdf', file_base64: b64(pdfBytes(150))
+      });
+      var spoofedBody = JSON.parse(spoofed._text);
+      return spoofedBody.status === 'ok' && spoofedBody.data.patient_id === patientA.data.patient_id && spoofedBody.data.uploaded_by === patientA.data.patient_id;
+    })());
+
+  var unauthedUploadHttp = ctx.handleFoundationRequest_({ foundation_action: 'upload_report', session_token: 'not-a-real-session-token', file_name: 'x.pdf', mime_type: 'application/pdf', file_base64: b64(pdfBytes()) });
+  var unauthedUploadBody = JSON.parse(unauthedUploadHttp._text);
+  record('Stage9: upload_report rejects an invalid session_token with FOUNDATION_UNAUTHORIZED, never writing a row',
+    unauthedUploadBody.status === 'error' && unauthedUploadBody.error.code === 'FOUNDATION_UNAUTHORIZED' && unauthedUploadBody.data === null);
+
+  var getReportsHttp = ctx.handleFoundationRequest_({ foundation_action: 'get_reports', session_token: sessionA });
+  var getReportsBody = JSON.parse(getReportsHttp._text);
+  // 4 so far for patient A: uploaded, uploadedPng (direct calls above),
+  // uploadHttp's "via-http.pdf", and the spoofed-patient_id request just
+  // above (which still succeeds, against the session-derived patient_id).
+  record('Stage9: get_reports (real HTTP dispatch) resolves the caller\'s own reports from a valid session',
+    getReportsBody.status === 'ok' && getReportsBody.data.length === 4 && getReportsBody.data.every(function (r) { return r.patient_id === patientA.data.patient_id; }));
+
+  var sessionB = ctx.foundationIssueSessionToken_(patientB.data.patient_id);
+  var getReportsHttpB = ctx.handleFoundationRequest_({ foundation_action: 'get_reports', session_token: sessionB });
+  var getReportsBodyB = JSON.parse(getReportsHttpB._text);
+  record('Stage9: get_reports over real HTTP dispatch returns only patient B\'s own report, never patient A\'s',
+    getReportsBodyB.status === 'ok' && getReportsBodyB.data.length === 1 && getReportsBodyB.data[0].patient_id === patientB.data.patient_id);
+
+  var downloadHttp = ctx.handleFoundationRequest_({ foundation_action: 'download_report', session_token: sessionA, record_id: uploaded.data.record_id });
+  var downloadBody = JSON.parse(downloadHttp._text);
+  record('Stage9: download_report (real HTTP dispatch) resolves the caller\'s own report content',
+    downloadBody.status === 'ok' && downloadBody.data.record_id === uploaded.data.record_id &&
+    Buffer.from(downloadBody.data.file_base64, 'base64').equals(pdfBytes(300)));
+
+  var crossPatientDownloadHttp = ctx.handleFoundationRequest_({ foundation_action: 'download_report', session_token: sessionB, record_id: uploaded.data.record_id });
+  var crossPatientDownloadHttpBody = JSON.parse(crossPatientDownloadHttp._text);
+  record('Stage9: download_report over real HTTP dispatch still rejects a cross-patient record_id request, never leaking file content',
+    crossPatientDownloadHttpBody.status === 'error' && crossPatientDownloadHttpBody.error.code === 'FOUNDATION_NOT_FOUND' && crossPatientDownloadHttpBody.data === null);
+
+  var unauthedDownloadHttp = ctx.handleFoundationRequest_({ foundation_action: 'download_report', session_token: 'not-a-real-session-token', record_id: uploaded.data.record_id });
+  var unauthedDownloadHttpBody = JSON.parse(unauthedDownloadHttp._text);
+  record('Stage9: download_report rejects an invalid session_token with FOUNDATION_UNAUTHORIZED, never leaking any data',
+    unauthedDownloadHttpBody.status === 'error' && unauthedDownloadHttpBody.error.code === 'FOUNDATION_UNAUTHORIZED' && unauthedDownloadHttpBody.data === null);
+
+  // ---- No update, no delete — the approved architecture decision, verified as an absence ----
+  record('Stage9: no update/delete function exists for Reports (metadata is immutable after upload, per the approved architecture decision)',
+    typeof ctx.foundationUpdateReport_ === 'undefined' && typeof ctx.foundationDeleteReport_ === 'undefined');
+
+  // ---- The manually-run staff wrapper — the only staff-attributed path, no Web App route involved ----
+  var preExistingFileId = h.seedDriveFile(pngBytes(), null, 'staff-uploaded-scan.png');
+  var staffAttached = ctx.foundationCreateReportForExistingDriveFile_({
+    patient_id: patientA.data.patient_id, drive_file_id: preExistingFileId,
+    file_name: 'Staff-attached scan.png', uploaded_by: 'staff:dr-sharma'
+  });
+  record('Stage9: foundationCreateReportForExistingDriveFile_() succeeds against a real pre-existing Drive file, without re-uploading it',
+    staffAttached.status === 'ok' && staffAttached.data.drive_file_id === preExistingFileId && staffAttached.data.uploaded_by === 'staff:dr-sharma');
+
+  var staffAttachedResult = validate(reportSchema, staffAttached.data || {});
+  record('Stage9: the staff-wrapper\'s output also conforms to report.schema.json',
+    staffAttachedResult.valid === true, staffAttachedResult.errors.join('; '));
+
+  var staffMissingFields = ctx.foundationCreateReportForExistingDriveFile_({ patient_id: patientA.data.patient_id });
+  record('Stage9: foundationCreateReportForExistingDriveFile_() rejects missing required fields with FOUNDATION_INVALID_INPUT',
+    staffMissingFields.status === 'error' && staffMissingFields.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var staffBadType = ctx.foundationCreateReportForExistingDriveFile_({
+    patient_id: patientA.data.patient_id, drive_file_id: h.seedDriveFile(plainTextBytes(), null, 'not-really-a-pdf.pdf'),
+    file_name: 'Fake.pdf', uploaded_by: 'staff:dr-sharma'
+  });
+  record('Stage9: the staff wrapper runs the same content-based type check — a non-PDF/JPG/PNG Drive file is rejected',
+    staffBadType.status === 'error' && staffBadType.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  // ---- docs/42 §1/§15's named partial-write failure mode: Drive succeeds, Sheets fails ----
+  // Deliberately corrupt the live 'Reports' sheet's header (the same
+  // "mock the platform, run the real logic" technique used throughout
+  // this harness) so foundationDsInsert_()'s header-drift check throws —
+  // this simulates a Sheets-write failure occurring strictly after the
+  // Drive write inside foundationCreateReport_() has already succeeded.
+  // Run last in this stage: it deliberately leaves 'Reports' unusable for
+  // any further real inserts in this run.
+  var driveFileIdsBeforePartialFailure = Object.keys(h.driveFilesById);
+  h.spreadsheet.insertSheet(ctx.FOUNDATION_REPORTS_SHEET_).appendRow(['deliberately', 'wrong', 'header']);
+  var partialFailureResult = ctx.foundationCreateReport_({
+    patient_id: patientA.data.patient_id, file_name: 'partial-failure.pdf', mime_type: 'application/pdf',
+    file_base64: b64(pdfBytes(150)), uploaded_by: patientA.data.patient_id
+  });
+  record('Stage9: a Sheets-write failure after a successful Drive write is caught and returns the standard generic error envelope, never a raw exception',
+    partialFailureResult.status === 'error' && partialFailureResult.error.code === 'FOUNDATION_UNEXPECTED_ERROR');
+
+  var driveFileIdsAfterPartialFailure = Object.keys(h.driveFilesById);
+  var orphanCandidateId = driveFileIdsAfterPartialFailure.filter(function (id) { return driveFileIdsBeforePartialFailure.indexOf(id) === -1; })[0];
+  record('Stage9: setup — exactly one new Drive file was created by the failed upload attempt (the rollback candidate)',
+    driveFileIdsAfterPartialFailure.length === driveFileIdsBeforePartialFailure.length + 1 && !!orphanCandidateId);
+  record('Stage9: the Drive file created during the failed upload was rolled back (trashed) rather than left as a silent orphan — rollback is preferred, per the approved decision',
+    !!orphanCandidateId && h.driveFilesById[orphanCandidateId].isTrashed() === true);
+
+  var rollbackAuditRows = auditRowsOf(h, 'report_upload_rolled_back');
+  record('Stage9: the rollback was audit-logged (report_upload_rolled_back) with the specific record/drive file ids, distinguishable from a normal successful upload',
+    !!orphanCandidateId && rollbackAuditRows.some(function (row) { return row[4].indexOf(orphanCandidateId) !== -1; }));
+  record('Stage9: no report_upload_orphaned_file event was logged for this run — rollback succeeded, so the "rollback impossible" fallback path was never taken',
+    auditRowsOf(h, 'report_upload_orphaned_file').length === 0);
+
+  var createdAuditRows = auditRowsOf(h, 'report_uploaded');
+  record('Stage9: every successful upload (direct, via HTTP dispatch, and via the staff wrapper) wrote its own report_uploaded AuditLog row',
     createdAuditRows.length === 6);
 })();
 

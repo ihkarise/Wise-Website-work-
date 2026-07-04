@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wisehomeopathy.com/shared/constants/upload-limits.json",
+  "title": "Report Upload Limits",
+  "version": "1.0.0",
+  "description": "The canonical file-upload constraints for Patient Access Batch PA-5's Report Upload feature (docs/29-PHASE-2A-TECHNICAL-PLAN.md §8, docs/33-DOMAIN-MODEL.md §3.3, docs/42-REPORTS-UPLOAD-READINESS-REVIEW.md §11/§12). Populated at this contract's first creation, alongside its first implementation (apps-script/FoundationReports.gs) — shared/README.md's bootstrap exception, the same one Foundation's F2/F3 batches used. See upload-limits.md for why the size cap and the allowed-type list are defined once here instead of being a hardcoded value in each consumer.",
+  "max_upload_bytes": 5242880,
+  "allowed_file_types": [
+    { "mime_type": "application/pdf", "extensions": [".pdf"] },
+    { "mime_type": "image/jpeg", "extensions": [".jpg", ".jpeg"] },
+    { "mime_type": "image/png", "extensions": [".png"] }
+  ]
+}

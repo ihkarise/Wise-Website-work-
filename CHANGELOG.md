@@ -8,6 +8,75 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-04 — Patient Access Batch PA-5 (Report Upload — Reports sheet, Drive integration)
+
+Fifth Patient Access batch (docs/29 §13 Batch 5F), preceded by
+docs/42-REPORTS-UPLOAD-READINESS-REVIEW.md, approved before any code was written — the
+platform's highest-risk feature (docs/29 §8/§11), the first arbitrary file-handling
+surface. **This is PA-5's second, corrected build** — a first implementation was
+merged, then reverted after a post-merge verification found five real gaps against
+docs/42: a duplicate `docs/42` document (this build cites only the one, real,
+authoritative review); Drive sharing was assumed private, not verified (now explicitly
+enforced via `setSharing()` and directly asserted in conformance Stage 9 — docs/42 §6's
+own named "single most important" test); a Drive-succeeds/Sheets-fails partial write
+was unhandled (now rolled back by trashing the orphaned file, audit-logged, and
+directly tested); `docs/12-DATA-ARCHITECTURE.md` was left unreconciled (now has a
+Reports/Drive section); and the Drive object name embedded `patient_id` (now named
+from `record_id` alone, per docs/42 §5). No unauthorized modification to any frozen
+file — every touch to an already-shipped file is named below, none of them silent.
+
+### Added
+- `shared/constants/upload-limits.json` + `.md` — the canonical 5 MB size cap and
+  PDF/JPG/PNG allowed-type list, the bootstrap exception (`shared/README.md`).
+- `shared/schemas/report.schema.json` + `.md` — the `Reports` contract: metadata only
+  (binary lives in Drive), immutable after creation, no update/delete.
+- `apps-script/FoundationReports.gs` — patient-facing upload
+  (`foundationCreateReport_()`, three-layer MIME validation, server-measured size
+  enforcement, a Drive file named from `record_id` alone with sharing explicitly
+  enforced private via `foundationEnsureReportFilePrivate_()`, and rollback-by-trashing
+  if the Sheets write fails after the Drive write succeeds), patient-facing
+  sorted/capped list (`foundationGetPatientReports_()`), ownership-gated
+  get-by-id/download (`foundationGetReportById_()`/`foundationDownloadReport_()`), and
+  a manually-run staff wrapper (`createFoundationReportForExistingDriveFile()`) for the
+  one staff-attributed path, per the approved "no staff Web App route" decision.
+- `my-health-journey/reports/index.html` + `reports.js` — the Reports full history
+  page: a real ordered list of the patient's own uploads, escaped filenames, mime
+  type/size, a "Download" action that decodes a base64 response into a real browser
+  file download (never a Drive URL), the "No data yet" Empty State, a
+  network-failure fallback.
+- `validation/pa-5-reports/browser-test.js` + `README.md` — a new, committed
+  Playwright suite (32/32 passing, including a real Playwright `setInputFiles()`
+  upload and a real triggered `download` event).
+- `docs/12-DATA-ARCHITECTURE.md` gained a "Phase 2A — Report Upload Schema" section,
+  closing docs/29 §12's own long-open item for the Reports entity specifically, per
+  docs/42 §16 step 7's explicit call to close it as part of this batch.
+
+### Changed
+- `apps-script/FoundationRouter.gs` — gained three new dispatch cases,
+  `upload_report`, `get_reports`, and `download_report`, and their thin wiring
+  functions — the same disclosed, additive exception PA-3's/PA-4's own new cases
+  already established.
+- `my-health-journey/dashboard.js` — the Reports card now shows a real,
+  always-present upload form (a single file picker restricted to PDF/JPG/PNG, with a
+  client-side, UX-only 5 MB/type pre-check) plus a bare recent-uploads list and "View
+  full history" link once reports exist — replacing its "Coming later in Phase 2A"
+  placeholder, the last dashboard card to do so. The explicitly planned evolution of
+  the PA-2 shell, not a restructuring — the session-guard logic itself is untouched.
+- `validation/phase-2a-foundation/harness.js` / `conformance.js` — extended with
+  `FoundationReports.gs`, a new `DriveApp` mock (including `setSharing()`/
+  `getSharingAccess()`/`getSharingPermission()` and `setTrashed()`/`isTrashed()`),
+  `Utilities.base64Decode`/`base64Encode`, a disclosed best-effort
+  `Utilities.newBlob()` content-type detection mock, and a new Stage 9 (45 new checks,
+  including the content-based MIME-spoofing rejection proof, the Drive-sharing-privacy
+  assertion, the partial-write rollback proof, and cross-patient isolation on
+  download).
+- `validation/pa-2-dashboard/browser-test.js` — updated to reflect the Reports card's
+  real behavior (mock now also routes `get_reports`; `phase2aCount` drops from 1 to
+  0; `nodataCount` rises from 2 to 3; net +2 checks).
+- `validation/static-analysis/analyze.js` — `createFoundationReportForExistingDriveFile`
+  added to the documented manually-run-wrapper allowlist, the same treatment
+  `createFoundationConsultationEntry`/`createFoundationPatient` already have.
+
 ## 2026-07-03 — Patient Access Batch PA-4 (Symptom Tracker — quick-log form, history)
 
 Fourth Patient Access batch (docs/29 §13 Batch 5E), preceded by
