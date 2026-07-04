@@ -401,7 +401,7 @@ one entity.
 
 ---
 
-## 3.3 Report — *Planned*
+## 3.3 Report — *Implemented (Batch PA-5)*
 
 **Purpose:** A document (lab result, prescription received elsewhere, prior medical
 record) a patient uploads to their own record. The platform's first arbitrary

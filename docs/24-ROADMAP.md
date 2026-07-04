@@ -120,9 +120,22 @@ dispatch cases; `dashboard.js`'s Symptom Tracker-card wiring; `assets/site.css`'
 new `.field textarea`/`.field select` rules) are named in full in docs/29 §16's
 Batch PA-4 notes.
 
-Next: Batch PA-5 (docs/29 §13 Batch 5F) — the `Reports` sheet, Drive
-integration, and the platform's highest-risk feature, file upload. Not yet
-started; approval required before it begins.
+Batch PA-5 (docs/29 §13 Batch 5F) — the `Reports` sheet, Drive integration, and
+the platform's highest-risk feature, file upload — has also now shipped,
+preceded by docs/42-REPORT-UPLOAD-READINESS-REVIEW.md. The Reports card on
+`/my-health-journey/` now shows a real upload form and recent-uploads list
+instead of an empty state, and a new full history page exists at
+`/my-health-journey/reports/`. Every dashboard card now shows real data or an
+honest "planned for a future version" state — Reports was the last "Coming
+later in Phase 2A" placeholder. Zero unauthorized modification to any frozen
+file — the disclosed, additive exceptions (`FoundationRouter.gs`'s three new
+dispatch cases; `dashboard.js`'s Reports-card wiring) are named in full in
+docs/29 §16's Batch PA-5 notes.
+
+Next: Batch PA-6 (docs/29 §13 Batch 5G) — add "Patient Login" to primary nav,
+un-noindex the patient-facing pages, and add a sitemap entry, the only
+remaining batch with a real public-visibility change. Not yet started;
+approval required before it begins.
 
 - Patient Login (passwordless, ADR-003)
 - Dashboard shell
