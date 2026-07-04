@@ -248,18 +248,39 @@ function foundationCompareReportsDesc_(a, b) {
 
 /**
  * The third, authoritative defense-in-depth check (shared/constants/
- * upload-limits.md) — inspects the actual decoded bytes via Apps
- * Script's documented `Utilities.newBlob(data)` behavior ("attempts to
- * determine the correct extension and content-type of the data based on
- * the structure of the byte array"). A byte-signature heuristic, not a
- * parser or a malware/virus scanner — see shared/constants/
- * upload-limits.md's disclosed limitation for exactly what this does and
- * does not guarantee, including the specific open item docs/42 §11
- * raises about this behavior not yet being verified against a live
- * deployment.
+ * upload-limits.md) — inspects the actual decoded bytes directly against
+ * each allowed type's fixed magic-number signature. A byte-signature
+ * heuristic, not a parser or a malware/virus scanner — same disclosed
+ * scope shared/constants/upload-limits.md already states.
+ *
+ * Deployment verification (2026-07-04) found that
+ * `Utilities.newBlob(bytes).getContentType()` — this function's original
+ * implementation — returns null on a live Apps Script deployment when
+ * given raw bytes with no filename/mimeType hint, for a real, valid PNG.
+ * That contradicted the assumption docs/42 §11 had flagged as unverified;
+ * this is the real answer. Every real upload was being rejected as a
+ * result. This replaces that unreliable platform-guess with an explicit,
+ * verifiable check against each allowed type's own fixed byte signature —
+ * still authoritative and content-based (not the filename or the
+ * client-declared mime_type), just implemented directly instead of
+ * depending on undocumented platform sniffing behavior.
  */
 function foundationDetectActualMimeType_(bytes) {
-  return Utilities.newBlob(bytes).getContentType();
+  function byteAt(i) {
+    var v = bytes[i];
+    return v < 0 ? v + 256 : v;
+  }
+  if (bytes.length >= 4 && byteAt(0) === 0x25 && byteAt(1) === 0x50 && byteAt(2) === 0x44 && byteAt(3) === 0x46) {
+    return 'application/pdf'; // "%PDF"
+  }
+  if (bytes.length >= 3 && byteAt(0) === 0xFF && byteAt(1) === 0xD8 && byteAt(2) === 0xFF) {
+    return 'image/jpeg';
+  }
+  if (bytes.length >= 8 && byteAt(0) === 0x89 && byteAt(1) === 0x50 && byteAt(2) === 0x4E && byteAt(3) === 0x47 &&
+      byteAt(4) === 0x0D && byteAt(5) === 0x0A && byteAt(6) === 0x1A && byteAt(7) === 0x0A) {
+    return 'image/png';
+  }
+  return null;
 }
 
 /**
