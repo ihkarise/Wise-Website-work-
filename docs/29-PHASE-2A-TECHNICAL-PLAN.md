@@ -1539,3 +1539,127 @@ dashboard card — this batch does not touch it; adding "Patient Login" to prima
 (Batch 5G, unchanged); a `package.json` declaring the `playwright` dev dependency so
 these suites can be run without a session-local workaround (a real, disclosed gap,
 carried forward from docs/41 Finding 5, still not this batch's problem to solve).
+
+## Batch PA-5 (complete)
+
+Delivered exactly its named scope (§13 Batch 5F): the `Reports` sheet, Drive
+integration, and upload/list/download endpoints and validation — the platform's
+highest-risk feature (§8, §11). Preceded by a dedicated pre-implementation review
+(docs/42-REPORT-UPLOAD-READINESS-REVIEW.md), approved before any code was written.
+Seven architecture decisions the review resolved by explicit approval rather than
+silent default: a 5 MB size cap stored as a shared constant, never hardcoded; MIME
+validation using every mechanism realistically available (extension, client-declared
+type, and server-side content-based detection via `Utilities.newBlob()`), with the
+content-sniffing heuristic's limitation disclosed rather than overstated; authorization
+always beginning with the application, Drive permissions treated as defense-in-depth
+only; metadata immutable immediately after upload (no edit); no delete operation; no
+staff Web App upload route (a manually-run wrapper only); and
+`FoundationConsultationHistory.gs`'s pre-existing header-comment bug left untouched, per
+explicit instruction, since this batch never needed to touch that file.
+
+**Frozen components were not modified beyond the disclosed, additive exceptions named
+below.** Per this session's explicit instruction, every change to an already-shipped
+file is named here, not silently made:
+
+- `apps-script/FoundationRouter.gs` gained three new `switch` cases (`upload_report`,
+  `get_reports`, `download_report`) and their three thin wiring functions — the same
+  category of disclosed, additive exception PA-3's and PA-4's own new cases already
+  established.
+- `my-health-journey/dashboard.js` gained the Reports card's real wiring
+  (`loadReportsPreview()`, `reportsFormHtml()`, `reportsListHtml()`,
+  `readFileAsBase64()`, `refreshReportsList()`, `wireReportForm()`) — the
+  explicitly-planned evolution docs/38 §9/docs/04's own "upload widget" line already
+  anticipated, not a restructuring of the shell or its session guard. The Reports card
+  is now the last dashboard card to leave the "Coming later in Phase 2A" placeholder
+  behind — every card either shows real data or an honest "planned for a future
+  version" state.
+- `validation/pa-2-dashboard/browser-test.js` was updated (not just re-run) the same
+  way PA-3/PA-4 already updated it for their own cards' wiring: `mockGetProfile()` now
+  also routes `get_reports`; `phase2aCount` drops from 1 to 0 (zero "Coming later in
+  Phase 2A" placeholders remain); `nodataCount` rises from 2 to 3 (Reports renders its
+  own real "No data yet" badge alongside its always-present upload form).
+- No other frozen file (`login.html`, `verify.html`, `my-health-journey/index.html`,
+  any Foundation/Identity & Access/PA-3/PA-4 file, `assets/site.css`) was touched at
+  all — the file input reuses `.field input` unchanged, and the Reports page's own two
+  small additive rules (`.rp-meta`, `.rp-actions`) live in its own per-page `<style>`
+  block, per this repo's existing per-page CSS convention, not folded into the shared
+  stylesheet.
+
+**`shared/constants/upload-limits.json` and `shared/schemas/report.schema.json`
+created, the bootstrap exception** (`shared/README.md`) — this contract's first
+definition and its first implementation (`apps-script/FoundationReports.gs`) were
+necessarily created together, the same exception PA-4's `condition-slugs.json`/
+`symptom-log.schema.json` pair already used.
+
+**No update, no delete — a deliberate lifecycle, confirmed as an absence, not a gap.**
+Unlike every other Foundation-family entity, `FoundationReports.gs` provides create,
+list, and get-by-id/download functions only. Verified directly in
+`validation/phase-2a-foundation/conformance.js` Stage 9
+(`typeof ctx.foundationUpdateReport_ === 'undefined'` etc.), not merely omitted from a
+feature list.
+
+**The only staff-attributed path is a manually-run wrapper, no Web App route.**
+`createFoundationReportForExistingDriveFile()` attaches an already-existing Drive file
+(uploaded to Drive directly by staff, outside this application) to a patient's Reports
+list, running the identical content-based type/size validation the patient upload route
+uses — the same no-route, no-Sheet-menu pattern `createFoundationConsultationEntry()`/
+`createFoundationPatient()` already established.
+
+**Component Reuse Review, performed before writing any new markup.** `assets/site.css`
+tokens/`.card`/`.field`/`.status`/`.submit`/`.secondary` and PA-3's Timeline visual
+(`.tl-track`/`.tl-item`) all reused unchanged; the upload form's single file field
+extends `login.html`'s `.field` pattern with zero new CSS (`.field input` already
+covers `type="file"`); the Reports full-history page reuses PA-4's Symptom History page
+structure almost exactly, needing only two small additive rules for the one piece of
+per-entry markup (filename + type/size + a Download action) that doesn't fit either
+prior page's shape exactly; `my-health-journey/session-guard.js` reused unchanged.
+
+**Verification performed** (all real, not assumed):
+- `node validation/static-analysis/analyze.js` — 0 findings (32 `apps-script/*.gs`
+  files scanned).
+- `node validation/phase-2a-foundation/conformance.js` — **143/143** (120 pre-existing +
+  23 new Stage 9 checks), covering schema conformance, the size cap enforced against
+  real decoded bytes, the content-based MIME detection actually rejecting a file whose
+  real bytes don't match its declared extension/mime_type (the platform's key
+  MIME-spoofing security proof), cross-patient isolation on list and download, the
+  ownership check running before any `DriveApp` call, byte-for-byte round-trip of
+  downloaded content, the manually-run staff wrapper against a real pre-existing Drive
+  file, and all three new `FoundationRouter.gs` routes end to end confirming
+  `patient_id`/`uploaded_by` are never accepted from a client-supplied field.
+- `node validation/phase-1-5/validate.js` — 42/42, unchanged.
+- `validation/pa-2-dashboard/browser-test.js` — updated and re-run — **32/32** passed
+  (26 pre-existing + 6 new checks for the Reports card's own real "No data yet" render,
+  its always-present upload form, and the field's `<label for>`).
+- `validation/pa-3-timeline/browser-test.js` — re-run unchanged — **29/29** passed,
+  confirming zero regression to PA-3's own frontend.
+- `validation/pa-4-symptom-tracker/browser-test.js` — re-run unchanged — **28/28**
+  passed, confirming zero regression to PA-4's own frontend.
+- `validation/pa-5-reports/browser-test.js` — new, committed, and actually executed —
+  **32/32** passed, covering the Reports full-history page's populated/empty/
+  network-failure states, escaped filenames (a `<script>`-tag fixture confirms it is
+  never rendered as a live element), a real file selected via Playwright's
+  `setInputFiles()` and uploaded successfully (form reset, list refreshed), the
+  client-side size pre-check rejecting an oversized file *before the network call is
+  ever made* (asserted directly, not inferred), a rejected upload's verbatim backend
+  message, a real triggered browser download (Playwright's `download` event, asserting
+  the suggested filename), a rejected download's inline error with no navigation,
+  sign-out, 375px responsive layout, and keyboard-driven accessibility.
+
+**A note on this session's testing environment, more complete than prior batches'
+disclosed gap.** Unlike PA-4 (docs/41 Finding 5: no Playwright available in that
+session), this session had Playwright installed in this environment's global
+`node_modules` (`NODE_PATH=$(npm root -g)`), so every browser suite above — including
+PA-3's and PA-4's own, re-run for zero-regression confirmation — was actually executed,
+not assumed. The underlying gap those suites' own READMEs recorded (no
+`package.json`/committed Playwright dependency anywhere in this repository) is
+unchanged and still real; this was a property of this particular session's environment,
+not a fix to that gap.
+
+**Deferred, not silently skipped:** adding "Patient Login" to primary nav (Batch 5G,
+unchanged — Reports was the last data-feature card, so 5G is now unblocked); a
+`package.json` declaring the `playwright` dev dependency (still not this batch's
+problem to solve, per docs/41 Finding 5, carried forward again); `docs/12-DATA-ARCHITECTURE.md`'s
+still-open §4 schema-table update (§12's Documentation Impact table already listed this
+as "Open" before PA-3/PA-4 shipped their own schemas without closing it — a pre-existing
+inconsistency this batch did not introduce and, per this session's scope discipline, did
+not fix either).

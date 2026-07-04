@@ -30,6 +30,26 @@
  *
  * Extended in Patient Access batch PA-4 with `FoundationSymptomLog.gs` in
  * the FILES list — again no new mock needed, for the same reason.
+ *
+ * Extended in Patient Access batch PA-5 with `FoundationReports.gs` in the
+ * FILES list, plus three new mocks it actually needs: `DriveApp`
+ * (`getFolderById()`/`createFile()`/`getFileById()`, a simple in-memory
+ * file store), `Utilities.base64Decode`/`base64Encode` (the standard,
+ * non-web-safe alphabet — real file uploads are not URL-safe-encoded),
+ * and `Utilities.newBlob()`'s content-type parameter plus a best-effort
+ * magic-byte content-type *detection* for when no content type is
+ * supplied. That last one is disclosed here, deliberately, as an
+ * approximation: real Apps Script's `Utilities.newBlob(data)` is
+ * documented to "attempt to determine the correct extension and
+ * content-type of the data based on the structure of the byte array," but
+ * the exact algorithm is not independently specified beyond that sentence
+ * — this mock recognizes the three real magic-byte signatures Batch PA-5
+ * actually needs (PDF, JPEG, PNG) and falls back to
+ * `application/octet-stream` otherwise, the same "mock the platform API,
+ * run the real logic" discipline as every other mock in this file, but
+ * with its one genuine uncertainty named rather than silently assumed
+ * identical to the real platform (see shared/constants/upload-limits.md's
+ * own disclosed limitation).
  */
 
 var fs = require('fs');
@@ -54,6 +74,7 @@ var FILES = [
   'FoundationLoginFlow.gs',
   'FoundationConsultationHistory.gs',
   'FoundationSymptomLog.gs',
+  'FoundationReports.gs',
   'FoundationRouter.gs'
 ];
 
@@ -122,6 +143,37 @@ function buildSandbox(opts) {
     return Buffer.from(byteArray.map(function (b) { return b < 0 ? b + 256 : b; }));
   }
 
+  // Best-effort magic-byte content-type detection — see this file's own
+  // header comment for the disclosed uncertainty this approximates
+  // (real Apps Script's exact newBlob() detection algorithm is not
+  // independently specified). Recognizes only the three signatures
+  // Batch PA-5 actually needs; anything else falls back to Apps
+  // Script's own documented default for unrecognized binary data.
+  function detectMimeTypeFromBytes(buf) {
+    if (buf.length >= 4 && buf[0] === 0x25 && buf[1] === 0x50 && buf[2] === 0x44 && buf[3] === 0x46) { // '%PDF'
+      return 'application/pdf';
+    }
+    if (buf.length >= 3 && buf[0] === 0xFF && buf[1] === 0xD8 && buf[2] === 0xFF) { // JPEG SOI marker
+      return 'image/jpeg';
+    }
+    if (buf.length >= 8 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4E && buf[3] === 0x47
+      && buf[4] === 0x0D && buf[5] === 0x0A && buf[6] === 0x1A && buf[7] === 0x0A) { // PNG signature
+      return 'image/png';
+    }
+    return 'application/octet-stream';
+  }
+
+  // ---------- Fake in-memory Drive (Reports' binary storage) ----------
+  var driveFilesById = {};
+  var driveFileCounter = 0;
+  function makeFakeDriveFile(blob) {
+    driveFileCounter++;
+    var id = 'fake-drive-file-' + driveFileCounter;
+    var file = { getId: function () { return id; }, getBlob: function () { return blob; } };
+    driveFilesById[id] = file;
+    return file;
+  }
+
   var sandbox = {
     console: console,
     SpreadsheetApp: {
@@ -157,12 +209,39 @@ function buildSandbox(opts) {
         var normalized = str.replace(/-/g, '+').replace(/_/g, '/');
         return toSignedByteArray(Buffer.from(normalized, 'base64'));
       },
-      newBlob: function (input) {
+      // Standard (non-web-safe) alphabet — Batch PA-5's uploaded file
+      // content is not URL-safe-encoded, unlike FoundationSession.gs's
+      // token segments.
+      base64Encode: function (input) {
         var buf = Array.isArray(input) ? toUnsignedBuffer(input) : Buffer.from(String(input), 'utf8');
+        return buf.toString('base64');
+      },
+      base64Decode: function (str) {
+        return toSignedByteArray(Buffer.from(String(str), 'base64'));
+      },
+      newBlob: function (input, contentType, name) {
+        var buf = Array.isArray(input) ? toUnsignedBuffer(input) : Buffer.from(String(input), 'utf8');
+        var resolvedType = contentType || detectMimeTypeFromBytes(buf);
         return {
           getBytes: function () { return toSignedByteArray(buf); },
-          getDataAsString: function () { return buf.toString('utf8'); }
+          getDataAsString: function () { return buf.toString('utf8'); },
+          getContentType: function () { return resolvedType; },
+          getName: function () { return name || null; }
         };
+      }
+    },
+    DriveApp: {
+      getFolderById: function () {
+        return {
+          createFile: function (blob) { return makeFakeDriveFile(blob); }
+        };
+      },
+      getFileById: function (id) {
+        var file = driveFilesById[id];
+        if (!file) {
+          throw new Error('DriveApp mock: no such file id "' + id + '"');
+        }
+        return file;
       }
     },
     Logger: {
@@ -195,7 +274,18 @@ function buildSandbox(opts) {
   return {
     sandbox: sandbox, spreadsheet: spreadsheet, scriptProperties: scriptProperties,
     executionLog: executionLog, mailLog: mailLog, cacheStore: cacheStore,
-    setMailImpl: function (fn) { mailImpl = fn; }
+    setMailImpl: function (fn) { mailImpl = fn; },
+    // Exposed so conformance.js can seed a "pre-existing Drive file"
+    // fixture — the staff-wrapper path (createFoundationReportForExistingDriveFile_())
+    // reads a file that was never created through
+    // foundationCreateReport_()'s own folder.createFile() call. Accepts a
+    // plain Node Buffer directly (test fixtures build one), converted to
+    // the same signed-byte-array shape every real Utilities.* call uses.
+    seedDriveFile: function (bytes, contentType, name) {
+      var signedBytes = Buffer.isBuffer(bytes) ? toSignedByteArray(bytes) : bytes;
+      var blob = sandbox.Utilities.newBlob(signedBytes, contentType, name);
+      return makeFakeDriveFile(blob).getId();
+    }
   };
 }
 

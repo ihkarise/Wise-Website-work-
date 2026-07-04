@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wisehomeopathy.com/shared/schemas/report.schema.json",
+  "title": "Report",
+  "version": "1.0.0",
+  "description": "The canonical shape of a Reports record — docs/29-PHASE-2A-TECHNICAL-PLAN.md §4/§8's already-locked sheet and architecture, and the concrete storage of docs/33-DOMAIN-MODEL.md §3.3's Report. Backs the patient-facing Reports dashboard card (upload control + recent uploads) and full history page (docs/29 §5). Binary content itself lives in Google Drive, keyed by drive_file_id — this schema is metadata only. See report.md for the create-only lifecycle, the authorization model, and the disclosed MIME-validation limitation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["record_id", "patient_id", "uploaded_at", "file_name", "drive_file_id", "mime_type", "size_bytes", "uploaded_by"],
+  "properties": {
+    "record_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The permanent identity of this entry. A UUID, generated once at creation, never reused or changed, SQL-migration-safe by design (ADR-006). The only field a client-supplied download/list request identifies a report by — never file_name or list position."
+    },
+    "patient_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The Patient Identity this report belongs to (docs/33 §1.2, ADR-002). Always session-derived at write time and re-verified at every read/download time — never accepted from the request body."
+    },
+    "uploaded_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Server-set at write time (foundationNowIso_()), never patient-editable. This entry's sole sort key (descending) for the full history list."
+    },
+    "file_name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The original, client-supplied filename, kept for display purposes only. Never used as a Drive object name or any path component (docs/29 §8) — the actual stored Drive file is named from patient_id/record_id, never from this field. Escaped for display wherever rendered; never trusted as markup."
+    },
+    "drive_file_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The Google Drive file ID holding the actual binary content. Drive's own sharing permission on this file is private (defense-in-depth only, per the approved architecture decision) — it is never the authorization boundary; every list/download call re-verifies patient_id against the session before this ID is ever used to touch Drive."
+    },
+    "mime_type": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The server-detected content type — Utilities.newBlob()'s byte-structure-based detection of the actual decoded upload bytes, not the client-declared File.type (docs/29 §8, shared/constants/upload-limits.md's disclosed content-sniffing limitation). One of upload-limits.json's allowed_file_types entries."
+    },
+    "size_bytes": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The real, server-measured length of the decoded upload in bytes — never the client-reported size. Enforced at write time against shared/constants/upload-limits.json's max_upload_bytes."
+    },
+    "uploaded_by": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Who performed this upload: the session-derived patient_id for the patient-facing upload route (self-upload is the normal case), or a staff identifier string for the manually-run staff wrapper (docs/33 §3.3's \"patient or staff\" — no staff Web App route exists, per the approved architecture decision; a staff-attributed row can only be written by running createFoundationReportForExistingDriveFile() from the Apps Script editor)."
+    }
+  }
+}
