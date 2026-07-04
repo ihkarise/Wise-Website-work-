@@ -2,13 +2,20 @@
 /**
  * Minimal, dependency-free JSON Schema validator — supports exactly the
  * subset of Draft 2020-12 actually used by shared/*.schema.json in this
- * repository: `type` (single or array-of-types), `required`,
+ * repository: `type` (single or array-of-types, including `integer` as
+ * its own distinct type per the Draft 2020-12 spec), `required`,
  * `properties`, `additionalProperties` (boolean form only), `enum`,
  * `const`, `format` ("email", "date-time" — lightweight pattern checks,
- * not full RFC 3339/5322 conformance), `minLength`, and a top-level
- * `oneOf` of schema fragments (each checked against the same instance,
- * matching real JSON Schema `oneOf` semantics for a fragment that only
- * constrains a subset of properties).
+ * not full RFC 3339/5322 conformance), `minLength`, `minimum`/`maximum`
+ * (numeric bounds), and a top-level `oneOf` of schema fragments (each
+ * checked against the same instance, matching real JSON Schema `oneOf`
+ * semantics for a fragment that only constrains a subset of properties).
+ *
+ * `integer` and `minimum`/`maximum` added in Patient Access batch PA-4,
+ * per this file's own extension policy (validation/phase-2a-foundation/README.md:
+ * "Extend it only when a real shared/ schema actually needs a construct
+ * it doesn't yet support") — shared/schemas/symptom-log.schema.json's
+ * four 1-10 scale fields are the first real consumer of either construct.
  *
  * Deliberately not a general-purpose validator, and deliberately not an
  * npm package — this repo's "no dependencies beyond Node's standard
@@ -41,7 +48,13 @@ function validateAgainst(schema, data, pathStr, errors) {
   if (schema.type) {
     var allowed = Array.isArray(schema.type) ? schema.type : [schema.type];
     var actual = typeOf(data);
-    if (allowed.indexOf(actual) === -1) {
+    // "integer" is Draft 2020-12's own distinct type, not a JS typeof
+    // value — a schema declaring it matches a plain JS "number" that also
+    // happens to be a whole number (Number.isInteger), same as every real
+    // JSON Schema implementation treats it.
+    var typeMatches = allowed.indexOf(actual) !== -1
+      || (actual === 'number' && Number.isInteger(data) && allowed.indexOf('integer') !== -1);
+    if (!typeMatches) {
       errors.push(pathStr + ': expected type ' + allowed.join('|') + ', got ' + actual);
       return; // further checks on the wrong type would only add noise
     }
@@ -67,6 +80,14 @@ function validateAgainst(schema, data, pathStr, errors) {
 
   if (schema.minLength !== undefined && typeof data === 'string' && data.length < schema.minLength) {
     errors.push(pathStr + ': length ' + data.length + ' is below minLength ' + schema.minLength);
+  }
+
+  if (schema.minimum !== undefined && typeof data === 'number' && data < schema.minimum) {
+    errors.push(pathStr + ': ' + data + ' is below minimum ' + schema.minimum);
+  }
+
+  if (schema.maximum !== undefined && typeof data === 'number' && data > schema.maximum) {
+    errors.push(pathStr + ': ' + data + ' is above maximum ' + schema.maximum);
   }
 
   if (isObjectSchema(schema) && typeOf(data) === 'object') {

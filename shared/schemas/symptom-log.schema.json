@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wisehomeopathy.com/shared/schemas/symptom-log.schema.json",
+  "title": "Symptom Log Entry",
+  "version": "1.0.0",
+  "description": "The canonical shape of a SymptomLogs record — docs/29-PHASE-2A-TECHNICAL-PLAN.md §4's already-locked sheet and §9's architecture, and the concrete storage of docs/33-DOMAIN-MODEL.md §3.2's Symptom Log. Backs the patient-facing Symptom Tracker dashboard card (quick-log form + most-recent-value summary) and full history page (docs/29 §5). See symptom-log.md for the create-only lifecycle, the all-four-mandatory field decision, and the condition_slug taxonomy note.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["record_id", "patient_id", "logged_at", "severity", "sleep", "energy", "stress", "notes", "condition_slug"],
+  "properties": {
+    "record_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The permanent identity of this entry. A UUID, generated once at creation, never reused or changed, SQL-migration-safe by design (ADR-006). Not currently used to fetch a single entry (docs/41 §12: no get_by_id exists in this schema version) — reserved for a future per-entry detail view if one is ever approved."
+    },
+    "patient_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The Patient Identity this entry belongs to (docs/33 §1.2, ADR-002). Always session-derived at write time and at read time — never accepted from the request body."
+    },
+    "logged_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Server-set at write time (foundationNowIso_()), never patient-editable in this schema version (docs/41 §10 Q2) — unlike ConsultationHistory's entry_date, there is no separate patient-chosen 'this happened on a different day' field. Also this entry's sole sort key (descending) for the full history list."
+    },
+    "severity": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10,
+      "description": "1-10 scale, patient self-reported. Mandatory on every entry (docs/41 §10 Q1) — validated server-side regardless of client-side input constraints."
+    },
+    "sleep": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10,
+      "description": "1-10 scale, patient self-reported. Mandatory on every entry (docs/41 §10 Q1)."
+    },
+    "energy": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10,
+      "description": "1-10 scale, patient self-reported. Mandatory on every entry (docs/41 §10 Q1)."
+    },
+    "stress": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10,
+      "description": "1-10 scale, patient self-reported. Mandatory on every entry (docs/41 §10 Q1)."
+    },
+    "notes": {
+      "type": "string",
+      "description": "Optional free-text note. Empty string when not provided — the same legitimately-empty sentinel convention consultation-history.schema.json's source_ref already established, reused here rather than inventing a new null-handling rule. Escaped for display wherever rendered; never trusted as markup."
+    },
+    "condition_slug": {
+      "type": "string",
+      "description": "Optional tag reusing the canonical condition taxonomy (shared/constants/condition-slugs.json, docs/20 §5). Empty string when not provided (same sentinel convention as notes/source_ref). Deliberately typed as a plain string, not an enum, so this schema does not itself hardcode the slug list — apps-script/FoundationSymptomLog.gs validates a non-empty value against shared/constants/condition-slugs.json's list at write time."
+    }
+  }
+}

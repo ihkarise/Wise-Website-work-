@@ -11,6 +11,17 @@
  * validation/phase-1-5/validate.js and validation/phase-2a-foundation/
  * conformance.js, both re-run unchanged for this batch (docs/29 §16 note).
  *
+ * Updated (not just re-run) in Batch PA-4, the same way Batch PA-3 already
+ * updated this file for the Timeline card's own wiring: mockGetProfile()
+ * now also routes get_symptom_logs (the Symptom Tracker card's new
+ * loadSymptomPreview() call), phase2aCount drops from 2 to 1 (Reports is
+ * now the only remaining "Coming later in Phase 2A" placeholder), and
+ * nodataCount rises from 1 to 2 (Timeline and Symptom Tracker each render
+ * their own real "No data yet" badge). The Symptom Tracker card's own
+ * quick-log form behavior (submit/success/error) is
+ * validation/pa-4-symptom-tracker/browser-test.js's own coverage, not
+ * duplicated here.
+ *
  * Run: node validation/pa-2-dashboard/browser-test.js
  */
 
@@ -60,16 +71,24 @@ function startServer() {
 const FAKE_TOKEN = 'fake-session-token-for-tests';
 
 // Batch PA-3 wired the dashboard's Timeline card to a real, separate
-// get_timeline call (dashboard.js's loadTimelinePreview()) — this mock now
-// routes by the parsed request's foundation_action so that call gets a
-// realistic, empty-timeline response (rendering the real "No data yet"
-// Empty State) rather than being silently mismatched against whatever
-// envelope a given test passed in for get_profile.
+// get_timeline call (dashboard.js's loadTimelinePreview()); Batch PA-4 adds
+// the same kind of separate call for the Symptom Tracker card
+// (loadSymptomPreview()/get_symptom_logs) — this mock routes by the parsed
+// request's foundation_action so each gets a realistic, empty-data response
+// (rendering the real "No data yet" Empty State) rather than being silently
+// mismatched against whatever envelope a given test passed in for
+// get_profile. log_symptom is not needed by this suite's own tests — the
+// quick-log form's submit behavior is validation/pa-4-symptom-tracker/
+// browser-test.js's own coverage.
 async function mockGetProfile(page, envelope) {
   await page.route('**/macros/s/**/exec', async (route) => {
     let action = null;
     try { action = JSON.parse(route.request().postData()).foundation_action; } catch (e) { /* not JSON — fall through */ }
     if (action === 'get_timeline') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'ok', data: [] }) });
+      return;
+    }
+    if (action === 'get_symptom_logs') {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'ok', data: [] }) });
       return;
     }
@@ -130,9 +149,12 @@ async function main() {
       await page.goto(`${baseUrl}/my-health-journey/`);
       await page.waitForSelector('#greeting:not(:has(.skeleton))');
       // Batch PA-3: the Timeline card now resolves via its own, separate
-      // get_timeline call (dashboard.js's loadTimelinePreview()) — wait for
-      // that card's own skeleton to clear before asserting on badge counts.
+      // get_timeline call (dashboard.js's loadTimelinePreview()); Batch PA-4:
+      // the Symptom Tracker card similarly resolves via get_symptom_logs
+      // (loadSymptomPreview()) — wait for both cards' own async work to
+      // settle before asserting on badge counts.
       await page.waitForSelector('#card-timeline-body:not(:has(.skeleton))');
+      await page.waitForSelector('#sxSummary .badge-nodata');
 
       const greetingText = await page.textContent('#greeting');
       check('Dashboard: greeting shows the real patient name from get_profile', greetingText.indexOf('Asha Menon') !== -1);
@@ -144,12 +166,16 @@ async function main() {
       const phase2aCount = await page.$$eval('.badge-phase2a', (els) => els.length);
       const futureCount = await page.$$eval('.badge-future', (els) => els.length);
       const nodataCount = await page.$$eval('.badge-nodata', (els) => els.length);
-      check('Dashboard: Symptom Tracker/Reports use the "Coming later in Phase 2A" badge (Timeline is now wired — PA-3)', phase2aCount === 2);
+      check('Dashboard: Reports is the only remaining "Coming later in Phase 2A" placeholder (Timeline PA-3, Symptom Tracker PA-4 are now both wired)', phase2aCount === 1);
       check('Dashboard: Care Plan/Messages/Digital Twin use the "Planned for a future version" badge', futureCount === 3);
-      check('Dashboard: Timeline card renders the real "No data yet" badge for a patient with zero entries (PA-3, real render, not just the exposed function)',
-        nodataCount === 1);
+      check('Dashboard: Timeline and Symptom Tracker cards each render their own real "No data yet" badge for a patient with zero rows (PA-3/PA-4)',
+        nodataCount === 2);
       const timelineBadgeParent = await page.$eval('#card-timeline-body', (el) => el.querySelector('.badge-nodata') !== null);
-      check('Dashboard: the "No data yet" badge specifically belongs to the Timeline card', timelineBadgeParent);
+      check('Dashboard: the Timeline card carries its own "No data yet" badge', timelineBadgeParent);
+      const symptomsBadgeParent = await page.$eval('#card-symptoms-body', (el) => el.querySelector('.badge-nodata') !== null);
+      check('Dashboard: the Symptom Tracker card carries its own "No data yet" badge (PA-4)', symptomsBadgeParent);
+      const symptomFormPresent = await page.$eval('#card-symptoms-body', (el) => el.querySelector('#symptomForm') !== null);
+      check('Dashboard: the Symptom Tracker card still shows its quick-log form alongside the empty summary (docs/41 §2: write affordance is the card\'s primary content)', symptomFormPresent);
 
       const badgeText = await page.$eval('.badge-phase2a', (el) => el.textContent);
       check('Dashboard: Phase 2A badge copy matches the approved wording', badgeText === 'Coming later in Phase 2A');
@@ -246,6 +272,7 @@ async function main() {
       await page.goto(`${baseUrl}/my-health-journey/`);
       await page.waitForSelector('#greeting:not(:has(.skeleton))');
       await page.waitForSelector('#card-timeline-body:not(:has(.skeleton))');
+      await page.waitForSelector('#sxSummary .badge-nodata');
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       check('Dashboard: zero horizontal overflow at 375px viewport', overflow === 0);
       await context.close();
@@ -278,6 +305,7 @@ async function main() {
       await page.goto(`${baseUrl}/my-health-journey/`);
       await page.waitForSelector('#greeting:not(:has(.skeleton))');
       await page.waitForSelector('#card-timeline-body:not(:has(.skeleton))');
+      await page.waitForSelector('#sxSummary .badge-nodata');
 
       const h1Count = await page.$$eval('h1', (els) => els.length);
       check('Dashboard: exactly one h1 on the page', h1Count === 1);

@@ -81,10 +81,14 @@ shared/
 ```
 
 `contracts/`, `schemas/`, and `utils/` are populated by Foundation's F2, F3, and F4
-batches (docs/29 §13/§14) — empty as of F1. `constants/` is reserved for future use (a good
-future candidate: the condition-slug list currently hand-duplicated between
-`apps-script/Config.gs` and `internal/consultation-summary.html`, per docs/25 §11 —
-not a Foundation deliverable, noted here for whoever picks it up later).
+batches (docs/29 §13/§14) — empty as of F1. `constants/` was populated in Patient
+Access Batch PA-4 (`condition-slugs.json` — the canonical condition-slug list, its
+first real second consumer being `shared/schemas/symptom-log.schema.json`'s
+`condition_slug` field, alongside `patient-identity.schema.json`'s own field of the
+same name). `apps-script/Config.gs` and `internal/consultation-summary.html` (both
+Phase 1.5 files) still hand-duplicate their own copies of this same list, per docs/25
+§11 — neither was updated to read from this file, since both are out of Phase 2A's
+scope; a future cleanup batch could point them at this canonical definition instead.
 
 ---
 

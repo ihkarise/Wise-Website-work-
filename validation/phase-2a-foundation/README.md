@@ -43,15 +43,18 @@ in this repo).
 
 A minimal, dependency-free JSON Schema validator supporting exactly the
 subset of Draft 2020-12 this repository's `shared/*.schema.json` files
-actually use: `type`, `required`, `properties`,
-`additionalProperties` (boolean form only), `enum`, `const`, `format`
-(`email`, `date-time`), `minLength`, and a top-level `oneOf`. It is
+actually use: `type` (including `integer` as its own distinct type),
+`required`, `properties`, `additionalProperties` (boolean form only),
+`enum`, `const`, `format` (`email`, `date-time`), `minLength`,
+`minimum`/`maximum` (numeric bounds), and a top-level `oneOf`. It is
 **not** a general-purpose validator — no `$ref`, no `patternProperties`,
-no numeric bounds, no `if`/`then`/`else`, no array-item schemas beyond
-what a future batch might add if a schema needs them. Extend it only
-when a real `shared/` schema actually needs a construct it doesn't yet
-support; it exists to check contracts this repo actually wrote, not to
-anticipate every JSON Schema feature.
+no `if`/`then`/`else`, no array-item schemas beyond what a future batch
+might add if a schema needs them. Extend it only when a real `shared/`
+schema actually needs a construct it doesn't yet support; it exists to
+check contracts this repo actually wrote, not to anticipate every JSON
+Schema feature. (`integer` and `minimum`/`maximum` were added in Batch
+PA-4, the first schema — `symptom-log.schema.json`'s four 1-10 scale
+fields — to actually need either.)
 
 `conformance.js`'s own Stage 0 proves the validator itself against
 deliberately-broken fixtures (a `oneOf` violation, a missing required

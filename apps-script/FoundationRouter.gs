@@ -31,6 +31,11 @@
  *     boundary, so FoundationConsultationHistory.gs's
  *     foundationGetConsultationEntryById_() performs that check, not this
  *     file.
+ *   - log_symptom / get_symptom_logs — Batch PA-4 additions (docs/29 §13
+ *     Batch 5E), the platform's first patient-*writable* route.
+ *     log_symptom's patient_id is session-derived exactly like every
+ *     read route above — the write path reuses the same authorization
+ *     primitive, not a new one (docs/41 §12).
  *
  * A disclosed, additive exception, same category as Code.gs's own
  * one-line dispatch shim (IA-2): this file was previously listed among
@@ -54,7 +59,8 @@
  * file.
  *
  * Depends on FoundationContracts.gs, FoundationLoginFlow.gs,
- * FoundationRouteGuard.gs, PatientIdentity.gs, FoundationConsultationHistory.gs.
+ * FoundationRouteGuard.gs, PatientIdentity.gs, FoundationConsultationHistory.gs,
+ * FoundationSymptomLog.gs.
  */
 
 /**
@@ -88,6 +94,40 @@ function foundationHandleGetTimeline_(input) {
 function foundationHandleGetTimelineEntry_(input) {
   return withFoundationAuth_(input && input.session_token, function (patientId) {
     return foundationGetConsultationEntryById_(patientId, input && input.record_id);
+  });
+}
+
+/**
+ * Batch PA-4: creates a new Symptom Log entry for the caller. patient_id
+ * is always session-derived, never client-supplied — the same
+ * authorization primitive get_timeline already uses, applied here to the
+ * platform's first patient-writable route (docs/41 §12). Every other
+ * field (severity/sleep/energy/stress/notes/condition_slug) comes from
+ * the request body and is validated by foundationCreateSymptomLog_()
+ * itself.
+ */
+function foundationHandleLogSymptom_(input) {
+  return withFoundationAuth_(input && input.session_token, function (patientId) {
+    return foundationCreateSymptomLog_({
+      patient_id: patientId,
+      severity: input && input.severity,
+      sleep: input && input.sleep,
+      energy: input && input.energy,
+      stress: input && input.stress,
+      notes: input && input.notes,
+      condition_slug: input && input.condition_slug
+    });
+  });
+}
+
+/**
+ * Batch PA-4: returns the caller's own Symptom Log entries, sorted and
+ * capped for the full-history/dashboard-preview display (docs/41 §2).
+ * patient_id is always session-derived, never client-supplied.
+ */
+function foundationHandleGetSymptomLogs_(input) {
+  return withFoundationAuth_(input && input.session_token, function (patientId) {
+    return foundationGetPatientSymptomLogs_(patientId);
   });
 }
 
@@ -126,6 +166,12 @@ function handleFoundationRequest_(input) {
       break;
     case 'get_timeline_entry':
       envelope = foundationHandleGetTimelineEntry_(input);
+      break;
+    case 'log_symptom':
+      envelope = foundationHandleLogSymptom_(input);
+      break;
+    case 'get_symptom_logs':
+      envelope = foundationHandleGetSymptomLogs_(input);
       break;
     default:
       envelope = buildFoundationErrorEnvelope_('FOUNDATION_UNKNOWN_ACTION', 'Unknown request.');

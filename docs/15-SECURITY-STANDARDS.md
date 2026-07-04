@@ -101,6 +101,38 @@ just designed: `validation/phase-2a-foundation/conformance.js`'s Stage 7 confirm
 the direct-function check and the same rejection through the real HTTP dispatch layer,
 including that a spoofed `patient_id` field in the request body is still ignored.
 
+## Phase 2A — Implementation Notes (Batch PA-4, Symptom Log)
+
+The platform's first patient-*writable* route — every prior Foundation-family write
+(Patient, LoginToken, ConsultationHistory) was staff- or system-authored, not
+patient-authored. `log_symptom` still derives `patient_id` exclusively from the
+verified session (ADR-002, unchanged) — the same authorization primitive `get_profile`
+and `get_timeline` already use, applied here to a write instead of a read for the first
+time. No new authorization *shape* was needed (unlike PA-3's record-ownership check
+above) — `log_symptom` and `get_symptom_logs` both act only on the caller's own
+session-derived `patient_id`, never a client-supplied identifier, so there is no
+second patient's record a request could even name. Verified, not just designed:
+`validation/phase-2a-foundation/conformance.js`'s Stage 8 confirms cross-patient
+isolation on both the create and list paths at the real HTTP-dispatch layer, and that
+a spoofed `patient_id` field in the request body is silently ignored in favor of the
+session-derived value.
+
+**Input validation, applied to this batch's four new writable fields.** `severity`,
+`sleep`, `energy`, and `stress` are validated server-side as in-range (1-10) integers
+regardless of client-side `<input type="number">` constraints — a non-integer,
+out-of-range, or missing value is rejected with `FOUNDATION_INVALID_INPUT` before any
+row is written. `notes` is escaped at display time (never trusted as markup); a
+`<script>`-tag fixture in `validation/pa-4-symptom-tracker/browser-test.js` confirms it
+is stored raw and only ever rendered as escaped text. `condition_slug`, when provided,
+is validated against `shared/constants/condition-slugs.json`'s canonical list — the
+first `SymptomLogs` field validated this way, closing a documented gap
+(`shared/schemas/patient-identity.md`) `Patients.condition_slug` still has (out of this
+batch's scope to fix, since Foundation's ten files remain frozen).
+
+**Audit logging.** Every `foundationCreateSymptomLog_()` call — direct and via the
+real HTTP dispatch — writes its own `symptom_log_created` `AuditLog` row, the same
+"every write logged" discipline every other Foundation entity already follows.
+
 ## Phase 1.5 — Implementation Notes (Consultation Summary Pipeline)
 
 Full mapping of every standard above to its Phase 1.5 implementation is

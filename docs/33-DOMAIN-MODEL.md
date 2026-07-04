@@ -72,7 +72,7 @@ Calculator ──(patient variant)──> Patient Identity-scoped results (not y
 
 # 1. Identity & Access
 
-## 1.1 Patient — *Planned*
+## 1.1 Patient — *Implemented (Foundation Batch F3)*
 
 **Purpose:** The domain concept of a person under Wise's care — the full clinical and
 relationship context, as distinct from the bare technical identity that references it.
@@ -103,7 +103,7 @@ updating a phone number) is plausible without violating any current ADR.
 
 ---
 
-## 1.2 Patient Identity — *Planned*
+## 1.2 Patient Identity — *Implemented (Foundation Batch F3)*
 
 **Purpose:** The minimal, permanent, technical identity every other record references.
 Deliberately kept smaller than "Patient" so that authentication method, contact
@@ -132,7 +132,7 @@ audited merge process — not solved now, flagged for when it's a real problem
 
 ---
 
-## 1.3 Session — *Planned*
+## 1.3 Session — *Implemented (Foundation Batch F4)*
 
 **Purpose:** Proof that a specific request is genuinely coming from an authenticated
 Patient Identity, for a bounded window of time. The system's answer to "who is asking
@@ -373,7 +373,7 @@ moment has arrived — not before (`shared/schemas/consultation-history.md`).
 
 ---
 
-## 3.2 Symptom Log — *Planned*
+## 3.2 Symptom Log — *Implemented (Batch PA-4)*
 
 **Purpose:** A patient's own, plain data-capture entry — severity, sleep, energy,
 stress, and optional notes — logged by the patient, about themselves. The only entity
@@ -629,16 +629,16 @@ plausibly reuse the same batch pattern once scheduled.
 
 | Entity | Status | Phase (if any) |
 |---|---|---|
-| Patient | Planned | 2A |
-| Patient Identity | Planned | 2A |
-| Session | Planned | 2A |
+| Patient | Implemented | 2A (Foundation F3) |
+| Patient Identity | Implemented | 2A (Foundation F3) |
+| Session | Implemented | 2A (Foundation F4) |
 | Doctor | Conceptual (gap) | Unassigned |
 | Consultation | Conceptual | Unassigned |
 | Consultation Summary | Implemented | Phase 1.5 |
 | Doctor Instruction | Conceptual | Depends on Care Plan (2B) |
 | AI Summary | Conceptual (pattern) | Instantiated by Phase 1.5, 2D |
-| Timeline Event | Planned | 2A |
-| Symptom Log | Planned | 2A |
+| Timeline Event | Implemented | 2A (Batch PA-3, one entry_type) |
+| Symptom Log | Implemented | 2A (Batch PA-4) |
 | Report | Planned | 2A |
 | Care Plan | Conceptual | Recommended 2B |
 | Digital Twin | Conceptual (view) | Recommended 2D |

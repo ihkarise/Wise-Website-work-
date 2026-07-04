@@ -213,7 +213,10 @@ Reports, Care Plan, Messages, Digital Twin — each a `.card` instance (reused
 from the Forms/Login Form component, unchanged) with its own `h2` and one
 Empty State body. No card has a live data source in this batch (docs/29 §13
 Batches 5D/5E/5F are what wire Timeline/Symptom Tracker/Reports respectively)
-— every card in PA-2 renders an Empty State.
+— every card in PA-2 renders an Empty State. Timeline (PA-3) and Symptom
+Tracker (PA-4) have since been wired to real data — see their own sections
+below; Reports (Batch 5F) remains the only card still showing this original
+placeholder.
 
 ### Empty State — three distinct types (Batch PA-2)
 
@@ -285,12 +288,50 @@ explicitly-planned Timeline-wiring addition.
 
 ---
 
+## Phase 2A — Symptom Tracker Components (Batch PA-4)
+
+Built against docs/41's readiness review — the platform's first patient-*writable*
+feature. Gives the Symptom Tracker card (PA-2) its first real data source and adds one
+new page, reusing `assets/site.css` unchanged plus two small additive rules
+(`.field textarea`, `.field select` — this phase's first multi-field form needing
+either).
+
+### Symptom Quick-Log Form (dashboard card, `my-health-journey/dashboard.js`)
+
+The Symptom Tracker card's Empty State is replaced with a real, always-present
+quick-log form — the only dashboard card whose primary content is a write affordance,
+not a read preview (docs/41 §2). Four mandatory 1–10 scale fields (severity, sleep,
+energy, stress) as plain `<input type="number">` elements, each with a real
+`<label for>` (deliberately not a range slider, sidestepping the "bare slider with no
+visible value" accessibility gap), plus an optional notes `<textarea>` and an optional
+condition-tag `<select>` (`shared/constants/condition-slugs.json`'s canonical list).
+Submission feedback uses the existing `.status`/`role="status"`/`aria-live="polite"`
+component — this phase's first form where the patient stays on the same page after
+submitting, so the live region is exercised for the first time. Once entries exist, a
+bare most-recent-value summary (date + all four values, no chart, no trend) plus a
+"View full history" link appears below the form; a zero-entry patient sees the "No
+data yet" Empty State instead, with the form still present either way.
+
+### Symptom History (`my-health-journey/symptoms/`)
+
+A real ordered list (`<ol>`), one `<li>` per entry — reverse-chronological, no
+per-entry detail page (docs/41 §2: a scale-values-plus-short-note row has no long-form
+text that would benefit from its own page, unlike Consultation History). Each entry
+shows its date, all four scale values, the optional note (HTML-escaped, never trusted
+as markup), and the optional condition tag. Visually adapted from PA-3's own
+`.tl-track`/`.tl-item` pattern (the same "reuse this pattern rather than invent a third
+list style" discipline docs/41 §14 names), not a fresh list style. Empty and error
+states follow the same conventions as Timeline and the dashboard shell. Reuses
+`my-health-journey/session-guard.js` unchanged — the next consumer that module's own
+PA-3 introduction anticipated.
+
+---
+
 ## Future Components
 
 Reserved for later phases — real data wiring, not the shell itself
 
 - Personal Care Plan
 - Wise Digital Twin
-- Symptom Tracker (data entry + own history — shell placeholder shipped in PA-2)
 - AI Summary
 - Progress Cards

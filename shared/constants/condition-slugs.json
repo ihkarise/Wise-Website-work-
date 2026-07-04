@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wisehomeopathy.com/shared/constants/condition-slugs.json",
+  "title": "Canonical Condition Slugs",
+  "version": "1.0.0",
+  "description": "The single canonical list of condition slugs used across the whole Wise Platform (docs/20-PRODUCT-ARCHITECTURE-REVIEW.md §5: \"the slug is the ID\"). See condition-slugs.md for which implementations this closes the deferred duplication for, and which still hand-duplicate it.",
+  "slugs": [
+    { "slug": "mcas", "label": "MCAS (Mast Cell Activation Syndrome)" },
+    { "slug": "hashimotos-thyroiditis", "label": "Hashimoto's Thyroiditis" },
+    { "slug": "chronic-urticaria", "label": "Chronic Urticaria" },
+    { "slug": "eczema", "label": "Eczema" },
+    { "slug": "allergic-rhinitis", "label": "Allergic Rhinitis" },
+    { "slug": "eosinophilic-esophagitis", "label": "Eosinophilic Esophagitis" },
+    { "slug": "pots", "label": "POTS" },
+    { "slug": "dermographism", "label": "Dermographism" }
+  ]
+}

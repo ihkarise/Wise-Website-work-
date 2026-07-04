@@ -640,6 +640,35 @@ this batch (Timeline list page, Consultation History detail page, the shared
 `my-health-journey/session-guard.js`, and the dashboard's Timeline card now wired to
 real data).
 
+## Phase 2A Patient Access modules — Batch PA-4 (Symptom Log)
+
+PA-3 (above) is now frozen except for bug fixes. Batch PA-4 (docs/29 §13 Batch 5E,
+preceded by docs/41-SYMPTOM-TRACKER-READINESS-REVIEW.md) adds the platform's first
+patient-*writable* data entity: Symptom Log, backing the Symptom Tracker dashboard
+card's quick-log form and full history page. New file, non-`Foundation`-prefixed (same
+reasoning as `FoundationConsultationHistory.gs`, docs/29 §2):
+
+| File | Responsibility | Status |
+|---|---|---|
+| `FoundationSymptomLog.gs` | `foundationCreateSymptomLog_()` (patient-facing, session-scoped create — all four scale fields mandatory, docs/41 §10 Q1) and `foundationGetPatientSymptomLogs_()` (patient-facing, session-scoped, sorted newest-first by `logged_at`, capped at 50). Implements `shared/schemas/symptom-log.schema.json`. No `get_by_id` — docs/41 §12 found no product requirement for a per-entry detail fetch, so this entity needs no equivalent to `foundationGetConsultationEntryById_()`'s record-ownership check. Validates an optional `condition_slug` against `FOUNDATION_ALLOWED_CONDITION_SLUGS_`, manually adapted from `shared/constants/condition-slugs.json` — the first real second consumer of that canonical list, closing the deferral `shared/README.md` and `shared/schemas/patient-identity.md` both named. | Added (PA-4) |
+
+**`FoundationRouter.gs` gained two new dispatch cases, `log_symptom` and
+`get_symptom_logs`** — the same disclosed, additive-extension-point pattern PA-3's own
+`get_timeline`/`get_timeline_entry` cases already established, applied here to the
+platform's first patient-writable route. `harness.js`'s `FILES` list and
+`conformance.js` (Stage 8) were extended accordingly.
+
+**`validation/phase-2a-foundation/schema-validator.js` gained `integer` type support
+and `minimum`/`maximum` numeric bounds** — `symptom-log.schema.json`'s four 1-10 scale
+fields are the first real `shared/` schema to need either construct, per this tool's
+own stated extension policy (`validation/phase-2a-foundation/README.md`).
+
+**`assets/site.css`, `my-health-journey/dashboard.js`, `my-health-journey/symptoms/`**
+(frontend) — see `docs/29-PHASE-2A-TECHNICAL-PLAN.md` §16's Batch PA-4 notes for the
+frontend half of this batch (the dashboard's Symptom Tracker card now carrying a real
+quick-log form and most-recent-value summary, and the new Symptom History full-list
+page).
+
 ## Foundation/Phase 1.5 dispatch boundary (IA-2)
 
 Google Apps Script permits exactly one global `doPost()` per project, and docs/29 §14

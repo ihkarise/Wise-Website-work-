@@ -80,6 +80,156 @@
       '<a class="secondary" href="/my-health-journey/timeline/">View full timeline</a>';
   }
 
+  // Batch PA-4: the Symptom Tracker card's canonical condition-slug
+  // options, manually adapted from shared/constants/condition-slugs.json
+  // version 1.0.0 (the same "port a shared/ definition into a consuming
+  // file" convention apps-script/FoundationSymptomLog.gs's own
+  // FOUNDATION_ALLOWED_CONDITION_SLUGS_ already uses) — update both
+  // places by hand if the canonical list ever changes.
+  var CONDITION_OPTIONS = [
+    { slug: 'mcas', label: 'MCAS (Mast Cell Activation Syndrome)' },
+    { slug: 'hashimotos-thyroiditis', label: "Hashimoto's Thyroiditis" },
+    { slug: 'chronic-urticaria', label: 'Chronic Urticaria' },
+    { slug: 'eczema', label: 'Eczema' },
+    { slug: 'allergic-rhinitis', label: 'Allergic Rhinitis' },
+    { slug: 'eosinophilic-esophagitis', label: 'Eosinophilic Esophagitis' },
+    { slug: 'pots', label: 'POTS' },
+    { slug: 'dermographism', label: 'Dermographism' }
+  ];
+
+  function conditionOptionsHtml() {
+    return '<option value="">— None —</option>' + CONDITION_OPTIONS.map(function (c) {
+      return '<option value="' + c.slug + '">' + escapeHtmlForDisplay(c.label) + '</option>';
+    }).join('');
+  }
+
+  // The Symptom Tracker card's write affordance (docs/29 §9, docs/41 §2) —
+  // the only dashboard card whose primary content is a form, not a read
+  // preview. All four scale fields are plain number inputs (type="number",
+  // min/max/step), not range sliders — sidesteps the "bare slider with no
+  // visible value" accessibility gap docs/41 §13 warns about, while still
+  // reusing assets/site.css's existing .field/label pattern unchanged.
+  function symptomFormHtml() {
+    return '<form id="symptomForm">' +
+      '<div style="display:flex;gap:10px">' +
+      '<div class="field" style="flex:1"><label for="sxSeverity">Severity (1–10)</label><input id="sxSeverity" type="number" min="1" max="10" step="1" required></div>' +
+      '<div class="field" style="flex:1"><label for="sxSleep">Sleep (1–10)</label><input id="sxSleep" type="number" min="1" max="10" step="1" required></div>' +
+      '</div>' +
+      '<div style="display:flex;gap:10px">' +
+      '<div class="field" style="flex:1"><label for="sxEnergy">Energy (1–10)</label><input id="sxEnergy" type="number" min="1" max="10" step="1" required></div>' +
+      '<div class="field" style="flex:1"><label for="sxStress">Stress (1–10)</label><input id="sxStress" type="number" min="1" max="10" step="1" required></div>' +
+      '</div>' +
+      '<div class="field"><label for="sxNotes">Notes (optional)</label><textarea id="sxNotes" rows="2"></textarea></div>' +
+      '<div class="field"><label for="sxCondition">Condition tag (optional)</label><select id="sxCondition">' + conditionOptionsHtml() + '</select></div>' +
+      '<button class="submit" type="submit" id="sxSubmitBtn">Log symptoms</button>' +
+      '<div class="status" id="sxStatus" role="status" aria-live="polite"></div>' +
+      '</form>' +
+      '<div id="sxSummary" style="margin-top:14px"></div>';
+  }
+
+  // The card's "at most a bare recent-value list" (docs/29 §9) — the
+  // most recent entry's four values, one line, no chart, no trend.
+  function symptomSummaryHtml(entries) {
+    if (!entries.length) {
+      return emptyStateHtml('nodata', 'Your logged symptoms will appear here once you log your first entry.');
+    }
+    var latest = entries[0];
+    return '<p style="margin:0 0 8px;font-size:13.5px;color:var(--color-text-secondary)">' +
+      '<strong style="color:var(--color-brand-strong)">Last logged ' + escapeHtmlForDisplay(latest.logged_at.slice(0, 10)) + '</strong> — ' +
+      'severity ' + escapeHtmlForDisplay(latest.severity) + ', sleep ' + escapeHtmlForDisplay(latest.sleep) +
+      ', energy ' + escapeHtmlForDisplay(latest.energy) + ', stress ' + escapeHtmlForDisplay(latest.stress) +
+      '</p>' +
+      '<a class="secondary" href="/my-health-journey/symptoms/">View full history</a>';
+  }
+
+  // Independent of loadTimelinePreview()'s own call, same "per-card
+  // loading, one failure never disturbs another card" discipline PA-3
+  // established.
+  function refreshSymptomSummary(sessionToken) {
+    var summaryEl = document.getElementById('sxSummary');
+    if (!summaryEl) return;
+    fetch(WEB_APP_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ foundation_action: 'get_symptom_logs', session_token: sessionToken })
+    })
+      .then(function (response) { return response.json(); })
+      .then(function (data) {
+        if (data.status === 'ok' && Array.isArray(data.data)) {
+          summaryEl.innerHTML = symptomSummaryHtml(data.data);
+        } else {
+          summaryEl.innerHTML = '<p class="empty-text">Could not load your symptom history. Check your connection and reload the page.</p>';
+        }
+      })
+      .catch(function () {
+        summaryEl.innerHTML = '<p class="empty-text">Could not load your symptom history. Check your connection and reload the page.</p>';
+      });
+  }
+
+  // Submission feedback via the existing .status/role=status/aria-live
+  // component (login.html's own pattern) — this phase's first form whose
+  // patient stays on the same page after submitting, so an aria-live
+  // region actually matters here for the first time (docs/41 §13).
+  function wireSymptomForm(sessionToken) {
+    var form = document.getElementById('symptomForm');
+    var submitBtn = document.getElementById('sxSubmitBtn');
+    var statusBox = document.getElementById('sxStatus');
+
+    form.addEventListener('submit', function (event) {
+      event.preventDefault();
+      if (!form.checkValidity()) {
+        form.reportValidity();
+        return;
+      }
+      submitBtn.disabled = true;
+      statusBox.className = 'status loading';
+      statusBox.textContent = 'Saving…';
+
+      fetch(WEB_APP_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          foundation_action: 'log_symptom',
+          session_token: sessionToken,
+          severity: Number(document.getElementById('sxSeverity').value),
+          sleep: Number(document.getElementById('sxSleep').value),
+          energy: Number(document.getElementById('sxEnergy').value),
+          stress: Number(document.getElementById('sxStress').value),
+          notes: document.getElementById('sxNotes').value,
+          condition_slug: document.getElementById('sxCondition').value
+        })
+      })
+        .then(function (response) { return response.json(); })
+        .then(function (data) {
+          submitBtn.disabled = false;
+          if (data.status === 'ok') {
+            statusBox.className = 'status ok';
+            statusBox.textContent = 'Logged. Thank you.';
+            form.reset();
+            refreshSymptomSummary(sessionToken);
+          } else {
+            statusBox.className = 'status err';
+            statusBox.textContent = (data.error && data.error.message) || 'Something went wrong. Please try again.';
+          }
+        })
+        .catch(function () {
+          // A network failure keeps the patient's in-progress values in
+          // place (no form.reset()) rather than asking them to re-type a
+          // health entry (docs/41 §11, docs/04 Error State).
+          submitBtn.disabled = false;
+          statusBox.className = 'status err';
+          statusBox.textContent = 'Could not reach the server. Check your connection and try again.';
+        });
+    });
+  }
+
+  function loadSymptomPreview(sessionToken) {
+    var symptomsBody = document.getElementById('card-symptoms-body');
+    symptomsBody.innerHTML = symptomFormHtml();
+    wireSymptomForm(sessionToken);
+    refreshSymptomSummary(sessionToken);
+  }
+
   // Independent of renderDashboard()'s own get_profile call (docs/38 §5's
   // own forward note: per-card loading becomes real once a card has its
   // own separately-timed data call — this is the first one). A failure
@@ -109,8 +259,7 @@
     grid.setAttribute('aria-busy', 'false');
     grid.innerHTML =
       cardHtml('timeline', 'Timeline', '<div class="skeleton"></div><div class="skeleton"></div>') +
-      cardHtml('symptoms', 'Symptom Tracker', emptyStateHtml('phase2a',
-        'Log your symptoms and see your own history here once this feature ships.')) +
+      cardHtml('symptoms', 'Symptom Tracker', '<div class="skeleton"></div><div class="skeleton"></div>') +
       cardHtml('reports', 'Reports', emptyStateHtml('phase2a',
         'Upload and view your reports here once this feature ships.')) +
       cardHtml('careplan', 'Care Plan', emptyStateHtml('future',
@@ -141,6 +290,7 @@
       if (data.status === 'ok') {
         renderDashboard(data.data);
         loadTimelinePreview(token);
+        loadSymptomPreview(token);
       } else {
         goToLogin('expired');
       }
@@ -160,6 +310,10 @@
   window.WiseDashboard = {
     emptyStateHtml: emptyStateHtml,
     cardHtml: cardHtml,
-    EMPTY_STATE_BADGES: EMPTY_STATE_BADGES
+    EMPTY_STATE_BADGES: EMPTY_STATE_BADGES,
+    symptomFormHtml: symptomFormHtml,
+    symptomSummaryHtml: symptomSummaryHtml,
+    conditionOptionsHtml: conditionOptionsHtml,
+    CONDITION_OPTIONS: CONDITION_OPTIONS
   };
 })();
