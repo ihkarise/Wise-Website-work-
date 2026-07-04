@@ -6,11 +6,11 @@
 <title>Sign In | Wise Homeopathy</title>
 <meta name="description" content="Complete your secure, passwordless sign-in to Wise Homeopathy.">
 <link rel="canonical" href="https://www.wisehomeopathy.com/verify.html">
-<link rel="icon" href="/assets/favicon.ico">
+<link rel="icon" href="assets/favicon.ico">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/site.css">
+<link rel="stylesheet" href="assets/site.css">
 <style>
 /* Page-specific layout only — shared tokens/components now live in
    assets/site.css (docs/29 §13 Batch 5C extraction). */
@@ -24,7 +24,7 @@
 <div class="wrap">
   <main>
     <div class="brand">
-      <img src="/assets/logo.svg" alt="Wise Homeopathy Multispeciality Center" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';this.nextElementSibling.nextElementSibling.style.display='block'">
+      <img src="assets/logo.svg" alt="Wise Homeopathy Multispeciality Center" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';this.nextElementSibling.nextElementSibling.style.display='block'">
       <span class="mark" aria-hidden="true">W</span>
       <span class="txt">Wise Homeopathy</span>
     </div>
@@ -35,7 +35,7 @@
       <!-- State: no token in the URL at all -->
       <div id="noTokenState" hidden>
         <p class="sub" style="margin-bottom:0">This sign-in link is missing its token. Please request a new one.</p>
-        <a class="secondary" href="/login.html">Request a new login link</a>
+        <a class="secondary" href="login.html">Request a new login link</a>
       </div>
 
       <!-- State: token present, waiting for the user to confirm (not
@@ -59,17 +59,17 @@
       <div id="successState" hidden>
         <p class="sub" style="margin-bottom:0">You're signed in ✓</p>
         <p class="sub" style="margin-bottom:18px">Your session will stay active for the next 60 minutes.</p>
-        <a class="secondary" href="/my-health-journey/">Go to My Health Journey</a>
+        <a class="secondary" href="my-health-journey/">Go to My Health Journey</a>
       </div>
 
       <!-- State: failure -->
       <div id="errorState" hidden>
         <p class="sub" id="errorMessage" style="margin-bottom:18px"></p>
-        <a class="secondary" href="/login.html">Request a new login link</a>
+        <a class="secondary" href="login.html">Request a new login link</a>
       </div>
     </div>
 
-    <p class="foot"><a href="/index.html">Return to the homepage</a></p>
+    <p class="foot"><a href="index.html">Return to the homepage</a></p>
   </main>
 </div>
 

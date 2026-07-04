@@ -11,7 +11,7 @@
 
   function goToLogin(reason) {
     window.sessionStorage.removeItem(SESSION_KEY);
-    window.location.href = '/login.html' + (reason ? '?reason=' + reason : '');
+    window.location.href = '../login.html' + (reason ? '?reason=' + reason : '');
   }
 
   signOutBtn.addEventListener('click', function () {
