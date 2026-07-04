@@ -7,6 +7,11 @@
   <url><loc>https://www.wisehomeopathy.com/conditions/</loc><priority>0.85</priority></url>
   <url><loc>https://www.wisehomeopathy.com/gallery.html</loc><priority>0.6</priority></url>
   <url><loc>https://www.wisehomeopathy.com/contact.html</loc><priority>0.8</priority></url>
+  <url><loc>https://www.wisehomeopathy.com/login.html</loc><priority>0.5</priority></url>
+  <!-- Only the Patient Login entry point is listed here — the authenticated
+       pages behind it (/my-health-journey/ and its sub-pages) have no useful
+       content to show an unauthenticated crawler and are not queued for
+       indexing, per docs/29 Batch 5G. -->
   <!-- Add one <url> line per new blog post, e.g.:
   <url><loc>https://www.wisehomeopathy.com/blog/hashimotos-csu-connection/</loc><priority>0.8</priority></url>
   -->

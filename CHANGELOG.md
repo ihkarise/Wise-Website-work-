@@ -8,6 +8,73 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-04 — Patient Access Batch PA-6 (Public Visibility — nav, noindex, sitemap)
+
+Sixth and final-named Patient Access batch (docs/29 §13 Batch 5G) — the only batch in
+Phase 2A with a real public-visibility change. Preceded by re-confirming (not
+re-implementing) that PA-5's deployment-verification fixes were still live on `main`
+and a full clean re-run of every existing validation suite. **Zero backend change** —
+no `apps-script/*.gs` or `shared/*` file is touched anywhere in this batch, verified via
+`git diff --name-only`.
+
+### Added
+- A "Patient Login" link (`/login.html`) in the primary nav — both the desktop
+  `.nav-links` list and the mobile menu — on all 10 public HTML pages that carry a
+  primary nav: `index.html`, `blog/index.html`, `team.html`, `conditions/index.html`,
+  `contact.html`, `disclaimer.html`, `gallery.html`, `online-consultation/index.html`,
+  `privacy.html`, `terms.html`. Reuses the existing `.nav-links a` style unchanged — no
+  new CSS — placed immediately before each page's Book Now/Book Consultation CTA,
+  satisfying docs/08's/docs/20's "a separate action, distinct from Book Now"
+  requirement structurally rather than with a new visual treatment.
+- `<link rel="canonical">` tags on the six patient pages un-noindexed below (docs/07:
+  every indexable page must carry one).
+- `validation/pa-6-public-nav/browser-test.js` + `README.md` — a new, committed
+  Playwright suite (22/22 passing) verifying the nav link's presence and a real
+  click-through into the portal, the noindex removal against the rendered DOM on all
+  six pages, the one deliberate exception below, and the sitemap's single new entry.
+- `sitemap.xml` gained one new entry, `/login.html` (priority 0.5) — deliberately the
+  only new entry; the authenticated pages behind it have no content an unauthenticated
+  crawler could usefully index.
+
+### Changed
+- Removed the `noindex` meta tag from `login.html`, `verify.html`,
+  `my-health-journey/index.html`, `my-health-journey/timeline/index.html`,
+  `my-health-journey/symptoms/index.html`, and `my-health-journey/reports/index.html` —
+  matching this site's existing convention that indexable pages carry no explicit
+  `<meta name="robots">` tag at all, rather than rewriting it to `index, follow`.
+- `docs/08-NAVIGATION-ARCHITECTURE.md` updated: "Patient Login" is now documented as
+  live in primary nav, not a future placeholder.
+- `docs/15-SECURITY-STANDARDS.md` gained a Batch PA-6 section clarifying that
+  "unlisted and noindexed" was a staging-hygiene convention, never this platform's real
+  access control (session verification, unchanged by this batch, always was) — removing
+  it does not weaken anything.
+- `docs/24-ROADMAP.md` and `docs/29-PHASE-2A-TECHNICAL-PLAN.md` §12/§16 updated to
+  reflect PA-6 shipped, naming every disclosed file touched.
+
+### Notes
+- **One deliberate, disclosed exception:** `my-health-journey/timeline/entry.html` (the
+  per-record Consultation Detail view, keyed by a `?record_id=` query string) keeps its
+  `noindex` tag — it has no stable canonical URL to index, an SEO reason, not a
+  security one (its actual data is still behind the same session guard as every other
+  patient page, before and after this batch).
+- **`robots.txt` reviewed, not changed.** `Allow: /` already permitted crawling of every
+  path on this site, including the patient pages, before this batch — there was never a
+  `Disallow` rule to remove. Recorded as a genuine finding, not a silently-skipped task
+  item.
+- **A self-caught mistake, fixed before it shipped:** an early edit to
+  `my-health-journey/timeline/entry.html` accidentally dropped its `<title>` and
+  `<meta name="description">` tags. Caught by the new browser suite's own assertion
+  failing, fixed immediately, and a dedicated regression check was added so the same
+  mistake would be caught automatically if repeated.
+- Verified: `node validation/static-analysis/analyze.js` (0 findings, unchanged);
+  `node validation/phase-2a-foundation/conformance.js` (152/152, unchanged);
+  `node validation/phase-1-5/validate.js` (42/42, unchanged);
+  `validation/pa-2-dashboard/browser-test.js` (32/32, re-run unchanged);
+  `validation/pa-3-timeline/browser-test.js` (29/29, re-run unchanged);
+  `validation/pa-4-symptom-tracker/browser-test.js` (28/28, re-run unchanged);
+  `validation/pa-5-reports/browser-test.js` (32/32, re-run unchanged);
+  `validation/pa-6-public-nav/browser-test.js` (22/22, new).
+
 ## 2026-07-04 — Deployment Verification (Phase 2A first live deployment)
 
 First real deployment of all Phase 2A code (Foundation through PA-5) to the live Apps

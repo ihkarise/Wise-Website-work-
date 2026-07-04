@@ -220,6 +220,38 @@ this application.
 dispatch, or the staff wrapper — writes its own `report_uploaded` `AuditLog` row, the
 same "every write logged" discipline every other Foundation entity already follows.
 
+## Phase 2A — Implementation Notes (Batch PA-6, Public Visibility)
+
+The only Phase 2A batch that is a security-*posture* change rather than a
+security-*mechanism* change: no `apps-script/*.gs` or `shared/*` file is touched (§4
+above, verified via `git diff --name-only`).
+
+**"Unlisted and noindexed" was never the platform's real access control, and removing
+it does not weaken one.** Every data-returning/mutating endpoint has always required a
+valid, unexpired, server-verified HMAC session token, with `patient_id` derived only
+from that token (ADR-002, §3 above) — true before this batch and unchanged by it. The
+noindex tag and the absence of a nav link were a staging-hygiene convention (keeping an
+in-progress feature out of search results and off the visible site while incomplete),
+not a defense layer this platform ever relied on for authorization. Batch PA-6 removes
+that convention now that the feature is complete; the actual security boundary —
+session verification — is exactly as strong the day before this batch as the day after.
+
+**One page deliberately keeps its noindex tag, on SEO grounds, not security grounds.**
+`my-health-journey/timeline/entry.html` (the per-record Consultation Detail view) has no
+stable canonical URL — it renders whichever record a `?record_id=` query string names.
+Indexing it would mean indexing a URL shape with no fixed content, not a data-exposure
+risk (an unauthenticated crawler hitting it sees the same session-guard redirect any
+unauthenticated visitor sees). See docs/29 §16's Batch PA-6 notes for the full
+reasoning.
+
+**No new attack surface.** The batch's entire diff is: ten public pages gaining one nav
+link each, six patient pages losing a noindex tag and gaining a canonical tag, one page
+keeping its noindex tag, and one new sitemap entry (`/login.html` only — the
+authenticated pages behind it are deliberately not listed, since an unauthenticated
+crawler could not usefully index them regardless). Verified end-to-end by
+`validation/pa-6-public-nav/browser-test.js` (22/22) and a full, unchanged re-run of
+every backend and browser validation suite from every prior Patient Access batch.
+
 ## Phase 1.5 — Implementation Notes (Consultation Summary Pipeline)
 
 Full mapping of every standard above to its Phase 1.5 implementation is

@@ -354,7 +354,7 @@ convenient one).
 | docs/12-DATA-ARCHITECTURE.md | Add the schema in §4 once built; reword "Google Sheets as primary datastore" per ADR-006 | Closed for Reports (Batch PA-5's own schema); Patients/ConsultationHistory/SymptomLogs remain undocumented there — a real, named, pre-existing gap, not this row's original scope to fully close |
 | docs/15-SECURITY-STANDARDS.md | Add a real Phase 2A section once built (first actual implementation of its "Patient portal" line) | Closed — real Phase 2A sections added IA-2 onward, kept current through Batch PA-5 |
 | docs/04-COMPONENT-LIBRARY.md | Document components actually built (login form, dashboard cards, timeline entry, upload widget, symptom entry form) | Closed — every named component documented, including the "upload widget" (Batch PA-5's Report Upload Form) |
-| docs/08-NAVIGATION-ARCHITECTURE.md | Add the real "Patient Login" nav slot once Batch 5G ships | Open — Batch 5G (PA-6) has not shipped yet |
+| docs/08-NAVIGATION-ARCHITECTURE.md | Add the real "Patient Login" nav slot once Batch 5G ships | Closed — Batch 5G (PA-6) shipped; docs/08's Primary Navigation and Existing Patient journey sections updated to reflect the real, live link |
 | CHANGELOG.md (root) | Standard per-batch entries, same convention as Phase 1.5 | Closed — a dated entry added for every batch through PA-5 |
 | docs/30, docs/31, `/adr/` | This plan is built against them; no further change needed unless implementation surfaces a new decision | N/A |
 
@@ -1713,3 +1713,113 @@ problem to solve, per docs/41 Finding 5, carried forward again); the remainder o
 (Patients/ConsultationHistory/SymptomLogs, a pre-existing gap predating this batch,
 named above rather than backfilled here); the live-environment MIME-detection
 verification docs/42 §11 names (above).
+
+## Batch PA-6 (complete)
+
+Delivers exactly its named scope (§13 Batch 5G) — the only Phase 2A batch with a real
+public-visibility change: "Patient Login" added to the primary nav, the temporary
+noindex protection removed from every real patient-facing page, and a sitemap entry
+added for the entry point. Preceded by re-confirming, not re-implementing, PA-5's
+deployment-verification fixes (the byte-signature MIME check and `entry_date`
+normalization, both already live on `main` before this batch began) and a full clean
+re-run of every existing validation suite (static analysis, conformance, Phase 1.5
+regression, and all four prior batches' browser suites) before any PA-6 code was
+written, per this batch's own explicit instruction to confirm PA-5 was genuinely frozen
+first.
+
+**Zero backend change.** No `apps-script/*.gs` or `shared/*` file is touched anywhere
+in this batch — confirmed via `git diff --name-only`, the same discipline every prior
+batch's closeout used. This batch is markup, `sitemap.xml`, and a new validation suite
+only.
+
+### What changed
+
+- **Primary nav (10 public HTML files):** `index.html`, `blog/index.html`,
+  `team.html`, `conditions/index.html`, `contact.html`, `disclaimer.html`,
+  `gallery.html`, `online-consultation/index.html`, `privacy.html`, `terms.html` — each
+  gained one new `<a href="/login.html">Patient Login</a>` link, in both the desktop
+  `.nav-links` list and the mobile menu. Two pre-existing nav markup shapes exist on
+  this site (docs/20 §6 already named this as a pre-existing inconsistency, not
+  introduced here): `index.html`/`blog/index.html`/`team.html` keep nav links and the
+  Book Consultation CTA in separate containers (`.nav-links` / `.nav-cta`); the other
+  seven pages put a `.nav-cta`-styled Book Now link as the last `<li>` inside
+  `.nav-links` itself. "Patient Login" was added as a plain, unstyled nav link — reusing
+  `.nav-links a`'s existing style, zero new CSS — placed immediately before the Book
+  Now/Book Consultation CTA in both shapes, satisfying docs/08's and docs/20 §6's "a
+  separate action, distinct from Book Now" requirement structurally (a different link
+  in a different visual weight) without inventing a new CSS class or design element.
+  `blog/post-template/index.html` (a copy-paste boilerplate for future posts, not a
+  live page, with no nav markup of its own) was correctly left untouched.
+- **noindex removed (6 real patient-facing pages):** `login.html`, `verify.html`,
+  `my-health-journey/index.html`, `my-health-journey/timeline/index.html`,
+  `my-health-journey/symptoms/index.html`, `my-health-journey/reports/index.html`.
+  Every public page on this site already indexes by default (none carries an explicit
+  `<meta name="robots">` tag) — removing the `noindex` line, rather than rewriting it to
+  `index, follow`, matches that existing sitewide convention exactly. A `<link
+  rel="canonical">` was added to each (docs/07's "every page must include a canonical
+  URL," a requirement these pages were exempt from only while noindexed).
+- **One deliberate, disclosed exception:** `my-health-journey/timeline/entry.html` (the
+  Consultation Detail view) **keeps** its `noindex` tag. Unlike every other patient
+  page, it has no stable canonical URL — it's a single template rendering whichever
+  entry `?record_id=` names, so indexing it would mean indexing a URL shape with no
+  fixed, meaningful content, the same category of problem a query-string-keyed page
+  always is for SEO. Recorded here and in the page's own header comment, not silently
+  narrower than the "un-noindex the patient pages" instruction than it first appears —
+  every *navigable, bookmarkable* patient page is now indexable; the one page that is
+  inherently a per-record fragment is not, on the merits, not by oversight.
+- **`internal/consultation-summary.html`** (the Phase 1.5 staff-only entry tool) was
+  correctly left untouched — it was never part of the "patient-facing pages" this batch
+  scopes, and stays `noindex, nofollow` permanently, per docs/25.
+  `booking-received.html`/`thanks.html` (transient, unrelated confirmation cards) were
+  likewise correctly left untouched.
+- **`sitemap.xml`:** one new entry, `/login.html` (priority 0.5, between Contact and the
+  blog-post-template comment). Deliberately the *only* new entry — the authenticated
+  pages behind it have no content an unauthenticated crawler could usefully index, the
+  same reasoning that keeps `entry.html` noindexed above.
+- **`robots.txt`:** reviewed, not changed. `Allow: /` already permitted crawling of
+  every path on this site, including the patient pages, before this batch — there was
+  never a `Disallow` rule to remove. The "temporary deployment restriction" docs/24/
+  docs/29 refer to was always the per-page `noindex` meta tag plus the absence of a nav
+  link/sitemap entry, not a robots.txt rule. Recorded here as a genuine finding, not a
+  silently-skipped task item.
+- **`validation/pa-6-public-nav/browser-test.js` + `README.md`** — a new, committed
+  Playwright suite (22/22 passing) verifying the nav link's presence and real
+  click-through on both pre-existing nav markup shapes, the noindex removal against the
+  rendered DOM (not just source text) on all six pages, the `entry.html` exception, and
+  the sitemap's single new entry.
+
+### Verification performed (all real, not assumed)
+
+- `node validation/static-analysis/analyze.js` — 0 findings, unchanged (this batch adds
+  no `apps-script/*.gs` file).
+- `node validation/phase-2a-foundation/conformance.js` — 152/152, unchanged.
+- `node validation/phase-1-5/validate.js` — 42/42, unchanged.
+- `validation/pa-2-dashboard/browser-test.js` — re-run unchanged, 32/32 — directly
+  confirms the unauthenticated-redirect and authenticated-render session-guard behavior
+  this batch's nav change does not touch still works, so it is not re-tested by the new
+  suite.
+- `validation/pa-3-timeline/browser-test.js` — re-run unchanged, 29/29.
+- `validation/pa-4-symptom-tracker/browser-test.js` — re-run unchanged, 28/28.
+- `validation/pa-5-reports/browser-test.js` — re-run unchanged, 32/32.
+- `validation/pa-6-public-nav/browser-test.js` — new, 22/22.
+
+### A self-caught mistake, fixed before it shipped
+
+An early edit to `my-health-journey/timeline/entry.html` accidentally deleted its
+`<title>` and `<meta name="description">` tags along with the noindex-removal comment it
+was supposed to add (a copy-paste replacement that included one line too many of
+surrounding context). Caught by the new browser suite's own title/description assertion
+failing, not by manual re-inspection — fixed before this batch was considered done, and
+a dedicated regression check for exactly this ("title and description not dropped
+alongside the noindex tag") was added to the suite so the same mistake would be caught
+automatically if repeated.
+
+### Deferred, not silently skipped
+
+A `package.json` declaring the `playwright` dev dependency (docs/41 Finding 5, carried
+forward again — still true, still not this batch's problem to solve); the remainder of
+`docs/12-DATA-ARCHITECTURE.md`'s Phase 2A schema documentation gap (Patients/
+ConsultationHistory/SymptomLogs, pre-existing, unrelated to this batch's scope). Batch
+PA-6 was the last named batch in §13's original table — Personal Care Plan and
+everything after it belongs to Phase 2B/2C/2D, out of scope here and requiring their own
+architecture-freeze passes per docs/24.
