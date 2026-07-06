@@ -8,6 +8,62 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-09 — Phase 2B Architecture Freeze Finalization (documentation only, no code)
+
+A fourth, documentation-only pass finalizes the Phase 2B architecture freeze ahead of
+any batch approval. **No batch's scope, dependency, or risk classification changed, and
+no production code was written or modified.**
+
+### Changed
+- `docs/44-PHASE-2B-TECHNICAL-PLAN.md` bumped to Version 4.0: renamed the implementation
+  batch sequence from **PCP-1…PCP-11** to **PXP-1…PXP-11** for platform-wide naming
+  consistency (Patient Profile, Doctor Assigned Conditions, Module Registry, Dashboard
+  Registry, Daily Check-in Engine, Calculator Registry, Personal Care Plan, Trusted
+  Device + Long-Lived Session + Optional PIN, AI Integration, Symptom Tracker Migration,
+  Closeout) — no batch's Delivers/Depends-on/Risk content changed; generalized §11's
+  Template Engine into a **Template Registry** (new **ADR-016**, complementing ADR-012),
+  with `CheckInTemplate` as its first concrete category and six future categories (Weekly
+  Check-in, Monthly Review, Condition Review, Lifestyle Questionnaire, Follow-up
+  Questionnaire, Doctor-created Templates) named as reserved, unscoped future work;
+  refined the dashboard vision (§13) into a named, registry-driven **"Health Journey"**
+  framing — no per-disease hardcoding, ever; added an explicit **Doctor-Owned
+  Configuration** section (§4.3) consolidating the already-settled rule that patients
+  never configure their own conditions, modules, calculators, check-ins, templates, or
+  care plans; added a **Summary — Existing Principles Reaffirmed** section (§5.7)
+  restating passwordless-by-default, Magic Link as permanent root of trust, Trusted
+  Device, Long-Lived Session, and PIN-as-optional-convenience-only, all unchanged; and
+  reserved (without implementing) AI-compatibility extension points across the Module
+  Registry, Calculator Registry, and the new Template Registry.
+- `docs/45-PHASE-2B-ARCHITECTURE-READINESS-REVIEW.md` bumped to Version 4.0: critiqued
+  all four new items above (§1.10–1.13), found no new gap or contradiction, and added
+  two new low-severity naming risks to the ranked risk list (Template Registry's named
+  future categories; the "Symptom Tracker Migration" batch name read alongside §10.1's
+  migration language) — both already disclosed in docs/44, neither a blocker.
+- `docs/46-PHASE-2B-REPOSITORY-CONSISTENCY-REVIEW.md` bumped to Version 4.0: verified
+  ADR-016 against ADR-007 (correctly a new, complementary ADR, not an amendment to
+  ADR-012), verified the PCP→PXP rename left no stale reference anywhere in the
+  documentation set, and found no new duplication or contradiction introduced by this
+  pass.
+- `docs/24-ROADMAP.md` bumped to Version 1.4 — Phase 2B entry updated to reflect the
+  renamed batch sequence, the new Template Registry, and the "Health Journey" framing.
+- `docs/33-DOMAIN-MODEL.md` bumped to Version 1.4 — added a Template Registry entity
+  (§6.7), generalizing Check-In Template into its first concrete category; updated every
+  `PCP-N` cross-reference to `PXP-N`.
+- `docs/31-ADR-INDEX.md` bumped to Version 1.4 — added **ADR-016** (Template Registry,
+  complementing ADR-012).
+- `/adr/ADR-016-template-registry.md` — new. Generalizes the Template Engine into a
+  registry pattern mirroring Module Registry (ADR-012) and Calculator Registry
+  (ADR-013); reserves an AI-compatibility extension point without implementing any AI
+  behavior; reaffirms doctor-only template assignment for every current and future
+  template category.
+
+### Verified
+- Static Analysis, Conformance (152 checks), Phase 1.5 Regression (42/42), and all five
+  browser-test suites (143 checks across `pa-2-dashboard`, `pa-3-timeline`,
+  `pa-4-symptom-tracker`, `pa-5-reports`, `pa-6-public-nav`) re-run clean after this
+  documentation-only pass, confirming Phase 2A's frozen deployment-verification fixes
+  remain intact.
+
 ## 2026-07-08 — Phase 2B Architecture Revision Pass, Round 2 (documentation only, no code)
 
 A third review round approved the overall Phase 2B direction and settled most of the

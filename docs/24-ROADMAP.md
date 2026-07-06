@@ -1,5 +1,5 @@
 # 24 - Wise Product Roadmap
-## Version 1.3 — 2026-07-08
+## Version 1.4 — 2026-07-09
 
 # Phase 1 — Public Website
 Status: In Progress
@@ -173,16 +173,22 @@ grouped into Phase 2A; it did not have a designed architecture and is
 moved to its own phase below. Batch-level sequencing (5A–5H): docs/29 §13.
 
 # Phase 2B — Wise Patient Experience Platform
-Status: **Architecture-freeze pass approved in principle (Version 3.0,
-2026-07-08). Implementation not yet authorized.** This entry originally
-named only "Personal Care Plan" (per docs/32 Part 2's recommendation),
-then "Personal Care Plan, Module Engine & Personalized Check-ins" after
-the first architecture-freeze pass (2026-07-04), then reframed again
-(2026-07-06) as the **Wise Patient Experience Platform** — Personal Care
-Plan, Personalized Daily Check-ins, and the Calculator Framework are
+Status: **Architecture-freeze finalized (Version 4.0, 2026-07-09).
+Implementation not yet authorized.** This entry originally named only
+"Personal Care Plan" (per docs/32 Part 2's recommendation), then "Personal
+Care Plan, Module Engine & Personalized Check-ins" after the first
+architecture-freeze pass (2026-07-04), then reframed again (2026-07-06) as
+the **Wise Patient Experience Platform** — Personal Care Plan,
+Personalized Daily Check-ins, and the Calculator Framework are
 capabilities this platform delivers, not the phase's identity by itself.
 A third review round (2026-07-08) settled most of the design questions the
-prior two rounds had left open.
+prior two rounds had left open. A fourth, **documentation-only
+finalization pass** (2026-07-09) renamed the implementation batch sequence
+for platform-wide naming consistency, generalized Check-in templates into
+a **Template Registry** (new ADR-016), refined the dashboard vision into a
+registry-driven "Health Journey," and consolidated Doctor-Owned
+Configuration into one explicit principle — no batch's scope, dependency,
+or risk classification changed.
 
 **Three core architectural pillars** carry this phase, per docs/44 §4:
 **Doctor-Assigned Conditions** (`DoctorAssignedCondition`, an additive
@@ -193,14 +199,22 @@ now committed to driving the **entire** patient dashboard — including
 the pre-existing Timeline, Symptom Tracker, and Reports cards — from
 enabled modules rather than fixed pages), and the **Calculator
 Framework** (a Calculator Registry of independently pluggable,
-deterministic, doctor-authored formulas — never hardcoded per disease).
-**Module and template enablement is always an explicit doctor/staff
-action** — never automatic from a condition assignment, never
-patient-controlled. Personalized Daily Check-ins (doctor-assigned
-templates, patient never configures one; the designed successor to
-Symptom Tracker v1, coexisting with it before any retirement), Personal
-Care Plan, Patient Profile, and dashboard evolution are built on top of
-these pillars.
+deterministic, doctor-authored formulas — never hardcoded per disease). A
+fourth registry — the **Template Registry** (ADR-016) — generalizes
+Check-in templates into the same registry pattern, governing the *shape*
+of any patient-facing form or questionnaire (Daily Check-in today; Weekly
+Check-in, Monthly Review, Condition Review, Lifestyle Questionnaire,
+Follow-up Questionnaire, and Doctor-created Templates named as reserved,
+unscoped future categories, none claimed by any phase). **Module,
+calculator, check-in, and template enablement/assignment is always an
+explicit doctor/staff action** — never automatic from a condition
+assignment, never patient-controlled; **patients never configure their
+own dashboard.** Personalized Daily Check-ins (doctor-assigned templates,
+patient never configures one; the designed successor to Symptom Tracker
+v1, coexisting with it before any retirement), Personal Care Plan,
+Patient Profile, and dashboard evolution (now framed as a dynamic,
+registry-driven "Health Journey," docs/44 §13) are built on top of these
+pillars.
 
 **Persistent authentication is achieved through four cooperating
 mechanisms — Magic Link (root of trust), Trusted Device, a Long-Lived
@@ -209,28 +223,31 @@ permanently reaffirmed as never mandatory** (ADR-015, which supersedes
 ADR-014, which superseded ADR-011; all three records exist, only ADR-015
 is current, per ADR-007). ADR-003's passwordless-by-default principle
 remains fundamentally correct and unchanged for any patient who opts
-into neither additive mechanism.
+into neither additive mechanism. Magic Link is never replaced by any
+additive mechanism.
 
-See docs/44-PHASE-2B-TECHNICAL-PLAN.md (Version 3.0) for the full design,
-docs/45-PHASE-2B-ARCHITECTURE-READINESS-REVIEW.md (Version 3.0) for the
+See docs/44-PHASE-2B-TECHNICAL-PLAN.md (Version 4.0) for the full design,
+docs/45-PHASE-2B-ARCHITECTURE-READINESS-REVIEW.md (Version 4.0) for the
 critique of every proposal, docs/46-PHASE-2B-REPOSITORY-CONSISTENCY-
-REVIEW.md (Version 3.0) for the consistency check, and ADR-012 (amended),
-ADR-013 (confirmed), and ADR-015 (current authentication ADR) for the
-binding decisions.
+REVIEW.md (Version 4.0) for the consistency check, and ADR-012 (amended),
+ADR-013 (confirmed), ADR-015 (current authentication ADR), and ADR-016
+(Template Registry, new) for the binding decisions.
 
 **Implementation has not begun and is not authorized by any of the above
 documents.** docs/44 §22 now sequences **infrastructure before
 features**: Patient Profile → Doctor-Assigned Conditions → Module
 Registry → Dashboard Registry → Daily Check-in Engine → Calculator
-Framework → Personal Care Plan → Persistent Login → a reserved,
-unscoped "AI Integration" placeholder — plus Symptom Tracker retirement
-and validation/closeout, eleven batches total (PCP-1 through PCP-11).
+Registry → Personal Care Plan → Trusted Device + Long-Lived Session +
+Optional PIN → a reserved, unscoped "AI Integration" placeholder — plus
+Symptom Tracker Migration and Closeout, eleven batches total (PXP-1
+through PXP-11 — renamed from PCP-1 through PCP-11 for platform-wide
+naming consistency, no scope change).
 Digital Twin is explicitly **not** part of this sequence — it remains a
 later roadmap consumer of Timeline, Reports, Check-ins, Care Plans, and
 Calculators (Phase 2D), not tightly coupled to Phase 2B's implementation.
 Each batch requires its own separate, explicit approval, per docs/43
 §12's Phase 2B gate. docs/45 Part 5 flags the optional-PIN sub-batch
-(within PCP-8) as requiring a dedicated security review before it
+(within PXP-8) as requiring a dedicated security review before it
 specifically can be approved, independent of the rest of the plan. The
 Public (no-login) Calculator variant remains an unclaimed roadmap gap
 (docs/46 Part 3) — only the Patient variant is claimed by this phase.

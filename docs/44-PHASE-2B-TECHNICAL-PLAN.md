@@ -1,16 +1,55 @@
 # 44 - Phase 2B Technical Plan
-## Version 3.0 — 2026-07-08
+## Version 4.0 — 2026-07-09
 
 > **This document defines architecture only. It authorizes no production code.**
 > Per docs/43-PHASE-2A-CLOSEOUT.md §12 and docs/24-ROADMAP.md's Phase 2B entry,
 > implementation may not begin until a separate, explicit approval is given for a named
-> batch from §22 below. Version 3.0 incorporates a third round of review feedback
-> (2026-07-08) that settled several previously-open design questions, revised
-> authentication once more, elevated the Module Engine's scope, and re-ordered
-> implementation to start with infrastructure rather than features. See "What Changed
-> in Version 3.0" below.
+> batch from §22 below. Version 4.0 is a **documentation-only architecture-freeze
+> finalization pass** (2026-07-09): no batch's scope, dependencies, data model, or risk
+> classification changed. It (1) renames the implementation batch sequence from PCP-1…
+> PCP-11 to PXP-1…PXP-11 for platform-wide naming consistency, (2) generalizes docs/44
+> §11's Template Engine into a **Template Registry** (new **ADR-016**, complementing
+> ADR-012 rather than replacing it), (3) refines the dashboard vision (§13) into a
+> registry-driven "Health Journey," (4) reaffirms doctor-owned configuration as a named
+> principle rather than an implication, (5) reaffirms every existing authentication
+> principle unchanged, and (6) reserves, without implementing, AI-compatibility
+> extension points across every registry. See "What Changed in Version 4.0" below.
+> Version 3.0's own changes (2026-07-08) remain in full effect and are not restated here
+> — see git history for that round's detail.
 
-## What Changed in Version 3.0
+## What Changed in Version 4.0
+- **Batch sequence renamed, no scope change:** PCP-1…PCP-11 → PXP-1…PXP-11. Three
+  batch labels also updated for clarity, still no scope change: "Calculator Framework"
+  batch → **PXP-6 Calculator Registry**; "Persistent Login" batch → **PXP-8 Trusted
+  Device + Long-Lived Session + Optional PIN**; "Symptom Tracker retirement" → **PXP-10
+  Symptom Tracker Migration**; "Validation & closeout" → **PXP-11 Closeout** (§22). The
+  Doctor-Assigned Conditions, Module Engine, and Calculator Framework **pillar names**
+  (§4) are unchanged — only the batch identifiers that deliver them are renamed.
+- **Template Registry introduced (new ADR-016):** generalizes §11's Template Engine —
+  previously scoped only to `CheckInTemplate` — into a registry pattern mirroring
+  Module Registry (ADR-012) and Calculator Registry (ADR-013): versioned template
+  descriptors, doctor-assigned, activatable/deactivatable, AI-compatible by reserved
+  extension point, never patient-configured. `CheckInTemplate` becomes this registry's
+  first concrete category, not a separate mechanism. Six future template categories are
+  named as reserved, unscoped future consumers, not new work (§11).
+- **Dashboard vision refined into "Health Journey":** §13 rewritten so the dashboard is
+  explicitly a dynamic, registry-driven experience — nothing hardcoded per disease —
+  rendering whatever the Module Registry says is enabled, for any patient, using the
+  same mechanism regardless of condition.
+- **Doctor-Owned Configuration reaffirmed as an explicit, named principle** (new §4.3):
+  patients never configure their own dashboard, conditions, modules, calculators,
+  check-ins, templates, or care plans — doctors configure all of it; this was already
+  true throughout Version 3.0 but is now stated once, explicitly, in one place.
+- **Existing authentication principles reaffirmed unchanged** (new §5.7 summary):
+  passwordless-by-default, Magic Link as permanent root of trust, Trusted Device,
+  Long-Lived Session, and PIN-as-optional-convenience-only are all restated as
+  unchanged — no new decision, a consolidated restatement of ADR-003/ADR-015.
+- **AI-readiness extension points reserved, not implemented**, across the Module
+  Registry (§7.1), Calculator Registry (§8.1), and the new Template Registry (§11) —
+  each registry descriptor reserves a field for future AI-compatibility metadata; no
+  registry gains any AI behavior by this change (§15 unchanged, restated).
+
+## What Changed in Version 3.0 (2026-07-08, prior round — kept for reference)
 - **Doctor-Assigned Conditions settled and renamed:** Option B is approved (additive
   entity, frozen `Patient` schema untouched), renamed `DoctorAssignedCondition` to match
   the exact terminology now approved (§6).
@@ -37,9 +76,11 @@
   Check-ins, Care Plans, and Calculators, named individually (§16).
 - **Implementation order rewritten to start with infrastructure**, per explicit
   direction: Patient Profile → Doctor-Assigned Conditions → Module Registry → Dashboard
-  Registry → Daily Check-in Engine → Calculator Framework → Personal Care Plan →
-  Persistent Login → AI Integration (reserved placeholder). Digital Twin remains a later
-  roadmap consumer, outside this sequence (§22).
+  Registry → Daily Check-in Engine → Calculator Registry → Personal Care Plan →
+  Trusted Device + Long-Lived Session + Optional PIN → AI Integration (reserved
+  placeholder). Digital Twin remains a later roadmap consumer, outside this sequence
+  (§22). Batches are now named PXP-1 through PXP-11 (renamed from PCP-1 through PCP-11
+  — platform-wide naming, no scope change, §22).
 
 ---
 
@@ -76,9 +117,9 @@ genuine bug fixes; nothing in this document modifies a single frozen file.
 ## 2.1 In Scope
 - Architecture and data-model design for the three pillars and every capability that
   consumes them: Persistent Authentication (Magic Link, Trusted Device, Long-Lived
-  Session, optional PIN), Patient Profile, Template Engine, Personalized Daily
-  Check-ins, Personal Care Plan, Dashboard evolution (full registry migration),
-  per-patient feature enablement.
+  Session, optional PIN), Patient Profile, Template Registry (§11, ADR-016; formerly
+  "Template Engine"), Personalized Daily Check-ins, Personal Care Plan, Dashboard
+  evolution (full registry migration), per-patient feature enablement.
 - A reserved, unscoped placeholder for a future "AI Integration" batch (§22 item 9) —
   no concrete AI feature is designed in this document; the placeholder exists so the
   batch sequence has a named slot for whatever AI-touching capability is eventually
@@ -140,6 +181,34 @@ modified by this plan.
 | Patient Dashboard evolution (§13) | Module Engine | The dashboard's registry-driven rendering path *is* the Module Engine's patient-facing surface — for every card, not only new ones |
 | Per-patient feature enablement (§14) | Module Engine, Doctor-Assigned Conditions | `PatientModuleState` (§7.2) is the mechanism; a doctor's condition assignment is the input a doctor considers, never an automatic trigger |
 | Persistent Authentication (§5) | *(none of the three pillars)* | Independent of all three — sequenced late (§22) since it is a platform-wide convenience layered on top of already-working, magic-link-accessible capabilities, not a dependency of any of them |
+
+## 4.3 Doctor-Owned Configuration — Reaffirmed
+
+**Patients never configure their own dashboard.** This was already true throughout
+every capability above; this subsection states it once, explicitly, as a named
+principle rather than an implication scattered across §6.3, §10.2, §14. A doctor (or
+authorized staff member) is the sole configuring actor for:
+
+- **Conditions** — `DoctorAssignedCondition` (§6): the doctor decides what a patient is
+  being treated for. The patient never self-selects a condition.
+- **Modules** — `PatientModuleState` (§7.2, §14): the doctor decides which dashboard
+  capabilities are turned on. Never automatic-by-condition, never patient-controlled.
+- **Calculators** — visibility governed by the same `PatientModuleState` mechanism
+  (§8.4): the doctor decides which calculators a patient sees.
+- **Check-ins** — `CheckInTemplate` assignment (§10.2): the doctor decides which
+  template(s) apply. The patient never selects or edits a template.
+- **Templates** — the Template Registry (§11, ADR-016): every template category (Daily
+  Check-in and any future category) is doctor-assigned, never patient-configured, by
+  the same rule as Check-ins above.
+- **Care Plans** — `DoctorInstruction`/`CarePlan` (§12): doctor/staff-authored only,
+  patient-viewable only.
+
+**Patients simply receive the configured experience** — the dashboard (§13) renders
+whatever a doctor has configured, using one general, registry-driven mechanism rather
+than a per-patient or per-disease special case. This principle is not new — it is the
+same "doctors decide" rule (docs/30 §2) already governing every pillar and capability
+above — restated here once, in one place, so it is checkable without cross-referencing
+six different sections.
 
 # 5. Persistent Authentication Architecture (Revised Again — Four Named Mechanisms)
 
@@ -206,6 +275,22 @@ fixed by this plan.
 - Whether Trusted Device and PIN can be active simultaneously (recommend: yes,
   independently, unless a real operational reason to restrict emerges).
 
+## 5.7 Summary — Existing Principles Reaffirmed, Unchanged
+No new authentication decision is made by this Version 4.0 pass. Restated once, in one
+place, for a reviewer who reads only this subsection:
+- **Passwordless-by-default** remains permanent (§5.2, ADR-003, reaffirmed by ADR-015).
+- **Magic Link remains the root of trust** and the sole recovery path (§5.1, mechanism
+  1) — nothing about it changes, ever, without a new ADR that explicitly overturns
+  §5.2's clause.
+- **Trusted Device remains supported** as the primary persistence mechanism (§5.1,
+  mechanism 2).
+- **Long-Lived Session remains supported** as the named, explicit mechanism a Trusted
+  Device grants (§5.1, mechanism 3).
+- **PIN remains optional convenience only** — never mandatory, never equivalent in
+  importance to Trusted Device (§5.1, mechanism 4; §5.2).
+- **Magic Link is never replaced** by any of the above — every additive mechanism
+  exists *alongside* it, never instead of it.
+
 # 6. Doctor-Assigned Conditions Architecture (Pillar 1) — Settled
 
 ## 6.1 Current state — a real gap
@@ -240,7 +325,12 @@ Governed by **ADR-012 (amended)**.
 ## 7.1 Module Registry (backend, config)
 A versioned list of module descriptors — module id, display title, data-source dispatch
 action, empty-state behavior, rendering shape. Static, staff/developer-maintained
-config, not a dynamic admin-editable system in this plan's scope.
+config, not a dynamic admin-editable system in this plan's scope. **AI-readiness
+(reserved, not implemented):** each descriptor reserves an extension-point field for
+future AI-compatibility metadata (e.g., whether a future AI-generated explanation could
+ever accompany this module's content) — no AI behavior exists today; the field exists
+so a future capability doesn't require a schema redesign, subject to the full
+ADR-001/004/005 gate whenever actually proposed (§15).
 
 ## 7.2 `PatientModuleState` (Sheet-backed)
 `patient_id`, `module_id`, `enabled` (boolean), `enabled_by`, `enabled_at`. Absence of a
@@ -274,7 +364,11 @@ Governed by **ADR-013 (confirmed, unchanged)** — deterministic only, never AI-
 A versioned list of available calculators — calculator slug, display title, input field
 list, formula-definition reference, relevant condition(s) (metadata, not hardcoded
 logic — see §8.3). Every calculator plugs into this registry; nothing about a specific
-disease is special-cased in the Calculator Framework's own code.
+disease is special-cased in the Calculator Framework's own code. **AI-readiness
+(reserved, not implemented):** mirroring §7.1, each registry entry reserves an
+extension-point field for future AI-generated explanatory text about a result (never
+the result itself, which stays deterministic forever per ADR-013) — no such feature
+exists today; the reservation only avoids a future schema redesign.
 
 ## 8.2 Data model
 `CalculatorDefinition` — a versioned code/config artifact (formula logic, input field
@@ -327,12 +421,21 @@ evolve), `logged_at` (server-set), `answers` (JSON-encoded, §11.4), `condition_
 action, not this field). Same lifecycle as `SymptomLog`: create → persist → read, no
 update, no delete.
 
-# 11. Template Engine Architecture
+# 11. Template Registry Architecture (Generalized from Template Engine — ADR-016)
+
+Governed by **ADR-016**, which complements ADR-012 (Module Registry) and ADR-013
+(Calculator Registry) rather than replacing either.
 
 ## 11.1 What it's for
 The mechanism by which a doctor/staff-authored question set (Daily Check-ins) or
 content structure (Care Plan) is defined once and assigned per patient by a doctor,
-per §10.2 — not a patient-facing configuration surface.
+per §10.2 — not a patient-facing configuration surface. **Generalized in Version 4.0:**
+what this section originally called the "Template Engine," scoped only to
+`CheckInTemplate`, is now understood as the first concrete category of a general
+**Template Registry** — a versioned list of template descriptors (mirroring the Module
+Registry and Calculator Registry pattern) from which any patient-facing form or
+questionnaire is generated, never hardcoded per form. See §11.5 for the registry's
+scope beyond Daily Check-ins.
 
 ## 11.2 Data model — `CheckInTemplate`
 `template_id` (identifies the logical template, stable across edits), `version`
@@ -404,6 +507,43 @@ plain value, unlike every other existing Sheet-backed entity. This is an accepte
 disclosed cost of this approved policy, not an oversight (docs/45 tracked this in
 detail before this policy was approved).
 
+## 11.5 Template Registry — Scope Beyond Daily Check-ins (New, ADR-016)
+
+**Purpose, restated at the registry level:** patient-facing forms and questionnaires
+must be generated from templates rather than hardcoded, for any category, not only
+Daily Check-ins. `CheckInTemplate` (§11.2) is this registry's first concrete category
+— proof the pattern works — not the only category the registry is designed for.
+
+**Named future categories (reserved, unscoped, not designed by this document):**
+Weekly Check-in, Monthly Review, Condition Review, Lifestyle Questionnaire, Follow-up
+Questionnaire, and Doctor-created Templates. None of these is scoped, batched, or
+authorized by this plan — naming them here only ensures that whichever is proposed
+next reuses this one general mechanism instead of a bespoke one, the same discipline
+already applied to Module Registry (§7) and Calculator Registry (§8).
+
+**What the registry must support, for every category, without a code change:**
+- **Versioning** — the immutable `(template_id, version)` discipline already specified
+  in §11.2/§11.4 applies uniformly; a new category is a new set of registry rows, never
+  new versioning logic.
+- **Activation/deactivation** — `status` (active/retired, §11.2) generalizes to every
+  category; retiring a template never deletes historical responses (§11.4's
+  append-only, immutable-rows discipline).
+- **Future AI compatibility (reserved, not implemented)** — mirroring §7.1/§8.1, every
+  template descriptor reserves an extension-point field for future AI-compatibility
+  metadata (e.g., whether a future AI-assisted summary of responses could ever be
+  offered). No AI feature exists today; the field only avoids a future schema
+  redesign, and any eventual use still requires the full ADR-001/004/005 gate (§15).
+- **Doctor assignment** — every category follows §10.2's settled rule: a doctor/staff
+  member assigns which template(s) apply; **the patient never configures, selects, or
+  authors a template**, including a "Doctor-created Template" category, which means a
+  template *authored by* a doctor, not one *configured by* a patient.
+
+**Relationship to ADR-012:** this ADR is deliberately structured as a complement, not a
+replacement — Module Registry governs *which capability* is exposed to a patient;
+Template Registry governs *the shape of the form or questionnaire* a given capability
+(e.g., the Daily Check-in module) renders once exposed. The two registries answer
+different questions and are expected to be used together, not merged.
+
 # 12. Personal Care Plan Architecture
 
 Unchanged from Version 2.0. A consumer of Pillars 1 and 2. `DoctorInstruction`
@@ -414,13 +554,51 @@ Unchanged from Version 2.0. A consumer of Pillars 1 and 2. `DoctorInstruction`
 authored only, patient-viewable only. A new Care Plan version emits a `TimelineEvent`
 (`entry_type: care_plan`).
 
-# 13. Patient Dashboard Evolution
+# 13. Patient Dashboard Evolution — "Health Journey," Refined (Version 4.0)
 
 The Module Engine pillar's patient-facing surface, now covering the **entire**
-dashboard (§7.3), not only new modules. Care Plan's placeholder becomes a real,
-registry-driven module once its batch ships; Messages and Digital Twin remain
-`future`-badged placeholders (Messages has no architecture anywhere; Digital Twin is
-Phase 2D, §16).
+dashboard (§7.3), not only new modules. This subsection refines, without changing, the
+already-committed §7.3 decision: the dashboard is not a fixed page — it is the patient's
+dynamic **Health Journey**, rendered entirely from whatever the Module Registry (§7.1)
+says is enabled for that specific patient.
+
+## 13.1 Registry-driven, not disease-driven
+The dashboard has no per-disease code path, ever. Every card — existing or future —
+is one Module Registry entry, rendered by the same generic loop regardless of which
+condition(s) a patient is assigned (§6). A patient with condition A and a patient with
+condition B see different *content* because they have different `PatientModuleState`
+rows (§7.2, §14) — never because the dashboard contains an `if condition == 'A'`
+branch anywhere. This is §7.3/§8.3's existing "never hardcoded per disease" constraint,
+restated once at the whole-dashboard level rather than per-pillar.
+
+## 13.2 Illustrative module categories (not a fixed or final list)
+The kind of content the registry can render today or in a clearly-anticipated future
+batch — illustrative, not a scope commitment beyond what §22 already batches:
+- **Today's Tasks** — whatever check-ins, follow-ups, or actions are currently due.
+- **Timeline** — existing, `TimelineEvent` (§3.1 docs/33), unchanged by this pass.
+- **Reports** — existing, unchanged.
+- **Check-ins** — Daily Check-in Engine (§10), and any future Template Registry
+  category (§11.5), once individually batched and approved.
+- **Calculators** — Calculator Registry (§8), once its batch ships.
+- **Personal Care Plan** — §12, once its batch ships; currently an empty-state
+  placeholder, exactly as today.
+- **Future AI modules** — not designed here; §15's AI Boundaries and every registry's
+  reserved AI-compatibility extension point (§7.1, §8.1, §11.5) exist so a future AI
+  module, if and when actually proposed, plugs into the same registry mechanism rather
+  than requiring a new one.
+- **Digital Twin modules** — Phase 2D (§16), a future consumer, not part of this
+  sequence.
+
+Messages and Digital Twin remain `future`-badged placeholders today (Messages has no
+architecture anywhere; Digital Twin is Phase 2D, §16) — naming them above as
+illustrative future registry entries does not batch, schedule, or design either.
+
+## 13.3 What this refinement changes, and what it does not
+This is a **naming and framing refinement**, not a new architectural decision: §7.3's
+migration batch (PXP-4, Dashboard Registry), its scope, and its risk classification
+(docs/45's top-ranked risk) are all unchanged. "Health Journey" is this document's name
+for the already-committed registry-driven dashboard vision (docs/21's own "My Health
+Journey" product name, §22's `dashboard.js` target) — not a new UI, page, or batch.
 
 # 14. Feature Enable/Disable Per Patient — Settled
 
@@ -473,7 +651,8 @@ builds no Digital Twin UI, narrative generation, or aggregation logic, and no ba
 | Calculator Registry | Pillar 3 (§8.1) | Did not exist | No (config) |
 | `CalculatorDefinition` | Pillar 3 (§8.2) | Conceptual (docs/33 §5.3) | No (config/code) |
 | `CalculatorResult` | Pillar 3 (§8.2) | Conceptual (docs/33 §5.3) | Yes |
-| `CheckInTemplate` | Template Engine (§11.2) | Did not exist | No (config/content) |
+| Template Registry | Template Registry (§11, ADR-016) | Did not exist | No (config) |
+| `CheckInTemplate` | Template Registry, first category (§11.2) | Did not exist | No (config/content) |
 | `CheckInResponse` | Daily Check-ins (§10.3) | Did not exist | Yes |
 | `DoctorInstruction` | Care Plan (§12) | Conceptual (docs/33 §2.3) | Yes |
 | `CarePlan` | Care Plan (§12) | Conceptual (docs/33 §3.4) | Yes |
@@ -534,18 +713,29 @@ cases only.
 
 # 21. Documentation Impact
 
+**Version 4.0 (2026-07-09, this pass):**
+
 | Doc | Update needed | Status |
 |---|---|---|
-| docs/24-ROADMAP.md | Reflect settled decisions and revised implementation order | Done, this change |
-| docs/31-ADR-INDEX.md | Add ADR-015, mark ADR-014 Superseded, note ADR-012 amendment | Done, this change |
-| docs/33-DOMAIN-MODEL.md | Rename `ConditionAssignment` → `DoctorAssignedCondition`; add Long-Lived Session | Done, this change |
-| docs/44 (this document) | Version 3.0 | Done, this change |
-| docs/45-PHASE-2B-ARCHITECTURE-READINESS-REVIEW.md | Version 3.0 | Done, this change |
-| docs/46-PHASE-2B-REPOSITORY-CONSISTENCY-REVIEW.md | Version 3.0 | Done, this change |
-| `/adr/ADR-015` | New | Done, this change |
-| `/adr/ADR-014` | Marked Superseded | Done, this change |
-| `/adr/ADR-012` | Amendment note added | Done, this change |
-| CHANGELOG.md | Record this revision pass (no code change) | Done, this change |
+| docs/24-ROADMAP.md | Batch renaming PXP-1…PXP-11; Template Registry mention | Done, this change |
+| docs/31-ADR-INDEX.md | Add ADR-016 (Template Registry) | Done, this change |
+| docs/33-DOMAIN-MODEL.md | Batch renaming; add Template Registry entity (§6.7) | Done, this change |
+| docs/44 (this document) | Version 4.0 | Done, this change |
+| docs/45-PHASE-2B-ARCHITECTURE-READINESS-REVIEW.md | Version 4.0 | Done, this change |
+| docs/46-PHASE-2B-REPOSITORY-CONSISTENCY-REVIEW.md | Version 4.0 | Done, this change |
+| `/adr/ADR-016` | New | Done, this change |
+| CHANGELOG.md | Record this architecture-freeze finalization pass (no code change) | Done, this change |
+
+**Version 3.0 (2026-07-08, prior pass — kept for reference):**
+
+| Doc | Update needed | Status |
+|---|---|---|
+| docs/24-ROADMAP.md | Reflect settled decisions and revised implementation order | Done, that change |
+| docs/31-ADR-INDEX.md | Add ADR-015, mark ADR-014 Superseded, note ADR-012 amendment | Done, that change |
+| docs/33-DOMAIN-MODEL.md | Rename `ConditionAssignment` → `DoctorAssignedCondition`; add Long-Lived Session | Done, that change |
+| `/adr/ADR-015` | New | Done, that change |
+| `/adr/ADR-014` | Marked Superseded | Done, that change |
+| `/adr/ADR-012` | Amendment note added | Done, that change |
 | `shared/schemas/*.schema.json` for entities in §17 | Not yet written — created when each entity's implementing batch begins | Deferred, by design |
 
 # 22. Implementation Batches — Infrastructure First
@@ -555,24 +745,24 @@ below is authorized to begin by this document.**
 
 | # | Batch | Delivers | Depends on | Risk / reversibility |
 |---|---|---|---|---|
-| 1 | **PCP-1 — Patient Profile** | `PatientProfile` + patient-facing profile view/edit | Nothing new | First patient-mutable structured data — its own authorization/audit review. Zero dependency on anything else, lowest-risk starting point. |
-| 2 | **PCP-2 — Doctor-Assigned Conditions** (Pillar 1) | `DoctorAssignedCondition` + doctor/staff assignment tool | Nothing new | Zero patient-facing surface beyond a read-only reflection, if any. Fully reversible. |
-| 3 | **PCP-3 — Module Registry** (Pillar 2, backend) | Module Registry config + `PatientModuleState`, no dashboard rendering change yet | PCP-2 informs future default-enablement discussion, not a hard dependency | Additive scaffold, invisible to patients until PCP-4. |
-| 4 | **PCP-4 — Dashboard Registry** (Pillar 2, frontend) | `dashboard.js` rewritten to render all modules — including Timeline, Symptom Tracker, Reports — from PCP-3's registry | PCP-3 | Larger surface than a scaffold-only batch (touches every existing card's rendering path), but no underlying feature/data is changed — only how each card is decided to appear. |
-| 5 | **PCP-5 — Daily Check-in Engine** | `CheckInTemplate` + `CheckInResponse` + patient-facing Check-in UI, doctor-assigned templates, registered via PCP-3/4, shipped alongside (not replacing) Symptom Tracker | PCP-2 (doctor-assigned templates), PCP-3/PCP-4 (registration/rendering) | Additive; Symptom Tracker untouched. |
-| 6 | **PCP-6 — Calculator Framework** (Pillar 3) | Calculator Registry + `CalculatorDefinition` + `CalculatorResult` + Patient Calculator UI, registered via PCP-3/4 | PCP-3/PCP-4 | Deterministic logic only (ADR-013) — low risk. |
-| 7 | **PCP-7 — Personal Care Plan** | `DoctorInstruction` + `CarePlan` + patient-facing read-only Care Plan view, registered via PCP-3/4 | PCP-2, PCP-3/PCP-4 | Doctor-authored only — no new patient-write surface. |
-| 8 | **PCP-8 — Persistent Login** | `TrustedDevice` + Long-Lived Session issuance + optional `PatientCredential` (PIN) | Independent of pillars — sequenced late per explicit direction, benefiting from pillars already existing to make persistence worth having. PIN sub-batch requires its own dedicated security review before approval, independent of Trusted Device/Long-Lived Session. | Trusted Device/Long-Lived Session reuse proven hashing (low risk); PIN carries the disclosed hashing-bridge risk (§18), gated separately. |
-| 9 | **PCP-9 — AI Integration (reserved placeholder)** | Nothing concrete — a named slot in the sequence for whatever AI-touching capability is eventually proposed | Whatever it turns out to require, decided when it is actually proposed | Not scoped; must independently satisfy §15/ADR-001/004/005/013 before any detail is added |
-| — | **PCP-10 — Symptom Tracker retirement** (not one of the nine named items; added per ADR-008's requirement that retirement never bundle with its replacement's introduction) | Symptom Tracker dashboard entry removed, endpoints deprecated, `SymptomLogs` retained | PCP-5 proven in production first | Explicitly separate, later, own approval |
-| — | **PCP-11 — Validation & closeout** (added, mirrors every prior phase's closeout discipline) | Validation-suite build-out for every entity above + documentation closeout | All shipped batches above | Documentation/validation only |
+| 1 | **PXP-1 — Patient Profile** | `PatientProfile` + patient-facing profile view/edit | Nothing new | First patient-mutable structured data — its own authorization/audit review. Zero dependency on anything else, lowest-risk starting point. |
+| 2 | **PXP-2 — Doctor-Assigned Conditions** (Pillar 1) | `DoctorAssignedCondition` + doctor/staff assignment tool | Nothing new | Zero patient-facing surface beyond a read-only reflection, if any. Fully reversible. |
+| 3 | **PXP-3 — Module Registry** (Pillar 2, backend) | Module Registry config + `PatientModuleState`, no dashboard rendering change yet | PXP-2 informs future default-enablement discussion, not a hard dependency | Additive scaffold, invisible to patients until PXP-4. |
+| 4 | **PXP-4 — Dashboard Registry** (Pillar 2, frontend) | `dashboard.js` rewritten to render all modules — including Timeline, Symptom Tracker, Reports — from PXP-3's registry | PXP-3 | Larger surface than a scaffold-only batch (touches every existing card's rendering path), but no underlying feature/data is changed — only how each card is decided to appear. |
+| 5 | **PXP-5 — Daily Check-in Engine** | `CheckInTemplate` + `CheckInResponse` + patient-facing Check-in UI, doctor-assigned templates, registered via PXP-3/4, shipped alongside (not replacing) Symptom Tracker | PXP-2 (doctor-assigned templates), PXP-3/PXP-4 (registration/rendering) | Additive; Symptom Tracker untouched. |
+| 6 | **PXP-6 — Calculator Registry** (Pillar 3, formerly called "Calculator Framework" — renamed for platform-wide naming consistency, no scope change) | Calculator Registry + `CalculatorDefinition` + `CalculatorResult` + Patient Calculator UI, registered via PXP-3/4 | PXP-3/PXP-4 | Deterministic logic only (ADR-013) — low risk. |
+| 7 | **PXP-7 — Personal Care Plan** | `DoctorInstruction` + `CarePlan` + patient-facing read-only Care Plan view, registered via PXP-3/4 | PXP-2, PXP-3/PXP-4 | Doctor-authored only — no new patient-write surface. |
+| 8 | **PXP-8 — Trusted Device + Long-Lived Session + Optional PIN** (formerly called "Persistent Login" — renamed for platform-wide naming consistency, no scope change) | `TrustedDevice` + Long-Lived Session issuance + optional `PatientCredential` (PIN) | Independent of pillars — sequenced late per explicit direction, benefiting from pillars already existing to make persistence worth having. PIN sub-batch requires its own dedicated security review before approval, independent of Trusted Device/Long-Lived Session. | Trusted Device/Long-Lived Session reuse proven hashing (low risk); PIN carries the disclosed hashing-bridge risk (§18), gated separately. |
+| 9 | **PXP-9 — AI Integration** (reserved placeholder) | Nothing concrete — a named slot in the sequence for whatever AI-touching capability is eventually proposed | Whatever it turns out to require, decided when it is actually proposed | Not scoped; must independently satisfy §15/ADR-001/004/005/013 before any detail is added |
+| — | **PXP-10 — Symptom Tracker Migration** (formerly called "Symptom Tracker retirement" — renamed for platform-wide naming consistency; still the cutover/retirement step of the migration described in §10.1, not a new scope; not one of the nine named items; added per ADR-008's requirement that retirement never bundle with its replacement's introduction) | Symptom Tracker dashboard entry removed, endpoints deprecated, `SymptomLogs` retained | PXP-5 proven in production first | Explicitly separate, later, own approval |
+| — | **PXP-11 — Closeout** (formerly called "Validation & closeout" — renamed for platform-wide naming consistency, no scope change; mirrors every prior phase's closeout discipline) | Validation-suite build-out for every entity above + documentation closeout | All shipped batches above | Documentation/validation only |
 
 Digital Twin is **not** in this sequence — it remains a later roadmap consumer (Phase
 2D, §16), not a Phase 2B batch.
 
-**Recommended first batch: PCP-1 (Patient Profile)** — per explicit direction to begin
+**Recommended first batch: PXP-1 (Patient Profile)** — per explicit direction to begin
 with infrastructure rather than features, and the batch with the fewest dependencies
 and lowest risk in the entire sequence.
 
-**This plan does not authorize PCP-1, or any other batch, to begin.** Implementation
+**This plan does not authorize PXP-1, or any other batch, to begin.** Implementation
 waits for a separate, explicit approval naming a specific batch.
