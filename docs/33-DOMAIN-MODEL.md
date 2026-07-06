@@ -1,5 +1,5 @@
 # 33 - Domain Model
-## Version 1.1 — 2026-07-04
+## Version 1.2 — 2026-07-06
 
 > Defines every major business entity in the Wise Platform: what it means, what it
 > holds, how it relates to everything else, how it comes into being and ends, who is
@@ -285,11 +285,13 @@ recommendation) is architected — Care Plan cannot meaningfully exist without t
 entity underneath it, since "current goals, medicines, lifestyle guidance, doctor
 instructions" (docs/09) are all instances of Doctor Instruction.
 
-**Status update (2026-07-04):** docs/44-PHASE-2B-TECHNICAL-PLAN.md §11.1 formalizes
-this entity's exact attributes (`instruction_id`, `patient_id`, `care_plan_id`,
-`consultation_id`, `instruction_type`, `content`, `prescribed_by`, `effective_date`,
-`status`) and confirms the Prescription-is-a-`medicine`-type-instruction mapping this
-section already anticipated. Not yet implemented — see docs/44 §21's `PCP-7` batch.
+**Status update (2026-07-04, renumbered 2026-07-06 for docs/44 Version 2.0):**
+docs/44-PHASE-2B-TECHNICAL-PLAN.md §12.1 formalizes this entity's exact attributes
+(`instruction_id`, `patient_id`, `care_plan_id`, `consultation_id`, `instruction_type`,
+`content`, `prescribed_by`, `effective_date`, `status`) and confirms the
+Prescription-is-a-`medicine`-type-instruction mapping this section already anticipated.
+A consumer of Doctor-Assigned Conditions (Pillar 1) and Module Engine (Pillar 2), per
+docs/44 §4.2. Not yet implemented — see docs/44 §22's `PCP-8` batch.
 
 ---
 
@@ -459,11 +461,13 @@ entity. Recommended as Phase 2B per docs/32 — deliberately excluded from docs/
 Phase 2A scope, shown only as an empty state (docs/29 §5) until it has its own
 architecture-freeze pass.
 
-**Status update (2026-07-04):** That architecture-freeze pass is docs/44
-(§11.2), which formalizes `care_plan_id`, `patient_id`, an append-only `version`
-integer, `status`, `goals`, `next_review_date`, `created_by`, `created_at`, and confirms
-the versioning instinct this section already named. Doctor-authored/patient-viewable
-ownership (below) is unchanged. Not yet implemented — see docs/44 §21's `PCP-7` batch.
+**Status update (2026-07-04, renumbered 2026-07-06 for docs/44 Version 2.0):** That
+architecture-freeze pass is docs/44 (§12.2), which formalizes `care_plan_id`,
+`patient_id`, an append-only `version` integer, `status`, `goals`, `next_review_date`,
+`created_by`, `created_at`, and confirms the versioning instinct this section already
+named. Doctor-authored/patient-viewable ownership (below) is unchanged. A consumer of
+Doctor-Assigned Conditions (Pillar 1) and Module Engine (Pillar 2), per docs/44 §4.2.
+Not yet implemented — see docs/44 §22's `PCP-8` batch.
 
 ---
 
@@ -635,66 +639,88 @@ could feed Timeline Event/Digital Twin the same way Symptom Log does.
 patient variant's storage shape is close enough to Symptom Log's that it could
 plausibly reuse the same batch pattern once scheduled.
 
-**Status update (2026-07-04):** The Patient variant now has a roadmap owner — Phase 2B
-(docs/44 §10), governed by the new ADR-013 (calculators are deterministic, never
-AI-generated). `CalculatorDefinition` and `CalculatorResult` attributes are formalized
-in docs/44 §10.1, matching this section's own conceptual shape. **The Public
-(no-login) variant remains unclaimed** — docs/44 §2.2 explicitly excludes it; docs/46
-Part 3 carries this forward as a still-open gap. Not yet implemented — see docs/44
-§21's `PCP-6` batch.
+**Status update (2026-07-04, renumbered 2026-07-06 for docs/44 Version 2.0):** The
+Patient variant now has a roadmap owner — Phase 2B (docs/44 §8), governed by ADR-013
+(calculators are deterministic, never AI-generated), and elevated to **Pillar 3** of
+Phase 2B's core architecture (docs/44 §4) — a general-purpose, doctor-authored
+computation pattern, not a single-use feature. `CalculatorDefinition` and
+`CalculatorResult` attributes are formalized in docs/44 §8.1, matching this section's
+own conceptual shape. **The Public (no-login) variant remains unclaimed** — docs/44
+§2.2 explicitly excludes it; docs/46 Part 3 carries this forward as a still-open gap.
+Not yet implemented — see docs/44 §22's `PCP-3` batch.
 
 ---
 
-# 6. Phase 2B Entities — *Designed, not yet implemented (docs/44-PHASE-2B-TECHNICAL-PLAN.md)*
+# 6. Phase 2B Entities — *Designed, not yet implemented (docs/44-PHASE-2B-TECHNICAL-PLAN.md, Version 2.0)*
 
 Net-new entities that did not exist even conceptually in this document before Phase 2B's
-architecture-freeze pass (2026-07-04). Doctor Instruction (§2.3), Care Plan (§3.4), and
-Calculator (§5.3) were already conceptual and are promoted in place above rather than
-restated here. Full field-level detail lives in docs/44 — this section records only
-each entity's purpose and relationships, at the same fidelity the rest of this document
-uses.
+architecture-freeze pass. Doctor Instruction (§2.3), Care Plan (§3.4), and Calculator
+(§5.3) were already conceptual and are promoted in place above rather than restated
+here. Full field-level detail lives in docs/44 — this section records only each
+entity's purpose and relationships, at the same fidelity the rest of this document uses.
+**Updated 2026-07-06** for docs/44 Version 2.0's revised authentication design (Trusted
+Device primary, per ADR-014) and pillar framing (Doctor-Assigned Conditions, Module
+Registry/Patient Module State, and Calculator are now Pillars 1–3, per docs/44 §4).
 
 ## 6.1 Patient Profile
 **Purpose:** Patient-editable structured contact/personal data (phone, date of birth,
 preferred contact method, emergency contact), kept separate from the identity fields on
 Patient (§1.1) so the frozen, conformance-tested `patient-identity.schema.json` is never
 widened. The platform's first entity a patient edits directly, rather than only reads or
-appends to. **Relationships:** 1:1 with Patient. **Full detail:** docs/44 §5.
+appends to. **Relationships:** 1:1 with Patient. **Full detail:** docs/44 §17.
 
-## 6.2 Condition Assignment
+## 6.2 Condition Assignment — *Pillar 1*
 **Purpose:** A doctor-authored record of which condition(s) are currently active for a
 patient, with a full assign/resolve audit trail — replacing today's single, staff-typed,
 never-updated `condition_slug` field with a real, many-to-one, doctor-driven workflow.
+The foundation every other Phase 2B pillar and capability builds on (docs/44 §4).
 **Relationships:** Many per Patient; drives default Daily Check-in template selection
-(§9.3 below) and Calculator/module relevance. **Full detail:** docs/44 §6, including the
+(§10.3 below) and Calculator/module relevance. **Full detail:** docs/44 §6, including the
 Option A/B design fork this document does not resolve on its own (docs/44 §6.2
 recommends Option B; docs/45 Part 1.3 concurs).
 
-## 6.3 Module Registry and Patient Module State
+## 6.3 Module Registry and Patient Module State — *Pillar 2*
 **Purpose:** A config-level list of available dashboard capabilities (Module Registry)
 plus a per-patient enablement record (`PatientModuleState`) — the mechanism behind
-ADR-012 and docs/44 §7/§13's per-patient feature enable/disable requirement. Governs
+ADR-012 and docs/44 §7/§14's per-patient feature enable/disable requirement. Governs
 whether Daily Check-ins, Calculator, and Care Plan (all below) appear on a given
-patient's dashboard once implemented. **Relationships:** `PatientModuleState` is
+patient's dashboard once implemented — the patient dashboard's evolution (docs/44 §13)
+*is* this pillar's patient-facing surface. **Relationships:** `PatientModuleState` is
 many-per-Patient (one row per module). **Full detail:** docs/44 §7, ADR-012.
 
-## 6.4 Check-In Template and Check-In Response
+## 6.4 Calculator Definition and Calculator Result — *Pillar 3*
+**Purpose:** A doctor/staff-authored, versioned, deterministic formula
+(`CalculatorDefinition`) and a patient's computed result against one
+(`CalculatorResult`) — see §5.3 above for this entity's promotion from Conceptual, and
+docs/44 §8/ADR-013 for why it is treated as a general-purpose pillar rather than a
+single-use feature. **Relationships:** `CalculatorResult` belongs to one Patient;
+visibility governed by Patient Module State (§6.3). **Full detail:** docs/44 §8.
+
+## 6.5 Check-In Template and Check-In Response
 **Purpose:** A doctor/staff-authored, versioned question set (`CheckInTemplate`,
 optionally condition-specific) and a patient's recorded answers against one
-(`CheckInResponse`) — the mechanism behind "Personalized Daily Check-ins," designed as
-the eventual successor to Symptom Log (§3.2) once proven in production alongside it
-(never a single atomic cutover, per ADR-008). **Relationships:** `CheckInResponse`
-belongs to one Patient and references one `CheckInTemplate` version; template selection
-is driven by Condition Assignment (§6.2). **Full detail:** docs/44 §8/§9, including the
-JSON-encoded-answers design fork docs/45 Part 1.5 flags as this pass's most
-consequential open question.
+(`CheckInResponse`) — the mechanism behind "Personalized Daily Check-ins," a consumer of
+Pillars 1 and 2, designed as the eventual successor to Symptom Log (§3.2) once proven in
+production alongside it (never a single atomic cutover, per ADR-008). **Relationships:**
+`CheckInResponse` belongs to one Patient and references one `CheckInTemplate` version;
+template selection is driven by Condition Assignment (§6.2). **Full detail:** docs/44
+§11/§10, including the JSON-encoded-answers design fork docs/45 Version 2.0 Part 3 now
+ranks as this pass's highest open risk.
 
-## 6.5 Patient Credential
-**Purpose:** An optional, patient-opted-in persistent credential (PIN or password)
-resolving to the same `patient_id` as every other authentication mechanism, per ADR-002.
-Exists alongside — never replacing — Session/LoginToken (§1.2/§1.3). **Relationships:**
-0-or-1-per-type per Patient. **Full detail:** docs/44 §4, ADR-011 — including the
-disclosed hashing-primitive limitation docs/45 Part 3 ranks as this pass's highest risk.
+## 6.6 Trusted Device (primary) and Patient Credential (secondary) — persistent authentication
+**Purpose:** Two independent, opt-in mechanisms for persistent (non-magic-link) login,
+both rooted in a magic-link authentication event, per **ADR-014**. `TrustedDevice`
+(primary) is a machine-generated, high-entropy device token — the platform's
+recommended mechanism, hashed the same proven way `LoginToken` already is (§1.3). A
+patient may separately opt into `PatientCredential` (secondary — a PIN or password) for
+contexts where device-based trust is inappropriate (e.g., a shared device); this is the
+entity ADR-011 originally defined as the *primary* mechanism, before ADR-014 superseded
+that plan and demoted it to secondary. Both resolve to the same `patient_id`, per
+ADR-002, and exist alongside — never replacing — Session/LoginToken (§1.2/§1.3).
+**Relationships:** `TrustedDevice` is many-per-Patient (a patient may trust more than one
+device); `PatientCredential` is 0-or-1-per-type per Patient. **Full detail:** docs/44
+§5, ADR-014 (governing), ADR-011 (superseded, PIN-specific design retained by
+reference).
 
 ---
 
@@ -708,23 +734,24 @@ disclosed hashing-primitive limitation docs/45 Part 3 ranks as this pass's highe
 | Doctor | Conceptual (gap) | Unassigned |
 | Consultation | Conceptual | Unassigned |
 | Consultation Summary | Implemented | Phase 1.5 |
-| Doctor Instruction | Designed, not yet implemented | 2B (docs/44 §11.1, batch PCP-7) |
+| Doctor Instruction | Designed, not yet implemented | 2B (docs/44 §12.1, batch PCP-8) |
 | AI Summary | Conceptual (pattern) | Instantiated by Phase 1.5, 2D |
 | Timeline Event | Implemented | 2A (Batch PA-3, one entry_type) |
-| Symptom Log | Implemented | 2A (Batch PA-4) — Phase 2B coexists with, later retires (docs/44 §9.1, §21 batch PCP-8) |
+| Symptom Log | Implemented | 2A (Batch PA-4) — Phase 2B coexists with, later retires (docs/44 §10.1, §22 batch PCP-9) |
 | Report | Implemented | 2A (Batch PA-5) |
-| Care Plan | Designed, not yet implemented | 2B (docs/44 §11.2, batch PCP-7) |
+| Care Plan | Designed, not yet implemented | 2B (docs/44 §12.2, batch PCP-8) |
 | Digital Twin | Conceptual (view) | Recommended 2D |
 | Appointment | Conceptual (gap) | Unassigned |
 | Notification | Conceptual (gap) | Unassigned |
 | Knowledge Article | Conceptual | Unassigned |
 | Knowledge Engine | Conceptual (system) | Unassigned |
-| Calculator | Designed, not yet implemented — Patient variant only | 2B (docs/44 §10, batch PCP-6). Public variant still unassigned — roadmap gap carried forward (docs/46 Part 3). |
-| Patient Profile | Designed, not yet implemented | 2B (docs/44 §5, batch PCP-3) |
-| Condition Assignment | Designed, not yet implemented | 2B (docs/44 §6, batch PCP-1) |
-| Module Registry / Patient Module State | Designed, not yet implemented | 2B (docs/44 §7, batch PCP-2) |
-| Check-In Template / Check-In Response | Designed, not yet implemented | 2B (docs/44 §8/§9, batch PCP-5) |
-| Patient Credential | Designed, not yet implemented | 2B (docs/44 §4, batch PCP-4 — requires dedicated security review first, docs/45 Part 3) |
+| Calculator | Designed, not yet implemented — Patient variant only — **Pillar 3** | 2B (docs/44 §8, batch PCP-3). Public variant still unassigned — roadmap gap carried forward (docs/46 Part 3). |
+| Patient Profile | Designed, not yet implemented | 2B (docs/44 §17, batch PCP-6) |
+| Condition Assignment | Designed, not yet implemented — **Pillar 1** | 2B (docs/44 §6, batch PCP-1 — recommended first batch) |
+| Module Registry / Patient Module State | Designed, not yet implemented — **Pillar 2** | 2B (docs/44 §7, batch PCP-2) |
+| Check-In Template / Check-In Response | Designed, not yet implemented | 2B (docs/44 §11/§10, batch PCP-7) |
+| Trusted Device (primary persistent auth) | Designed, not yet implemented | 2B (docs/44 §5, ADR-014, batch PCP-4) |
+| Patient Credential (secondary persistent auth) | Designed, not yet implemented | 2B (docs/44 §5, ADR-011 superseded/ADR-014, batch PCP-5 — requires dedicated security review first, docs/45 Part 3) |
 
 Every "Unassigned" row above is carried into docs/34-ARCHITECTURE-CONSISTENCY-REVIEW.md
 as a reported gap, not silently resolved by assigning it a phase here.

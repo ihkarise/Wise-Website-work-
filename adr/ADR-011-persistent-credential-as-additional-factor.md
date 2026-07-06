@@ -1,9 +1,19 @@
 # ADR-011: A Persistent Credential (PIN/Password) May Be Added as an Optional Second Factor, Magic Link Remains the Mandatory Baseline
 
 ## Status
-Accepted — Amends ADR-003. ADR-003 remains Accepted for its passwordless-by-default
-principle; this ADR supersedes only its absolute "no patient password is ever
-collected, stored, or reset" clause, under the constraints below.
+**Superseded by ADR-014** (2026-07-06). A product-direction review redirected persistent
+login to be achieved *primarily* through trusted devices, with the PIN/password
+mechanism this ADR defined demoted to an optional *secondary* factor — ADR-014 records
+the new primary mechanism and explicitly retains this ADR's PIN-specific design
+(opt-in, magic-link-gated, iterated-HMAC hashing bridge, rate-limited) for that
+secondary role. This record is kept intact as history, per ADR-007 — it was, at the
+time, a correct and complete answer to the conflict with ADR-003 it resolved; it is
+superseded because the product direction changed, not because its reasoning was wrong.
+
+Original status text, preserved below: Accepted — Amends ADR-003. ADR-003 remains
+Accepted for its passwordless-by-default principle; this ADR supersedes only its
+absolute "no patient password is ever collected, stored, or reset" clause, under the
+constraints below.
 
 ## Context
 Phase 2B's technical plan (docs/44) calls for "persistent authentication (password/PIN

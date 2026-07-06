@@ -1,5 +1,5 @@
 # 24 - Wise Product Roadmap
-## Version 1.1 — 2026-07-04
+## Version 1.2 — 2026-07-06
 
 # Phase 1 — Public Website
 Status: In Progress
@@ -172,31 +172,53 @@ docs/32-ARCHITECTURE-REVIEW.md Part 2 — Personal Care Plan is no longer
 grouped into Phase 2A; it did not have a designed architecture and is
 moved to its own phase below. Batch-level sequencing (5A–5H): docs/29 §13.
 
-# Phase 2B — Personal Care Plan, Module Engine & Personalized Check-ins
-Status: **Architecture-freeze pass complete. Implementation not yet
-authorized.** This entry originally named only "Personal Care Plan," per
-docs/32 Part 2's recommendation. The actual architecture-freeze pass
-(2026-07-04) was scoped broader, at explicit request: persistent
-authentication (password/PIN, additive to magic link), Patient Profile,
-Doctor-Assigned Conditions, a Module Engine, a Template Engine,
-Personalized Daily Check-ins (the designed successor to Symptom Tracker
-v1, coexisting with it before any retirement — see docs/44 §9.1), a
-Calculator Framework (Patient variant only — the Public/no-login variant
-remains an unclaimed roadmap gap, docs/46 Part 3), Personal Care Plan
-itself, dashboard evolution, and per-patient feature enablement. See
-docs/44-PHASE-2B-TECHNICAL-PLAN.md for the full design, docs/45-PHASE-2B-
-ARCHITECTURE-READINESS-REVIEW.md for the critique of every proposal and
-open questions, docs/46-PHASE-2B-REPOSITORY-CONSISTENCY-REVIEW.md for the
-consistency check, and ADR-011/012/013 for the three new binding
-decisions this pass required (persistent-credential-as-additional-factor,
-registry-driven dashboard modules, deterministic-only calculators).
+# Phase 2B — Wise Patient Experience Platform
+Status: **Architecture-freeze pass approved in principle (Version 2.0,
+2026-07-06). Implementation not yet authorized.** This entry originally
+named only "Personal Care Plan" (per docs/32 Part 2's recommendation),
+then briefly "Personal Care Plan, Module Engine & Personalized
+Check-ins" after the first architecture-freeze pass (2026-07-04). Review
+feedback (2026-07-06) reframed it again: Phase 2B is the **Wise Patient
+Experience Platform** — Personal Care Plan, Personalized Daily
+Check-ins, and the Calculator Framework are capabilities this platform
+delivers, not the phase's identity by itself.
+
+**Three core architectural pillars** carry this phase, per docs/44 §4:
+**Doctor-Assigned Conditions** (which patient needs which capability),
+the **Module Engine** (exposing and enabling a capability per patient),
+and the **Calculator Framework** (the platform's first general-purpose,
+deterministic, doctor-authored computation pattern). Personalized Daily
+Check-ins (the designed successor to Symptom Tracker v1, coexisting with
+it before any retirement — docs/44 §10.1), Personal Care Plan, Patient
+Profile, a Template Engine, dashboard evolution, and per-patient feature
+enablement are built on top of these pillars, not alongside them as
+independent items.
+
+**Persistent authentication is achieved primarily through Trusted
+Devices**, with an optional secondary PIN, both rooted in Magic Link as
+the non-negotiable root of trust (ADR-014, which supersedes the
+password/PIN-primary design this entry originally referenced under
+ADR-011). This resolves what was this pass's highest-ranked risk
+(low-entropy-secret hashing on Google Apps Script, which has no
+bcrypt-equivalent) by making the primary mechanism a high-entropy,
+machine-generated device token instead.
+
+See docs/44-PHASE-2B-TECHNICAL-PLAN.md (Version 2.0) for the full design,
+docs/45-PHASE-2B-ARCHITECTURE-READINESS-REVIEW.md (Version 2.0) for the
+critique of every proposal and open questions, docs/46-PHASE-2B-
+REPOSITORY-CONSISTENCY-REVIEW.md (Version 2.0) for the consistency check,
+and ADR-012/013/014 for the current binding decisions (ADR-011 is
+superseded by ADR-014, kept on record per ADR-007).
 
 **Implementation has not begun and is not authorized by any of the above
-documents** — docs/44 §21 lists nine proposed batches (PCP-1 through
-PCP-9); each requires its own separate, explicit approval, per docs/43
-§12's Phase 2B gate. docs/45 Part 5 flags `PatientCredential` (batch
-PCP-4) as requiring a dedicated security review before it specifically
-can be approved, independent of the rest of the plan.
+documents** — docs/44 §22 lists ten proposed batches (PCP-1 through
+PCP-10), sequenced pillars-first; each requires its own separate,
+explicit approval, per docs/43 §12's Phase 2B gate. docs/45 Part 5 flags
+`PatientCredential` (secondary PIN, batch PCP-5) as requiring a dedicated
+security review before it specifically can be approved, independent of
+the rest of the plan. The Public (no-login) Calculator variant remains an
+unclaimed roadmap gap (docs/46 Part 3) — only the Patient variant is
+claimed by this phase.
 
 # Phase 2C — Health Milestones
 - Scheduled progress reviews (30/90 days, 6 months, 1 year, per docs/21)

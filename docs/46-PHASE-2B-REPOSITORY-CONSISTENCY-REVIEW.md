@@ -1,106 +1,106 @@
 # 46 - Phase 2B Repository Consistency Review
-## Version 1.0 — 2026-07-04
+## Version 2.0 — 2026-07-06
 
-> Scoped consistency review of this architecture-freeze pass's own output (docs/44,
-> docs/45, ADR-011/012/013, and the accompanying updates to docs/24, docs/31, docs/33)
-> against the full existing documentation set (docs/00 through docs/43, `/adr/ADR-001`
-> through `ADR-010`). Mirrors docs/34-ARCHITECTURE-CONSISTENCY-REVIEW.md's method,
-> applied to Phase 2B's scope specifically rather than re-reviewing Phase 2A. **This
-> document does not authorize any docs/44 §21 batch to begin.**
+> Scoped consistency review of this architecture-freeze pass's output — now docs/44
+> (Version 2.0), docs/45 (Version 2.0), ADR-012/013/014 (ADR-011 superseded), and the
+> accompanying updates to docs/24, docs/31, and docs/33 — against the full existing
+> documentation set. Mirrors docs/34-ARCHITECTURE-CONSISTENCY-REVIEW.md's method. **This
+> document does not authorize any docs/44 §22 batch to begin.**
+>
+> **What changed since Version 1.0:** the authentication mechanism (ADR-011 → ADR-014),
+> the pillar framing (Doctor-Assigned Conditions, Module Engine, Calculator Framework
+> now explicit pillars), and the batch names/count in docs/44 §22 (PCP-1…PCP-9 →
+> PCP-1…PCP-10, PIN split into its own batch). Parts 1, 3, and 4 below are substantively
+> unchanged from Version 1.0 with reference updates; Part 2 and Part 5 are re-checked
+> against the new authentication design specifically.
 
 ---
 
 # Part 1 — Duplication
 
 ## 1.1 No new duplication introduced between docs/44 and docs/33
-docs/44 §16 summarizes every new/promoted entity in a table but explicitly defers full
-entity description to docs/33 §6 (added by this same change) — following docs/34 §1.6's
-already-resolved pattern of docs/29 pointing at docs/33 as canonical for entity meaning.
-No entity's field list is stated fully in both places.
+Unchanged from Version 1.0: docs/44 §17 summarizes every new/promoted entity but defers
+full description to docs/33 §6.
 
-## 1.2 No new duplication between ADR-011 and docs/44 §4
-ADR-011 states the binding decision and its Consequences; docs/44 §4 describes the
-concrete data model (`PatientCredential`) and the open tuning questions the ADR
-deliberately leaves to implementation time. Same relationship pattern ADR-004/ADR-013
-already have with their respective technical-plan sections — decision vs. implementation
-detail, not restatement.
+## 1.2 No new duplication between the authentication ADRs and docs/44 §5
+ADR-014 states the binding decision and its Consequences; docs/44 §5 describes the
+concrete data models (`TrustedDevice`, `PatientCredential`) and the open tuning
+questions ADR-014 deliberately leaves to implementation time. Same decision-vs-detail
+relationship every other ADR/technical-plan-section pair in this repository already has.
+ADR-011 is not duplicated by ADR-014 — ADR-014 explicitly incorporates ADR-011's
+PIN-specific content by reference (§7) rather than restating it, and ADR-011 itself
+remains on record, marked Superseded, per ADR-007.
 
 ## 1.3 A forming duplication risk, same shape as docs/34 §1.6, one level deeper
-docs/44 §8 (Template Engine) and docs/44 §9 (Daily Check-ins) both describe
-`CheckInTemplate`/`CheckInResponse` — necessarily, since one is the mechanism and the
-other is its first real consumer. Not a duplication risk today (§9 explicitly
-cross-references §8 rather than restating field definitions), but worth naming as the
-same pattern to watch that docs/34 §1.6 first flagged for docs/29/docs/33 — noted here
-so a future Calculator-Framework-style second consumer of Template Engine (if one is
-ever proposed) is checked against this cross-reference discipline, not a fresh
-restatement.
+Unchanged from Version 1.0: docs/44 §11 (Template Engine) and §10 (Daily Check-ins) both
+describe `CheckInTemplate`/`CheckInResponse`, necessarily — §10 cross-references §11
+rather than restating field definitions.
 
 ---
 
 # Part 2 — Contradictions
 
-## 2.1 ADR-003 vs. persistent authentication
-Already resolved by formal amendment, not a live contradiction — see docs/45 Part 2.1
-and ADR-011 itself. Recorded here for completeness, not as an open item.
+## 2.1 ADR-003 vs. persistent authentication — re-checked against ADR-014
+Already resolved by formal amendment. ADR-003's status note (updated in this change)
+now points to ADR-014 as the current governing amendment and correctly notes ADR-011's
+supersession rather than leaving a stale pointer to a superseded record. Checked
+directly: ADR-003's file, ADR-011's file, ADR-014's file, and docs/31-ADR-INDEX.md all
+agree on the current state (ADR-014 governs; ADR-011 is historical). No stale
+cross-reference found.
 
 ## 2.2 ADR-006's literal wording vs. Template Engine/Calculator's JSON-encoded columns
-Already addressed as a disclosed, reasoned exception rather than a silent violation —
-see docs/44 §8.2 and docs/45 Part 1.5/Part 2.2. Recorded here as a **live, unresolved
-open question about which of two valid readings of ADR-006 should govern going
-forward** (literal column-flatness vs. migration-safety-in-spirit) — not a
-contradiction between two documents, but a genuine ambiguity in how far ADR-006's
-existing wording stretches. **Recommendation: if Option B (docs/44 §8.2) is confirmed,
-consider a short clarifying addition to ADR-006 itself (via the standard "note added,
-original text preserved" pattern ADR-003 uses in this same change) stating that a
-bounded, size-checked, single JSON column is an acceptable flat-column citizen when the
-alternative is a fixed superset of meaningless generic columns.** Not done in this
-change — flagged as a follow-up documentation task contingent on Part 2.2's design fork
-actually being settled the way docs/44 recommends.
+Unchanged from Version 1.0 — a live, unresolved open question about which of two valid
+readings of ADR-006 should govern going forward, not a contradiction between documents.
+The Version 1.0 recommendation (a short clarifying addition to ADR-006 itself, via the
+same "note added, original text preserved" pattern used for ADR-003) remains open and
+contingent on docs/44 §11.2 Option B actually being confirmed.
 
-## 2.3 No contradiction found with docs/09, docs/20, docs/21, docs/22, docs/23, docs/32
-Checked explicitly: docs/09's original Personal Care Plan description ("current goals,
-medicines, lifestyle guidance, doctor instructions, next review") is fully preserved by
-docs/44 §11's `CarePlan`/`DoctorInstruction` model, not contradicted. docs/23's
-lifecycle-stage ordering question is addressed in docs/45 Part 2.4 as a non-conflict.
-docs/32 Part 2's original Care Plan recommendation is the direct ancestor of this
-document set, not in tension with it.
+## 2.3 No new contradiction introduced by the pillar reframing or docs/24's update
+Checked explicitly: docs/24's new Phase 2B entry ("Patient Experience Platform") does
+not contradict docs/21's product vision (Personal Care Plan's original description is
+preserved verbatim in intent, per docs/44 §12) or docs/32 Part 2's original
+recommendation that Care Plan become its own phase — the phase is broader than
+originally scoped, not different in kind, and this is stated explicitly in docs/44's
+"What Changed in Version 2.0" notice and docs/24's own text rather than silently
+substituted.
+
+## 2.4 No contradiction found with docs/09, docs/20, docs/21, docs/22, docs/23, docs/32
+Unchanged from Version 1.0 — re-confirmed, no new tension introduced by the Version 2.0
+revisions.
 
 ---
 
-# Part 3 — Roadmap Gaps
+# Part 3 — Roadmap Gaps (Unchanged from Version 1.0)
 
-Carried forward from docs/34 Part 3, status updated where this plan touches them:
+| Entity | Status |
+|---|---|
+| **Calculator** | Patient variant now claimed by Phase 2B (Pillar 3, docs/44 §8). Public/no-login variant remains explicitly unclaimed. |
+| **Appointment** | Still unassigned. Not touched by this plan. |
+| **Doctor** | Still no authenticated identity entity. Unaffected by the authentication redesign — `TrustedDevice`/`PatientCredential` are patient-side mechanisms, not staff/doctor identity. |
+| **Notification** | Unaffected — no third independent notification flow introduced. |
+| **Knowledge Engine retrieval** | Unaffected — this plan introduces no new AI grounding requirement. |
 
-| Entity | docs/34 status | Status after this review |
-|---|---|---|
-| **Calculator** (docs/33 §5.3) | "No phase claims it at all" | Patient variant now claimed by Phase 2B (docs/44 §10). **Public/no-login variant remains unclaimed** — docs/24's update names this explicitly rather than letting the roadmap read as fully resolved. |
-| **Appointment** (docs/33 §4.1) | Unassigned, strongest near-term candidate | Still unassigned. Not touched by this plan (docs/44 §2.2) — correctly deferred, not silently dropped a second time. |
-| **Doctor** (docs/33 §1.4) | No authenticated identity entity | Still not addressed. Phase 2B introduces `prescribed_by`/`assigned_by`/`created_by` fields (docs/44 §6.1, §11.1) that continue the existing free-text-staff-identifier convention rather than resolving this gap — consistent with docs/34's own assessment that this becomes relevant "once per-doctor audit granularity or RBAC matters (plausibly Phase 3/WiseOS)," not before. |
-| **Notification** (docs/33 §4.2) | Two independent ad hoc flows, not yet a shared entity | Unaffected — no third independent notification flow introduced by this plan (docs/45 Part 4 confirms). |
-| **Knowledge Engine retrieval** (docs/33 §5.2) | No real implementation, needed before Phase 2D | Unaffected — this plan introduces no new AI grounding requirement (docs/44 §14 confirms zero new AI integration). |
-
-**New gap surfaced by this pass:** none. Every new entity in docs/44 §16 has an explicit
-phase owner (Phase 2B) as of this document — unlike Calculator's prior "claimed by
-nobody" state.
+**No new gap surfaced by Version 2.0's changes.** The authentication redesign and
+pillar elevation are internal restructurings of already-claimed Phase 2B scope, not new
+roadmap territory.
 
 ---
 
-# Part 4 — Recommended Simplifications
+# Part 4 — Recommended Simplifications (Unchanged from Version 1.0, Renumbered)
 
-1. **Settle docs/44 §6.2's Option A/B before PCP-1**, per docs/45 Part 1.3/5 — the
-   single highest-value "decide now, not later" item, since reversing it after PCP-1
-   ships is materially more expensive than reversing most other open questions in this
-   plan.
+1. **Settle docs/44 §6.2's Option A/B before PCP-1** — unchanged, highest-value
+   "decide now" item, now more consequential given Pillar 1's central role.
 2. **Confirm or reconsider the Template Engine's JSON-encoded-column approach before
-   PCP-5**, per docs/45 Part 1.5 and Part 2.2 above — the second highest-value
-   "decide now" item, since it sets precedent for every future variable-shape entity.
+   PCP-7** (renumbered from PCP-5 in Version 1.0) — unchanged, now docs/45's top-ranked
+   risk.
 3. **Do not attempt to migrate Timeline/Symptom Tracker/Reports onto the Module
-   Registry as part of this scope** — ADR-012 already defers this deliberately;
-   repeating it here only to confirm no reviewer should treat it as an accidental
-   omission.
-4. **Keep the Public Calculator variant explicitly named as unclaimed** in docs/24
-   going forward, the same way Appointment and Notification are already named as
-   explicit, tracked gaps rather than silent absences.
+   Registry as part of this scope** — unchanged.
+4. **Keep the Public Calculator variant explicitly named as unclaimed** in docs/24 —
+   unchanged.
+5. **New in Version 2.0: scope a minimal "manage my devices" view into PCP-4** rather
+   than treating Trusted Device revocability as a backend-only capability with no
+   patient-facing visibility (docs/45 Part 1.1) — a real, low-cost addition to the
+   batch's own scope, not a separate future item.
 
 ---
 
@@ -108,38 +108,41 @@ nobody" state.
 
 ## Is the documentation set internally consistent enough for docs/44's batches to be considered for approval?
 
-**Yes, with the two settlement items in Part 4 (#1, #2) resolved first — the same
-conditional shape docs/34 Part 5 gave Phase 2A before Batch 5A.** No contradiction was
-found that this pass introduced and left unresolved; the one genuine open ambiguity
-(ADR-006's exact reach, Part 2.2) is disclosed, not hidden, and does not block PCP-1 or
-PCP-2 specifically, only the batches that depend on the Template Engine design (PCP-5
-onward, per docs/45 Part 5).
+**Yes, with the same two settlement items as Version 1.0 (Part 4 #1, #2) resolved
+first, plus Version 2.0's new #5.** No contradiction was found that this revision pass
+introduced and left unresolved. The authentication redesign (ADR-011 → ADR-014) is a
+clean, correctly-executed supersession — checked directly against ADR-007's
+requirements (new record created, old record marked and preserved, index updated in the
+same change) and found compliant.
 
 ## What should happen before PCP-1 specifically
-Nothing beyond what docs/45 Part 5 already states — Part 4 item #1 above (settle
-Option A/B) is PCP-1's own subject matter, not a precondition external to it.
+Unchanged: settle Option A/B (Part 4 #1) — PCP-1's own subject matter.
 
-## What should happen before PCP-5 specifically
-Part 4 item #2 above (settle the Template Engine column approach) — see docs/45 Part
-1.5/5.
+## What should happen before PCP-4 specifically (new in Version 2.0)
+Scope the minimal device-management view into the batch (Part 4 #5) rather than
+discovering the gap mid-implementation.
+
+## What should happen before PCP-7 specifically
+Settle the Template Engine column approach (Part 4 #2) — unchanged from Version 1.0's
+PCP-5, renumbered.
 
 ## What does not need to happen before any Phase 2B batch begins
-Resolving Appointment, Doctor, Notification, or Knowledge Engine retrieval (Part 3) —
-none are dependencies of anything in docs/44 §21. Migrating existing Phase 2A dashboard
-cards onto the Module Registry — ADR-012 defers this by design.
+Resolving Appointment, Doctor, Notification, or Knowledge Engine retrieval. Migrating
+existing Phase 2A dashboard cards onto the Module Registry. Deciding the Public
+Calculator variant. All unchanged from Version 1.0.
 
-## Remaining risks (unchanged from docs/45, not newly introduced here)
-Persistent-credential hashing on Apps Script (docs/45 Part 3 item 1) remains this
-pass's single most significant risk and is not resolved by documentation review alone —
-it requires the dedicated security review named there, independent of this document.
+## Remaining risks (re-ranked in docs/45 Version 2.0, not newly introduced here)
+The Template Engine's column representation is now this pass's top-ranked open risk,
+having moved up now that persistent-credential hashing dropped in severity following
+the Trusted-Device redesign (docs/45 Part 3).
 
 ## Statement
-This document, together with docs/44 (Phase 2B Technical Plan), docs/45 (Phase 2B
-Architecture Readiness Review), ADR-011, ADR-012, ADR-013, and the accompanying updates
-to docs/24, docs/31, and docs/33, represents the complete, cross-checked
-architecture-freeze pass for the Phase 2B scope requested. No further
+This document (Version 2.0), together with docs/44 (Version 2.0), docs/45 (Version
+2.0), ADR-012, ADR-013, ADR-014 (ADR-011 superseded), and the accompanying updates to
+docs/24, docs/31, and docs/33, represents the complete, cross-checked
+architecture-freeze pass reflecting the approved-in-principle direction. No further
 architecture-freeze work is identified as necessary before an approving reviewer
-considers docs/44 §21's batches individually.
+considers docs/44 §22's batches individually.
 
 **This document does not itself authorize PCP-1, or any other batch, to begin.** Per
 this session's explicit instruction, implementation starts only on separate, explicit

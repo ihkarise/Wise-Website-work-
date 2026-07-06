@@ -8,6 +8,55 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-06 — Phase 2B Architecture Revision Pass (documentation only, no code)
+
+The architecture documents from 2026-07-04 were approved in principle, with four
+required revisions before PCP-1 could be considered. **No production code was written
+or modified.**
+
+### Changed
+- `docs/44-PHASE-2B-TECHNICAL-PLAN.md` bumped to Version 2.0: reframed the phase's
+  vision from "Personal Care Plan" to the broader **Wise Patient Experience Platform**;
+  elevated Doctor-Assigned Conditions, the Module Engine, and the Calculator Framework
+  to named core architectural pillars, with every other capability (Daily Check-ins,
+  Care Plan, Dashboard evolution) explicitly described as a consumer of one or more
+  pillars; fully revised the persistent-authentication design from PIN-primary to
+  **Trusted-Device-primary** (optional PIN retained as a secondary factor, Magic Link
+  named as the root of trust for both); re-sequenced the implementation batches
+  (PCP-1 through PCP-10) pillars-first.
+- `docs/45-PHASE-2B-ARCHITECTURE-READINESS-REVIEW.md` bumped to Version 2.0: re-did the
+  authentication critique and risk ranking from scratch (the Template Engine's
+  JSON-encoded-column design is now this pass's top-ranked open risk, having moved up
+  now that the persistent-credential hashing risk dropped following the Trusted-Device
+  redesign).
+- `docs/46-PHASE-2B-REPOSITORY-CONSISTENCY-REVIEW.md` bumped to Version 2.0: re-checked
+  the ADR-011→ADR-014 supersession for correctness against ADR-007's requirements
+  (compliant); no new contradiction or roadmap gap introduced by the revision.
+- `docs/24-ROADMAP.md` — Phase 2B entry reframed as "Wise Patient Experience Platform,"
+  naming the three pillars and the revised authentication strategy.
+- `docs/33-DOMAIN-MODEL.md` §6 — added `Trusted Device` as the primary persistent-auth
+  entity; reframed `Patient Credential` as secondary; marked Condition Assignment,
+  Module Registry/Patient Module State, and Calculator as Pillars 1–3; updated all
+  docs/44 section/batch cross-references to Version 2.0's numbering.
+- `docs/31-ADR-INDEX.md` — added ADR-014; marked ADR-011 Superseded.
+
+### Added
+- `/adr/ADR-014-trusted-device-persistent-login.md` — supersedes ADR-011. Persistent
+  login is achieved primarily through a high-entropy, machine-generated Trusted Device
+  token (reusing `LoginToken`'s already-proven hashing pattern, avoiding the need for
+  any new cryptographic bridge), with an optional secondary PIN, both rooted in Magic
+  Link.
+
+### Notes
+- `/adr/ADR-011-persistent-credential-as-additional-factor.md` is retained in full as
+  historical record, per ADR-007's never-silently-edit rule — marked Superseded, its
+  original decision text unchanged, its PIN-specific design retained by reference in
+  ADR-014 for the now-secondary PIN mechanism.
+- `/adr/ADR-003-passwordless-authentication-by-default.md`'s status note updated to
+  point at ADR-014 as the current governing amendment.
+- Static Analysis, Conformance, and Phase 1.5 Regression suites were re-run after this
+  batch and are unaffected, since no `apps-script/*.gs` or `shared/*` file was touched.
+
 ## 2026-07-04 — Phase 2B Architecture-Freeze Pass (documentation only, no code)
 
 Produced the architecture-freeze pass docs/24/docs/32/docs/43 all required before any
