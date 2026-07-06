@@ -1,5 +1,5 @@
 # 33 - Domain Model
-## Version 1.3 — 2026-07-08
+## Version 1.4 — 2026-07-09
 
 > Defines every major business entity in the Wise Platform: what it means, what it
 > holds, how it relates to everything else, how it comes into being and ends, who is
@@ -291,7 +291,7 @@ docs/44-PHASE-2B-TECHNICAL-PLAN.md §12 formalizes this entity's exact attribute
 `content`, `prescribed_by`, `effective_date`, `status`) and confirms the
 Prescription-is-a-`medicine`-type-instruction mapping this section already anticipated.
 A consumer of Doctor Assigned Condition (Pillar 1) and Module Engine (Pillar 2), per
-docs/44 §4.2. Not yet implemented — see docs/44 §22's `PCP-7` batch.
+docs/44 §4.2. Not yet implemented — see docs/44 §22's `PXP-7` batch.
 
 ---
 
@@ -467,7 +467,7 @@ architecture-freeze pass is docs/44 (§12), which formalizes `care_plan_id`,
 `created_by`, `created_at`, and confirms the versioning instinct this section already
 named. Doctor-authored/patient-viewable ownership (below) is unchanged. A consumer of
 Doctor Assigned Condition (Pillar 1) and Module Engine (Pillar 2), per docs/44 §4.2.
-Not yet implemented — see docs/44 §22's `PCP-7` batch.
+Not yet implemented — see docs/44 §22's `PXP-7` batch.
 
 ---
 
@@ -648,11 +648,11 @@ doctor-authored computation pattern exposed through its own **Calculator Registr
 `CalculatorDefinition` and `CalculatorResult` attributes are formalized in docs/44
 §8.2, matching this section's own conceptual shape. **The Public (no-login) variant
 remains unclaimed** — docs/44 §2.2 explicitly excludes it; docs/46 Part 3 carries this
-forward as a still-open gap. Not yet implemented — see docs/44 §22's `PCP-6` batch.
+forward as a still-open gap. Not yet implemented — see docs/44 §22's `PXP-6` batch.
 
 ---
 
-# 6. Phase 2B Entities — *Designed, not yet implemented (docs/44-PHASE-2B-TECHNICAL-PLAN.md, Version 3.0)*
+# 6. Phase 2B Entities — *Designed, not yet implemented (docs/44-PHASE-2B-TECHNICAL-PLAN.md, Version 4.0)*
 
 Net-new entities that did not exist even conceptually in this document before Phase 2B's
 architecture-freeze pass. Doctor Instruction (§2.3), Care Plan (§3.4), and Calculator
@@ -664,6 +664,11 @@ entity's purpose and relationships, at the same fidelity the rest of this docume
 Long-Lived Session mechanism (ADR-015, supersedes ADR-014, which superseded ADR-011);
 Module Engine's dashboard migration is now committed for every card, not deferred
 (ADR-012, amended); a Calculator Registry was added alongside the Module Registry.
+**Updated 2026-07-09** for docs/44 Version 4.0 (documentation-only architecture-freeze
+finalization, no entity's shape changed): implementation batches renamed PCP-1…PCP-11
+→ PXP-1…PXP-11 throughout this section and the Summary Table below; a Template
+Registry entity added (§6.7, new ADR-016), generalizing Check-In Template (§6.5) into
+its first concrete category.
 
 ## 6.1 Patient Profile
 **Purpose:** Patient-editable structured contact/personal data (phone, date of birth,
@@ -747,6 +752,28 @@ explicit constraint per ADR-015, not merely a current-state description.
 alongside — never replacing — Session/LoginToken (§1.2/§1.3). **Full detail:** docs/44
 §5, ADR-015 (governing), ADR-014 and ADR-011 (both superseded, retained by reference).
 
+## 6.7 Template Registry — *New in Version 4.0, generalizes Check-In Template (§6.5)*
+**Purpose:** A config-level registry of template descriptors (mirroring Module
+Registry §6.3 and Calculator Registry §6.4) from which any patient-facing form or
+questionnaire is generated, never hardcoded per form. Governed by **new ADR-016**,
+which complements ADR-012 rather than amending or superseding it — Module Registry
+governs which *capability* a patient sees; Template Registry governs the *shape* of a
+form or questionnaire a capability renders once exposed. **`CheckInTemplate` (§6.5) is
+this registry's first concrete category, not a separate mechanism** — the same
+versioning (`template_id`/`version`), activation (`status`: active/retired), and
+doctor-assignment discipline §6.5 already describes for Check-in templates applies
+uniformly to any future category. **Named future categories, reserved and unscoped —
+not designed, batched, or authorized by this document:** Weekly Check-in, Monthly
+Review, Condition Review, Lifestyle Questionnaire, Follow-up Questionnaire, and
+Doctor-created Templates (a template *authored by* a doctor, never one *configured by*
+a patient — the same "doctors decide" rule as every other Phase 2B capability).
+**AI-readiness (reserved, not implemented):** every template descriptor reserves an
+extension-point field for future AI-compatibility metadata; no AI behavior exists
+today, and any eventual use remains gated by the full ADR-001/004/005 pattern.
+**Relationships:** `CheckInTemplate`/`CheckInResponse` (§6.5) are this registry's first
+instantiated category; any future category would follow the same relationship shape.
+**Full detail:** docs/44 §11/§11.5, ADR-016.
+
 ---
 
 # Summary Table
@@ -759,25 +786,26 @@ alongside — never replacing — Session/LoginToken (§1.2/§1.3). **Full detai
 | Doctor | Conceptual (gap) | Unassigned |
 | Consultation | Conceptual | Unassigned |
 | Consultation Summary | Implemented | Phase 1.5 |
-| Doctor Instruction | Designed, not yet implemented | 2B (docs/44 §12, batch PCP-7) |
+| Doctor Instruction | Designed, not yet implemented | 2B (docs/44 §12, batch PXP-7) |
 | AI Summary | Conceptual (pattern) | Instantiated by Phase 1.5, 2D |
 | Timeline Event | Implemented | 2A (Batch PA-3, one entry_type) |
-| Symptom Log | Implemented | 2A (Batch PA-4) — Phase 2B coexists with, later retires (docs/44 §10.1, §22 batch PCP-10) |
+| Symptom Log | Implemented | 2A (Batch PA-4) — Phase 2B coexists with, later retires (docs/44 §10.1, §22 batch PXP-10) |
 | Report | Implemented | 2A (Batch PA-5) |
-| Care Plan | Designed, not yet implemented | 2B (docs/44 §12, batch PCP-7) |
+| Care Plan | Designed, not yet implemented | 2B (docs/44 §12, batch PXP-7) |
 | Digital Twin | Conceptual (view) | Recommended 2D — future consumer of Timeline, Reports, Check-ins, Care Plans, Calculators (docs/44 §16), not tightly coupled to Phase 2B |
 | Appointment | Conceptual (gap) | Unassigned |
 | Notification | Conceptual (gap) | Unassigned |
 | Knowledge Article | Conceptual | Unassigned |
 | Knowledge Engine | Conceptual (system) | Unassigned |
-| Calculator | Designed, not yet implemented — Patient variant only — **Pillar 3** | 2B (docs/44 §8, batch PCP-6, Calculator Registry). Public variant still unassigned — roadmap gap carried forward (docs/46 Part 3). |
-| Patient Profile | Designed, not yet implemented | 2B (docs/44 §17, batch PCP-1 — recommended first batch, infrastructure-first order) |
-| Doctor Assigned Condition | Designed, not yet implemented — **Pillar 1** | 2B (docs/44 §6, batch PCP-2). Renamed from "Condition Assignment"; Option B (additive) settled and approved. |
-| Module Registry / Patient Module State | Designed, not yet implemented — **Pillar 2** | 2B (docs/44 §7, batch PCP-3 backend + PCP-4 Dashboard Registry frontend migration, now covering every dashboard card) |
-| Check-In Template / Check-In Response | Designed, not yet implemented | 2B (docs/44 §11/§10, batch PCP-5). Template assignment settled: doctor-driven, patient never configures. |
-| Trusted Device | Designed, not yet implemented | 2B (docs/44 §5, ADR-015, batch PCP-8) |
-| Long-Lived Session | Designed, not yet implemented (new in Version 3.0) | 2B (docs/44 §5, ADR-015, batch PCP-8) — the extended access window issued when a Trusted Device is presented; not a stored entity of its own, a parameterization of the existing Session mechanism |
-| Patient Credential (optional, convenience-only) | Designed, not yet implemented | 2B (docs/44 §5, ADR-015 governing (ADR-011/ADR-014 superseded), batch PCP-8 — PIN sub-batch requires dedicated security review first, docs/45 Part 3) |
+| Calculator | Designed, not yet implemented — Patient variant only — **Pillar 3** | 2B (docs/44 §8, batch PXP-6, Calculator Registry). Public variant still unassigned — roadmap gap carried forward (docs/46 Part 3). |
+| Patient Profile | Designed, not yet implemented | 2B (docs/44 §17, batch PXP-1 — recommended first batch, infrastructure-first order) |
+| Doctor Assigned Condition | Designed, not yet implemented — **Pillar 1** | 2B (docs/44 §6, batch PXP-2). Renamed from "Condition Assignment"; Option B (additive) settled and approved. |
+| Module Registry / Patient Module State | Designed, not yet implemented — **Pillar 2** | 2B (docs/44 §7, batch PXP-3 backend + PXP-4 Dashboard Registry frontend migration, now covering every dashboard card) |
+| Template Registry | Designed, not yet implemented (new in Version 4.0) | 2B (docs/44 §11/§11.5, ADR-016, batch PXP-5 for its first category). Generalizes Check-In Template into a registry pattern; six future categories named, unscoped, unclaimed by any batch. |
+| Check-In Template / Check-In Response | Designed, not yet implemented | 2B (docs/44 §11/§10, batch PXP-5). Template assignment settled: doctor-driven, patient never configures. Now the Template Registry's first concrete category (§6.7). |
+| Trusted Device | Designed, not yet implemented | 2B (docs/44 §5, ADR-015, batch PXP-8) |
+| Long-Lived Session | Designed, not yet implemented (new in Version 3.0) | 2B (docs/44 §5, ADR-015, batch PXP-8) — the extended access window issued when a Trusted Device is presented; not a stored entity of its own, a parameterization of the existing Session mechanism |
+| Patient Credential (optional, convenience-only) | Designed, not yet implemented | 2B (docs/44 §5, ADR-015 governing (ADR-011/ADR-014 superseded), batch PXP-8 — PIN sub-batch requires dedicated security review first, docs/45 Part 3) |
 
 Every "Unassigned" row above is carried into docs/34-ARCHITECTURE-CONSISTENCY-REVIEW.md
 as a reported gap, not silently resolved by assigning it a phase here.

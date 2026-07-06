@@ -1,5 +1,5 @@
 # 31 - Architectural Decision Record Index
-## Version 1.3 — 2026-07-08
+## Version 1.4 — 2026-07-09
 
 > This is the canonical index of every Architectural Decision Record (ADR) for the
 > Wise Platform. Full records live in `/adr/`. This index is the entry point — check
@@ -48,6 +48,7 @@ deprecates any ADR.
 | ADR-013 | Calculators Are Deterministic and Never AI-Generated | Accepted | `/adr/ADR-013-calculators-are-deterministic-never-ai-generated.md` |
 | ADR-014 | Persistent Login Is Achieved Primarily Through Trusted Devices; Magic Link Is the Root of Trust | Superseded by ADR-015 | `/adr/ADR-014-trusted-device-persistent-login.md` |
 | ADR-015 | Persistent Login Adds a Long-Lived Session Alongside Trusted Device; Passwordless-by-Default Is Reaffirmed as Non-Negotiable | Accepted — supersedes ADR-014, amends ADR-003 | `/adr/ADR-015-long-lived-session-and-passwordless-reaffirmation.md` |
+| ADR-016 | Patient-Facing Forms and Questionnaires Are Generated From a Template Registry | Accepted — complements ADR-012, does not amend or supersede it | `/adr/ADR-016-template-registry.md` |
 
 ---
 
@@ -56,7 +57,7 @@ deprecates any ADR.
 **Identity & Access** — ADR-002, ADR-003, ADR-010, ADR-015 (ADR-011, ADR-014 superseded)
 **AI & Clinical Authority** — ADR-001, ADR-004, ADR-005, ADR-013
 **Data & Storage** — ADR-002, ADR-006
-**Modularity & Delivery** — ADR-008, ADR-009, ADR-012
+**Modularity & Delivery** — ADR-008, ADR-009, ADR-012, ADR-016
 **Governance & Documentation** — ADR-007
 
 ---
@@ -70,8 +71,8 @@ deprecates any ADR.
   this ADR set — every architecture choice in it cites the ADR that governs it.
 - `docs/32-ARCHITECTURE-REVIEW.md` records where existing pre-ADR documentation
   conflicts with these decisions, and what should change to resolve each conflict.
-- `docs/44-PHASE-2B-TECHNICAL-PLAN.md` (Version 3.0) is the first implementation plan
-  built against ADR-012/013/015 — see it for how each is applied. It was originally
+- `docs/44-PHASE-2B-TECHNICAL-PLAN.md` (Version 4.0) is the first implementation plan
+  built against ADR-012/013/015/016 — see it for how each is applied. It was originally
   built against ADR-011, then ADR-014, both now superseded by ADR-015.
 
 ---
