@@ -1,5 +1,5 @@
 # 24 - Wise Product Roadmap
-## Version 1.4 — 2026-07-09
+## Version 1.5 — 2026-07-09
 
 # Phase 1 — Public Website
 Status: In Progress
@@ -229,9 +229,13 @@ additive mechanism.
 See docs/44-PHASE-2B-TECHNICAL-PLAN.md (Version 4.0) for the full design,
 docs/45-PHASE-2B-ARCHITECTURE-READINESS-REVIEW.md (Version 4.0) for the
 critique of every proposal, docs/46-PHASE-2B-REPOSITORY-CONSISTENCY-
-REVIEW.md (Version 4.0) for the consistency check, and ADR-012 (amended),
+REVIEW.md (Version 4.0) for the consistency check, ADR-012 (amended),
 ADR-013 (confirmed), ADR-015 (current authentication ADR), and ADR-016
-(Template Registry, new) for the binding decisions.
+(Template Registry, new) for the binding decisions, and
+**docs/47-PHASE-2B-IMPLEMENTATION-RULES.md** for the permanent per-batch
+implementation standard (registry rules, entity rules, validation/
+documentation/git rules, and the mandatory three-phase batch workflow)
+every batch from PXP-1 onward must follow.
 
 **Implementation has not begun and is not authorized by any of the above
 documents.** docs/44 §22 now sequences **infrastructure before

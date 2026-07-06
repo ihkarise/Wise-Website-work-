@@ -8,6 +8,33 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-09 — Phase 2B Implementation Rules (documentation only, no code)
+
+A new governance document establishes the permanent implementation standard every
+remaining Phase 2B batch (PXP-1 through PXP-11) must follow, ahead of any batch
+approval. **No implementation began; no production code was written or modified.**
+
+### Added
+- `docs/47-PHASE-2B-IMPLEMENTATION-RULES.md` (new) — reaffirms registry-driven
+  architecture, configuration-over-hardcoding, doctor-configures/patient-consumes,
+  passwordless-by-default, Magic Link as root of trust, and AI-extension-points-only as
+  binding principles for every batch; states explicit "never hardcode" rules (diseases,
+  dashboard cards, calculators, questionnaires, check-ins, care plans); defines
+  per-entity requirements (schema, Apps Script module, documentation, browser tests,
+  conformance tests, validation, CHANGELOG entry, consistency review); states coding,
+  validation, documentation, and git rules; defines Definition of Done, Definition of
+  Freeze, the mandatory three-phase (Implement → Validate → Close) batch workflow, and
+  repository-consistency and release-discipline rules covering every future batch.
+
+### Changed
+- `docs/24-ROADMAP.md` bumped to Version 1.5 — Phase 2B entry now references
+  docs/47 as the permanent per-batch implementation standard.
+
+### Verified
+- Static Analysis, Conformance (152 checks), and Phase 1.5 Regression (42/42) re-run
+  clean after this documentation-only change. Browser test suites were not re-run
+  (no production code changed).
+
 ## 2026-07-09 — Phase 2B Architecture Freeze Finalization (documentation only, no code)
 
 A fourth, documentation-only pass finalizes the Phase 2B architecture freeze ahead of
