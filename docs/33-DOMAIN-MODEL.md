@@ -1,5 +1,5 @@
 # 33 - Domain Model
-## Version 1.4 — 2026-07-09
+## Version 1.5 — 2026-07-09
 
 > Defines every major business entity in the Wise Platform: what it means, what it
 > holds, how it relates to everything else, how it comes into being and ends, who is
@@ -670,12 +670,26 @@ finalization, no entity's shape changed): implementation batches renamed PCP-1�
 Registry entity added (§6.7, new ADR-016), generalizing Check-In Template (§6.5) into
 its first concrete category.
 
-## 6.1 Patient Profile
+## 6.1 Patient Profile — *Implemented (Batch PXP-1)*
 **Purpose:** Patient-editable structured contact/personal data (phone, date of birth,
 preferred contact method, emergency contact), kept separate from the identity fields on
 Patient (§1.1) so the frozen, conformance-tested `patient-identity.schema.json` is never
 widened. The platform's first entity a patient edits directly, rather than only reads or
-appends to. **Relationships:** 1:1 with Patient. **Full detail:** docs/44 §17.
+appends to — and its first upsert-style (create-or-update) entity, unlike every prior
+entity's create-and-list-only lifecycle. **Relationships:** 1:1 with Patient. **Full
+detail:** docs/44 §17, shared/schemas/patient-profile.schema.json,
+shared/schemas/patient-profile.md.
+
+**Status update (this change):** Implemented. `apps-script/FoundationPatientProfile.gs`
+backs `get_patient_profile`/`save_patient_profile` (`FoundationRouter.gs`), and
+`my-health-journey/profile/` is the patient-facing view/edit page, linked from one
+disclosed addition to the dashboard header (`#profileLink`). docs/45 Version 4.0's two
+open lifecycle questions (eager-vs-lazy creation, `Patient.status` gating) are resolved:
+lazy creation (no row exists until the first save; a never-saved profile returns a real,
+default-shaped record, never `FOUNDATION_NOT_FOUND`) and no status-based gating (profile
+view/edit works regardless of active/inactive/recovered, matching every other existing
+patient-facing feature). No dashboard card was added in this batch — see
+shared/schemas/patient-profile.md's disclosed scope boundary.
 
 ## 6.2 Doctor Assigned Condition — *Pillar 1* (renamed from "Condition Assignment")
 **Purpose:** A doctor-authored record of which condition(s) are currently active for a
@@ -798,7 +812,7 @@ instantiated category; any future category would follow the same relationship sh
 | Knowledge Article | Conceptual | Unassigned |
 | Knowledge Engine | Conceptual (system) | Unassigned |
 | Calculator | Designed, not yet implemented — Patient variant only — **Pillar 3** | 2B (docs/44 §8, batch PXP-6, Calculator Registry). Public variant still unassigned — roadmap gap carried forward (docs/46 Part 3). |
-| Patient Profile | Designed, not yet implemented | 2B (docs/44 §17, batch PXP-1 — recommended first batch, infrastructure-first order) |
+| Patient Profile | **Implemented** | 2B (docs/44 §17, batch PXP-1 — shipped, the platform's first upsert-style entity) |
 | Doctor Assigned Condition | Designed, not yet implemented — **Pillar 1** | 2B (docs/44 §6, batch PXP-2). Renamed from "Condition Assignment"; Option B (additive) settled and approved. |
 | Module Registry / Patient Module State | Designed, not yet implemented — **Pillar 2** | 2B (docs/44 §7, batch PXP-3 backend + PXP-4 Dashboard Registry frontend migration, now covering every dashboard card) |
 | Template Registry | Designed, not yet implemented (new in Version 4.0) | 2B (docs/44 §11/§11.5, ADR-016, batch PXP-5 for its first category). Generalizes Check-In Template into a registry pattern; six future categories named, unscoped, unclaimed by any batch. |

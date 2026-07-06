@@ -1,5 +1,5 @@
 # 24 - Wise Product Roadmap
-## Version 1.4 — 2026-07-09
+## Version 1.6 — 2026-07-09
 
 # Phase 1 — Public Website
 Status: In Progress
@@ -174,7 +174,9 @@ moved to its own phase below. Batch-level sequencing (5A–5H): docs/29 §13.
 
 # Phase 2B — Wise Patient Experience Platform
 Status: **Architecture-freeze finalized (Version 4.0, 2026-07-09).
-Implementation not yet authorized.** This entry originally named only
+Implementation underway: Batch PXP-1 (Patient Profile) shipped 2026-07-09,
+approved as this phase's first batch per docs/47's per-batch gate.**
+This entry originally named only
 "Personal Care Plan" (per docs/32 Part 2's recommendation), then "Personal
 Care Plan, Module Engine & Personalized Check-ins" after the first
 architecture-freeze pass (2026-07-04), then reframed again (2026-07-06) as
@@ -226,28 +228,49 @@ remains fundamentally correct and unchanged for any patient who opts
 into neither additive mechanism. Magic Link is never replaced by any
 additive mechanism.
 
+**Batch PXP-1 (Patient Profile, docs/44 §17/§22)** — the recommended first
+batch, per docs/45 Version 4.0's readiness verdict — has now shipped:
+`PatientProfile` (`shared/schemas/patient-profile.schema.json`,
+`apps-script/FoundationPatientProfile.gs`, `get_patient_profile`/
+`save_patient_profile` dispatch cases) and the patient-facing
+`/my-health-journey/profile/` view/edit page. The platform's first
+patient-mutable, upsert-style entity — a single 1:1 row per patient,
+created lazily on first save rather than eagerly at patient creation, with
+no gating on `Patient.status` (resolving both open lifecycle questions
+docs/45 carried forward). Zero dependency on any other Phase 2B batch, zero
+modification to any frozen Foundation/Identity & Access/Patient Access
+file — one small, disclosed exception (`my-health-journey/index.html`'s
+new "My Profile" header link; no `dashboard.js` logic touched, no new
+dashboard card added in this batch).
+
 See docs/44-PHASE-2B-TECHNICAL-PLAN.md (Version 4.0) for the full design,
 docs/45-PHASE-2B-ARCHITECTURE-READINESS-REVIEW.md (Version 4.0) for the
 critique of every proposal, docs/46-PHASE-2B-REPOSITORY-CONSISTENCY-
-REVIEW.md (Version 4.0) for the consistency check, and ADR-012 (amended),
+REVIEW.md (Version 4.0) for the consistency check, ADR-012 (amended),
 ADR-013 (confirmed), ADR-015 (current authentication ADR), and ADR-016
-(Template Registry, new) for the binding decisions.
+(Template Registry, new) for the binding decisions, and
+**docs/47-PHASE-2B-IMPLEMENTATION-RULES.md** for the permanent per-batch
+implementation standard (registry rules, entity rules, validation/
+documentation/git rules, and the mandatory three-phase batch workflow)
+every batch from PXP-1 onward must follow.
 
-**Implementation has not begun and is not authorized by any of the above
-documents.** docs/44 §22 now sequences **infrastructure before
-features**: Patient Profile → Doctor-Assigned Conditions → Module
-Registry → Dashboard Registry → Daily Check-in Engine → Calculator
-Registry → Personal Care Plan → Trusted Device + Long-Lived Session +
-Optional PIN → a reserved, unscoped "AI Integration" placeholder — plus
-Symptom Tracker Migration and Closeout, eleven batches total (PXP-1
-through PXP-11 — renamed from PCP-1 through PCP-11 for platform-wide
-naming consistency, no scope change).
+**Implementation has begun with Batch PXP-1 (Patient Profile), explicitly
+approved and shipped; no other batch is authorized by any of the above
+documents.** docs/44 §22 sequences **infrastructure before features**:
+Patient Profile → Doctor-Assigned Conditions → Module Registry → Dashboard
+Registry → Daily Check-in Engine → Calculator Registry → Personal Care
+Plan → Trusted Device + Long-Lived Session + Optional PIN → a reserved,
+unscoped "AI Integration" placeholder — plus Symptom Tracker Migration and
+Closeout, eleven batches total (PXP-1 through PXP-11 — renamed from
+PCP-1 through PCP-11 for platform-wide naming consistency, no scope
+change).
 Digital Twin is explicitly **not** part of this sequence — it remains a
 later roadmap consumer of Timeline, Reports, Check-ins, Care Plans, and
 Calculators (Phase 2D), not tightly coupled to Phase 2B's implementation.
-Each batch requires its own separate, explicit approval, per docs/43
-§12's Phase 2B gate. docs/45 Part 5 flags the optional-PIN sub-batch
-(within PXP-8) as requiring a dedicated security review before it
+Each remaining batch requires its own separate, explicit approval, per
+docs/43 §12's Phase 2B gate — the same gate PXP-1 itself passed through
+before its implementation began. docs/45 Part 5 flags the optional-PIN
+sub-batch (within PXP-8) as requiring a dedicated security review before it
 specifically can be approved, independent of the rest of the plan. The
 Public (no-login) Calculator variant remains an unclaimed roadmap gap
 (docs/46 Part 3) — only the Patient variant is claimed by this phase.

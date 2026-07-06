@@ -49,6 +49,13 @@
  *     authorization boundary (docs/42-REPORTS-UPLOAD-READINESS-REVIEW.md
  *     §6) — this router never returns a Drive URL, only server-fetched,
  *     base64-encoded file bytes.
+ *   - get_patient_profile / save_patient_profile — Batch PXP-1 additions
+ *     (docs/44-PHASE-2B-TECHNICAL-PLAN.md §17/§22, docs/47), the platform's
+ *     first Phase 2B route and its first patient-*mutable*, upsert-style
+ *     entity. Both derive patient_id exclusively from the verified
+ *     session, exactly like every route above — save_patient_profile
+ *     reuses the same authorization primitive log_symptom/upload_report
+ *     already use, applied here to an update instead of an append.
  *
  * A disclosed, additive exception, same category as Code.gs's own
  * one-line dispatch shim (IA-2): this file was previously listed among
@@ -73,7 +80,7 @@
  *
  * Depends on FoundationContracts.gs, FoundationLoginFlow.gs,
  * FoundationRouteGuard.gs, PatientIdentity.gs, FoundationConsultationHistory.gs,
- * FoundationSymptomLog.gs, FoundationReports.gs.
+ * FoundationSymptomLog.gs, FoundationReports.gs, FoundationPatientProfile.gs.
  */
 
 /**
@@ -192,6 +199,39 @@ function foundationHandleDownloadReport_(input) {
 }
 
 /**
+ * Batch PXP-1: returns the caller's own PatientProfile record (or a
+ * default-shaped empty one, if none has ever been saved — the lazy-
+ * creation resolution, shared/schemas/patient-profile.md). patient_id is
+ * always session-derived, never client-supplied.
+ */
+function foundationHandleGetPatientProfile_(input) {
+  return withFoundationAuth_(input && input.session_token, function (patientId) {
+    return foundationGetPatientProfile_(patientId);
+  });
+}
+
+/**
+ * Batch PXP-1: creates or updates the caller's own PatientProfile record —
+ * the platform's first patient-mutable, upsert-style write. patient_id is
+ * always session-derived, never client-supplied — the same authorization
+ * primitive log_symptom/upload_report already use, applied here to an
+ * update instead of an append. Every other field (phone/date_of_birth/
+ * preferred_contact_method/emergency_contact) comes from the request body
+ * and is validated by foundationSavePatientProfile_() itself.
+ */
+function foundationHandleSavePatientProfile_(input) {
+  return withFoundationAuth_(input && input.session_token, function (patientId) {
+    return foundationSavePatientProfile_({
+      patient_id: patientId,
+      phone: input && input.phone,
+      date_of_birth: input && input.date_of_birth,
+      preferred_contact_method: input && input.preferred_contact_method,
+      emergency_contact: input && input.emergency_contact
+    });
+  });
+}
+
+/**
  * Serializes a response-envelope-shaped value to the wire. Apps Script
  * Web Apps cannot set a real HTTP status code (every response transports
  * as HTTP 200 regardless — the same platform fact Code.gs's own
@@ -241,6 +281,12 @@ function handleFoundationRequest_(input) {
       break;
     case 'download_report':
       envelope = foundationHandleDownloadReport_(input);
+      break;
+    case 'get_patient_profile':
+      envelope = foundationHandleGetPatientProfile_(input);
+      break;
+    case 'save_patient_profile':
+      envelope = foundationHandleSavePatientProfile_(input);
       break;
     default:
       envelope = buildFoundationErrorEnvelope_('FOUNDATION_UNKNOWN_ACTION', 'Unknown request.');

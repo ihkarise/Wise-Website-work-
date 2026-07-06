@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wisehomeopathy.com/shared/schemas/patient-profile.schema.json",
+  "title": "Patient Profile",
+  "version": "1.0.0",
+  "description": "The canonical shape of a PatientProfile record — docs/44-PHASE-2B-TECHNICAL-PLAN.md §17's Patient Profile design, batch PXP-1 (docs/44 §22), governed by docs/47-PHASE-2B-IMPLEMENTATION-RULES.md. A separate entity from the frozen Patients sheet/patient-identity.schema.json (ADR-002) — never widens that schema, mirrors the same reasoning docs/44 §6.2 already used for DoctorAssignedCondition. The platform's first patient-mutable, upsert-style entity (create-or-update on one 1:1 row), unlike every prior entity's create-and-list-only lifecycle. See patient-profile.md for the lazy-creation and status-gating decisions this schema depends on.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["patient_id", "phone", "date_of_birth", "preferred_contact_method", "emergency_contact", "updated_at", "updated_by"],
+  "properties": {
+    "patient_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The Patient Identity this profile belongs to (docs/33 §1.2, ADR-002). Always session-derived at write time and at read time — never accepted from the request body. 1:1 with Patient Identity; this is the row's own identity column (there is no separate record_id — patient_id is the natural key for an upsert-style, 1:1 entity)."
+    },
+    "phone": {
+      "type": "string",
+      "description": "Optional contact phone number, patient-editable. Empty string when not yet provided (docs/41 §2's condition_slug/notes empty-string sentinel convention, reused here). Validated server-side as digits/spaces/+/-/() only, 7-20 characters, when non-empty."
+    },
+    "date_of_birth": {
+      "type": "string",
+      "description": "Optional date of birth, patient-editable, ISO 8601 calendar-date format (YYYY-MM-DD) when provided. Empty string when not yet provided. Validated server-side as a real calendar date not in the future."
+    },
+    "preferred_contact_method": {
+      "type": "string",
+      "enum": ["", "email", "phone", "sms"],
+      "description": "Optional, patient-editable. Empty string when not yet chosen. One of the three enumerated values when set — validated server-side, not left as a free string, since this field drives no branching logic today but is deliberately closed to a small vocabulary rather than accepting arbitrary text."
+    },
+    "emergency_contact": {
+      "type": "string",
+      "description": "Optional free-text emergency contact (name and phone number combined as one field, per ADR-006's flat-column convention — no nested object), patient-editable. Empty string when not yet provided. Size-bounded at write time (200 characters) and HTML-escaped wherever displayed, never trusted as markup — the same discipline every other free-text field on this platform already follows (e.g. symptom-log.schema.json's notes)."
+    },
+    "updated_at": {
+      "type": "string",
+      "description": "Server-set at every save (foundationNowIso_()), never patient-editable — this entity's only timestamp, since there is no separate created_at (the row's first save and every subsequent edit both update this same field, consistent with an upsert-style, always-current record rather than an append-only log). Empty string for the lazily-created default record of a patient who has never saved a profile yet (patient-profile.md's lazy-creation resolution); an ISO 8601 date-time string on every real, persisted row thereafter — not constrained to `format: date-time` here specifically to allow that empty-string pre-first-save state."
+    },
+    "updated_by": {
+      "type": "string",
+      "description": "Server-set to the session-derived patient_id at every save, in this schema version — this batch (PXP-1) is patient-self-edit only; a future doctor/staff-driven correction path, if ever built, would populate this with a different actor's identifier, per the same 'assigned_by'/'created_by' provenance convention every other Foundation entity already uses. Empty string for the lazily-created default record of a patient who has never saved a profile yet; always equal to patient_id on every real, persisted row thereafter."
+    }
+  }
+}
