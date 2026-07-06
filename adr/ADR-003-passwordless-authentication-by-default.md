@@ -1,7 +1,18 @@
 # ADR-003: Authentication Is Passwordless by Default
 
 ## Status
-Accepted
+Accepted. **Amended in part, in sequence by ADR-011 (2026-07-04), ADR-014 (2026-07-06),
+and now ADR-015 (2026-07-08, the current governing record; ADR-011 and ADR-014 are both
+superseded and kept as history per ADR-007)**: the Decision's absolute "no patient
+password is ever collected, stored, or reset" clause no longer holds without
+qualification. See ADR-015 for the current, exact, constrained exception — persistent
+login is achieved through Magic Link (root of trust), Trusted Device (a high-entropy,
+machine-generated credential, not a password), a Long-Lived Session issued to a trusted
+device, and an optional, secondary, convenience-only PIN. ADR-015 explicitly reaffirms,
+as a permanent constraint, that passwords never become mandatory and the platform
+continues to operate passwordless by default for any patient who opts into neither
+additive mechanism. The passwordless-by-default principle recorded below is otherwise
+unchanged.
 
 ## Context
 docs/09-PHASE-2-ARCHITECTURE.md specifies "Patient ID + Password or Mobile OTP." Neither

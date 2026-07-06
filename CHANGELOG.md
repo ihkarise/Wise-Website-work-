@@ -8,6 +8,175 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-08 — Phase 2B Architecture Revision Pass, Round 2 (documentation only, no code)
+
+A third review round approved the overall Phase 2B direction and settled most of the
+design questions the prior two rounds had left open, ahead of approving PCP-1
+implementation. **No production code was written or modified.**
+
+### Changed
+- `docs/44-PHASE-2B-TECHNICAL-PLAN.md` bumped to Version 3.0: renamed `ConditionAssignment`
+  to **`DoctorAssignedCondition`** (Option B — additive, frozen `Patient` schema
+  untouched — settled and approved); revised authentication once more to name a
+  **Long-Lived Session** explicitly alongside Trusted Device, reframed the optional PIN
+  as convenience-only, and reaffirmed passwordless-by-default as permanent and
+  non-negotiable; elevated the Module Engine so the **entire** dashboard — including
+  existing Timeline/Symptom Tracker/Reports cards — migrates onto the Module Registry,
+  split into a "Module Registry" (backend) batch and a "Dashboard Registry" (frontend
+  migration) batch; added an explicit **Calculator Registry** alongside
+  `CalculatorDefinition`/`CalculatorResult`, with pluggability and no disease-specific
+  hardcoding stated as explicit constraints; settled Check-in template assignment as a
+  doctor action (the patient never configures a template); settled per-patient module
+  enablement as always an explicit doctor/staff action, never automatic-by-condition;
+  documented a concrete JSON storage policy (schema versioning via pinned
+  `template_id`+`template_version`, write-time validation, and a migration strategy) in
+  place of the prior open design fork; named Digital Twin's five specific future
+  consumers (Timeline, Reports, Check-ins, Care Plans, Calculators); rewrote the
+  implementation sequence to start with infrastructure (Patient Profile → Doctor-
+  Assigned Conditions → Module Registry → Dashboard Registry → Daily Check-in Engine →
+  Calculator Framework → Personal Care Plan → Persistent Login → a reserved, unscoped
+  "AI Integration" placeholder), with Symptom Tracker retirement and validation/closeout
+  added as their own later batches (PCP-1 through PCP-11).
+- `docs/45-PHASE-2B-ARCHITECTURE-READINESS-REVIEW.md` bumped to Version 3.0: re-ranked
+  risks now that JSON storage has a concrete policy (full dashboard migration surface
+  area is now the top-ranked risk) and most of Version 2.0's open questions are settled
+  decisions rather than recommendations.
+- `docs/46-PHASE-2B-REPOSITORY-CONSISTENCY-REVIEW.md` bumped to Version 3.0: verified the
+  ADR-014→ADR-015 supersession and the ADR-012 amendment against ADR-007's requirements
+  (both compliant); confirmed the `DoctorAssignedCondition` rename left no stale
+  reference anywhere in the documentation set.
+- `docs/24-ROADMAP.md` — Phase 2B entry updated to reflect the settled decisions and the
+  new infrastructure-first implementation order.
+- `docs/33-DOMAIN-MODEL.md` §6 — renamed `Condition Assignment` to `Doctor Assigned
+  Condition`; added Long-Lived Session as a named (non-entity, session-parameterization)
+  mechanism; added Calculator Registry; updated every docs/44 section/batch
+  cross-reference to Version 3.0's numbering, including several stale references left
+  over from the prior revision pass that this pass also caught and fixed.
+- `/adr/ADR-012-dashboard-modules-are-registry-driven.md` — amended (not superseded):
+  the original "existing cards are not required to migrate" allowance is resolved into
+  a committed migration, via its own dedicated batch, per ADR-007's amend-without-
+  rewriting discipline.
+- `docs/31-ADR-INDEX.md` — added ADR-015; marked ADR-014 Superseded; noted ADR-012's
+  amendment.
+- `/adr/ADR-003-passwordless-authentication-by-default.md` — status note updated to
+  point at ADR-015 as the current governing amendment.
+
+### Added
+- `/adr/ADR-015-long-lived-session-and-passwordless-reaffirmation.md` — supersedes
+  ADR-014. Adds an explicit, named Long-Lived Session mechanism issued when a Trusted
+  Device is presented, and permanently reaffirms that passwords never become mandatory
+  and the platform continues to operate passwordless by default.
+
+### Notes
+- `/adr/ADR-014-trusted-device-persistent-login.md` is retained in full as historical
+  record, per ADR-007 — marked Superseded, its Trusted Device design unchanged and
+  incorporated by reference into ADR-015.
+- Static Analysis, Conformance, and Phase 1.5 Regression suites were re-run after this
+  batch and are unaffected, since no `apps-script/*.gs` or `shared/*` file was touched.
+
+## 2026-07-06 — Phase 2B Architecture Revision Pass (documentation only, no code)
+
+The architecture documents from 2026-07-04 were approved in principle, with four
+required revisions before PCP-1 could be considered. **No production code was written
+or modified.**
+
+### Changed
+- `docs/44-PHASE-2B-TECHNICAL-PLAN.md` bumped to Version 2.0: reframed the phase's
+  vision from "Personal Care Plan" to the broader **Wise Patient Experience Platform**;
+  elevated Doctor-Assigned Conditions, the Module Engine, and the Calculator Framework
+  to named core architectural pillars, with every other capability (Daily Check-ins,
+  Care Plan, Dashboard evolution) explicitly described as a consumer of one or more
+  pillars; fully revised the persistent-authentication design from PIN-primary to
+  **Trusted-Device-primary** (optional PIN retained as a secondary factor, Magic Link
+  named as the root of trust for both); re-sequenced the implementation batches
+  (PCP-1 through PCP-10) pillars-first.
+- `docs/45-PHASE-2B-ARCHITECTURE-READINESS-REVIEW.md` bumped to Version 2.0: re-did the
+  authentication critique and risk ranking from scratch (the Template Engine's
+  JSON-encoded-column design is now this pass's top-ranked open risk, having moved up
+  now that the persistent-credential hashing risk dropped following the Trusted-Device
+  redesign).
+- `docs/46-PHASE-2B-REPOSITORY-CONSISTENCY-REVIEW.md` bumped to Version 2.0: re-checked
+  the ADR-011→ADR-014 supersession for correctness against ADR-007's requirements
+  (compliant); no new contradiction or roadmap gap introduced by the revision.
+- `docs/24-ROADMAP.md` — Phase 2B entry reframed as "Wise Patient Experience Platform,"
+  naming the three pillars and the revised authentication strategy.
+- `docs/33-DOMAIN-MODEL.md` §6 — added `Trusted Device` as the primary persistent-auth
+  entity; reframed `Patient Credential` as secondary; marked Condition Assignment,
+  Module Registry/Patient Module State, and Calculator as Pillars 1–3; updated all
+  docs/44 section/batch cross-references to Version 2.0's numbering.
+- `docs/31-ADR-INDEX.md` — added ADR-014; marked ADR-011 Superseded.
+
+### Added
+- `/adr/ADR-014-trusted-device-persistent-login.md` — supersedes ADR-011. Persistent
+  login is achieved primarily through a high-entropy, machine-generated Trusted Device
+  token (reusing `LoginToken`'s already-proven hashing pattern, avoiding the need for
+  any new cryptographic bridge), with an optional secondary PIN, both rooted in Magic
+  Link.
+
+### Notes
+- `/adr/ADR-011-persistent-credential-as-additional-factor.md` is retained in full as
+  historical record, per ADR-007's never-silently-edit rule — marked Superseded, its
+  original decision text unchanged, its PIN-specific design retained by reference in
+  ADR-014 for the now-secondary PIN mechanism.
+- `/adr/ADR-003-passwordless-authentication-by-default.md`'s status note updated to
+  point at ADR-014 as the current governing amendment.
+- Static Analysis, Conformance, and Phase 1.5 Regression suites were re-run after this
+  batch and are unaffected, since no `apps-script/*.gs` or `shared/*` file was touched.
+
+## 2026-07-04 — Phase 2B Architecture-Freeze Pass (documentation only, no code)
+
+Produced the architecture-freeze pass docs/24/docs/32/docs/43 all required before any
+Phase 2B implementation could begin. **No production code was written or modified** —
+this is a documentation-only batch, per this session's explicit instruction.
+
+### Added
+- `docs/44-PHASE-2B-TECHNICAL-PLAN.md` — full architecture for persistent authentication
+  (password/PIN, additive to magic link), Patient Profile, Doctor-Assigned Conditions, a
+  Module Engine, a Template Engine, Personalized Daily Check-ins (the designed successor
+  to Symptom Tracker v1), a Calculator Framework (Patient variant), Personal Care Plan,
+  dashboard evolution, per-patient feature enablement, AI boundaries, and Digital Twin
+  integration scope. Includes a nine-batch implementation sequence (PCP-1 through
+  PCP-9) — none authorized to begin by this document.
+- `docs/45-PHASE-2B-ARCHITECTURE-READINESS-REVIEW.md` — critiques every proposal in
+  docs/44, ranks risks (persistent-credential hashing on Google Apps Script is the
+  highest), and states what must be settled before which batch.
+- `docs/46-PHASE-2B-REPOSITORY-CONSISTENCY-REVIEW.md` — duplication, contradiction, and
+  roadmap-gap check of this pass's own output against the full existing documentation
+  set, mirroring docs/34's method.
+- `/adr/ADR-011-persistent-credential-as-additional-factor.md` — resolves the direct
+  conflict between ADR-003 ("no patient password is ever collected, stored, or reset")
+  and the requested persistent-authentication capability: magic link remains mandatory
+  and is the sole recovery path; a PIN/password is strictly opt-in and additive.
+- `/adr/ADR-012-dashboard-modules-are-registry-driven.md` — the patient dashboard moves
+  to a module-registry pattern with per-patient enablement for every *new* Phase 2B
+  capability; existing Phase 2A cards are not required to migrate.
+- `/adr/ADR-013-calculators-are-deterministic-never-ai-generated.md` — freezes
+  Calculator results as always deterministic, never AI-computed, before implementation
+  begins (mirrors ADR-004's Digital-Twin boundary pattern).
+
+### Changed
+- `docs/31-ADR-INDEX.md` — added ADR-011/012/013; marked ADR-003 "amended in part by
+  ADR-011."
+- `/adr/ADR-003-passwordless-authentication-by-default.md` — added a forward-pointing
+  status note to ADR-011 (original decision text unchanged, per ADR-007's
+  never-silently-edit rule).
+- `docs/33-DOMAIN-MODEL.md` — promoted Doctor Instruction, Care Plan, and Calculator
+  (Patient variant) from *Conceptual* to *Designed, not yet implemented*; added a new
+  §6 "Phase 2B Entities" for Patient Profile, Condition Assignment, Module Registry /
+  Patient Module State, Check-In Template / Check-In Response, and Patient Credential;
+  updated the Summary Table.
+- `docs/24-ROADMAP.md` — expanded the previously one-line Phase 2B entry to reflect the
+  actual scope of this pass and reference docs/44/45/46.
+
+### Notes
+- The GitHub release tag `v2.0.0-phase2a` was verified to already exist (both as a git
+  tag and a published GitHub Release) pointing at the correct Phase 2A closeout commit —
+  an earlier session report that it was missing was based on an incomplete local check
+  (tags hadn't been fetched) and is corrected here, not acted on further per this
+  session's explicit instruction not to create it.
+- Static Analysis, Conformance, and Phase 1.5 Regression suites were re-run after this
+  batch and are unaffected, since no `apps-script/*.gs` or `shared/*` file was touched.
+
 ## 2026-07-04 — Patient Access Batch PA-7 / Batch 5H (Phase 2A Closeout)
 
 The Phase 2A closeout batch (docs/29 §13 Batch 5H) — not a feature batch. Confirmed
