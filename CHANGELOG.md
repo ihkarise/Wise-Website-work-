@@ -8,6 +8,72 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-08 — Phase 2B Architecture Revision Pass, Round 2 (documentation only, no code)
+
+A third review round approved the overall Phase 2B direction and settled most of the
+design questions the prior two rounds had left open, ahead of approving PCP-1
+implementation. **No production code was written or modified.**
+
+### Changed
+- `docs/44-PHASE-2B-TECHNICAL-PLAN.md` bumped to Version 3.0: renamed `ConditionAssignment`
+  to **`DoctorAssignedCondition`** (Option B — additive, frozen `Patient` schema
+  untouched — settled and approved); revised authentication once more to name a
+  **Long-Lived Session** explicitly alongside Trusted Device, reframed the optional PIN
+  as convenience-only, and reaffirmed passwordless-by-default as permanent and
+  non-negotiable; elevated the Module Engine so the **entire** dashboard — including
+  existing Timeline/Symptom Tracker/Reports cards — migrates onto the Module Registry,
+  split into a "Module Registry" (backend) batch and a "Dashboard Registry" (frontend
+  migration) batch; added an explicit **Calculator Registry** alongside
+  `CalculatorDefinition`/`CalculatorResult`, with pluggability and no disease-specific
+  hardcoding stated as explicit constraints; settled Check-in template assignment as a
+  doctor action (the patient never configures a template); settled per-patient module
+  enablement as always an explicit doctor/staff action, never automatic-by-condition;
+  documented a concrete JSON storage policy (schema versioning via pinned
+  `template_id`+`template_version`, write-time validation, and a migration strategy) in
+  place of the prior open design fork; named Digital Twin's five specific future
+  consumers (Timeline, Reports, Check-ins, Care Plans, Calculators); rewrote the
+  implementation sequence to start with infrastructure (Patient Profile → Doctor-
+  Assigned Conditions → Module Registry → Dashboard Registry → Daily Check-in Engine →
+  Calculator Framework → Personal Care Plan → Persistent Login → a reserved, unscoped
+  "AI Integration" placeholder), with Symptom Tracker retirement and validation/closeout
+  added as their own later batches (PCP-1 through PCP-11).
+- `docs/45-PHASE-2B-ARCHITECTURE-READINESS-REVIEW.md` bumped to Version 3.0: re-ranked
+  risks now that JSON storage has a concrete policy (full dashboard migration surface
+  area is now the top-ranked risk) and most of Version 2.0's open questions are settled
+  decisions rather than recommendations.
+- `docs/46-PHASE-2B-REPOSITORY-CONSISTENCY-REVIEW.md` bumped to Version 3.0: verified the
+  ADR-014→ADR-015 supersession and the ADR-012 amendment against ADR-007's requirements
+  (both compliant); confirmed the `DoctorAssignedCondition` rename left no stale
+  reference anywhere in the documentation set.
+- `docs/24-ROADMAP.md` — Phase 2B entry updated to reflect the settled decisions and the
+  new infrastructure-first implementation order.
+- `docs/33-DOMAIN-MODEL.md` §6 — renamed `Condition Assignment` to `Doctor Assigned
+  Condition`; added Long-Lived Session as a named (non-entity, session-parameterization)
+  mechanism; added Calculator Registry; updated every docs/44 section/batch
+  cross-reference to Version 3.0's numbering, including several stale references left
+  over from the prior revision pass that this pass also caught and fixed.
+- `/adr/ADR-012-dashboard-modules-are-registry-driven.md` — amended (not superseded):
+  the original "existing cards are not required to migrate" allowance is resolved into
+  a committed migration, via its own dedicated batch, per ADR-007's amend-without-
+  rewriting discipline.
+- `docs/31-ADR-INDEX.md` — added ADR-015; marked ADR-014 Superseded; noted ADR-012's
+  amendment.
+- `/adr/ADR-003-passwordless-authentication-by-default.md` — status note updated to
+  point at ADR-015 as the current governing amendment.
+
+### Added
+- `/adr/ADR-015-long-lived-session-and-passwordless-reaffirmation.md` — supersedes
+  ADR-014. Adds an explicit, named Long-Lived Session mechanism issued when a Trusted
+  Device is presented, and permanently reaffirms that passwords never become mandatory
+  and the platform continues to operate passwordless by default.
+
+### Notes
+- `/adr/ADR-014-trusted-device-persistent-login.md` is retained in full as historical
+  record, per ADR-007 — marked Superseded, its Trusted Device design unchanged and
+  incorporated by reference into ADR-015.
+- Static Analysis, Conformance, and Phase 1.5 Regression suites were re-run after this
+  batch and are unaffected, since no `apps-script/*.gs` or `shared/*` file was touched.
+
 ## 2026-07-06 — Phase 2B Architecture Revision Pass (documentation only, no code)
 
 The architecture documents from 2026-07-04 were approved in principle, with four

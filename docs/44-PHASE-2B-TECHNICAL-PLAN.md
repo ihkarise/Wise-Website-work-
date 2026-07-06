@@ -1,34 +1,45 @@
 # 44 - Phase 2B Technical Plan
-## Version 2.0 — 2026-07-06
+## Version 3.0 — 2026-07-08
 
 > **This document defines architecture only. It authorizes no production code.**
 > Per docs/43-PHASE-2A-CLOSEOUT.md §12 and docs/24-ROADMAP.md's Phase 2B entry,
 > implementation may not begin until a separate, explicit approval is given for a named
-> batch from §22 below. This is Version 2.0: the architecture documents were approved in
-> principle (2026-07-06), with four required revisions before any batch could be
-> considered — a broader Patient Experience Platform framing, a revised
-> trusted-device-primary authentication strategy, Doctor-Assigned Conditions/Module
-> Engine/Calculator Framework elevated to core architectural pillars, and a
-> re-sequenced implementation order. All four are incorporated below. See "What Changed
-> in Version 2.0" immediately after this notice.
+> batch from §22 below. Version 3.0 incorporates a third round of review feedback
+> (2026-07-08) that settled several previously-open design questions, revised
+> authentication once more, elevated the Module Engine's scope, and re-ordered
+> implementation to start with infrastructure rather than features. See "What Changed
+> in Version 3.0" below.
 
-## What Changed in Version 2.0
-- **Vision (§0/§1):** Reframed from a narrow "Personal Care Plan" phase to a broader
-  **Patient Experience Platform** — Personal Care Plan is now one capability the
-  platform delivers, not the phase's identity.
-- **Authentication (§5, was §4 in v1.0):** Fully revised. Persistent login is now
-  achieved **primarily through Trusted Devices**, with PIN demoted to an **optional
-  secondary** factor, both rooted in Magic Link. This supersedes v1.0's PIN-primary
-  design (ADR-011, now superseded) with ADR-014. This also resolves docs/45 v1.0 Part 3
-  item 1 (the plan's previously highest-ranked risk) — see §5.2.
-  Docs/45 and docs/46 are updated to Version 2.0 to match.
-- **Core Architectural Pillars (new §4):** Doctor-Assigned Conditions, Module Engine,
-  and Calculator Framework are now presented as the phase's three foundational pillars
-  — every other capability in this plan is described as building on top of them, not
-  as a peer in a flat list.
-- **Implementation sequence (§22):** Re-ordered so the three pillars ship first, ahead
-  of consumers that depend on them and ahead of the (now lower-risk, but still
-  independently gated) authentication work.
+## What Changed in Version 3.0
+- **Doctor-Assigned Conditions settled and renamed:** Option B is approved (additive
+  entity, frozen `Patient` schema untouched), renamed `DoctorAssignedCondition` to match
+  the exact terminology now approved (§6).
+- **Authentication revised again:** a **Long-Lived Session** is now an explicit, named
+  mechanism alongside Trusted Device (not just an implementation detail of the token
+  exchange), PIN is explicitly reframed as **convenience only**, and passwordless-by-
+  default is reaffirmed as a permanent, non-negotiable constraint (**ADR-015**,
+  supersedes ADR-014, which superseded ADR-011 — all three remain on record per
+  ADR-007). §5 rewritten accordingly.
+- **Module Engine elevated further:** the dashboard fully migrates onto the Module
+  Registry, including existing Phase 2A cards (Timeline, Symptom Tracker, Reports) —
+  not deferred indefinitely as ADR-012 originally allowed. Split into two batches:
+  **Module Registry** (backend) and **Dashboard Registry** (frontend migration) — §7.
+- **Calculator Framework gains an explicit Calculator Registry**, mirroring the Module
+  Registry pattern, with pluggability and no disease-specific hardcoding stated as
+  explicit constraints (§8).
+- **Check-in template assignment settled:** templates are doctor-assigned according to
+  active conditions; the patient never configures or selects a template (§10).
+- **JSON storage policy is now concrete**, not an open design fork: schema versioning,
+  migration strategy, and validation rules are specified (§11.4).
+- **Per-patient module enablement settled:** always an explicit doctor/staff action,
+  never automatic-by-condition, never patient-controlled (§14).
+- **Digital Twin's future consumer list made explicit:** Timeline, Reports, Daily
+  Check-ins, Care Plans, and Calculators, named individually (§16).
+- **Implementation order rewritten to start with infrastructure**, per explicit
+  direction: Patient Profile → Doctor-Assigned Conditions → Module Registry → Dashboard
+  Registry → Daily Check-in Engine → Calculator Framework → Personal Care Plan →
+  Persistent Login → AI Integration (reserved placeholder). Digital Twin remains a later
+  roadmap consumer, outside this sequence (§22).
 
 ---
 
@@ -39,544 +50,529 @@ capabilities that let a patient's ongoing relationship with Wise be personalized
 persistent, and structured around their specific condition(s), rather than a fixed,
 one-size-fits-all dashboard. Personal Care Plan, Personalized Daily Check-ins, and the
 Calculator Framework are three concrete *capabilities* this platform delivers — none of
-them is the phase's identity by itself. This corrects docs/24-ROADMAP.md's original
-one-line framing ("Phase 2B — Personal Care Plan"), which undersold the actual
-architectural work: a **Module Engine** and **Doctor-Assigned Conditions** are not
-supporting infrastructure for Personal Care Plan alone — they are general-purpose
-platform capabilities that Personal Care Plan, Daily Check-ins, and Calculator
-Framework all sit on top of, and that any future Phase 2B-era capability would also sit
-on top of.
-
-Phase 2A (`docs/43`) is frozen except for genuine bug fixes. Nothing in this document
-modifies a single frozen file. Every capability described here is additive: new Sheets,
-new schemas, new Apps Script files, new dispatch cases, and — where the existing
-frontend architecture cannot accommodate genuine growth without it (the dashboard
-specifically) — a new, additive pattern that existing Phase 2A cards are not required to
-adopt in the same batch (ADR-012).
+them is the phase's identity by itself. Phase 2A (`docs/43`) is frozen except for
+genuine bug fixes; nothing in this document modifies a single frozen file.
 
 # 1. Objectives
 
 1. Establish three **core architectural pillars** — Doctor-Assigned Conditions, Module
    Engine, Calculator Framework — as the platform's foundation, with every other
-   capability (Daily Check-ins, Care Plan, Dashboard evolution) explicitly described as
-   a consumer of one or more pillars, not a parallel, independent feature (§4).
+   capability explicitly described as a consumer of one or more pillars (§4).
 2. Give every capability a data model, an ownership model, and an explicit
-   security/AI boundary — the same bar docs/29 held Phase 2A to.
-3. Achieve persistent login primarily through a mechanism that does not inherit
-   low-entropy-secret hashing risk — Trusted Devices — while keeping an optional PIN
-   available and keeping Magic Link as the non-negotiable root of trust for both (§5).
-4. Identify every place a design decision was **not** made because the requesting
-   instruction explicitly forbade assuming one — surfaced as an open question and
-   consolidated in docs/45.
-5. Produce a batch sequence (§22) that ships the three pillars first, keeps every
-   intermediate state deployable and reversible (ADR-008), and sequences consumers only
-   after the pillar(s) they depend on exist.
+   security/AI boundary.
+3. Achieve persistent login through four cooperating, named mechanisms — Magic Link,
+   Trusted Device, Long-Lived Session, and an optional convenience PIN — while
+   permanently reaffirming that passwords never become mandatory (§5, ADR-015).
+4. Resolve, rather than merely surface, the design questions previous review rounds
+   left open: Doctor-Assigned Conditions' data shape, Module Engine's dashboard-
+   migration scope, Check-in template ownership, and JSON storage's versioning/
+   migration/validation rules.
+5. Produce a batch sequence (§22) that builds infrastructure before features, ships the
+   three pillars early, and keeps every intermediate state deployable and reversible
+   (ADR-008).
 
 # 2. Scope
 
 ## 2.1 In Scope
-- Architecture and data-model design for the three pillars (Doctor-Assigned
-  Conditions, Module Engine, Calculator Framework) and every capability that consumes
-  them: Persistent Authentication (Trusted Device + optional PIN), Patient Profile,
-  Template Engine, Personalized Daily Check-ins, Personal Care Plan, Dashboard
-  evolution, per-patient feature enablement.
-- AI-boundary definition for every above capability that could ever touch AI.
-- Digital Twin integration scope **as it constrains this plan's own data shapes** —
-  not Digital Twin's own architecture (Phase 2D, per docs/24).
+- Architecture and data-model design for the three pillars and every capability that
+  consumes them: Persistent Authentication (Magic Link, Trusted Device, Long-Lived
+  Session, optional PIN), Patient Profile, Template Engine, Personalized Daily
+  Check-ins, Personal Care Plan, Dashboard evolution (full registry migration),
+  per-patient feature enablement.
+- A reserved, unscoped placeholder for a future "AI Integration" batch (§22 item 9) —
+  no concrete AI feature is designed in this document; the placeholder exists so the
+  batch sequence has a named slot for whatever AI-touching capability is eventually
+  proposed, gated by §15's boundaries when it is.
+- AI-boundary definition for every capability that could ever touch AI.
+- Digital Twin integration scope as it constrains this plan's own data shapes only.
 - Migration planning from Phase 2A's existing Symptom Tracker v1 data and dashboard.
-- New/amended ADRs (ADR-012, ADR-013, ADR-014; ADR-011 superseded).
+- ADR-012 (amended), ADR-013 (confirmed), ADR-015 (supersedes ADR-014, which
+  superseded ADR-011).
 
 ## 2.2 Out of Scope
-- Any production code. This is a documentation-only batch (see the notice at top).
-- Digital Twin's own narrative/summarization logic (Phase 2D).
+- Any production code.
+- Digital Twin's own narrative/summarization logic (Phase 2D) — explicitly not
+  tightly coupled to this plan's implementation (§16).
 - Health Milestones (Phase 2C).
-- Appointment (docs/33 §4.1) — a real, named gap, not a dependency of anything below.
-- The Public (no-login) Calculator variant — only the Patient variant is in scope.
+- Appointment (docs/33 §4.1).
+- The Public (no-login) Calculator variant.
+- Any concrete AI Integration feature design — §22 item 9 is a placeholder only.
 
 ## 2.3 Explicit Non-Goals
-- This plan does not migrate any existing Phase 2A card (Timeline, Symptom Tracker,
-  Reports) onto the new Module Registry (ADR-012's Future Considerations defers this).
-- This plan does not pick a final PIN length, device-token expiry, or lockout
-  threshold — implementation-time security-review parameters (§18), not architecture.
+- This plan does not pick a final PIN length, Long-Lived Session TTL, or lockout
+  threshold — implementation-time security-review parameters (§18).
 - This plan does not decide whether the Public Calculator variant is ever built.
+- This plan does not specify what "AI Integration" (§22 item 9) concretely does.
 
 # 3. Relationship to Existing (Frozen) Architecture
 
-Everything below is additive on top of:
-- **ADR-002** (`patient_id` is the durable identity) — every new entity is keyed by
-  `patient_id`, never by a credential, device, or condition.
-- **ADR-006** (Sheets is an implementation detail) — every new Sheet-backed entity
-  follows the same flat-column, UUID-`record_id`, migration-safe convention as
-  `Patients`, `SymptomLogs`, `Reports`.
-- **ADR-008/ADR-009** (independently deployable, independently replaceable) — governs
-  §22's batch ordering and every module boundary below.
-- **ADR-001/004/005** (Knowledge Engine grounding, Digital Twin boundary, doctor
-  supervision) — reaffirmed, not modified, by §16.
-- **`shared/` contracts** (`shared/README.md`) — every new schema below is proposed at
-  the same fidelity docs/33 already uses for conceptual entities; the actual
-  `shared/*.schema.json` files are written when a batch implements them.
-
-No existing `apps-script/Foundation*.gs` file, `shared/*.schema.json`, or frozen HTML
-page is modified by this plan. Every new dispatch case is additive to
-`FoundationRouter.gs`'s existing action list (docs/46 confirms no name collisions).
+Unchanged from Version 2.0: every new entity is `patient_id`-keyed (ADR-002), every
+Sheet-backed entity follows ADR-006's flat-column/UUID-`record_id` convention except
+where §11.4 documents a reasoned exception, batch ordering follows ADR-008/ADR-009, and
+ADR-001/004/005 govern every AI-adjacent surface (§15). No existing
+`apps-script/Foundation*.gs` file, `shared/*.schema.json`, or frozen HTML page is
+modified by this plan.
 
 # 4. Core Architectural Pillars
 
-This section did not exist in v1.0, which presented twelve capabilities as a flat list.
-Approving-review feedback (2026-07-06) requires Doctor-Assigned Conditions, Module
-Engine, and Calculator Framework to be the phase's core pillars — the foundation every
-other Phase 2B capability is built on, not a peer feature among equals.
-
 ## 4.1 Why these three, specifically
 - **Doctor-Assigned Conditions (§6)** is the platform's only mechanism for expressing
-  *which patient needs which capability*. Without it, personalization has no input:
-  Daily Check-ins cannot select a condition-specific template, Care Plan instructions
-  have no clinical anchor beyond free text, and per-patient feature enablement (§13)
-  has no natural default rule.
+  *which patient needs which capability*. The patient never selects their own
+  condition(s) — diagnosis is the doctor's, per docs/30 §2's "doctors decide." **The
+  doctor also owns module enablement** (§14): Doctor-Assigned Conditions is the input a
+  doctor uses when deciding which modules to turn on for a patient, not an automatic
+  trigger that enables modules by itself.
 - **Module Engine (§7)** is the platform's only mechanism for *exposing* a capability
-  to a specific patient at all. Every patient-facing addition in this plan — Daily
-  Check-ins, Calculator, Care Plan — needs a place to live on the dashboard and a way
-  to be turned on or off per patient. Building each capability with its own bespoke
-  enablement logic (as today's hardcoded six-card dashboard does) would mean
-  reinventing this problem three more times.
+  to a specific patient. This is now a fully committed, dashboard-wide architecture —
+  every card on `/my-health-journey/`, existing and new, is generated from enabled
+  modules rather than being a fixed page.
 - **Calculator Framework (§8)** is the platform's first fully general-purpose,
-  patient-facing, doctor-authored computation pattern — deterministic, versioned,
-  reusable for any future scoring/assessment need, not tied to one clinical use case.
-  It closes a genuine, previously-unowned roadmap gap (docs/33 §5.3) and establishes
-  the pattern (definition + versioned result) that other structured-input features can
-  follow.
-
-Personal Care Plan, Personalized Daily Check-ins, Patient Profile, and Dashboard
-evolution are described in §9–§12 as **consumers** of one or more pillars, not as
-independent architecture.
+  patient-facing, doctor-authored computation pattern, exposed through its own
+  Calculator Registry — deterministic, versioned, independently pluggable, never
+  hardcoded per disease.
 
 ## 4.2 Consumer map
 
 | Capability | Consumes | How |
 |---|---|---|
-| Personalized Daily Check-ins (§10) | Doctor-Assigned Conditions, Module Engine | Template selection is condition-driven (§6); the Check-in module is registered and enabled/disabled via the Module Engine (§7) |
+| Personalized Daily Check-ins (§10) | Doctor-Assigned Conditions, Module Engine | Templates are doctor-assigned per active condition (§10); the Check-in module is registered and enabled/disabled via the Module Engine (§7) |
 | Personal Care Plan (§12) | Doctor-Assigned Conditions, Module Engine | Doctor Instructions reference a patient's assigned condition(s); the Care Plan module is registered via the Module Engine |
-| Patient Dashboard evolution (§13) | Module Engine | The dashboard's registry-driven rendering path *is* the Module Engine's patient-facing surface |
-| Per-patient feature enablement (§14) | Module Engine | `PatientModuleState` (§7.2) is the enablement mechanism itself |
-| Persistent Authentication (§5) | *(none of the three pillars)* | Independent of all three — a platform-wide access mechanism, not a pillar-consuming feature. Sequenced early in §22 because low-friction return access benefits engagement with every pillar-built capability, not because it depends on one. |
+| Patient Dashboard evolution (§13) | Module Engine | The dashboard's registry-driven rendering path *is* the Module Engine's patient-facing surface — for every card, not only new ones |
+| Per-patient feature enablement (§14) | Module Engine, Doctor-Assigned Conditions | `PatientModuleState` (§7.2) is the mechanism; a doctor's condition assignment is the input a doctor considers, never an automatic trigger |
+| Persistent Authentication (§5) | *(none of the three pillars)* | Independent of all three — sequenced late (§22) since it is a platform-wide convenience layered on top of already-working, magic-link-accessible capabilities, not a dependency of any of them |
 
-# 5. Persistent Authentication Architecture (Revised — Trusted Device Primary)
+# 5. Persistent Authentication Architecture (Revised Again — Four Named Mechanisms)
 
-## 5.1 What changed and why
-v1.0 (ADR-011) made an opt-in PIN/password the primary persistent-login mechanism.
-docs/45 v1.0 Part 3 ranked this the single highest-risk item in the whole plan: Google
-Apps Script has no bcrypt/argon2/PBKDF2, so a human-chosen, low-entropy PIN could only
-be protected by a manually iterated HMAC bridge — a disclosed workaround, not a solved
-problem, and one that mattered most because it was the *primary* mechanism every
-returning patient would depend on.
+Governed by **ADR-015** (supersedes ADR-014, which superseded ADR-011 — all prior
+records kept per ADR-007).
 
-**ADR-014** (new, supersedes ADR-011) redirects: persistent login is now achieved
-**primarily through Trusted Devices**, a mechanism that sidesteps the low-entropy
-problem entirely rather than mitigating it, with **PIN retained as an optional,
-secondary factor**, and **Magic Link named explicitly as the root of trust** for both.
+## 5.1 The four mechanisms
+1. **Magic Link — the root of trust.** Unconditional, always available, the sole
+   recovery path for every mechanism below. Nothing here changes Phase 2A's existing
+   magic-link login.
+2. **Trusted Device.** After authenticating via magic link, a patient may mark the
+   current device as trusted. The server issues a `TrustedDevice` record and a long,
+   random, server-generated device token — the same entropy class as `LoginToken`, so
+   it safely reuses `LoginToken`'s already-proven plain-SHA-256 hashing pattern (no new
+   cryptographic bridge needed). Revocable, time-bounded, rotates on every use.
+3. **Long-Lived Session (named explicitly, per ADR-015).** Presenting a valid Trusted
+   Device token issues a **long-lived** Session (a materially longer TTL than the
+   default 60-minute Session — exact duration is an implementation-time parameter),
+   not merely a fresh short one. This is what a patient actually experiences as
+   "staying logged in." Revoking the issuing `TrustedDevice` invalidates the
+   long-lived access it was granting; it does not affect a different device's
+   independently-issued long-lived session.
+4. **Optional PIN — convenience only, never mandatory.** Retained from ADR-011/014's
+   design (opt-in, magic-link-gated setup/reset, iterated-HMAC hashing bridge since a
+   PIN remains a human-chosen, low-entropy secret, rate-limited), explicitly reframed:
+   a lightweight, secondary re-entry option (e.g., after a long-lived session ends, or
+   on a device the patient prefers not to mark as trusted) — never positioned as
+   equivalent in importance to Trusted Device, and never a precondition for anything.
 
-## 5.2 Trusted Device — the primary mechanism
-After authenticating via magic link, a patient may mark the current device as trusted.
-The server issues a `TrustedDevice` record and a long, random, **server-generated**
-device token — the same entropy class as `LoginToken` (not a human-chosen value). This
-is the mechanism's key property: **because the token is machine-generated and
-high-entropy, it can safely reuse the platform's existing, already-proven `LoginToken`
-hashing pattern** (a plain SHA-256 fingerprint of an unguessable secret) instead of
-needing any new cryptographic bridge. This is what actually reduces risk relative to
-v1.0 — the primary mechanism no longer needs a workaround at all.
+## 5.2 Passwordless-by-default, reaffirmed permanently
+Per ADR-015 §Decision 2/3: a patient who never opts into Trusted Device or PIN
+experiences exactly ADR-003's original design — magic link, every time, nothing stored.
+**Passwords never become mandatory in this or any future revision without a new ADR
+that explicitly overturns this clause.** Nothing in this plan, at any version, has ever
+proposed a mandatory password; this is now a standing, explicit constraint rather than
+an implicit assumption.
 
-On a return visit, the client presents the device token once to receive a fresh,
-short-lived Session token (unchanged TTL/mechanics from today's Session). The token
-**rotates on every exchange** — each use invalidates the presented token and issues a
-new one, mirroring `LoginToken`'s existing single-use discipline, bounding the value of
-a copied/exfiltrated token to a single use before rotation would surface a conflict.
-Trusted Device status is **revocable** (a "sign out this device" / "sign out
-everywhere" patient action, or a staff action) and **time-bounded** (exact expiry is an
-implementation-time parameter, per ADR-010's tune-with-real-data posture already
-applied to Session TTL).
+## 5.3 Data model — `TrustedDevice`
+`device_id` (UUID), `patient_id`, `device_token_hash` (SHA-256), `device_label`
+(optional, for a patient-facing "manage my devices" view — recommended in-scope for
+this mechanism's batch, per docs/45's prior finding that revocability without
+visibility is not meaningfully usable), `created_at`, `last_used_at`, `expires_at`,
+`revoked_at` (empty-string sentinel), `revoked_by`. Many per patient.
 
-**Magic link is the root of trust**: establishing a new Trusted Device, and
-re-establishing one after expiry or revocation, always requires a fresh magic-link
-authentication first. There is no device-recovery path that bypasses email.
+## 5.4 Data model — `PatientCredential` (optional PIN)
+Unchanged from ADR-011/014: `credential_id`, `patient_id`, `credential_type` (`pin` —
+`password` is retained as a schema option but not a product-recommended path, per
+§5.2's convenience-only framing), `salt`, `credential_hash`, `iteration_count`,
+`created_at`, `updated_at`, `failed_attempt_count`, `locked_until`, `last_used_at`.
 
-## 5.3 PIN — the optional, secondary mechanism
-Retained from ADR-011, demoted from primary to secondary, unchanged in mechanism: opt-in
-only, set up after an already-authenticated session, resolves to the same `patient_id`
-(ADR-002), reset only via a fresh magic-link authentication, rate-limited failed
-attempts, never able to block magic-link access. **The disclosed hashing risk from
-v1.0 still applies to the PIN path specifically** — a PIN remains a human-chosen,
-low-entropy secret regardless of its now-secondary role, and still requires the
-iterated-HMAC bridge and its own dedicated security review before implementation (§18,
-docs/45 Part 3). Demoting PIN to secondary reduces the *platform's* overall exposure
-(most patients are expected to use Trusted Device, the safer mechanism, by default) but
-does not reduce the *PIN path's own* risk for patients who do choose it.
-
-## 5.4 Data model — `TrustedDevice` (new, primary)
-`device_id` (UUID), `patient_id`, `device_token_hash` (SHA-256, per §5.2), `device_label`
-(optional, e.g. derived from user-agent, for the patient's own "manage my devices" view),
-`created_at`, `last_used_at`, `expires_at`, `revoked_at` (empty-string sentinel),
-`revoked_by`. Many per patient (a patient may trust more than one device).
-
-## 5.5 Data model — `PatientCredential` (secondary, unchanged from ADR-011/v1.0 §4.3)
-`credential_id` (UUID), `patient_id`, `credential_type` (`pin` | `password`), `salt`,
-`credential_hash` (iterated-HMAC output), `iteration_count`, `created_at`, `updated_at`,
-`failed_attempt_count`, `locked_until` (empty-string sentinel), `last_used_at`.
+## 5.5 Long-Lived Session — implementation note, not decided here
+The existing Session mechanism (`FoundationSession.gs`) issues a fixed-TTL, HMAC-signed
+token. Supporting a longer TTL for trusted-device-issued sessions requires either (a)
+parameterizing the frozen `FoundationSession.gs` by issuance context, which would need
+its own bug-fix-scope justification to touch a frozen file, or (b) an additive wrapper
+that calls the existing signing primitive with a different constant. Which approach is
+correct is an implementation-time decision for the batch that builds this (§22), not
+fixed by this plan.
 
 ## 5.6 Open questions this plan does not decide
-- **Exact device-token expiry and rotation-failure handling** (e.g., what happens if a
-  rotated token is presented a second time — treated as a possible theft signal, or
-  simply rejected). ADR-014's Future Considerations defers this to real usage data.
-- **Whether Trusted Device and PIN are mutually exclusive or a patient can have both
-  active simultaneously.** Recommend allowing both independently (they serve different
-  contexts — a personal phone vs. a shared computer) unless a real operational reason
-  to restrict emerges.
-- **Minimum PIN length / password complexity, device-token expiry duration, lockout
-  threshold.** Left to the dedicated security review (§18), not assumed here.
+- Exact Long-Lived Session TTL and whether it is fixed or sliding (ADR-015's Future
+  Considerations).
+- Minimum PIN length, lockout threshold (§18, security review required).
+- Whether Trusted Device and PIN can be active simultaneously (recommend: yes,
+  independently, unless a real operational reason to restrict emerges).
 
-# 6. Doctor-Assigned Conditions Architecture (Pillar 1)
+# 6. Doctor-Assigned Conditions Architecture (Pillar 1) — Settled
 
-## 6.1 Current state — a real gap, not a feature to extend
+## 6.1 Current state — a real gap
 `condition_slug` on `Patient` is a single string, set once at patient creation by a
-staff member running a manual Apps Script editor function
-(`createFoundationPatient()`), loosely validated (not checked against the canonical
-slug list — `apps-script/PatientIdentity.gs`'s own comment documents this as
-deliberate). **There is no update endpoint, no staff UI, and no doctor-assignment
-workflow for condition_slug today.** This pillar is not an extension of an existing
-feature — it is a net-new capability, and the platform's foundation for everything else
-in this plan.
+staff member running a manual Apps Script editor function, loosely validated, with no
+update endpoint and no doctor-assignment workflow. This pillar is net-new.
 
-## 6.2 The plural-conditions design fork
-The request specifies "Conditions" (plural); the existing schema is a single string.
-Two real options:
+## 6.2 Decision: `DoctorAssignedCondition` entity, additive (Option B approved)
+**Approved and settled.** The frozen, conformance-tested `patient-identity.schema.json`
+is **not** widened — no array conversion, no schema-version change to a shipped
+contract. Instead, a new entity: **`DoctorAssignedCondition`** (`assignment_id` UUID,
+`patient_id`, `condition_slug`, `assigned_by`, `assigned_at`, `status`:
+active/resolved). Many-to-one Patient→Conditions, fully additive, full audit history of
+every assignment and resolution.
 
-| Option | Description | Trade-off |
-|---|---|---|
-| **A — Widen `Patient.condition_slug` to an array** | Change the existing, conformance-tested `patient-identity.schema.json` field from string to array | Breaking schema-version change to a frozen, shipped contract; requires migrating every existing `Patient` row |
-| **B — New `ConditionAssignment` entity** (`assignment_id`, `patient_id`, `condition_slug`, `assigned_by`, `assigned_at`, `status`: active/resolved) | Many-to-one Patient→Conditions, fully additive, full audit history | No schema change to any frozen file; a filtered list rather than a single field read |
-
-**This plan recommends Option B** and treats it as effectively settled per docs/45 v1.0
-Part 1.3's concurrence: Option A would require re-triaging `patient-identity.schema.json`'s
-152 passing conformance checks against a widened field, and docs/43's freeze reserves
-frozen-file changes for genuine bug fixes, which this is not. Option B is also the only
-option that delivers the actual missing capability — a real, timestamped, audited
-assignment *action* — not just a wider storage field.
+**The patient never selects a condition.** Every write to this entity is a doctor/staff
+action; there is no patient-facing assignment or self-report path for this entity (this
+is distinct from `Patient.condition_slug`'s original staff-typed-at-creation field,
+which this entity supersedes as the forward-going source of truth for "what condition
+is this patient actively being treated for" without touching the frozen field itself).
 
 ## 6.3 As the foundation for pillars 2 and 3, and every consumer
-Doctor-Assigned Conditions is what makes Module Engine's per-patient enablement (§7) and
-Calculator Framework's relevance (§8.2) *personalized* rather than uniform, and what
-Daily Check-ins (§10.3) and Care Plan (§12.1) anchor their content to. It is
-deliberately sequenced first in §22 for this reason.
+Doctor-Assigned Conditions is what a doctor uses to decide which modules to enable
+(§14), which Check-in template to assign (§10), and which Calculator is relevant (§8) —
+in every case, **the doctor decides and acts explicitly**; condition assignment is
+input to that decision, never an automatic trigger.
 
-# 7. Module Engine Architecture (Pillar 2)
+# 7. Module Engine Architecture (Pillar 2) — Elevated to Full Dashboard Migration
 
-See **ADR-012** for the binding decision. Summarized here as this plan's second pillar:
+Governed by **ADR-012 (amended)**.
 
-## 7.1 Module Registry (config, not a Sheet)
+## 7.1 Module Registry (backend, config)
 A versioned list of module descriptors — module id, display title, data-source dispatch
 action, empty-state behavior, rendering shape. Static, staff/developer-maintained
-config (analogous in form to `shared/constants/condition-slugs.json`), not a dynamic
-admin-editable system in this plan's scope — sufficient for the handful of modules
-Phase 2B introduces; a staff-facing registry-editing tool is not proposed here.
+config, not a dynamic admin-editable system in this plan's scope.
 
-## 7.2 `PatientModuleState` (new Sheet-backed entity)
+## 7.2 `PatientModuleState` (Sheet-backed)
 `patient_id`, `module_id`, `enabled` (boolean), `enabled_by`, `enabled_at`. Absence of a
-row for a given (patient, module) pair means **disabled by default** — fail-closed,
-per ADR-010 applied to feature exposure. Default enablement may be informed by a
-patient's assigned condition(s) (§6) — e.g., a condition-specific Calculator
-auto-suggested, never auto-enabled without a staff/doctor action (§14).
+row means disabled by default (fail-closed, ADR-010). **Enablement is always an
+explicit doctor/staff action** (§14) — never automatic-by-condition, never
+patient-controlled.
 
-## 7.3 As the foundation for every patient-facing consumer
-Every new patient-facing module in this plan — Daily Check-ins (§10), Calculator (§8),
-Care Plan (§12) — registers through this pillar and is individually enabled/disabled
-per patient through it (§14). The dashboard's rendering evolution (§13) *is* this
-pillar's patient-facing surface, not a separate concern.
+## 7.3 Dashboard Registry (frontend) — now a committed migration, not a deferral
+**Elevated per ADR-012's amendment:** the patient dashboard is generated from enabled
+modules, not fixed pages — for **every** module, including the three existing Phase 2A
+cards (Timeline, Symptom Tracker, Reports), not only new Phase 2B modules. This is a
+distinct, later batch from Module Registry itself (§22: "Module Registry" then
+"Dashboard Registry") — the registry and enablement mechanism ships first; migrating
+`dashboard.js`'s hardcoded rendering onto it, for every card, ships as its own
+subsequent batch. Migrating a card's *rendering* onto the registry does not change or
+remove its underlying feature — Symptom Tracker's data and endpoints are unaffected by
+this migration; only *how the card is decided to appear and be enabled* changes.
+Symptom Tracker's actual retirement (§10.1) remains a separate, later, explicitly-
+approved batch, distinct from this rendering migration.
 
-## 7.4 Migration posture
-Per ADR-012 and §2.3, existing Phase 2A cards (Timeline, Symptom Tracker, Reports) are
-**not** required to migrate onto this registry in the same batch that introduces it.
+## 7.4 As the foundation for every patient-facing consumer
+Every new patient-facing module — Daily Check-ins (§10), Calculator (§8), Care Plan
+(§12) — registers through this pillar. The dashboard's rendering (§13) *is* this
+pillar's patient-facing surface for the whole dashboard, not a separate concern.
 
-# 8. Calculator Framework Architecture (Pillar 3)
+# 8. Calculator Framework Architecture (Pillar 3) — Confirmed, With a Calculator Registry
 
-Governed by **ADR-013** — deterministic only, never AI-computed. Closes docs/33 §5.3's
-"roadmap omission" finding for the Patient variant.
+Governed by **ADR-013 (confirmed, unchanged)** — deterministic only, never AI-computed.
 
-## 8.1 Data model
+## 8.1 Calculator Registry (new, mirrors Module Registry)
+A versioned list of available calculators — calculator slug, display title, input field
+list, formula-definition reference, relevant condition(s) (metadata, not hardcoded
+logic — see §8.3). Every calculator plugs into this registry; nothing about a specific
+disease is special-cased in the Calculator Framework's own code.
+
+## 8.2 Data model
 `CalculatorDefinition` — a versioned code/config artifact (formula logic, input field
-list), doctor/staff-authored and deterministic, not Sheet-backed. `CalculatorResult`
-(Sheet-backed, new): `record_id`, `patient_id`, `calculator_slug`, `definition_version`,
-`input_snapshot` (JSON-encoded, for reproducibility/audit — see §11.2's discussion of
-this representational choice), `result_value`, `computed_at`.
+list), doctor/staff-authored and deterministic, referenced by the Calculator Registry,
+not Sheet-backed. `CalculatorResult` (Sheet-backed): `record_id`, `patient_id`,
+`calculator_slug`, `definition_version`, `input_snapshot` (JSON-encoded, see §11.4's
+now-concrete policy), `result_value`, `computed_at`.
 
-## 8.2 As a pillar: general-purpose, not single-use
-Unlike Daily Check-ins (a specific question-answer pattern) or Care Plan (a specific
-clinical-authorship pattern), Calculator Framework is intentionally general — any future
-deterministic, doctor-authored scoring or assessment need can be added as a new
-`CalculatorDefinition` without new architecture, the same way a new `CheckInTemplate`
-extends Daily Check-ins without new code (§11). Its visibility to a given patient is
-governed by `PatientModuleState` (§7.2), potentially defaulted by Doctor-Assigned
-Condition relevance (§6.3) — the exact default-enablement rule is not decided here
-(§14).
+## 8.3 Pluggability — avoid hardcoding disease-specific calculators
+**Explicit constraint, per approved direction:** a new calculator is added by
+registering a new `CalculatorDefinition` and a Calculator Registry entry — never by
+adding disease-specific branches inside shared Calculator Framework code. A
+calculator's relevance to a condition is expressed as registry metadata (e.g., a
+`relevant_condition_slugs` list), consumed generically by whatever logic later decides
+default visibility (§14) — the framework itself has no knowledge of any specific
+disease.
 
-# 9. Relationship to Existing Architecture — Full Entity Table
+## 8.4 As a pillar
+General-purpose, not single-use — any future deterministic, doctor-authored scoring or
+assessment need is a new registry entry, not new architecture. Visibility to a given
+patient is governed by `PatientModuleState` (§7.2), enabled only by explicit doctor
+action (§14).
 
-Moved and consolidated here (was split across sections in v1.0) now that pillars are
-established: see §17 for the complete new/promoted entity table, cross-referenced to
-whichever pillar or capability section defines it.
+# 9. (Reserved — see §17 for the complete entity table)
 
-# 10. Personalized Daily Check-ins Architecture (Replacing Symptom Tracker v1)
+# 10. Personalized Daily Check-ins Architecture (Replacing Symptom Tracker v1) — Settled
 
-A consumer of Pillars 1 and 2 (§4.2).
+A consumer of Pillars 1 and 2.
 
-## 10.1 "Replacing" is a migration, not a single cutover
-ADR-008 requires every batch to leave the system safely reversible. Daily Check-ins
-ship **alongside** the existing Symptom Tracker first (both visible, both writable,
-registered on the Module Registry from day one), proven in production, and only then —
-as an explicitly separate, later batch — has the Symptom Tracker card retired. Existing
-`SymptomLogs` rows are never deleted or migrated; they remain permanent historical data,
-readable by a future Timeline/Digital Twin view alongside new `CheckInResponse` rows.
+## 10.1 "Replacing" remains a migration, not a single cutover
+Unchanged from Version 2.0: Daily Check-ins ship alongside the existing Symptom
+Tracker first, proven in production, then Symptom Tracker retirement ships as its own,
+later, separately-approved batch (§22). Existing `SymptomLogs` rows are never deleted;
+they remain permanent historical data.
 
-## 10.2 Template Engine — the mechanism behind personalization
-The doctor/staff-authored, versioned question set (`CheckInTemplate`) a Daily Check-in
-is built from. See §11 for the full Template Engine design and its own real
-architectural tension with ADR-006's flat-column convention.
+## 10.2 Template assignment — settled: doctor-driven, never patient-configured
+**The patient never configures, selects, or edits a Check-in template.** A
+`CheckInTemplate` is assigned to a patient by a doctor/staff member, informed by (but
+not automatically derived from) the patient's active `DoctorAssignedCondition`(s) —
+the same "doctor decides, condition informs" pattern as module enablement (§6.3, §14).
+This resolves Version 2.0's open question about multi-condition template selection:
+**a doctor explicitly assigns which template(s) apply**, rather than the system
+auto-resolving a conflict when a patient has more than one active condition.
 
 ## 10.3 Data model — `CheckInResponse`
-`record_id`, `patient_id`, `template_id` (references `CheckInTemplate`), `logged_at`
-(server-set), `answers` (JSON-encoded, per §11.2), `condition_slug` (optional). Same
-lifecycle as `SymptomLog`: create → persist → read, no update, no delete. Template
-selection is driven by a patient's active Doctor-Assigned Condition (§6) — a patient
-with condition X sees the `CheckInTemplate` where `condition_slug = X`, falling back to
-a general template if none is condition-specific.
-
-## 10.4 Open question
-Whether a patient with multiple active conditions (§6.2) sees a merged template, one
-template per condition, or a doctor-chosen single template is **not decided here** —
-flagged for docs/45.
+`record_id`, `patient_id`, `template_id`, `template_version` (both stored — see §11.4;
+pinning both is what makes a response permanently self-describing even as templates
+evolve), `logged_at` (server-set), `answers` (JSON-encoded, §11.4), `condition_slug`
+(optional, for reporting/filtering only — assignment authority is §10.2's doctor
+action, not this field). Same lifecycle as `SymptomLog`: create → persist → read, no
+update, no delete.
 
 # 11. Template Engine Architecture
 
-The general mechanism §10 (Daily Check-ins) and, at a lighter weight, §12 (Care Plan
-sections) build on.
-
 ## 11.1 What it's for
-The mechanism by which a doctor/staff-authored **question set** (Daily Check-ins) or
-**content structure** (Care Plan) is defined once and applied per condition or per
-patient, rather than hardcoded per feature the way today's fixed four-field Symptom
-Tracker is.
+The mechanism by which a doctor/staff-authored question set (Daily Check-ins) or
+content structure (Care Plan) is defined once and assigned per patient by a doctor,
+per §10.2 — not a patient-facing configuration surface.
 
-## 11.2 The real architectural tension this creates
-ADR-006 requires "flat, typed-by-convention columns." A Template Engine's purpose is
-*variable* shape. Three options, evaluated:
-
-| Option | Description | Assessment |
-|---|---|---|
-| **A — Fixed superset of generic columns** | e.g., ten generic `scale_1`…`scale_10` + `text_1`…`text_3` columns, reused/relabeled per template | Stays flat literally, but columns are meaningless without the template definition to interpret them |
-| **B — JSON-encoded answers in one column** | `answers`/`input_snapshot` stores a JSON string; a versioned template/definition id defines how to interpret it | Sacrifices in-Sheet queryability of individual answers, but matches how a real future database would model this (a JSONB column or normalized child table) |
-| **C — One Sheet per check-in type** | Mirrors the existing SymptomLog/ConsultationHistory pattern | Defeats the entire point of a Template Engine |
-
-**This plan recommends Option B**, on the reasoning that ADR-006's binding requirement
-is migration-safety, not literal column-flatness for its own sake. **Presented as a
-recommendation requiring explicit sign-off** — docs/45 Part 1.5 flags a real,
-disclosed cost (a doctor/staff member opening the raw Sheet directly would see an
-unreadable JSON blob instead of a value, unlike every existing Sheet-backed entity).
-
-## 11.3 Data model — `CheckInTemplate`
-`template_id`, `condition_slug` (optional), `version`, `questions` (ordered list of
+## 11.2 Data model — `CheckInTemplate`
+`template_id` (identifies the logical template, stable across edits), `version`
+(integer, increments per edit), `condition_slug` (optional metadata — informs, does not
+automatically determine, doctor assignment per §10.2), `questions` (ordered list of
 `{field_key, label, type, min, max, required}`), `status` (active/retired),
-`created_by`, `created_at`. Versioned and append-only — editing a template creates a
-new version, so historical `CheckInResponse` rows remain interpretable against the
-template version active when recorded.
+`created_by`, `created_at`. A `(template_id, version)` pair is immutable once created;
+editing a template creates a new `version` row under the same `template_id`, never an
+in-place mutation.
+
+## 11.3 The representational choice — approved
+**Approved, per explicit direction:** template responses (`CheckInResponse.answers`)
+and calculator inputs (`CalculatorResult.input_snapshot`) are stored as structured
+JSON, not a fixed superset of generic columns. This is no longer an open design fork —
+it is this plan's concrete policy, documented in full below.
+
+## 11.4 JSON Storage: Versioning, Migration, and Validation Rules
+
+**Schema versioning.**
+- Every `CheckInTemplate` version is immutable once created (§11.2). A `CheckInResponse`
+  row stores **both** `template_id` and `template_version` (§10.3) — never `template_id`
+  alone — so the exact question set that produced a given `answers` payload is always
+  unambiguously resolvable, even after the template has since been edited into a later
+  version. The same discipline applies to `CalculatorResult.definition_version` (§8.2).
+- A template/definition version's `questions`/input-field list is the JSON Schema for
+  its own `answers`/`input_snapshot` payloads, generated at read time from the
+  versioned question list (field_key → type/min/max/required), not maintained as a
+  separately-versioned artifact — one source of truth per version, not two.
+
+**Validation rules.**
+- At write time, `answers`/`input_snapshot` must validate against the referenced
+  `(template_id, template_version)` or `(calculator_slug, definition_version)`'s
+  question/field list — every `field_key` present must exist in that version's
+  definition, every `required` field must be present, every value must satisfy its
+  declared `type`/`min`/`max` — using the same generic, dependency-free validation
+  approach `validation/phase-2a-foundation/schema-validator.js` already established for
+  `shared/*.schema.json` contracts. A row that fails this check is rejected before
+  being persisted, the same fail-closed discipline every existing write endpoint uses.
+- The JSON payload itself must be **size-bounded** at write time (mirroring
+  `FoundationReports.gs`'s existing upload-size check), and its top-level shape must be
+  a flat object (`{field_key: value}`) — no nested objects or arrays-of-objects in
+  version 1 of this policy, keeping the validation surface small and auditable.
+- Serialization must be **deterministic**: keys written in a fixed, stable order
+  (e.g., the order `field_key`s appear in the template/definition's own question list)
+  so re-serializing identical answers never produces a spurious byte-level diff — a
+  concrete, checkable property, not just an aspiration.
+
+**Migration strategy.**
+- Adding a new optional question/field in a new template version is backward-
+  compatible: older `CheckInResponse` rows simply lack the new `field_key`, and are
+  still valid against the *version they were recorded against* — no migration of old
+  rows is ever required or performed.
+- Removing a question, changing a `field_key`'s type, or narrowing a `min`/`max` range
+  requires a **new version**, never an in-place edit of an existing version's
+  definition (§11.2) — old rows remain permanently valid against the old version they
+  were recorded against, forever, even after the template is edited many times.
+  There is no scenario in this policy where an existing `CheckInResponse` or
+  `CalculatorResult` row is ever rewritten to match a newer version — versions are
+  append-only and rows are immutable, consistent with every other entity's "no update"
+  lifecycle in this plan (§10.3, §8.2).
+- A future reporting/aggregation feature (e.g., a trend view) that needs to compare
+  answers across versions must resolve each row's own `(template_id, template_version)`
+  independently before interpreting it — this is a consumer-side responsibility, not
+  something the storage layer resolves on the consumer's behalf.
+
+**Known limitation, disclosed:** a doctor/staff member opening the raw Sheet directly
+sees an unreadable JSON blob in the `answers`/`input_snapshot` column instead of a
+plain value, unlike every other existing Sheet-backed entity. This is an accepted,
+disclosed cost of this approved policy, not an oversight (docs/45 tracked this in
+detail before this policy was approved).
 
 # 12. Personal Care Plan Architecture
 
-A consumer of Pillars 1 and 2 (§4.2). Promotes docs/33 §3.4 (Care Plan) and §2.3
-(Doctor Instruction) from *Conceptual* to designed, per docs/32 Part 2's original
-recommendation.
-
-## 12.1 Data model — `DoctorInstruction`
-`instruction_id`, `patient_id`, `care_plan_id` (nullable), `consultation_id` (nullable),
-`instruction_type` (medicine | lifestyle | investigation | follow_up — closes docs/23's
-"Prescriptions" gap: a Prescription is a `medicine`-type instruction), `content`,
-`prescribed_by`, `effective_date`, `status` (active/discontinued/completed). Created at
-consultation or review time, never deleted.
-
-## 12.2 Data model — `CarePlan`
-`care_plan_id`, `patient_id`, `version` (integer, append-only), `status`
-(active | superseded), `goals`, `next_review_date`, `created_by`, `created_at`. A Care
-Plan version aggregates the patient's currently-active `DoctorInstruction` records by
-reference — it does not copy their content.
-
-## 12.3 Ownership
-Doctor/staff-authored only, patient-viewable only — no patient-write path exists or is
-proposed, consistent with docs/30 §2's "doctors decide."
-
-## 12.4 Timeline integration
-A new Care Plan version creates a `TimelineEvent`-shaped entry (`entry_type: care_plan`,
-extending the existing enum docs/39 deliberately left narrowed to `["consultation"]`
-until a second source existed — this is that second source), per docs/33 §3.1's own
-forward-looking design.
+Unchanged from Version 2.0. A consumer of Pillars 1 and 2. `DoctorInstruction`
+(`instruction_id`, `patient_id`, `care_plan_id`, `consultation_id`, `instruction_type`,
+`content`, `prescribed_by`, `effective_date`, `status`) and `CarePlan` (`care_plan_id`,
+`patient_id`, `version`, `status`, `goals`, `next_review_date`, `created_by`,
+`created_at`) promote docs/33 §2.3/§3.4 from Conceptual to designed. Doctor/staff-
+authored only, patient-viewable only. A new Care Plan version emits a `TimelineEvent`
+(`entry_type: care_plan`).
 
 # 13. Patient Dashboard Evolution
 
-The Module Engine pillar's (§7) patient-facing surface, not separate architecture. The
-existing three writable/readable cards (Timeline, Symptom Tracker, Reports) and the
-three permanently-`future`-badged placeholders (Care Plan, Messages, Digital Twin) are
-unaffected until a later, separately-scoped migration batch. Care Plan's placeholder
-transitions from a permanent `future` badge to a real, registry-driven module the
-moment its batch ships (§22); Messages and Digital Twin remain placeholders (Messages
-has no architecture anywhere; Digital Twin is Phase 2D, §16).
+The Module Engine pillar's patient-facing surface, now covering the **entire**
+dashboard (§7.3), not only new modules. Care Plan's placeholder becomes a real,
+registry-driven module once its batch ships; Messages and Digital Twin remain
+`future`-badged placeholders (Messages has no architecture anywhere; Digital Twin is
+Phase 2D, §16).
 
-# 14. Feature Enable/Disable Per Patient
+# 14. Feature Enable/Disable Per Patient — Settled
 
-`PatientModuleState` (§7.2) — one mechanism, not one per feature, per the Module Engine
-pillar. Toggled by doctor/staff only, never the patient. **Not decided here:** whether
-enablement can ever be automatic (e.g., a Calculator auto-enabling when a matching
-condition is assigned) or must always be an explicit staff action — recommend
-"always explicit" for Phase 2B's first batches, revisited only if manual toggling
-proves to be real friction.
+`PatientModuleState` (§7.2) is the one mechanism. **Settled, per approved direction:
+enablement is always an explicit doctor/staff action.** It is never automatic based on
+a `DoctorAssignedCondition` (§6.2) — a condition assignment informs what a doctor
+*might* enable, it does not itself enable anything — and it is never
+patient-controlled. This resolves Version 2.0's open question in favor of the simpler,
+more auditable default, now as a locked decision rather than a recommendation.
 
-# 15. AI Boundaries
+# 15. AI Boundaries — Reaffirmed
 
-Reaffirms, does not modify, ADR-001/004/005.
+Unchanged from Version 2.0, reaffirmed per explicit direction: **AI never becomes the
+source of truth. AI only consumes approved clinical data. Doctor approval remains
+mandatory** — this is ADR-001/004/005 restated, not a new rule. No capability in §§4–14
+requires, assumes, or authorizes any new AI integration. The reserved "AI Integration"
+placeholder (§22 item 9) is exactly that — a reserved batch slot, with no concrete
+feature designed here. Whatever is eventually proposed for it must independently
+satisfy ADR-001 (grounded in Knowledge-Engine-approved content), ADR-005 (prompt
+constraint + code-level check + mandatory doctor review before any patient sees
+anything), and, if it touches Calculator results, ADR-013 (results themselves stay
+deterministic; only surrounding explanatory text could ever be AI-generated, and only
+under the full ADR-001/005 pattern).
 
-- **Daily Check-ins**: question *selection* is condition-driven, not AI-driven (§10.3).
-  No AI-generated question content is proposed. A future AI-adapted-question proposal
-  must independently satisfy ADR-001.
-- **Calculator Framework**: results are never AI-computed (ADR-013). AI-generated
-  explanatory text about a result, if ever built, must satisfy ADR-001/005
-  independently.
-- **Care Plan**: doctor-authored only (§12.3). No AI-generated content proposed.
-- **Trusted Device / PIN, Module Engine, Doctor-Assigned Conditions, Patient Profile**:
-  no AI involvement of any kind proposed or required.
+# 16. Digital Twin Integration Scope for Phase 2B — Explicit Consumer List
 
-No capability in this plan requires, assumes, or authorizes any new AI integration
-beyond what Phase 1.5/2A already built.
+Digital Twin's own architecture remains Phase 2D's responsibility (docs/24) and is
+**not tightly coupled to this plan's implementation**, per explicit direction. Phase
+2B's only obligation is data-shape compatibility: Digital Twin is a **future consumer**
+of —
+- **Timeline** (existing, `TimelineEvent`, extended by Care Plan updates, §12)
+- **Reports** (existing, unchanged)
+- **Daily Check-ins** (`CheckInResponse`, §10.3)
+- **Care Plans** (`CarePlan`/`DoctorInstruction`, §12)
+- **Calculators** (`CalculatorResult`, §8.2)
 
-# 16. Digital Twin Integration Scope for Phase 2B
-
-Per docs/24, Digital Twin's own architecture is Phase 2D's responsibility. Phase 2B's
-only obligation is to ensure every new entity is **shaped so a future Digital Twin can
-read it** without a redesign: `CheckInResponse`, `CalculatorResult`, and `CarePlan` are
-all `patient_id`-keyed, timestamped, and never destructively overwritten; `CarePlan`
-version transitions emit `TimelineEvent` rows (§12.4). This plan builds no Digital Twin
-UI, narrative generation, or aggregation logic.
+Every entity above is `patient_id`-keyed, timestamped, and never destructively
+overwritten — the shape a future Digital Twin needs, without a redesign. This plan
+builds no Digital Twin UI, narrative generation, or aggregation logic, and no batch in
+§22 depends on Digital Twin existing.
 
 # 17. Data Architecture — New/Promoted Entities Summary
 
 | Entity | Pillar / capability | Status before this plan | Sheet-backed? |
 |---|---|---|---|
-| `ConditionAssignment` | Pillar 1 (§6) | Did not exist | Yes |
+| `PatientProfile` | Patient Profile (§18 note) | Did not exist | Yes |
+| `DoctorAssignedCondition` | Pillar 1 (§6) | Did not exist (renamed from `ConditionAssignment`) | Yes |
 | Module Registry | Pillar 2 (§7.1) | Did not exist | No (config) |
 | `PatientModuleState` | Pillar 2 (§7.2) | Did not exist | Yes |
-| `CalculatorDefinition` | Pillar 3 (§8.1) | Conceptual (docs/33 §5.3) | No (config/code) |
-| `CalculatorResult` | Pillar 3 (§8.1) | Conceptual (docs/33 §5.3) | Yes |
-| `TrustedDevice` | Persistent auth, primary (§5.4) | Did not exist | Yes |
-| `PatientCredential` | Persistent auth, secondary (§5.5) | Did not exist | Yes |
-| `PatientProfile` | Patient Profile (v1.0 §5, retained) | Did not exist | Yes |
-| `CheckInTemplate` | Template Engine (§11.3) | Did not exist | No (config/content) |
+| Calculator Registry | Pillar 3 (§8.1) | Did not exist | No (config) |
+| `CalculatorDefinition` | Pillar 3 (§8.2) | Conceptual (docs/33 §5.3) | No (config/code) |
+| `CalculatorResult` | Pillar 3 (§8.2) | Conceptual (docs/33 §5.3) | Yes |
+| `CheckInTemplate` | Template Engine (§11.2) | Did not exist | No (config/content) |
 | `CheckInResponse` | Daily Check-ins (§10.3) | Did not exist | Yes |
-| `DoctorInstruction` | Care Plan (§12.1) | Conceptual (docs/33 §2.3) | Yes |
-| `CarePlan` | Care Plan (§12.2) | Conceptual (docs/33 §3.4) | Yes |
+| `DoctorInstruction` | Care Plan (§12) | Conceptual (docs/33 §2.3) | Yes |
+| `CarePlan` | Care Plan (§12) | Conceptual (docs/33 §3.4) | Yes |
+| `TrustedDevice` | Persistent auth (§5.3) | Did not exist | Yes |
+| `PatientCredential` | Persistent auth, convenience-only (§5.4) | Did not exist | Yes |
 
-Every Sheet-backed entity above follows ADR-006's flat-column/UUID-`record_id`
-convention except where §11.2/§8.1 explicitly document a JSON-encoded column as the
-deliberate, reasoned exception. docs/33-DOMAIN-MODEL.md §6 is updated by this same
-change to reflect every row above, including `TrustedDevice` replacing
-`PatientCredential` as the primary auth entity.
+Every Sheet-backed entity follows ADR-006's flat-column/UUID-`record_id` convention
+except where §11.4 documents the JSON-encoded-column policy as a deliberate, now-fully-
+specified exception. docs/33-DOMAIN-MODEL.md §6 is updated by this same change.
 
-**Patient Profile note (unchanged from v1.0 §5):** recommended as a separate entity
-from `Patient` (Option b), so the frozen, conformance-tested `patient-identity.schema.json`
-is never touched — same reasoning as §6.2's Option B for Doctor-Assigned Conditions.
-`phone`, `date_of_birth`, `preferred_contact_method`, `emergency_contact`, `updated_at`,
-`updated_by`, keyed 1:1 with `Patient`.
+**Patient Profile (unchanged from Version 1.0 §5):** a separate entity from `Patient`
+(never widening the frozen schema, same reasoning as §6.2 for Doctor-Assigned
+Conditions). `patient_id` (1:1), `phone`, `date_of_birth`, `preferred_contact_method`,
+`emergency_contact`, `updated_at`, `updated_by`.
 
 # 18. Security Model
 
-- **§5's authentication design is now the platform's most-reduced-risk item relative to
-  v1.0**, not its highest — the primary mechanism (Trusted Device) reuses an
-  already-proven hashing pattern. **The PIN path (§5.3) still carries the original,
-  disclosed hashing-bridge risk** and still requires a dedicated security review
-  (mirroring PA-7's magic-link/session review, docs/43 §6) before its batch ships,
-  independent of Trusted Device's approval.
+- **Authentication (§5):** Trusted Device and Long-Lived Session reuse `LoginToken`'s
+  already-proven hashing pattern — no new cryptographic bridge for the primary
+  mechanisms. The optional PIN path still requires a dedicated security review (real
+  iteration count, minimum length, lockout threshold) before its batch ships,
+  independent of Trusted Device/Long-Lived Session's approval.
 - **`PatientProfile`** is the platform's first patient-mutable structured data — every
-  write must be session-derived-`patient_id`-scoped and audit-logged.
-- **`ConditionAssignment` / `PatientModuleState` / `DoctorInstruction` / `CarePlan`**
-  writes are staff/doctor-only, enforced server-side, never merely omitted from a
-  patient-facing UI.
-- **JSON-encoded columns** (`CheckInResponse.answers`, `CalculatorResult.input_snapshot`)
-  must be size-bounded at write time (mirroring `FoundationReports.gs`'s existing
-  upload-size check).
-- **`TrustedDevice` tokens** are exchanged (never used directly as a long-lived API
-  credential), rotated on every use, and revocable — the same mitigation shape as
-  industry-standard refresh-token rotation (ADR-014 §Decision).
+  write session-derived-`patient_id`-scoped and audit-logged.
+- **`DoctorAssignedCondition` / `PatientModuleState` / `DoctorInstruction` / `CarePlan`**
+  writes are staff/doctor-only, enforced server-side.
+- **JSON-encoded columns** are size-bounded, flat-shape-only, and validated against
+  their referenced version before persisting (§11.4) — not an unchecked blob.
+- **`TrustedDevice` tokens** are exchanged, rotated on every use, and revocable — the
+  same mitigation shape as industry-standard refresh-token rotation.
 
 # 19. Migration From Phase 2A
 
-| Existing Phase 2A surface | Migration posture |
-|---|---|
-| `Patient` (identity) | Unmodified. `PatientProfile` and `ConditionAssignment` reference it; neither widens nor replaces it. |
-| `SymptomLogs` | Retained permanently, read-only historical data. Dashboard card retirement is a separate, later, explicitly-approved batch (§10.1, §22). |
-| `LoginTokens` / `Session` | Unmodified. `TrustedDevice` and `PatientCredential` are fully additive; `LoginToken`'s hashing pattern is *reused* (not modified) by `TrustedDevice` (§5.2). |
-| `dashboard.js` hardcoded cards | Unmodified for Timeline/Symptom Tracker/Reports. Care Plan's placeholder becomes real once its batch ships (§13); Messages/Digital Twin remain placeholders. |
-| `FoundationRouter.gs` | Additive dispatch cases only — zero collisions (docs/46). |
-
-No data migration script is required — every new entity starts empty.
+Unchanged from Version 2.0: `Patient` unmodified; `SymptomLogs` retained permanently,
+retirement is its own later batch; `LoginTokens`/`Session` unmodified, `TrustedDevice`
+fully additive and reuses `LoginToken`'s hashing pattern; `dashboard.js` migrates fully
+onto the Dashboard Registry (§7.3) as its own batch, with existing features unaffected
+by the rendering-mechanism change itself; `FoundationRouter.gs` gains additive dispatch
+cases only.
 
 # 20. Risks
 
-1. **PIN hashing on Apps Script (§5.3, §5.5)** — still real, still requires a dedicated
-   review, but no longer the platform's *primary* mechanism's risk (§18).
-2. **JSON-encoded columns (§11.2, §8.1)** — a deliberate, disclosed departure from
-   ADR-006's literal wording; sets a precedent worth explicit sign-off.
-3. **Doctor-Assigned Conditions' Option A vs. B (§6.2)** — recommended settled (Option
-   B) before Batch 1, reversing later is costly.
-4. **Trusted Device token theft/replay (§5.2, §5.6)** — bounded by rotation and
-   revocability, but the exact detection/response behavior on a replayed rotated token
-   is an open, implementation-time question.
-5. **Scope size** — the pillar framing reduces this relative to v1.0 by giving
-   consumers an explicit foundation to build on rather than twelve independent items,
-   but the batch count (§22) is unchanged.
-6. **Vision/roadmap continuity** — docs/24 is updated in this same change to reflect
-   the Patient Experience Platform framing; recorded so this reframing is traceable,
-   not silently substituted for the original one-line entry.
+1. **JSON storage (§11.4)** — now a documented, concrete policy rather than an open
+   fork; residual risk is the disclosed raw-Sheet-readability cost, not the design
+   itself.
+2. **Optional PIN hashing (§5.4)** — unchanged, still requires its own security review,
+   now clearly scoped as affecting only patients who opt into the convenience path.
+3. **Full dashboard migration (§7.3)** — larger implementation surface than Version
+   2.0's deferred-migration approach (every existing card's rendering changes, not just
+   new ones), but lower architectural risk, since it resolves ADR-012's original open
+   "Future Consideration" deliberately rather than leaving two rendering paths
+   (registry-driven and hardcoded) coexisting indefinitely.
+4. **Long-Lived Session's implementation path (§5.5)** — whether it requires touching
+   the frozen `FoundationSession.gs` is not decided here; a real open question for the
+   batch that builds it.
+5. **Scope size** — ten-plus batches (§22), mitigated by pillars/infrastructure-first
+   sequencing giving each subsequent batch a firmer foundation to build on.
 
 # 21. Documentation Impact
 
 | Doc | Update needed | Status |
 |---|---|---|
-| docs/24-ROADMAP.md | Reframe Phase 2B as Patient Experience Platform, name the three pillars | Done, this change |
-| docs/31-ADR-INDEX.md | Add ADR-014, mark ADR-011 Superseded | Done, this change |
-| docs/33-DOMAIN-MODEL.md | Add `TrustedDevice`; reframe `PatientCredential` as secondary | Done, this change |
-| docs/44 (this document) | Version 2.0 — pillars, revised auth, re-sequenced batches | Done, this change |
-| docs/45-PHASE-2B-ARCHITECTURE-READINESS-REVIEW.md | Version 2.0 | Done, this change |
-| docs/46-PHASE-2B-REPOSITORY-CONSISTENCY-REVIEW.md | Version 2.0 | Done, this change |
-| `/adr/ADR-014` | New | Done, this change |
-| `/adr/ADR-011` | Marked Superseded | Done, this change |
+| docs/24-ROADMAP.md | Reflect settled decisions and revised implementation order | Done, this change |
+| docs/31-ADR-INDEX.md | Add ADR-015, mark ADR-014 Superseded, note ADR-012 amendment | Done, this change |
+| docs/33-DOMAIN-MODEL.md | Rename `ConditionAssignment` → `DoctorAssignedCondition`; add Long-Lived Session | Done, this change |
+| docs/44 (this document) | Version 3.0 | Done, this change |
+| docs/45-PHASE-2B-ARCHITECTURE-READINESS-REVIEW.md | Version 3.0 | Done, this change |
+| docs/46-PHASE-2B-REPOSITORY-CONSISTENCY-REVIEW.md | Version 3.0 | Done, this change |
+| `/adr/ADR-015` | New | Done, this change |
+| `/adr/ADR-014` | Marked Superseded | Done, this change |
+| `/adr/ADR-012` | Amendment note added | Done, this change |
 | CHANGELOG.md | Record this revision pass (no code change) | Done, this change |
 | `shared/schemas/*.schema.json` for entities in §17 | Not yet written — created when each entity's implementing batch begins | Deferred, by design |
 
-# 22. Implementation Batches (Re-sequenced)
+# 22. Implementation Batches — Infrastructure First
 
-Pillars first, then capabilities that consume them, then the independent (and now
-lower-risk) authentication work, then retirement and closeout. **No batch below is
-authorized to begin by this document.**
+Re-ordered per explicit direction to build infrastructure before features. **No batch
+below is authorized to begin by this document.**
 
-| Batch | Delivers | Depends on | Risk / reversibility |
-|---|---|---|---|
-| **PCP-1** | `ConditionAssignment` + staff assignment tool — **Pillar 1** | Nothing new | Zero patient-facing surface. Fully reversible. Recommended first batch. |
-| **PCP-2** | Module Registry (config) + `PatientModuleState` + dashboard registry-rendering path, zero real modules registered yet — **Pillar 2** | Not strictly PCP-1, but informed by it for future default-enablement rules | Additive scaffold; existing cards unaffected (ADR-012). |
-| **PCP-3** | `CalculatorDefinition` + `CalculatorResult` + Patient Calculator UI, registered via PCP-2 — **Pillar 3** | PCP-2 | Deterministic logic only (ADR-013) — low risk. |
-| **PCP-4** | `TrustedDevice` — device-token issuance/exchange/rotation/revocation, magic link as root of trust | Independent of pillars; reuses `LoginToken`'s hashing pattern | Lower risk than v1.0's equivalent batch — no new hashing primitive required. |
-| **PCP-5** | `PatientCredential` — optional secondary PIN, layered alongside PCP-4's mechanism | PCP-4 conceptually (shares root-of-trust framing). Requires its own dedicated security review first (§18, docs/45 Part 3). | Same disclosed hashing-bridge risk as v1.0's ADR-011 design — unchanged, still gated. |
-| **PCP-6** | `PatientProfile` + patient-facing profile view/edit | None | First patient-mutable structured data — its own authorization/audit review. |
-| **PCP-7** | `CheckInTemplate` + `CheckInResponse` + Daily Check-in patient UI, registered via PCP-2, shipped alongside (not replacing) Symptom Tracker | PCP-1 (condition-driven template selection), PCP-2 | Additive; Symptom Tracker untouched. |
-| **PCP-8** | `DoctorInstruction` + `CarePlan` + patient-facing read-only Care Plan view, registered via PCP-2 | PCP-1, PCP-2 | Doctor-authored only — no new patient-write surface. |
-| **PCP-9** | Symptom Tracker retirement (dashboard card removed, endpoints deprecated, `SymptomLogs` retained) | PCP-7 proven in production first | Explicitly separate, later, own approval. |
-| **PCP-10** | Validation-suite build-out + documentation closeout, mirroring 5H/PA-7's discipline | All shipped batches above | Documentation/validation only. |
+| # | Batch | Delivers | Depends on | Risk / reversibility |
+|---|---|---|---|---|
+| 1 | **PCP-1 — Patient Profile** | `PatientProfile` + patient-facing profile view/edit | Nothing new | First patient-mutable structured data — its own authorization/audit review. Zero dependency on anything else, lowest-risk starting point. |
+| 2 | **PCP-2 — Doctor-Assigned Conditions** (Pillar 1) | `DoctorAssignedCondition` + doctor/staff assignment tool | Nothing new | Zero patient-facing surface beyond a read-only reflection, if any. Fully reversible. |
+| 3 | **PCP-3 — Module Registry** (Pillar 2, backend) | Module Registry config + `PatientModuleState`, no dashboard rendering change yet | PCP-2 informs future default-enablement discussion, not a hard dependency | Additive scaffold, invisible to patients until PCP-4. |
+| 4 | **PCP-4 — Dashboard Registry** (Pillar 2, frontend) | `dashboard.js` rewritten to render all modules — including Timeline, Symptom Tracker, Reports — from PCP-3's registry | PCP-3 | Larger surface than a scaffold-only batch (touches every existing card's rendering path), but no underlying feature/data is changed — only how each card is decided to appear. |
+| 5 | **PCP-5 — Daily Check-in Engine** | `CheckInTemplate` + `CheckInResponse` + patient-facing Check-in UI, doctor-assigned templates, registered via PCP-3/4, shipped alongside (not replacing) Symptom Tracker | PCP-2 (doctor-assigned templates), PCP-3/PCP-4 (registration/rendering) | Additive; Symptom Tracker untouched. |
+| 6 | **PCP-6 — Calculator Framework** (Pillar 3) | Calculator Registry + `CalculatorDefinition` + `CalculatorResult` + Patient Calculator UI, registered via PCP-3/4 | PCP-3/PCP-4 | Deterministic logic only (ADR-013) — low risk. |
+| 7 | **PCP-7 — Personal Care Plan** | `DoctorInstruction` + `CarePlan` + patient-facing read-only Care Plan view, registered via PCP-3/4 | PCP-2, PCP-3/PCP-4 | Doctor-authored only — no new patient-write surface. |
+| 8 | **PCP-8 — Persistent Login** | `TrustedDevice` + Long-Lived Session issuance + optional `PatientCredential` (PIN) | Independent of pillars — sequenced late per explicit direction, benefiting from pillars already existing to make persistence worth having. PIN sub-batch requires its own dedicated security review before approval, independent of Trusted Device/Long-Lived Session. | Trusted Device/Long-Lived Session reuse proven hashing (low risk); PIN carries the disclosed hashing-bridge risk (§18), gated separately. |
+| 9 | **PCP-9 — AI Integration (reserved placeholder)** | Nothing concrete — a named slot in the sequence for whatever AI-touching capability is eventually proposed | Whatever it turns out to require, decided when it is actually proposed | Not scoped; must independently satisfy §15/ADR-001/004/005/013 before any detail is added |
+| — | **PCP-10 — Symptom Tracker retirement** (not one of the nine named items; added per ADR-008's requirement that retirement never bundle with its replacement's introduction) | Symptom Tracker dashboard entry removed, endpoints deprecated, `SymptomLogs` retained | PCP-5 proven in production first | Explicitly separate, later, own approval |
+| — | **PCP-11 — Validation & closeout** (added, mirrors every prior phase's closeout discipline) | Validation-suite build-out for every entity above + documentation closeout | All shipped batches above | Documentation/validation only |
 
-**Recommended first batch: PCP-1** (Doctor-Assigned Conditions, Pillar 1) — unchanged
-from v1.0's recommendation, now more clearly justified as the foundation every other
-pillar and consumer references.
+Digital Twin is **not** in this sequence — it remains a later roadmap consumer (Phase
+2D, §16), not a Phase 2B batch.
+
+**Recommended first batch: PCP-1 (Patient Profile)** — per explicit direction to begin
+with infrastructure rather than features, and the batch with the fewest dependencies
+and lowest risk in the entire sequence.
 
 **This plan does not authorize PCP-1, or any other batch, to begin.** Implementation
 waits for a separate, explicit approval naming a specific batch.

@@ -1,7 +1,17 @@
 # ADR-012: Patient Dashboard Capabilities Are Registry-Driven, With Per-Patient Enablement
 
 ## Status
-Accepted
+Accepted. **Amended (2026-07-08):** a further architecture review elevated this ADR's
+original "Future Considerations" question (whether existing Phase 2A cards should ever
+migrate onto the registry) into a committed decision: "Patient dashboards should be
+generated from enabled modules rather than fixed pages." The original Decision's
+allowance that existing cards are "not required to migrate in the same batch" that
+introduces the registry remains literally true — they migrate in the very next batch
+(named "Dashboard Registry" in docs/44 §22), not the one that introduces the registry
+itself — but migration itself is no longer optional or deferred indefinitely. See
+docs/44 §7/§13 (Version 3.0) for the committed migration batch. The core Decision below
+(registry-driven, per-patient-enabled modules) is unchanged; only the scope of what
+migrates, and when, is resolved.
 
 ## Context
 `my-health-journey/dashboard.js`'s `renderDashboard()` hardcodes exactly six cards by

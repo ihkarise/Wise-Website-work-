@@ -1,7 +1,17 @@
 # ADR-014: Persistent Login Is Achieved Primarily Through Trusted Devices; Magic Link Is the Root of Trust
 
 ## Status
-Accepted — Supersedes ADR-011. Further amends ADR-003 (see ADR-003's status note).
+**Superseded by ADR-015** (2026-07-08). A further architecture review required an
+explicit, named Long-Lived Session mechanism (this ADR only implied one, as an
+unspecified detail of the device-token exchange) and an explicit, permanent
+reaffirmation that passwords never become mandatory. ADR-015 incorporates this ADR's
+Trusted Device design unchanged and adds the missing pieces. This record is kept intact
+as history, per ADR-007 — its Trusted Device mechanism was, and remains, correct; it is
+superseded because a real gap (no named long-lived-access mechanism) was found, not
+because anything here was wrong.
+
+Original status text, preserved below: Accepted — Supersedes ADR-011. Further amends
+ADR-003 (see ADR-003's status note).
 
 ## Context
 ADR-011 made a human-chosen PIN/password the platform's persistent-login mechanism,
