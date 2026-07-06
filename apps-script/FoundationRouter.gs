@@ -56,6 +56,15 @@
  *     session, exactly like every route above — save_patient_profile
  *     reuses the same authorization primitive log_symptom/upload_report
  *     already use, applied here to an update instead of an append.
+ *   - get_doctor_assigned_conditions — Batch PXP-2 addition (docs/44 §6/§22,
+ *     docs/47), Phase 2B's Pillar 1 read surface. patient_id is
+ *     session-derived exactly like every route above. This is a read-only
+ *     route: there is no assign/resolve route here, and none is planned —
+ *     DoctorAssignedCondition writes are doctor/staff-only and, since no
+ *     real Doctor identity/session exists yet (docs/33 §1.4), remain
+ *     manually-run Apps Script editor functions
+ *     (DoctorAssignedCondition.gs's assignFoundationCondition()/
+ *     resolveFoundationCondition()), not a Web App route.
  *
  * A disclosed, additive exception, same category as Code.gs's own
  * one-line dispatch shim (IA-2): this file was previously listed among
@@ -80,7 +89,8 @@
  *
  * Depends on FoundationContracts.gs, FoundationLoginFlow.gs,
  * FoundationRouteGuard.gs, PatientIdentity.gs, FoundationConsultationHistory.gs,
- * FoundationSymptomLog.gs, FoundationReports.gs, FoundationPatientProfile.gs.
+ * FoundationSymptomLog.gs, FoundationReports.gs, FoundationPatientProfile.gs,
+ * DoctorAssignedCondition.gs.
  */
 
 /**
@@ -232,6 +242,18 @@ function foundationHandleSavePatientProfile_(input) {
 }
 
 /**
+ * Batch PXP-2: returns the caller's own DoctorAssignedCondition rows
+ * (active and resolved alike), sorted newest-assigned-first. patient_id is
+ * always session-derived, never client-supplied. Read-only — there is no
+ * corresponding write route (see this file's own header comment).
+ */
+function foundationHandleGetDoctorAssignedConditions_(input) {
+  return withFoundationAuth_(input && input.session_token, function (patientId) {
+    return foundationGetPatientConditionAssignments_(patientId);
+  });
+}
+
+/**
  * Serializes a response-envelope-shaped value to the wire. Apps Script
  * Web Apps cannot set a real HTTP status code (every response transports
  * as HTTP 200 regardless — the same platform fact Code.gs's own
@@ -287,6 +309,9 @@ function handleFoundationRequest_(input) {
       break;
     case 'save_patient_profile':
       envelope = foundationHandleSavePatientProfile_(input);
+      break;
+    case 'get_doctor_assigned_conditions':
+      envelope = foundationHandleGetDoctorAssignedConditions_(input);
       break;
     default:
       envelope = buildFoundationErrorEnvelope_('FOUNDATION_UNKNOWN_ACTION', 'Unknown request.');

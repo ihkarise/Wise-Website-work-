@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wisehomeopathy.com/shared/schemas/doctor-assigned-condition.schema.json",
+  "title": "Doctor Assigned Condition",
+  "version": "1.0.0",
+  "description": "The canonical shape of a DoctorAssignedCondition record — docs/44-PHASE-2B-TECHNICAL-PLAN.md §6's Pillar 1 design, batch PXP-2 (docs/44 §22), governed by docs/47-PHASE-2B-IMPLEMENTATION-RULES.md. A wholly additive entity — the frozen, conformance-tested patient-identity.schema.json is never widened; Patient.condition_slug remains exactly where it is, untouched and unread by this batch. Many-to-one Patient -> DoctorAssignedCondition. Doctor/staff-authored only: every write (assignment and resolution) is a doctor/staff action, enforced server-side — the patient never creates, edits, or resolves a row of this shape. See doctor-assigned-condition.md for the assign/resolve lifecycle and the read-only patient route this schema also backs.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["assignment_id", "patient_id", "condition_slug", "assigned_by", "assigned_at", "status", "resolved_at", "resolved_by"],
+  "properties": {
+    "assignment_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "This row's own identity column (UUID) — a patient may have many DoctorAssignedCondition rows over time, unlike PatientProfile's 1:1 upsert shape, so a separate record_id-style key (named assignment_id per docs/44 §6.2's exact terminology) is required."
+    },
+    "patient_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The Patient Identity this assignment belongs to (docs/33 §1.2, ADR-002). Many DoctorAssignedCondition rows may share the same patient_id (docs/44 §6.2's many-to-one relationship). Session-derived at read time for the patient-facing route; supplied by the doctor/staff caller at write time (there is no patient session at the point a doctor is assigning a condition)."
+    },
+    "condition_slug": {
+      "type": "string",
+      "minLength": 1,
+      "description": "One of shared/constants/condition-slugs.json's canonical slugs (manually adapted into apps-script/DoctorAssignedCondition.gs's own allowlist, the same convention symptom-log.schema.json's condition_slug already established). Doctor/staff-supplied at assignment time — never patient-selected (docs/44 §6.2: 'the patient never selects a condition')."
+    },
+    "assigned_by": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The doctor/staff identifier who created this assignment (a free-text string, the same provenance convention patient-identity.schema.json's created_by and login-token.schema.json's actor fields already use — no real Doctor identity entity exists yet, docs/33 §1.4). Never patient-supplied."
+    },
+    "assigned_at": {
+      "type": "string",
+      "description": "Server-set at creation (foundationNowIso_()), ISO 8601 UTC date-time. Never doctor/staff-supplied and never patient-supplied."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["active", "resolved"],
+      "description": "The assignment's current lifecycle state (docs/44 §6.2). Always 'active' at creation. Transitions to 'resolved' only via the doctor/staff-only resolve operation — never reverts from 'resolved' back to 'active' (a new assignment row is created instead, preserving the prior row as permanent history, the same 'no update, no delete, append new instead' discipline every other Foundation-family entity already follows for its own lifecycle events)."
+    },
+    "resolved_at": {
+      "type": "string",
+      "description": "Server-set only when this assignment is resolved (foundationNowIso_()). Empty string sentinel (the same empty-string-until-set convention login-token.schema.json's used_at already establishes) for every row that is still active. Never patient-supplied, never doctor/staff-supplied directly — set by the resolve operation itself."
+    },
+    "resolved_by": {
+      "type": "string",
+      "description": "The doctor/staff identifier who resolved this assignment. Empty string sentinel for every row that is still active. Never patient-supplied."
+    }
+  }
+}

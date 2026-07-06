@@ -1,5 +1,5 @@
 # 24 - Wise Product Roadmap
-## Version 1.6 — 2026-07-09
+## Version 1.7 — 2026-07-09
 
 # Phase 1 — Public Website
 Status: In Progress
@@ -174,8 +174,9 @@ moved to its own phase below. Batch-level sequencing (5A–5H): docs/29 §13.
 
 # Phase 2B — Wise Patient Experience Platform
 Status: **Architecture-freeze finalized (Version 4.0, 2026-07-09).
-Implementation underway: Batch PXP-1 (Patient Profile) shipped 2026-07-09,
-approved as this phase's first batch per docs/47's per-batch gate.**
+Implementation underway: Batch PXP-1 (Patient Profile) shipped 2026-07-09;
+Batch PXP-2 (Doctor-Assigned Conditions) shipped 2026-07-09, approved as
+this phase's second batch per docs/47's per-batch gate.**
 This entry originally named only
 "Personal Care Plan" (per docs/32 Part 2's recommendation), then "Personal
 Care Plan, Module Engine & Personalized Check-ins" after the first
@@ -243,6 +244,26 @@ file — one small, disclosed exception (`my-health-journey/index.html`'s
 new "My Profile" header link; no `dashboard.js` logic touched, no new
 dashboard card added in this batch).
 
+**Batch PXP-2 (Doctor-Assigned Conditions, docs/44 §6/§22)** — Pillar 1 —
+has now shipped: `DoctorAssignedCondition`
+(`shared/schemas/doctor-assigned-condition.schema.json`,
+`apps-script/DoctorAssignedCondition.gs`) and the one new, read-only
+`get_doctor_assigned_conditions` dispatch case. Doctor/staff-owned, a hard
+boundary — the patient never creates, edits, or resolves an assignment. No
+real Doctor identity/authentication exists yet (docs/33 §1.4), so
+assignment/resolution are manually-run Apps Script editor functions
+(mirroring `PatientIdentity.gs`'s `createFoundationPatient()` precedent),
+not a Web App route. The one patient-facing surface is the read-only route,
+session-derived, returning only the caller's own assignment history — no
+UI is built on top of it in this batch (docs/44 §22's "zero patient-facing
+surface beyond a read-only reflection, if any"), and it is infrastructure
+for later batches (Module Registry, Dashboard Registry, Daily Check-in
+Engine, Calculator Registry, Personal Care Plan) to eventually consume.
+docs/45 Version 3.0/4.0 Part 1.2's `DoctorAssignedCondition`/`Patient.
+condition_slug` coexistence loose end is resolved: this batch is purely
+additive, no existing reader migrates. Zero dependency on any other Phase
+2B batch, zero modification to any frozen file.
+
 See docs/44-PHASE-2B-TECHNICAL-PLAN.md (Version 4.0) for the full design,
 docs/45-PHASE-2B-ARCHITECTURE-READINESS-REVIEW.md (Version 4.0) for the
 critique of every proposal, docs/46-PHASE-2B-REPOSITORY-CONSISTENCY-
@@ -254,9 +275,10 @@ implementation standard (registry rules, entity rules, validation/
 documentation/git rules, and the mandatory three-phase batch workflow)
 every batch from PXP-1 onward must follow.
 
-**Implementation has begun with Batch PXP-1 (Patient Profile), explicitly
-approved and shipped; no other batch is authorized by any of the above
-documents.** docs/44 §22 sequences **infrastructure before features**:
+**Implementation has begun with Batch PXP-1 (Patient Profile) and Batch
+PXP-2 (Doctor-Assigned Conditions), both explicitly approved and shipped;
+no other batch is authorized by any of the above documents.** docs/44 §22
+sequences **infrastructure before features**:
 Patient Profile → Doctor-Assigned Conditions → Module Registry → Dashboard
 Registry → Daily Check-in Engine → Calculator Registry → Personal Care
 Plan → Trusted Device + Long-Lived Session + Optional PIN → a reserved,

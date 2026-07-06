@@ -95,7 +95,11 @@ implementation, `apps-script/FoundationReports.gs`) and
 `schemas/report.schema.json` (the `Reports` record shape). Phase 2B Batch PXP-1 added
 `schemas/patient-profile.schema.json` (the `PatientProfile` record shape — the
 platform's first patient-mutable, upsert-style entity contract, alongside its first
-implementation, `apps-script/FoundationPatientProfile.gs`).
+implementation, `apps-script/FoundationPatientProfile.gs`). Phase 2B Batch PXP-2 added
+`schemas/doctor-assigned-condition.schema.json` (the `DoctorAssignedCondition` record
+shape — Phase 2B's Pillar 1, doctor/staff-owned, alongside its first implementation,
+`apps-script/DoctorAssignedCondition.gs`; its condition_slug field manually re-adapts
+the same canonical list, per this file's own duplication-by-convention rule above).
 
 ---
 

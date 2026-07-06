@@ -1,5 +1,5 @@
 # 33 - Domain Model
-## Version 1.5 — 2026-07-09
+## Version 1.6 — 2026-07-09
 
 > Defines every major business entity in the Wise Platform: what it means, what it
 > holds, how it relates to everything else, how it comes into being and ends, who is
@@ -669,6 +669,10 @@ finalization, no entity's shape changed): implementation batches renamed PCP-1�
 → PXP-1…PXP-11 throughout this section and the Summary Table below; a Template
 Registry entity added (§6.7, new ADR-016), generalizing Check-In Template (§6.5) into
 its first concrete category.
+**Updated 2026-07-09** for Batch PXP-2 (implementation): Doctor Assigned Condition
+(§6.2) promoted from *Designed* to **Implemented** — see that subsection's own status
+update for the shipped shape, the resolved docs/45 Part 1.2 coexistence loose end, and
+the one read-only patient route this batch adds.
 
 ## 6.1 Patient Profile — *Implemented (Batch PXP-1)*
 **Purpose:** Patient-editable structured contact/personal data (phone, date of birth,
@@ -691,7 +695,7 @@ view/edit works regardless of active/inactive/recovered, matching every other ex
 patient-facing feature). No dashboard card was added in this batch — see
 shared/schemas/patient-profile.md's disclosed scope boundary.
 
-## 6.2 Doctor Assigned Condition — *Pillar 1* (renamed from "Condition Assignment")
+## 6.2 Doctor Assigned Condition — *Pillar 1, Implemented (Batch PXP-2)* (renamed from "Condition Assignment")
 **Purpose:** A doctor-authored record of which condition(s) are currently active for a
 patient, with a full assign/resolve audit trail — replacing today's single, staff-typed,
 never-updated `condition_slug` field with a real, many-to-one, doctor-driven workflow.
@@ -701,9 +705,29 @@ alone.** The foundation every other Phase 2B pillar and capability builds on (do
 Check-in template assignment (§6.5) and Calculator/module enablement, both of which
 remain explicit doctor actions (docs/44 §14). **Full detail:** docs/44 §6 — the Option
 A/B design fork from earlier review rounds is now **settled: Option B, additive,
-approved**. `Patient.condition_slug` itself is untouched; which field readers should
-consult going forward is a named, still-open implementation loose end (docs/45 Version
-3.0 Part 1.2).
+approved**. `Patient.condition_slug` itself is untouched.
+
+**Status update (this change):** Implemented. `apps-script/DoctorAssignedCondition.gs`
+backs `foundationAssignCondition_()`/`foundationResolveCondition_()`/
+`foundationGetPatientConditionAssignments_()`. Doctor/staff-owned, a hard boundary: the
+patient never creates, edits, or resolves a row of this shape. No real Doctor identity/
+authentication exists yet (docs/33 §1.4, a disclosed gap), so assignment and resolution
+are manually-run Apps Script editor functions (`assignFoundationCondition()`/
+`resolveFoundationCondition()`), mirroring `PatientIdentity.gs`'s
+`createFoundationPatient()` precedent exactly — not a new authenticated Web App route.
+The schema adds `resolved_at`/`resolved_by` (empty-string sentinels until resolved)
+beyond docs/44 §6.2's own summary field list, completing the "full audit history of
+every assignment **and resolution**" docs/44 already named as this entity's intent
+(shared/schemas/doctor-assigned-condition.md). One read-only, session-derived route —
+`get_doctor_assigned_conditions` (`FoundationRouter.gs`) — is this batch's approved,
+minimal patient-facing surface (docs/44 §22's "zero patient-facing surface beyond a
+read-only reflection, if any"); it is infrastructure for later batches (Module
+Registry, Dashboard Registry, Daily Check-in Engine, Calculator Registry, Personal Care
+Plan) to eventually consume, not a patient-facing feature — no UI is built on top of it
+in this batch. **docs/45 Version 3.0/4.0 Part 1.2's coexistence loose end is resolved:**
+this batch is purely additive; `Patient.condition_slug` and every existing reader of it
+are completely untouched, and no existing reader is required to migrate as part of this
+change.
 
 ## 6.3 Module Registry and Patient Module State — *Pillar 2*
 **Purpose:** A config-level list of available dashboard capabilities (Module Registry)
@@ -813,7 +837,7 @@ instantiated category; any future category would follow the same relationship sh
 | Knowledge Engine | Conceptual (system) | Unassigned |
 | Calculator | Designed, not yet implemented — Patient variant only — **Pillar 3** | 2B (docs/44 §8, batch PXP-6, Calculator Registry). Public variant still unassigned — roadmap gap carried forward (docs/46 Part 3). |
 | Patient Profile | **Implemented** | 2B (docs/44 §17, batch PXP-1 — shipped, the platform's first upsert-style entity) |
-| Doctor Assigned Condition | Designed, not yet implemented — **Pillar 1** | 2B (docs/44 §6, batch PXP-2). Renamed from "Condition Assignment"; Option B (additive) settled and approved. |
+| Doctor Assigned Condition | **Implemented — Pillar 1** | 2B (docs/44 §6, batch PXP-2 — shipped, doctor/staff-owned; renamed from "Condition Assignment"; Option B (additive) settled and approved) |
 | Module Registry / Patient Module State | Designed, not yet implemented — **Pillar 2** | 2B (docs/44 §7, batch PXP-3 backend + PXP-4 Dashboard Registry frontend migration, now covering every dashboard card) |
 | Template Registry | Designed, not yet implemented (new in Version 4.0) | 2B (docs/44 §11/§11.5, ADR-016, batch PXP-5 for its first category). Generalizes Check-In Template into a registry pattern; six future categories named, unscoped, unclaimed by any batch. |
 | Check-In Template / Check-In Response | Designed, not yet implemented | 2B (docs/44 §11/§10, batch PXP-5). Template assignment settled: doctor-driven, patient never configures. Now the Template Registry's first concrete category (§6.7). |
