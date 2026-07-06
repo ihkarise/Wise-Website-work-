@@ -92,7 +92,10 @@ scope; a future cleanup batch could point them at this canonical definition inst
 Batch PA-5 added `constants/upload-limits.json` (the Report Upload size cap and
 allowed-file-type list — the bootstrap exception, created alongside its first
 implementation, `apps-script/FoundationReports.gs`) and
-`schemas/report.schema.json` (the `Reports` record shape).
+`schemas/report.schema.json` (the `Reports` record shape). Phase 2B Batch PXP-1 added
+`schemas/patient-profile.schema.json` (the `PatientProfile` record shape — the
+platform's first patient-mutable, upsert-style entity contract, alongside its first
+implementation, `apps-script/FoundationPatientProfile.gs`).
 
 ---
 

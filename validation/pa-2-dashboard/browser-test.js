@@ -344,8 +344,13 @@ async function main() {
 
       // Real keyboard Tab navigation (not a simulated .focus() call), same
       // discipline PA-1 used to catch its own focus-visible regression.
+      // Updated for Batch PXP-1's one disclosed addition to this header
+      // (docs/44 §17, shared/schemas/patient-profile.md): the "My Profile"
+      // link is now the first interactive control after the skip link,
+      // ahead of the sign-out button.
       await page.keyboard.press('Tab'); // skip link
-      await page.keyboard.press('Tab'); // sign-out button (first/only interactive control after skip link)
+      await page.keyboard.press('Tab'); // My Profile link (Batch PXP-1)
+      await page.keyboard.press('Tab'); // sign-out button
       const focusedIsSignOut = await page.evaluate(() => document.activeElement.id === 'signOutBtn');
       check('Dashboard: keyboard Tab reaches the sign-out control', focusedIsSignOut);
       const outlineStyle = await page.evaluate(() => getComputedStyle(document.activeElement, null).outlineStyle);

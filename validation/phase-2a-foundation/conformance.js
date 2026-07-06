@@ -71,6 +71,20 @@
  * failure mode — the platform's first entity spanning two independent
  * storage systems).
  *
+ * Extended in Phase 2B batch PXP-1 with Stage 10, covering
+ * FoundationPatientProfile.gs against the new
+ * shared/schemas/patient-profile.schema.json, plus the two new
+ * FoundationRouter.gs dispatch cases (get_patient_profile,
+ * save_patient_profile) end to end — the platform's first patient-mutable,
+ * upsert-style entity. Per docs/47-PHASE-2B-IMPLEMENTATION-RULES.md §5's
+ * per-entity requirements, this stage's highest-priority checks are: the
+ * lazy-creation resolution (a patient with no saved row yet gets a real,
+ * default-shaped record, never FOUNDATION_NOT_FOUND); a first save inserts
+ * a new row while a second save patches the same row in place (proving
+ * the upsert branch, not a duplicate insert); cross-patient isolation on
+ * both branches; and every field's own validation rule
+ * (shared/schemas/patient-profile.md).
+ *
  * Run with: node conformance.js  (no dependencies beyond Node's
  * standard library).
  */
@@ -92,6 +106,7 @@ var consultationHistorySchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR,
 var symptomLogSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/symptom-log.schema.json'), 'utf8'));
 var reportSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/report.schema.json'), 'utf8'));
 var uploadLimits = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'constants/upload-limits.json'), 'utf8'));
+var patientProfileSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/patient-profile.schema.json'), 'utf8'));
 
 var results = [];
 function record(name, pass, detail) {
@@ -993,6 +1008,144 @@ var ctx = loadProject(h.sandbox);
   var createdAuditRows = auditRowsOf(h, 'report_uploaded');
   record('Stage9: every successful upload (direct, via HTTP dispatch, and via the staff wrapper) wrote its own report_uploaded AuditLog row',
     createdAuditRows.length === 6);
+})();
+
+// ============================================================
+// Stage 10 (PXP-1) — FoundationPatientProfile.gs -> patient-profile.schema.json,
+// plus FoundationRouter.gs's two new dispatch cases end to end. The
+// platform's first patient-mutable, upsert-style entity (docs/44 §17/§22;
+// docs/47-PHASE-2B-IMPLEMENTATION-RULES.md).
+// ============================================================
+(function stage10_patientProfile() {
+  var patientA = ctx.foundationCreatePatient_({
+    full_name: 'Stage10 Patient A', email: 'stage10-a@example.com',
+    condition_slug: 'mcas', created_by: 'conformance-harness'
+  });
+  var patientB = ctx.foundationCreatePatient_({
+    full_name: 'Stage10 Patient B', email: 'stage10-b@example.com',
+    condition_slug: 'mcas', created_by: 'conformance-harness'
+  });
+  record('Stage10: setup — two independent patients exist', patientA.status === 'ok' && patientB.status === 'ok');
+
+  // ---- Lazy creation: a patient with no saved row yet gets a real, default-shaped record ----
+  var freshProfile = ctx.foundationGetPatientProfile_(patientA.data.patient_id);
+  record('Stage10: foundationGetPatientProfile_() never returns FOUNDATION_NOT_FOUND for a patient who has not saved a profile yet',
+    freshProfile.status === 'ok');
+  record('Stage10: a never-saved profile is a real, default-shaped record — every optional field empty, patient_id populated',
+    freshProfile.data.patient_id === patientA.data.patient_id &&
+    freshProfile.data.phone === '' && freshProfile.data.date_of_birth === '' &&
+    freshProfile.data.preferred_contact_method === '' && freshProfile.data.emergency_contact === '' &&
+    freshProfile.data.updated_at === '' && freshProfile.data.updated_by === '');
+  var freshProfileResult = validate(patientProfileSchema, freshProfile.data);
+  record('Stage10: the default-shaped record conforms to patient-profile.schema.json',
+    freshProfileResult.valid === true, freshProfileResult.errors.join('; '));
+
+  // ---- Validation rejections ----
+  var badPhone = ctx.foundationSavePatientProfile_({ patient_id: patientA.data.patient_id, phone: 'abc' });
+  record('Stage10: foundationSavePatientProfile_() rejects a non-numeric phone with FOUNDATION_INVALID_INPUT',
+    badPhone.status === 'error' && badPhone.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var futureDob = ctx.foundationSavePatientProfile_({ patient_id: patientA.data.patient_id, date_of_birth: '2099-01-01' });
+  record('Stage10: foundationSavePatientProfile_() rejects a date_of_birth in the future',
+    futureDob.status === 'error' && futureDob.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var badCalendarDate = ctx.foundationSavePatientProfile_({ patient_id: patientA.data.patient_id, date_of_birth: '1990-02-30' });
+  record('Stage10: foundationSavePatientProfile_() rejects a non-existent calendar date (Feb 30)',
+    badCalendarDate.status === 'error' && badCalendarDate.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var badContactMethod = ctx.foundationSavePatientProfile_({ patient_id: patientA.data.patient_id, preferred_contact_method: 'carrier-pigeon' });
+  record('Stage10: foundationSavePatientProfile_() rejects a preferred_contact_method outside email/phone/sms',
+    badContactMethod.status === 'error' && badContactMethod.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var tooLongEmergencyContact = ctx.foundationSavePatientProfile_({ patient_id: patientA.data.patient_id, emergency_contact: new Array(202).join('x') });
+  record('Stage10: foundationSavePatientProfile_() rejects an emergency_contact longer than 200 characters',
+    tooLongEmergencyContact.status === 'error' && tooLongEmergencyContact.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  // ---- First save: proves the insert branch of the upsert ----
+  var firstSave = ctx.foundationSavePatientProfile_({
+    patient_id: patientA.data.patient_id, phone: '+1 555-123-4567', date_of_birth: '1990-05-15',
+    preferred_contact_method: 'email', emergency_contact: '<script>alert(1)</script>'
+  });
+  record('Stage10: foundationSavePatientProfile_() succeeds on a first, valid save', firstSave.status === 'ok');
+  var firstSaveResult = validate(patientProfileSchema, firstSave.data || {});
+  record('Stage10: a real foundationSavePatientProfile_() result conforms to patient-profile.schema.json',
+    firstSaveResult.valid === true, firstSaveResult.errors.join('; '));
+  record('Stage10: updated_at/updated_by are server-set, never accepted from a client-supplied field',
+    typeof firstSave.data.updated_at === 'string' && firstSave.data.updated_at.length > 0 &&
+    firstSave.data.updated_by === patientA.data.patient_id);
+  record('Stage10: emergency_contact is stored raw (unescaped) — escaping happens at display time, the same convention every other free-text field already uses',
+    firstSave.data.emergency_contact === '<script>alert(1)</script>');
+
+  var afterFirstSave = ctx.foundationGetPatientProfile_(patientA.data.patient_id);
+  record('Stage10: a re-fetch after the first save returns the just-saved values, not the lazy-created default',
+    afterFirstSave.data.phone === '+1 555-123-4567' && afterFirstSave.data.date_of_birth === '1990-05-15');
+
+  // ---- Second save: proves the update branch of the upsert (patches the same row, no duplicate) ----
+  var secondSave = ctx.foundationSavePatientProfile_({
+    patient_id: patientA.data.patient_id, phone: '+1 555-987-6543', date_of_birth: '1990-05-15',
+    preferred_contact_method: 'sms', emergency_contact: 'Jane Doe, +1 555-000-1111'
+  });
+  record('Stage10: foundationSavePatientProfile_() succeeds on a second save (the update branch)', secondSave.status === 'ok');
+
+  var afterSecondSave = ctx.foundationGetPatientProfile_(patientA.data.patient_id);
+  record('Stage10: the second save patched the existing row in place — the phone/contact-method reflect the newest save',
+    afterSecondSave.data.phone === '+1 555-987-6543' && afterSecondSave.data.preferred_contact_method === 'sms');
+
+  var patientProfileSheetRows = h.spreadsheet.getSheetByName(ctx.FOUNDATION_PATIENT_PROFILE_SHEET_)._debug().rows;
+  record('Stage10: exactly one PatientProfile row exists for patient A after two saves — the update branch patched in place, never inserted a duplicate',
+    patientProfileSheetRows.filter(function (row) { return row[0] === patientA.data.patient_id; }).length === 1);
+
+  // ---- FoundationRouter.gs — the two new dispatch cases, end to end ----
+  var sessionA = ctx.foundationIssueSessionToken_(patientA.data.patient_id);
+  var getProfileHttp = ctx.handleFoundationRequest_({ foundation_action: 'get_patient_profile', session_token: sessionA });
+  var getProfileBody = JSON.parse(getProfileHttp._text);
+  record('Stage10: get_patient_profile (real HTTP dispatch) resolves the caller\'s own profile from a valid session',
+    getProfileBody.status === 'ok' && getProfileBody.data.patient_id === patientA.data.patient_id);
+
+  var saveProfileHttp = ctx.handleFoundationRequest_({
+    foundation_action: 'save_patient_profile', session_token: sessionA, phone: '+1 555-222-3333'
+  });
+  var saveProfileBody = JSON.parse(saveProfileHttp._text);
+  record('Stage10: save_patient_profile (real HTTP dispatch) updates the caller\'s own session-derived patient_id',
+    saveProfileBody.status === 'ok' && saveProfileBody.data.patient_id === patientA.data.patient_id && saveProfileBody.data.phone === '+1 555-222-3333');
+
+  record('Stage10: save_patient_profile derives patient_id only from the verified session, never from a client-supplied field',
+    (function () {
+      var spoofed = ctx.handleFoundationRequest_({
+        foundation_action: 'save_patient_profile', session_token: sessionA, patient_id: 'someone-elses-id', phone: '+1 555-444-5555'
+      });
+      var spoofedBody = JSON.parse(spoofed._text);
+      return spoofedBody.status === 'ok' && spoofedBody.data.patient_id === patientA.data.patient_id;
+    })());
+
+  var unauthedGetProfileHttp = ctx.handleFoundationRequest_({ foundation_action: 'get_patient_profile', session_token: 'not-a-real-session-token' });
+  var unauthedGetProfileBody = JSON.parse(unauthedGetProfileHttp._text);
+  record('Stage10: get_patient_profile rejects an invalid session_token with FOUNDATION_UNAUTHORIZED, never leaking any data',
+    unauthedGetProfileBody.status === 'error' && unauthedGetProfileBody.error.code === 'FOUNDATION_UNAUTHORIZED' && unauthedGetProfileBody.data === null);
+
+  var unauthedSaveProfileHttp = ctx.handleFoundationRequest_({ foundation_action: 'save_patient_profile', session_token: 'not-a-real-session-token', phone: '+1 555-000-0000' });
+  var unauthedSaveProfileBody = JSON.parse(unauthedSaveProfileHttp._text);
+  record('Stage10: save_patient_profile rejects an invalid session_token with FOUNDATION_UNAUTHORIZED, never writing a row',
+    unauthedSaveProfileBody.status === 'error' && unauthedSaveProfileBody.error.code === 'FOUNDATION_UNAUTHORIZED' && unauthedSaveProfileBody.data === null);
+
+  var invalidInputHttp = ctx.handleFoundationRequest_({ foundation_action: 'save_patient_profile', session_token: sessionA, phone: 'not-a-real-phone!!' });
+  var invalidInputBody = JSON.parse(invalidInputHttp._text);
+  record('Stage10: save_patient_profile over real HTTP dispatch still rejects an invalid phone with FOUNDATION_INVALID_INPUT',
+    invalidInputBody.status === 'error' && invalidInputBody.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  // ---- Cross-patient isolation ----
+  var sessionB = ctx.foundationIssueSessionToken_(patientB.data.patient_id);
+  var getProfileHttpB = ctx.handleFoundationRequest_({ foundation_action: 'get_patient_profile', session_token: sessionB });
+  var getProfileBodyB = JSON.parse(getProfileHttpB._text);
+  record('Stage10: get_patient_profile over real HTTP dispatch returns patient B\'s own (still-default) profile, never patient A\'s saved values',
+    getProfileBodyB.status === 'ok' && getProfileBodyB.data.patient_id === patientB.data.patient_id && getProfileBodyB.data.phone === '');
+
+  var createdAuditRows = auditRowsOf(h, 'patient_profile_created');
+  record('Stage10: the first save (direct call) wrote its own patient_profile_created AuditLog row, distinguishable from a later update',
+    createdAuditRows.length === 1);
+  var updatedAuditRows = auditRowsOf(h, 'patient_profile_updated');
+  record('Stage10: every subsequent save (direct and via HTTP dispatch) wrote its own patient_profile_updated AuditLog row',
+    updatedAuditRows.length === 3);
 })();
 
 function auditRowsOf(h, eventType) {

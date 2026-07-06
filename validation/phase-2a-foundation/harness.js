@@ -65,6 +65,14 @@
  *     same "mock the platform API, run the real logic" discipline as every
  *     other mock in this file, but with its one genuine uncertainty named
  *     rather than silently assumed identical to the real platform.
+ *
+ * Extended in Phase 2B batch PXP-1 with `FoundationPatientProfile.gs` in
+ * the FILES list — no new mock needed, since it only reuses
+ * SpreadsheetApp/Utilities/Logger primitives already mocked above,
+ * including a real production exercise of `foundationDsUpdateById_()`
+ * (previously only used by `FoundationLoginTokens.gs`'s system-managed
+ * `used_at` patch and this harness's own test fixtures) for a genuinely
+ * patient-driven field update.
  */
 
 var fs = require('fs');
@@ -90,6 +98,7 @@ var FILES = [
   'FoundationConsultationHistory.gs',
   'FoundationSymptomLog.gs',
   'FoundationReports.gs',
+  'FoundationPatientProfile.gs',
   'FoundationRouter.gs'
 ];
 

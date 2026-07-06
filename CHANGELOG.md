@@ -8,6 +8,66 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-09 — Phase 2B Batch PXP-1: Patient Profile
+
+The first Phase 2B implementation batch, explicitly approved per docs/47's per-batch
+gate. Zero dependency on any other Phase 2B batch; zero modification to any frozen
+Foundation/Identity & Access/Patient Access file.
+
+### Added
+- `shared/schemas/patient-profile.schema.json` + companion `.md` (new) — the platform's
+  first patient-mutable, upsert-style entity contract: `patient_id` (1:1), `phone`,
+  `date_of_birth`, `preferred_contact_method`, `emergency_contact`, `updated_at`,
+  `updated_by`. A wholly separate entity from the frozen `Patients` sheet/
+  `patient-identity.schema.json` (ADR-002) — never widens it.
+- `apps-script/FoundationPatientProfile.gs` (new) — `foundationGetPatientProfile_()`/
+  `foundationSavePatientProfile_()`, the platform's first real production use of
+  `foundationDsUpdateById_()` for a genuinely patient-driven field update (create-if-
+  absent, else patch — an upsert, unlike every prior entity's create-and-list-only
+  lifecycle). Resolves both lifecycle questions docs/45 Version 4.0 carried forward:
+  **lazy row creation** (no row exists until the first save; a never-saved profile
+  returns a real, default-shaped record, never `FOUNDATION_NOT_FOUND`) and **no
+  `Patient.status`-based gating** (profile view/edit works regardless of active/
+  inactive/recovered, matching every other existing patient-facing feature).
+- `apps-script/FoundationRouter.gs` — two new dispatch cases, `get_patient_profile` and
+  `save_patient_profile`, both deriving `patient_id` exclusively from the verified
+  session, the same authorization primitive `log_symptom`/`upload_report` already use.
+- `my-health-journey/profile/` (new: `index.html` + `profile.js`) — the patient-facing
+  profile view/edit page, following the same `session-guard.js` pattern as
+  `symptoms/`/`reports/`. Unlike those append-only forms, a successful save does **not**
+  reset the form — this is an edit-in-place record, not a log entry.
+- `my-health-journey/index.html` — one small, disclosed exception to this frozen
+  dashboard shell: a static "My Profile" header link (`#profileLink`), no
+  `dashboard.js` logic touched, no new dashboard card added in this batch (a future
+  Dashboard Registry batch, PXP-3/PXP-4, is the natural place for that if ever wanted).
+- `validation/phase-2a-foundation/`: Stage 10 in `conformance.js` (lazy-creation,
+  upsert insert/update branches, cross-patient isolation, every field's validation
+  rule, full HTTP-dispatch round trip) and `FoundationPatientProfile.gs` added to
+  `harness.js`'s `FILES` list — 178/178 conformance checks passing.
+- `validation/pxp-1-patient-profile/` (new browser-test suite + README) — 25/25 checks
+  passing, covering the profile page's first-visit/pre-filled/save-success/save-
+  rejection/network-failure/sign-out/responsive/accessibility behavior and the
+  dashboard's new "My Profile" link.
+
+### Fixed
+- `validation/pa-2-dashboard/browser-test.js`'s keyboard-focus assertion updated (one
+  additional `Tab` press) to account for the dashboard header's new, legitimate third
+  interactive control — re-confirmed passing (32/32) after this batch's one disclosed
+  header change.
+
+### Changed
+- `docs/33-DOMAIN-MODEL.md` bumped to Version 1.5 — Patient Profile (§6.1) promoted
+  from "Designed, not yet implemented" to **Implemented**, both lifecycle decisions
+  recorded.
+- `docs/24-ROADMAP.md` bumped to Version 1.6 — Phase 2B status updated: implementation
+  underway, Batch PXP-1 shipped.
+
+### Verified
+- Static Analysis: PASS, 0 findings. Conformance: 178/178. Phase 1.5 Regression: 42/42.
+  Browser test suites: 168/168 across six suites (`pa-2-dashboard`, `pa-3-timeline`,
+  `pa-4-symptom-tracker`, `pa-5-reports`, `pa-6-public-nav`,
+  `pxp-1-patient-profile`).
+
 ## 2026-07-09 — Phase 2B Implementation Rules (documentation only, no code)
 
 A new governance document establishes the permanent implementation standard every

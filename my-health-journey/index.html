@@ -62,6 +62,12 @@ body{background:var(--color-surface)}
     </div>
     <div class="dash-user">
       <span class="dash-greeting" id="greeting" aria-live="polite"><span class="skeleton"></span></span>
+      <!-- Batch PXP-1's one disclosed, additive exception to this frozen
+           dashboard shell (docs/38-PATIENT-ACCESS-DASHBOARD-SHELL-CLOSEOUT.md):
+           a static link to the new My Profile page. No dashboard.js logic
+           touched — see shared/schemas/patient-profile.md's "No dashboard
+           card in this batch" section for why this is a link, not a card. -->
+      <a class="dash-signout" href="./profile/" id="profileLink">My Profile</a>
       <button class="dash-signout" type="button" id="signOutBtn">Sign out</button>
     </div>
   </div>
