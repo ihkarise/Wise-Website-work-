@@ -1,5 +1,5 @@
 # 33 - Domain Model
-## Version 1.12 — 2026-07-15
+## Version 1.13 — 2026-07-16
 
 > Defines every major business entity in the Wise Platform: what it means, what it
 > holds, how it relates to everything else, how it comes into being and ends, who is
@@ -184,9 +184,18 @@ record).
 account identity (Phase 1.5's Sheet-bound review) and a free-text string (docs/29's
 staff-entry pattern). Neither is a real, queryable Doctor identity. This becomes worth
 solving once granular per-doctor audit trails or role distinctions (e.g., a physician
-vs. a front-desk staff member) matter — plausibly Phase 3 (WiseOS) territory, per
+vs. a front-desk staff member) matter — plausibly Phase 3 territory, per
 docs/24, but flagged here since it's a real gap, not a hypothetical one. See
 docs/34 for this as a reported finding.
+
+**Status update (2026-07-16, Phase 3/WHIMS architecture-freeze, docs/49/50, ADR-017):
+promoted from Conceptual to Designed.** "Phase 3 (WiseOS)" above is renamed "Phase 3
+(WHIMS Patient Intelligence Platform)" per docs/49 §2 — no scope change from the
+rename itself. `DoctorIdentity`/`Doctor` (docs/50 §5) formalize this section's own
+proposed attributes almost exactly (`doctor_id`, `full_name`, `role`, `email`, plus a
+new `specialty_slug`), structurally parallel to Patient Identity/Patient (ADR-002) and
+**never merged with either** (ADR-017). See §7.1 below for the full shape. Not yet
+implemented — see docs/50 §19's `WPI-1` batch.
 
 ---
 
@@ -593,6 +602,15 @@ docs/34) — not required for docs/29's Phase 2A scope, but worth prioritizing o
 Phase 2A's identity/session infrastructure exists, since an Appointment naturally
 needs to resolve to a Patient Identity once one exists.
 
+**Status update (2026-07-16, Phase 3/WHIMS architecture-freeze, docs/49/50): promoted
+from Conceptual to Designed.** docs/50 §8 gives this entity an owning phase for the
+first time, per docs/34 Part 4 item 4's own recommendation. Nullable `patient_id`/
+`doctor_id` fields are confirmed (a first-time visitor booking has neither yet, exactly
+as this section already anticipated); a `specialty_slug` field is added (ADR-018). The
+booking-form-to-`Appointment` intake mechanism is deliberately left as an
+implementation-time decision, not designed here. Not yet implemented — see docs/50
+§19's `WPI-5` batch.
+
 ---
 
 ## 4.2 Notification — *Conceptual (gap)*
@@ -621,6 +639,15 @@ independent implementations (Phase 1.5's and docs/29's) is a reasonable place to
 and observe; a third would be a real DRY violation. Flagged as a simplification
 opportunity in docs/34 rather than acted on now, since docs/29's login-link email is
 still only planned, not built.
+
+**Status update (2026-07-16, Phase 3/WHIMS architecture-freeze, docs/49/50): promoted
+from Conceptual to Designed.** docs/34's own "revisit only when a third independent
+flow is proposed" trigger has been passed — docs/50 §10/§11 add a fourth and fifth
+flow (Inventory low-stock alerts, PillFill order-status updates) on top of the two
+already named here. docs/50 §9 scopes Notification as a shared *record* of what was
+sent, not a new delivery pipeline — every existing sender keeps its own transport code
+and additionally writes a Notification row. Not yet implemented — see docs/50 §19's
+`WPI-6` batch.
 
 ---
 
@@ -1125,6 +1152,79 @@ labeled test-only fixture pushed directly into the test harness's own registry a
 
 ---
 
+# 7. Phase 3 — WHIMS Patient Intelligence Platform Entities — *Designed, not yet implemented (docs/49/50/51/52, ADR-017–020)*
+
+Net-new entities named by Phase 3's architecture-freeze pass (docs/49/50, 2026-07-16).
+Doctor (§1.4), Appointment (§4.1), and Notification (§4.2) were already conceptual and
+are promoted in place above rather than restated here. Full field-level detail lives in
+docs/50 — this section records only each entity's purpose and relationships, at the
+same fidelity the rest of this document uses.
+
+## 7.1 Doctor Identity, Doctor, Doctor Session, Doctor Login Token — *Designed*
+Structurally parallel to Patient Identity/Patient/Session/LoginTokens (§1.1–1.3),
+**never merged with any of them** (ADR-017). `DoctorSession` reuses
+`FoundationSession.gs`'s existing signing primitives without modifying that frozen
+file — the same pattern `TrustedDevice.gs`'s Long-Lived Session already proved out.
+**Relationships:** Every doctor-owned Phase 2B entity's `created_by`/`prescribed_by`/
+`resolved_by` field gains a real `doctor_id` to reference once this ships, alongside
+(not replacing) today's free-text values. **Full detail:** docs/50 §5.
+
+## 7.2 Specialty — *Designed*
+A config-level list of specialty descriptors (`specialty_slug`, `display_name`,
+`status`), seeded with exactly one entry — the platform's current, implicit specialty,
+named explicitly for the first time (ADR-018). Every registry (Module, Calculator,
+Template, Doctor Module) gains an optional `specialty_scope` field; absent, an entry
+behaves exactly as it does today. **Relationships:** A Doctor's specialty is
+`Doctor.specialty_slug` (§7.1) directly; a Patient's effective specialty is derived
+from their active Doctor Assigned Condition(s) (§6.2), via a small, additive lookup
+table — not a change to that entity's own schema. **Full detail:** docs/50 §6.
+
+## 7.3 Doctor Module Registry and Doctor Module State — *Designed*
+Structurally parallel to Module Registry/Patient Module State (§6.3), but a separate
+registry — patient-facing and doctor-facing capabilities are never exposed through one
+shared mechanism (ADR-020). Drives a new, registry-driven Doctor Dashboard, mirroring
+`dashboard.js`'s own post-PXP-4 discipline: no hardcoded per-capability rendering.
+**Relationships:** Governs whether a doctor sees patient-roster, condition-assignment,
+care-plan-authoring, module/calculator/template-enablement, inventory, or analytics
+capabilities. Patient roster is **derived** from Doctor Assigned Condition + specialty
+(§7.2), not a new stored entity — disclosed limitation at multi-doctor-per-specialty
+scale, docs/50 §7.4. **Full detail:** docs/50 §7.
+
+## 7.4 Inventory Item and Inventory Transaction — *Designed*
+`InventoryItem` (stock-keeping record) plus an append-only `InventoryTransaction`
+ledger — mirroring Care Plan's (§3.4) own append-only-versioning discipline rather
+than mutating a running total in place. `quantity_on_hand` is a derived/cached value,
+never the sole source of truth. **Relationships:** A `dispense` transaction is created
+when a PillFill Order (§7.5) is fulfilled; crossing `reorder_threshold` produces an
+`inventory_low_stock` Notification (§4.2). **Full detail:** docs/50 §10.
+
+## 7.5 PillFill Order — *Designed*
+Connects a `medicine`-type Doctor Instruction (§2.3's own "Prescription is a
+`medicine`-type Doctor Instruction" mapping) to fulfillment. **Relationships:**
+Belongs to one Doctor Instruction and one Patient Identity; fulfillment draws down one
+Inventory Item (§7.4) and produces a `pillfill_order_status` Notification (§4.2). No
+external vendor API contract is designed — this entity is the platform's own internal
+order-and-fulfillment record only. **Full detail:** docs/50 §11.
+
+## 7.6 Analytics — *Conceptual (computed view, never a base table)*
+Not a stored entity — mirrors Digital Twin's (§3.5) own "computed view, never a base
+table" discipline. Reads across Check-In Response, Calculator Result, Care Plan,
+Doctor Assigned Condition, Inventory Transaction, PillFill Order, and Appointment.
+**Every report is a deterministic aggregation — never an AI-generated interpretation,
+prediction, or recommendation**; any future AI-assisted analytics narrative is
+independently gated by ADR-001/004/005/019, identically to every other reserved
+extension point on the platform. **Full detail:** docs/50 §12.
+
+## 7.7 Reserved — AI Assistant, Holoscan
+Named, not designed. Every registry above carries the same inert AI-compatibility
+field docs/44 §7.1/§8.1/§11.5 already established, governed permanently by ADR-019.
+Holoscan has no defined scope in any existing document (docs/49 §9) and is
+deliberately not given one here. Both require their own future, separately-approved
+architecture-freeze pass before either becomes real — mirroring PXP-9's own precedent
+exactly (§6, this document's Phase 2B section).
+
+---
+
 # Summary Table
 
 | Entity | Status | Phase (if any) |
@@ -1132,7 +1232,7 @@ labeled test-only fixture pushed directly into the test harness's own registry a
 | Patient | Implemented | 2A (Foundation F3) |
 | Patient Identity | Implemented | 2A (Foundation F3) |
 | Session | Implemented | 2A (Foundation F4) |
-| Doctor | Conceptual (gap) | Unassigned |
+| Doctor / Doctor Identity / Doctor Session | **Designed** | 3/WHIMS (docs/50 §5, ADR-017, batch WPI-1 — not yet built) |
 | Consultation | Conceptual | Unassigned |
 | Consultation Summary | Implemented | Phase 1.5 |
 | Doctor Instruction | **Implemented** | 2B (docs/44 §12, batch PXP-7 — shipped, doctor/staff-owned, aggregated by Care Plan via its stable care_plan_id) |
@@ -1142,8 +1242,13 @@ labeled test-only fixture pushed directly into the test harness's own registry a
 | Report | Implemented | 2A (Batch PA-5) |
 | Care Plan | **Implemented** | 2B (docs/44 §12, batch PXP-7 — shipped, one evolving plan per patient, append-only versioned, Timeline Event emission deliberately deferred — see §3.4's own status update) |
 | Digital Twin | Conceptual (view) | Recommended 2D — future consumer of Timeline, Reports, Check-ins, Care Plans, Calculators (docs/44 §16), not tightly coupled to Phase 2B |
-| Appointment | Conceptual (gap) | Unassigned |
-| Notification | Conceptual (gap) | Unassigned |
+| Appointment | **Designed** | 3/WHIMS (docs/50 §8, batch WPI-5 — not yet built) |
+| Notification | **Designed** | 3/WHIMS (docs/50 §9, batch WPI-6 — not yet built) |
+| Specialty | **Designed** | 3/WHIMS (docs/50 §6, ADR-018, batch WPI-2 — not yet built) |
+| Doctor Module Registry / Doctor Module State | **Designed** | 3/WHIMS (docs/50 §7, ADR-020, batches WPI-3/WPI-4 — not yet built) |
+| Inventory Item / Inventory Transaction | **Designed** | 3/WHIMS (docs/50 §10, batch WPI-7 — not yet built) |
+| PillFill Order | **Designed** | 3/WHIMS (docs/50 §11, batch WPI-8 — not yet built) |
+| Analytics | Conceptual (view) | 3/WHIMS (docs/50 §12, batch WPI-9 — never a base table, non-AI aggregation only) |
 | Knowledge Article | Conceptual | Unassigned |
 | Knowledge Engine | Conceptual (system) | Unassigned |
 | Calculator | **Implemented — backend only — Pillar 3** | 2B (docs/44 §8, batch PXP-6, Calculator Registry — shipped, registry seeded empty, no UI; see §6.8). Public variant still unassigned — roadmap gap carried forward (docs/46 Part 3). |

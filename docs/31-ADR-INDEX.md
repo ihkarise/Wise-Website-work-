@@ -1,5 +1,5 @@
 # 31 - Architectural Decision Record Index
-## Version 1.4 — 2026-07-09
+## Version 1.5 — 2026-07-16
 
 > This is the canonical index of every Architectural Decision Record (ADR) for the
 > Wise Platform. Full records live in `/adr/`. This index is the entry point — check
@@ -49,15 +49,19 @@ deprecates any ADR.
 | ADR-014 | Persistent Login Is Achieved Primarily Through Trusted Devices; Magic Link Is the Root of Trust | Superseded by ADR-015 | `/adr/ADR-014-trusted-device-persistent-login.md` |
 | ADR-015 | Persistent Login Adds a Long-Lived Session Alongside Trusted Device; Passwordless-by-Default Is Reaffirmed as Non-Negotiable | Accepted — supersedes ADR-014, amends ADR-003 | `/adr/ADR-015-long-lived-session-and-passwordless-reaffirmation.md` |
 | ADR-016 | Patient-Facing Forms and Questionnaires Are Generated From a Template Registry | Accepted — complements ADR-012, does not amend or supersede it | `/adr/ADR-016-template-registry.md` |
+| ADR-017 | Doctor Identity Is a First-Class Entity, Structurally Parallel to Patient Identity | Accepted | `/adr/ADR-017-doctor-identity-independent-entity.md` |
+| ADR-018 | Platform Registries Support Optional Specialty Scoping | Accepted — complements ADR-012/013/016, does not amend any of them | `/adr/ADR-018-specialty-scoped-registries.md` |
+| ADR-019 | AI and Advanced-Capability Extension Points Are Reserved Platform-Wide, Never Implemented Without Separate Approval | Accepted — reaffirms and generalizes ADR-001/004/005/013, amends none of them | `/adr/ADR-019-ai-extension-points-reserved-platform-wide.md` |
+| ADR-020 | Doctor-Facing Capabilities Are Registry-Driven, Mirroring the Patient Dashboard | Accepted — extends ADR-012's principle via a new, parallel registry; does not amend ADR-012 | `/adr/ADR-020-doctor-dashboard-registry-driven.md` |
 
 ---
 
 # Grouped by Concern
 
-**Identity & Access** — ADR-002, ADR-003, ADR-010, ADR-015 (ADR-011, ADR-014 superseded)
-**AI & Clinical Authority** — ADR-001, ADR-004, ADR-005, ADR-013
+**Identity & Access** — ADR-002, ADR-003, ADR-010, ADR-015, ADR-017 (ADR-011, ADR-014 superseded)
+**AI & Clinical Authority** — ADR-001, ADR-004, ADR-005, ADR-013, ADR-019
 **Data & Storage** — ADR-002, ADR-006
-**Modularity & Delivery** — ADR-008, ADR-009, ADR-012, ADR-016
+**Modularity & Delivery** — ADR-008, ADR-009, ADR-012, ADR-016, ADR-018, ADR-020
 **Governance & Documentation** — ADR-007
 
 ---
@@ -74,6 +78,8 @@ deprecates any ADR.
 - `docs/44-PHASE-2B-TECHNICAL-PLAN.md` (Version 4.0) is the first implementation plan
   built against ADR-012/013/015/016 — see it for how each is applied. It was originally
   built against ADR-011, then ADR-014, both now superseded by ADR-015.
+- `docs/50-PHASE-3-TECHNICAL-PLAN.md` (Version 1.0) is the first implementation plan
+  built against ADR-017/018/019/020 — see it for how each is applied.
 
 ---
 

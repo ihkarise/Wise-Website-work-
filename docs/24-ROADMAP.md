@@ -1,5 +1,5 @@
 # 24 - Wise Product Roadmap
-## Version 1.12 — 2026-07-15
+## Version 1.13 — 2026-07-16
 
 # Phase 1 — Public Website
 Status: In Progress
@@ -596,13 +596,54 @@ claimed by this phase (and only its backend, Batch PXP-6).
 Requires the full ADR-001/ADR-004/ADR-005 AI-supervision pattern before
 any implementation begins.
 
-# Phase 3 — WiseOS
-- Doctor Dashboard
-- Inventory
-- PillFill Integration
-- Holoscan
-- AI Assistant
-- Analytics
+# Phase 3 — WHIMS Patient Intelligence Platform (formerly "WiseOS")
+Status: **Architecture freeze complete (Version 1.0, 2026-07-16). Not yet
+implemented — no batch authorized to begin.**
+
+Renamed from "WiseOS" per this architecture-freeze pass (docs/49 §2) — no scope
+change from the rename itself. **Reordered ahead of Phase 2C (Health Milestones) and
+Phase 2D (Digital Twin & AI Summaries)** on dependency grounds, not roadmap position,
+the same test Batch PXP-10 already passed when it shipped ahead of PXP-9 (docs/49 §1):
+none of Doctor Dashboard, Inventory, PillFill Integration, or Analytics depend on
+Health Milestones or the Digital Twin existing first, and Doctor Identity specifically
+repays a gap every doctor-owned Phase 2B entity has disclosed since Batch PXP-2 ("no
+real Doctor identity/authentication exists yet"). **Phase 2C and Phase 2D remain fully
+open, unscoped, and unaffected by this reordering** — each still requires its own
+separate architecture-freeze pass whenever next taken up.
+
+Architecture: docs/49-PHASE-3-ARCHITECTURE-REVIEW.md (vision, scope decision, four
+pillars), docs/50-PHASE-3-TECHNICAL-PLAN.md (entity-level design),
+docs/51-PHASE-3-ARCHITECTURE-READINESS-REVIEW.md (critique), docs/52-PHASE-3-
+REPOSITORY-CONSISTENCY-REVIEW.md (consistency check), docs/53-PHASE-3-IMPLEMENTATION-
+RULES.md (permanent per-batch governance standard), and four new ADRs: ADR-017
+(Doctor Identity), ADR-018 (Specialty-Scoped Registries), ADR-019 (AI/Advanced
+Extension Points Reserved Platform-Wide), ADR-020 (Doctor Dashboard Registry-Driven).
+
+**Four pillars** (docs/49 §4): Doctor Identity & Access, Doctor-Facing
+Registry-Driven Capabilities, Specialty-Scoped Extensibility, and Reserved AI/Advanced
+Extension Points — with Inventory, PillFill Integration, and Analytics as consumers,
+not pillars in their own right.
+
+**Twelve named batch slots** (docs/50 §19, prefixed `WPI-` for "WHIMS Patient
+Intelligence" batch, mirroring exactly how `PXP-` was derived for Phase 2B),
+infrastructure before features: WPI-1 (Doctor Identity & Session) → WPI-2 (Specialty
+Registry) → WPI-3 (Doctor Module Registry, backend) → WPI-4 (Doctor Dashboard,
+frontend consumer) → WPI-5 (Appointment) → WPI-6 (Notification) → WPI-7 (Inventory) →
+WPI-8 (PillFill Integration) → WPI-9 (Analytics) → WPI-10 (AI Assistant — **reserved,
+unscoped placeholder, mirroring PXP-9's own precedent exactly**) → WPI-11 (Holoscan —
+**reserved, unscoped placeholder; no existing document defines this item's purpose at
+all**) → WPI-12 (Closeout).
+
+**No WPI batch is authorized to begin by any of the above documents.** Each requires
+its own separate, explicit approval, per docs/53's per-batch gate — the same
+discipline every Phase 2B batch already passed through. Two documentation-only
+closures identified by docs/51's readiness review were resolved within this same
+version (docs/52 §1.1/Part 5): the "WiseOS" cross-reference in docs/33 §1.4, and an
+explicit disclosure of the patient-roster derivation's limitation at
+multi-doctor-per-specialty scale (docs/50 §7.4). The Sheets-at-production-scale
+question (docs/49 §7) and a dedicated Doctor Session security review (docs/50 §14)
+remain open gates before WPI-7/WPI-9 and WPI-1 respectively — named, not resolved, by
+this architecture-freeze pass.
 
 # Guiding Principle
 Every roadmap item should support the North Star:
