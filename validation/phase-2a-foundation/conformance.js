@@ -196,6 +196,21 @@
  * uses; and cross-patient isolation on every new route, mirroring every
  * earlier stage's own discipline.
  *
+ * Updated in Phase 2B batch PXP-10 (Symptom Tracker Migration, docs/44
+ * §10.1/§22): Stage 12's Module Registry count/membership assertions (`5`)
+ * drop to `4` — the registry's first *removal* rather than an addition,
+ * since ModuleRegistry.gs retires its `symptom_tracker` entry now that
+ * Daily Check-in (PXP-5) is proven in production. The "never written,
+ * still a synthesized fail-closed default" example switches from
+ * `symptom_tracker` (removed) to `daily_checkin` (still registered,
+ * still untouched by either write in this stage). No apps-script/*.gs file
+ * beyond ModuleRegistry.gs's own designed, additive/subtractive registry
+ * array changes for this batch — FoundationSymptomLog.gs and
+ * FoundationRouter.gs's existing log_symptom/get_symptom_logs dispatch
+ * cases are completely untouched (deprecated by documentation disclosure
+ * only, shared/schemas/symptom-log.md), so this stage's own Stage 8
+ * (Symptom Log) assertions are unaffected and still pass unchanged.
+ *
  * Run with: node conformance.js  (no dependencies beyond Node's
  * standard library).
  */
@@ -1416,20 +1431,22 @@ var ctx = loadProject(h.sandbox);
   record('Stage12: setup — two independent patients exist', patientA.status === 'ok' && patientB.status === 'ok');
 
   // ---- Module Registry — a static, pure config list ----
-  // Count/membership updated in Batch PXP-5 (4, was 3) and again in Batch
-  // PXP-7 (5, was 4) — ModuleRegistry.gs's own designed, additive growth
-  // (docs/47 §4) now that this batch registers a fifth module
-  // ('care_plan'); this is the one, disclosed update to a PXP-3-authored
-  // assertion this stage still makes (see this file's own header comment).
+  // Count/membership updated in Batch PXP-5 (4, was 3), Batch PXP-7 (5, was
+  // 4), and Batch PXP-10 (4, was 5 — the registry's first removal,
+  // 'symptom_tracker' retired per docs/44 §10.1/§22) — ModuleRegistry.gs's
+  // own designed, additive/subtractive growth (docs/47 §4) now that this
+  // batch retires a module; this is the one, disclosed update to a
+  // PXP-3-authored assertion this stage still makes (see this file's own
+  // header comment).
   var registry = ctx.foundationGetModuleRegistry_();
-  record('Stage12: foundationGetModuleRegistry_() returns the five seeded modules (timeline, daily_checkin, symptom_tracker, reports, care_plan)',
-    registry.length === 5 && registry.map(function (m) { return m.module_id; }).sort().join(',') === 'care_plan,daily_checkin,reports,symptom_tracker,timeline');
+  record('Stage12: foundationGetModuleRegistry_() returns the four seeded modules (timeline, daily_checkin, reports, care_plan) — symptom_tracker retired by Batch PXP-10',
+    registry.length === 4 && registry.map(function (m) { return m.module_id; }).sort().join(',') === 'care_plan,daily_checkin,reports,timeline');
 
   // ---- Fail-closed default: no PatientModuleState row exists yet for either patient ----
   var defaultStatesA = ctx.foundationGetPatientModuleStates_(patientA.data.patient_id);
   record('Stage12: foundationGetPatientModuleStates_() succeeds even with zero persisted rows', defaultStatesA.status === 'ok');
   record('Stage12: every module defaults to enabled=false when no row has ever been written — fail-closed (ADR-010)',
-    defaultStatesA.data.length === 5 && defaultStatesA.data.every(function (row) { return row.enabled === false && row.enabled_by === '' && row.enabled_at === ''; }));
+    defaultStatesA.data.length === 4 && defaultStatesA.data.every(function (row) { return row.enabled === false && row.enabled_by === '' && row.enabled_at === ''; }));
 
   // ---- Validation rejections ----
   var missingPatientId = ctx.foundationSetModuleState_({ module_id: 'timeline', enabled: true, enabled_by: 'dr-rao' });
@@ -1477,34 +1494,37 @@ var ctx = loadProject(h.sandbox);
   // ---- foundationGetPatientModuleStates_() — merges real rows with fail-closed synthesized defaults ----
   var statesA = ctx.foundationGetPatientModuleStates_(patientA.data.patient_id);
   record('Stage12: foundationGetPatientModuleStates_() returns exactly one entry per registered module, real rows merged with synthesized defaults',
-    statesA.data.length === 5);
+    statesA.data.length === 4);
   var timelineStateA = statesA.data.filter(function (row) { return row.module_id === 'timeline'; })[0];
   var reportsStateA = statesA.data.filter(function (row) { return row.module_id === 'reports'; })[0];
-  var symptomTrackerStateA = statesA.data.filter(function (row) { return row.module_id === 'symptom_tracker'; })[0];
+  // Batch PXP-10 retired 'symptom_tracker' from the registry — this
+  // "never written" fail-closed-default example now uses 'daily_checkin',
+  // still registered and still untouched by either write above.
+  var dailyCheckinStateA = statesA.data.filter(function (row) { return row.module_id === 'daily_checkin'; })[0];
   record('Stage12: patient A\'s timeline module reflects the real, persisted disabled state (not a synthesized default)',
     timelineStateA.enabled === false && timelineStateA.enabled_by === 'dr-shah');
   record('Stage12: patient A\'s reports module reflects the real, persisted enabled state',
     reportsStateA.enabled === true && reportsStateA.enabled_by === 'dr-rao');
-  record('Stage12: patient A\'s symptom_tracker module — never written — is still a synthesized, fail-closed default',
-    symptomTrackerStateA.enabled === false && symptomTrackerStateA.enabled_by === '' && symptomTrackerStateA.enabled_at === '');
+  record('Stage12: patient A\'s daily_checkin module — never written — is still a synthesized, fail-closed default',
+    dailyCheckinStateA.enabled === false && dailyCheckinStateA.enabled_by === '' && dailyCheckinStateA.enabled_at === '');
   var listedRowResult = validate(patientModuleStateSchema, timelineStateA);
   record('Stage12: a real, persisted listed row conforms to patient-module-state.schema.json',
     listedRowResult.valid === true, listedRowResult.errors.join('; '));
-  var syntheticRowResult = validate(patientModuleStateSchema, symptomTrackerStateA);
+  var syntheticRowResult = validate(patientModuleStateSchema, dailyCheckinStateA);
   record('Stage12: a synthesized, fail-closed-default row also conforms to patient-module-state.schema.json',
     syntheticRowResult.valid === true, syntheticRowResult.errors.join('; '));
 
   // ---- Cross-patient isolation: patient B's own states are untouched by patient A's writes ----
   var statesB = ctx.foundationGetPatientModuleStates_(patientB.data.patient_id);
   record('Stage12: patient B\'s module states are all still fail-closed defaults, unaffected by patient A\'s writes',
-    statesB.data.length === 5 && statesB.data.every(function (row) { return row.enabled === false && row.enabled_by === ''; }));
+    statesB.data.length === 4 && statesB.data.every(function (row) { return row.enabled === false && row.enabled_by === ''; }));
 
   // ---- FoundationRouter.gs — the one new, read-only dispatch case, end to end ----
   var sessionA = ctx.foundationIssueSessionToken_(patientA.data.patient_id);
   var getStatesHttp = ctx.handleFoundationRequest_({ foundation_action: 'get_patient_module_states', session_token: sessionA });
   var getStatesBody = JSON.parse(getStatesHttp._text);
   record('Stage12: get_patient_module_states (real HTTP dispatch) resolves the caller\'s own module states from a valid session',
-    getStatesBody.status === 'ok' && getStatesBody.data.length === 5);
+    getStatesBody.status === 'ok' && getStatesBody.data.length === 4);
   record('Stage12: get_patient_module_states derives patient_id only from the verified session, never from a client-supplied field',
     (function () {
       var spoofed = ctx.handleFoundationRequest_({

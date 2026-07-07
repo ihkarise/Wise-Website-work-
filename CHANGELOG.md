@@ -8,6 +8,93 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-15 — Phase 2B Batch PXP-10: Symptom Tracker Migration
+
+Symptom Tracker Migration (docs/44 §10.1/§22, docs/47) — Symptom Tracker's dashboard
+entry retired now that Daily Check-in (PXP-5) is proven in production as its designed
+successor. Explicitly approved out of numeric order: **PXP-9 (AI Integration) remains
+an intentionally unscoped, reserved placeholder** — docs/44 §22 names it "nothing
+concrete" and docs/45 independently confirms it is "not ready for any scoping at all";
+building anything under that name would mean inventing an unapproved AI feature outside
+the ADR-001/004/005/013 gate docs/44 §15 requires. PXP-10 carries no dependency on
+PXP-9 (docs/44 §22's own dependency column names only "PXP-5 proven in production"), so
+it was approved and built directly; no batch was renumbered and PXP-9's slot stays
+reserved. No new ADR was needed — this batch reverses ADR-012 (amended)'s own
+registry-growth pattern for the first time, rather than establishing a new one.
+
+### Changed
+- **`shared/constants/module-registry.json`** (version `1.0.0` → `1.1.0`) — the
+  `symptom_tracker` descriptor (seeded in Batch PXP-3) is removed. The registry's first
+  removal, rather than an addition — every other entry (`timeline`, `daily_checkin`,
+  `reports`, `care_plan`) is untouched.
+- **`apps-script/ModuleRegistry.gs`** — the same `symptom_tracker` entry removed from
+  its hand-ported `FOUNDATION_MODULE_REGISTRY_` array, keeping all three ports
+  (canonical JSON, this file, `dashboard.js`) in sync per this file's own
+  "update all three ports by hand" convention.
+- **`my-health-journey/dashboard.js`** — the `symptom_tracker` entry removed from its
+  own hand-ported `MODULE_REGISTRY` array. Since the dashboard has been fully
+  registry-driven since Batch PXP-4, this alone is sufficient to stop the card
+  rendering for every patient — zero change to `renderDashboard()`/
+  `filterEnabledModules()`/`dispatchLoaders()`. The card's own dead rendering code
+  (`symptomFormHtml`, `symptomSummaryHtml`, `refreshSymptomSummary`,
+  `wireSymptomForm`, `loadSymptomPreview`, `CONDITION_OPTIONS`,
+  `conditionOptionsHtml`) and its `MODULE_LOADERS['get_symptom_logs']` registration
+  are removed in the same change, along with their now-unused
+  `window.WiseDashboard` exports.
+- **`my-health-journey/index.html`** — the dashboard's `<meta name="description">` no
+  longer mentions "symptom log," matching the cards that actually render.
+
+### Disclosed: endpoints deprecated by documentation only, zero code changed
+`log_symptom`/`get_symptom_logs` (`apps-script/FoundationSymptomLog.gs`,
+`FoundationRouter.gs`'s existing dispatch cases) are **not modified** — zero lines
+changed in either frozen Phase 2A file, mirroring Batch PXP-8's own "zero lines changed
+in a frozen file" discipline. Both routes remain fully functional with no breaking API
+contract (docs/47 §6): the standalone Symptom History page
+(`my-health-journey/symptoms/`, untouched) still calls `get_symptom_logs` directly and
+remains reachable by direct URL — it is simply no longer linked from the dashboard,
+since its only link lived inside the now-removed card. The deprecation is recorded as a
+documentation disclosure only: `shared/schemas/symptom-log.md`'s new "Deprecated
+(Batch PXP-10)" section and `shared/constants/module-registry.md`'s new "Batch PXP-10
+removal" section.
+
+### Disclosed: `SymptomLogs` retained, no data touched
+No `SymptomLogs` row is created, migrated, or deleted by this batch — this entity's
+existing "never edited or deleted" lifecycle (`shared/schemas/symptom-log.md`) is
+completely unaffected. Any already-persisted `symptom_tracker` `PatientModuleState`
+row simply stops matching a registry entry and is silently dropped by
+`foundationGetPatientModuleStates_()`'s existing registry-merge logic — no schema
+change, no migration, verified directly in Stage 12 (below).
+
+### Changed (documentation)
+- `docs/24-ROADMAP.md` — Phase 2B status line updated: Batch PXP-10 shipped;
+  **PXP-9 (AI Integration) recorded as intentionally skipped**, not built, with the
+  reasoning above stated in full.
+- `docs/33-DOMAIN-MODEL.md` — §3.2 (Symptom Log) status update: dashboard entry
+  retired, endpoints deprecated, data retained; §6.3 (Module Registry) status update
+  recording the registry's first removal; Summary Table rows for both entities
+  updated.
+- `shared/constants/module-registry.md` — new "Batch PXP-10 removal" section.
+- `shared/schemas/symptom-log.md` — new "Deprecated (Batch PXP-10)" section.
+- `apps-script/README.md` — Symptom Log's status column annotated
+  "Deprecated (PXP-10)."
+
+### Verified
+- Static Analysis: PASS (0 findings).
+- Conformance (`validation/phase-2a-foundation/conformance.js`): 419/419 checks pass,
+  including Stage 12's updated module-count assertions (`5`→`4`, `symptom_tracker`
+  retired; the "never written, fail-closed default" example switched to
+  `daily_checkin`) and Stage 8 (Symptom Log's own routes), unaffected and unchanged.
+- Phase 1.5 Regression (`validation/phase-1-5/validate.js`): 42/42 checks pass,
+  unchanged.
+- Browser Tests: every existing `validation/pa-*`/`validation/pxp-*` suite passes
+  (249 checks across 10 suites). Three disclosed, mechanical updates: `pa-2-dashboard/`
+  (ALL_MODULES_ENABLED drops to two cards), `pxp-4-dashboard-registry/` (swaps its
+  generic third fixture module from the now-retired `symptom_tracker` to `care_plan`,
+  same test intent), and `pa-4-symptom-tracker/` (its five dashboard-card checks are
+  replaced by one retirement proof — the card does not render even with a stale
+  `enabled: true` `PatientModuleState` row — while its ten standalone Symptom History
+  page checks are completely unchanged).
+
 ## 2026-07-14 — Phase 2B Batch PXP-8: Trusted Device + Long-Lived Session
 
 Persistent Authentication (docs/44 §4/§5/§22, docs/47, ADR-015) — Trusted Device and

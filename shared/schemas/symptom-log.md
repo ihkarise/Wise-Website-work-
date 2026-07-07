@@ -84,3 +84,27 @@ Version `1.0.0`. Any field addition, removal, or type change — including ever 
 update/delete endpoint or a `consultation_id` relationship — requires a new version here
 first, then a subsequent update to `apps-script/FoundationSymptomLog.gs` — never the
 reverse, per `shared/README.md`.
+
+## Deprecated (Batch PXP-10, 2026-07-15)
+
+Symptom Tracker Migration (docs/44 §10.1/§22, docs/47) retires this entity's dashboard
+entry point now that Daily Check-in (PXP-5) is proven in production as its successor.
+**This schema itself, and `apps-script/FoundationSymptomLog.gs`'s implementation of it,
+are unchanged** — zero lines touched in either file, the same "zero lines changed"
+discipline Batch PXP-8 already established for `FoundationSession.gs`. `log_symptom`
+and `get_symptom_logs` (`FoundationRouter.gs`'s existing dispatch cases) remain fully
+functional, with no breaking change to either route's request/response contract
+(docs/47 §6) — this is a documentation-level deprecation notice, not a code change:
+
+- `log_symptom`/`get_symptom_logs` are no longer called from any dashboard card
+  (`shared/constants/module-registry.md`'s own "Batch PXP-10 removal" section) — the
+  `symptom_tracker` Module Registry entry that made the card reachable is gone.
+- The standalone Symptom History page (`my-health-journey/symptoms/`) is untouched and
+  still calls `get_symptom_logs` directly — a patient who already has it bookmarked, or
+  navigates to it by direct URL, can still read their own permanent history. It is no
+  longer linked from the dashboard.
+- `SymptomLogs` rows already written are retained permanently, per docs/44 §10.1/§19 —
+  this entity's own "never edited or deleted" lifecycle (above) is unaffected.
+- New patient-facing daily self-report work should use the Daily Check-in Engine
+  (`shared/schemas/check-in-response.md`) going forward, not this entity — this schema
+  is not expected to gain a new version for that purpose.

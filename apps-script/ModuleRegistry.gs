@@ -23,7 +23,15 @@
  * exactly the "a new module ... is added by registering a new registry
  * entry, by the batch that actually builds it" growth docs/47 §4 and this
  * file's own original header comment already anticipated; every earlier
- * row is untouched by each later addition.
+ * row is untouched by each later addition. Batch PXP-10 (docs/44 §10.1/§22,
+ * docs/47) removes the `symptom_tracker` entry below — Symptom Tracker's
+ * dashboard entry is retired now that Daily Check-in (PXP-5) is proven in
+ * production; `SymptomLogs` rows are retained permanently and
+ * `log_symptom`/`get_symptom_logs` stay deprecated-but-functional (zero
+ * lines changed in the frozen `apps-script/FoundationSymptomLog.gs` or
+ * `FoundationRouter.gs`'s existing dispatch cases — see
+ * shared/schemas/symptom-log.md's own "Deprecated (Batch PXP-10)" section).
+ * Every other row is untouched by this removal.
  *
  * Every `supports_*`/`future_ai_capable` field below is a reserved,
  * presently-inert extension point, consumed by zero code in this batch —
@@ -58,27 +66,6 @@ var FOUNDATION_MODULE_REGISTRY_ = [
     supports_ai: false,
     supports_doctor_notes: false,
     supports_patient_input: false
-  },
-  {
-    module_id: 'symptom_tracker',
-    title: 'Symptom Tracker',
-    description: "The patient's own severity/sleep/energy/stress self-report history.",
-    icon: 'symptoms',
-    display_order: 20,
-    visibility: 'patient',
-    permissions: [],
-    data_source: 'get_symptom_logs',
-    empty_state: 'nodata',
-    rendering_type: 'card',
-    future_ai_capable: false,
-    supports_notifications: false,
-    supports_history: true,
-    supports_export: false,
-    supports_badges: false,
-    supports_reminders: true,
-    supports_ai: false,
-    supports_doctor_notes: false,
-    supports_patient_input: true
   },
   {
     module_id: 'reports',
