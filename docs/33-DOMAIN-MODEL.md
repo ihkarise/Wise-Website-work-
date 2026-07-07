@@ -1,5 +1,5 @@
 # 33 - Domain Model
-## Version 1.11 — 2026-07-14
+## Version 1.12 — 2026-07-15
 
 > Defines every major business entity in the Wise Platform: what it means, what it
 > holds, how it relates to everything else, how it comes into being and ends, who is
@@ -682,7 +682,7 @@ level.
 
 ---
 
-## 5.3 Calculator — *Designed, not yet implemented — Patient variant only (Phase 2B, docs/44 §8)*
+## 5.3 Calculator — *Implemented — backend only — Patient variant only (Phase 2B, Batch PXP-6, docs/44 §8)*
 
 **Purpose:** docs/21 describes two variants — Public (no login, no storage,
 educational) and Patient (stores progress, historical trends, integrated with My
@@ -734,7 +734,7 @@ this batch.
 
 ---
 
-# 6. Phase 2B Entities — *Designed, not yet implemented (docs/44-PHASE-2B-TECHNICAL-PLAN.md, Version 4.0)*
+# 6. Phase 2B Entities — *Mostly Implemented — see individual subsections and the Summary Table below (docs/44-PHASE-2B-TECHNICAL-PLAN.md, Version 4.0)*
 
 Net-new entities that did not exist even conceptually in this document before Phase 2B's
 architecture-freeze pass. Doctor Instruction (§2.3), Care Plan (§3.4), and Calculator
@@ -794,6 +794,18 @@ disclosure only (zero lines changed in either frozen Apps Script file); `Symptom
 rows are retained permanently and the standalone Symptom History page remains
 reachable by direct URL, unlinked from the dashboard. §6.3 (Module Registry) updated
 to record the registry's first removal.
+**Updated 2026-07-15** for Batch PXP-11 (Closeout, documentation-only): three stale
+status tags left over from earlier batches, corrected — §5.3 (Calculator)'s header
+still read *Designed, not yet implemented* though Batch PXP-6 had already promoted it
+to *Implemented — backend only* in its own body text (§5.3's "Status update
+(2026-07-13, Batch PXP-6)" paragraph); §6.4 (the pre-PXP-6 Calculator Registry design)
+was left as an unmarked, stale duplicate of §6.8 (the batch's actual shipped shape) and
+now carries an explicit superseded-pointer note rather than silently disagreeing with
+the Summary Table, which already pointed to §6.8; and this section's own top-level
+header still read *Designed, not yet implemented* though nine of its eleven
+subsections are now Implemented. No entity's shape, schema, or status changed — these
+are the same corrections in kind as docs/43-PHASE-2A-CLOSEOUT.md §5 made to a stale
+`docs/CHANGELOG.md` notice at the equivalent point in Phase 2A's own closeout.
 
 ## 6.1 Patient Profile — *Implemented (Batch PXP-1)*
 **Purpose:** Patient-editable structured contact/personal data (phone, date of birth,
@@ -934,7 +946,18 @@ silently dropped by `foundationGetPatientModuleStates_()`'s existing registry-me
 logic (no schema change, no migration). See §3.2's own status update and
 `shared/constants/module-registry.md`'s "Batch PXP-10 removal" section for full detail.
 
-## 6.4 Calculator Registry, Calculator Definition, and Calculator Result — *Pillar 3*
+## 6.4 Calculator Registry, Calculator Definition, and Calculator Result — *Superseded by §6.8 (Batch PXP-6) — retained as pre-implementation history, not current*
+
+> **PXP-11 closeout note (2026-07-15):** This subsection describes the pre-PXP-6
+> *design*, written before Batch PXP-6 shipped. When PXP-6 implemented this pillar, its
+> shipped shape was recorded in a new §6.8 rather than updating this subsection in
+> place, leaving this section stale (still showing no status tag) while the Summary
+> Table below already correctly pointed to §6.8. **§6.8 is the current, authoritative
+> description of this entity.** The text below is kept only as a historical record of
+> the pre-implementation design, per docs/00's "keep history, correct the stale
+> current-status framing" rule (the same fix docs/43-PHASE-2A-CLOSEOUT.md §5 applied to
+> the old `docs/CHANGELOG.md`) — not re-read as current.
+
 **Purpose:** A registry of available calculators (Calculator Registry, mirroring the
 Module Registry) referencing versioned, deterministic, doctor/staff-authored formulas
 (`CalculatorDefinition`) and a patient's computed results against one
