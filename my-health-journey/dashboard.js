@@ -41,8 +41,13 @@
   // where a future consumer will pick them up (module-registry.md §
   // "Which fields does PXP-3 code actually consume?"). Update all three
   // ports by hand if the canonical list ever changes.
+  // Batch PXP-5 (docs/44 §10/§11/§22) adds the 'daily_checkin' entry below —
+  // the same growth this file's own header comment already anticipated
+  // ("Adding a new module later means (i) add a registry entry ..."). The
+  // three PXP-4 rows above are untouched.
   var MODULE_REGISTRY = [
     { module_id: 'timeline',        title: 'Timeline',        display_order: 10, empty_state: 'nodata', data_source: 'get_timeline' },
+    { module_id: 'daily_checkin',   title: 'Daily Check-in',  display_order: 15, empty_state: 'nodata', data_source: 'get_checkin_responses' },
     { module_id: 'symptom_tracker', title: 'Symptom Tracker', display_order: 20, empty_state: 'nodata', data_source: 'get_symptom_logs' },
     { module_id: 'reports',         title: 'Reports',         display_order: 30, empty_state: 'nodata', data_source: 'get_reports' }
   ];
@@ -465,15 +470,203 @@
       });
   }
 
+  // Batch PXP-5 (docs/44 §10/§11/§22) — the Daily Check-in card's write
+  // affordance. Unlike every earlier card's form, this one is
+  // data-driven: rendered from the caller's own current CheckInTemplate
+  // (get_checkin_template), not a fixed set of fields — the same
+  // registry-driven discipline this whole file already applies at the
+  // module level (docs/47 §3's "never hardcode a questionnaire"), applied
+  // here one level deeper, to the form's own fields.
+  function checkInQuestionFieldHtml(q) {
+    var fieldId = 'ci_' + q.field_key;
+    var requiredAttr = q.required ? ' required' : '';
+    if (q.type === 'number') {
+      var minAttr = q.min !== undefined ? ' min="' + q.min + '"' : '';
+      var maxAttr = q.max !== undefined ? ' max="' + q.max + '"' : '';
+      return '<div class="field"><label for="' + fieldId + '">' + escapeHtmlForDisplay(q.label) + '</label>' +
+        '<input id="' + fieldId + '" type="number" step="1"' + minAttr + maxAttr + requiredAttr + '></div>';
+    }
+    if (q.type === 'boolean') {
+      return '<div class="field"><label for="' + fieldId + '">' + escapeHtmlForDisplay(q.label) + '</label>' +
+        '<select id="' + fieldId + '"' + requiredAttr + '>' +
+        '<option value="">— Select —</option><option value="yes">Yes</option><option value="no">No</option>' +
+        '</select></div>';
+    }
+    // 'string' (and any question type this client doesn't recognize,
+    // treated defensively as free text — the server, not this client, is
+    // the real authority on what a question's type requires, docs/29 §8).
+    return '<div class="field"><label for="' + fieldId + '">' + escapeHtmlForDisplay(q.label) + '</label>' +
+      '<textarea id="' + fieldId + '" rows="2"' + requiredAttr + '></textarea></div>';
+  }
+
+  function checkInFormHtml(template) {
+    return '<form id="checkInForm">' +
+      template.questions.map(checkInQuestionFieldHtml).join('') +
+      '<button class="submit" type="submit" id="checkInSubmitBtn">Submit check-in</button>' +
+      '<div class="status" id="checkInStatus" role="status" aria-live="polite"></div>' +
+      '</form>' +
+      '<div id="checkInSummary" style="margin-top:14px"></div>';
+  }
+
+  function checkInNotAssignedHtml() {
+    return '<p class="empty-text">Your doctor hasn\'t assigned a daily check-in yet. Check back after your next visit.</p>';
+  }
+
+  // Reads the form back into an {field_key: value} object, coercing each
+  // value per its own question's declared type — the server performs the
+  // real, authoritative validation regardless (docs/29 §8).
+  function readCheckInAnswers(template) {
+    var answers = {};
+    template.questions.forEach(function (q) {
+      var el = document.getElementById('ci_' + q.field_key);
+      if (!el || el.value === '') return;
+      if (q.type === 'number') {
+        answers[q.field_key] = Number(el.value);
+      } else if (q.type === 'boolean') {
+        if (el.value === 'yes') answers[q.field_key] = true;
+        else if (el.value === 'no') answers[q.field_key] = false;
+      } else {
+        answers[q.field_key] = el.value;
+      }
+    });
+    return answers;
+  }
+
+  // The card's "at most a bare recent-value list" (mirrors
+  // symptomSummaryHtml()'s own scope), rendered generically from the
+  // template's own question labels rather than any hardcoded field name.
+  function checkInSummaryHtml(entries, template) {
+    if (!entries.length) {
+      return emptyStateHtml('nodata', 'Your check-ins will appear here once you submit your first one.');
+    }
+    var latest = entries[0];
+    var parts = template.questions
+      .filter(function (q) { return Object.prototype.hasOwnProperty.call(latest.answers, q.field_key); })
+      .map(function (q) {
+        var value = latest.answers[q.field_key];
+        var display = typeof value === 'boolean' ? (value ? 'Yes' : 'No') : escapeHtmlForDisplay(value);
+        return escapeHtmlForDisplay(q.label) + ': ' + display;
+      }).join(', ');
+    return '<p style="margin:0 0 8px;font-size:13.5px;color:var(--color-text-secondary)">' +
+      '<strong style="color:var(--color-brand-strong)">Last checked in ' + escapeHtmlForDisplay(String(latest.logged_at).slice(0, 10)) + '</strong> — ' + parts +
+      '</p>' +
+      '<a class="secondary" href="../my-health-journey/checkins/">View full history</a>';
+  }
+
+  function refreshCheckInSummary(sessionToken, template) {
+    var summaryEl = document.getElementById('checkInSummary');
+    if (!summaryEl) return;
+    fetch(WEB_APP_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ foundation_action: 'get_checkin_responses', session_token: sessionToken })
+    })
+      .then(function (response) { return response.json(); })
+      .then(function (data) {
+        if (data.status === 'ok' && Array.isArray(data.data)) {
+          summaryEl.innerHTML = checkInSummaryHtml(data.data, template);
+        } else {
+          summaryEl.innerHTML = '<p class="empty-text">Could not load your check-in history. Check your connection and reload the page.</p>';
+        }
+      })
+      .catch(function () {
+        summaryEl.innerHTML = '<p class="empty-text">Could not load your check-in history. Check your connection and reload the page.</p>';
+      });
+  }
+
+  function wireCheckInForm(sessionToken, template) {
+    var form = document.getElementById('checkInForm');
+    var submitBtn = document.getElementById('checkInSubmitBtn');
+    var statusBox = document.getElementById('checkInStatus');
+
+    form.addEventListener('submit', function (event) {
+      event.preventDefault();
+      if (!form.checkValidity()) {
+        form.reportValidity();
+        return;
+      }
+      submitBtn.disabled = true;
+      statusBox.className = 'status loading';
+      statusBox.textContent = 'Saving…';
+
+      fetch(WEB_APP_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          foundation_action: 'submit_checkin_response',
+          session_token: sessionToken,
+          template_id: template.template_id,
+          template_version: template.version,
+          answers: readCheckInAnswers(template)
+        })
+      })
+        .then(function (response) { return response.json(); })
+        .then(function (data) {
+          submitBtn.disabled = false;
+          if (data.status === 'ok') {
+            statusBox.className = 'status ok';
+            statusBox.textContent = 'Logged. Thank you.';
+            form.reset();
+            refreshCheckInSummary(sessionToken, template);
+          } else {
+            statusBox.className = 'status err';
+            statusBox.textContent = (data.error && data.error.message) || 'Something went wrong. Please try again.';
+          }
+        })
+        .catch(function () {
+          // A network failure keeps the patient's in-progress answers in
+          // place (no form.reset()), the same discipline wireSymptomForm()
+          // already applies to its own in-progress values.
+          submitBtn.disabled = false;
+          statusBox.className = 'status err';
+          statusBox.textContent = 'Could not reach the server. Check your connection and try again.';
+        });
+    });
+  }
+
+  // Registry-driven signature (moduleId), mirrors loadSymptomPreview()'s
+  // own shape. Fetches the caller's current template first (the form
+  // cannot render before the questions are known), then wires the form
+  // and loads the recent-history summary independently.
+  function loadCheckInPreview(sessionToken, moduleId) {
+    var body = document.getElementById('card-' + moduleId + '-body');
+    fetch(WEB_APP_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ foundation_action: 'get_checkin_template', session_token: sessionToken })
+    })
+      .then(function (response) { return response.json(); })
+      .then(function (data) {
+        if (data.status !== 'ok') {
+          body.innerHTML = '<p class="empty-text">Could not load your daily check-in. Check your connection and reload the page.</p>';
+          return;
+        }
+        if (!data.data) {
+          // A real, expected outcome — the patient's doctor hasn't
+          // assigned a template yet — not an error state.
+          body.innerHTML = checkInNotAssignedHtml();
+          return;
+        }
+        var template = data.data;
+        body.innerHTML = checkInFormHtml(template);
+        wireCheckInForm(sessionToken, template);
+        refreshCheckInSummary(sessionToken, template);
+      })
+      .catch(function () {
+        body.innerHTML = '<p class="empty-text">Could not load your daily check-in. Check your connection and reload the page.</p>';
+      });
+  }
+
   // Loader-dispatcher registry — one entry per registry data_source. The
   // registry entry declares data_source; the dashboard resolves that string
   // to a loader function here. renderDashboard() never learns the mapping.
   // Adding a new module: (i) add its registry entry above; (ii) register
   // its loader here — nothing else changes.
   var MODULE_LOADERS = {
-    'get_timeline':     loadTimelinePreview,
-    'get_symptom_logs': loadSymptomPreview,
-    'get_reports':      loadReportsPreview
+    'get_timeline':          loadTimelinePreview,
+    'get_checkin_responses': loadCheckInPreview,
+    'get_symptom_logs':      loadSymptomPreview,
+    'get_reports':           loadReportsPreview
   };
 
   // Merges the per-patient state rows from get_patient_module_states with
@@ -610,6 +803,11 @@
     MODULE_REGISTRY: MODULE_REGISTRY,
     getModuleDescriptor: getModuleDescriptor,
     filterEnabledModules: filterEnabledModules,
-    dashboardEmptyStateHtml: dashboardEmptyStateHtml
+    dashboardEmptyStateHtml: dashboardEmptyStateHtml,
+    checkInFormHtml: checkInFormHtml,
+    checkInQuestionFieldHtml: checkInQuestionFieldHtml,
+    checkInSummaryHtml: checkInSummaryHtml,
+    checkInNotAssignedHtml: checkInNotAssignedHtml,
+    readCheckInAnswers: readCheckInAnswers
   };
 })();

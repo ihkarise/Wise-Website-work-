@@ -77,6 +77,11 @@
  * Extended in Phase 2B batch PXP-2 with `DoctorAssignedCondition.gs` in the
  * FILES list — no new mock needed, since it only reuses SpreadsheetApp/
  * Utilities/Logger primitives already mocked above.
+ *
+ * Extended in Phase 2B batch PXP-5 with `TemplateRegistry.gs`,
+ * `CheckInTemplateAssignment.gs`, and `CheckInResponse.gs` in the FILES
+ * list — no new mock needed, since all three only reuse SpreadsheetApp/
+ * Utilities/Logger primitives already mocked above.
  */
 
 var fs = require('fs');
@@ -106,6 +111,9 @@ var FILES = [
   'DoctorAssignedCondition.gs',
   'ModuleRegistry.gs',
   'PatientModuleState.gs',
+  'TemplateRegistry.gs',
+  'CheckInTemplateAssignment.gs',
+  'CheckInResponse.gs',
   'FoundationRouter.gs'
 ];
 

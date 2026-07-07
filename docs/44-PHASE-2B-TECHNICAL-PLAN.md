@@ -766,3 +766,30 @@ and lowest risk in the entire sequence.
 
 **This plan does not authorize PXP-1, or any other batch, to begin.** Implementation
 waits for a separate, explicit approval naming a specific batch.
+
+# 23. Implementation-Time Amendment — Batch PXP-5 (2026-07-12)
+
+Per docs/47-PHASE-2B-IMPLEMENTATION-RULES.md §12's explicit provision ("docs/44 itself
+may still be amended ... if a later batch's real-world implementation surfaces a
+genuine design gap"), this section records one such gap, found while implementing
+PXP-5, and its fix — additively, without altering a single word of this document's own
+frozen Version 4.0 body text above.
+
+**The gap:** §10.2 settles that "a doctor explicitly assigns which template(s) apply"
+to a patient, informed by their Doctor-Assigned Condition(s) — but neither §17's entity
+table nor docs/33 §6.5 names a persisted shape for that assignment decision itself.
+Without one, §10.2's rule has nothing to record a decision into, and
+`CheckInResponse`'s own write path has no way to verify a patient is actually assigned
+the `template_id` they are submitting against (as opposed to merely verifying it exists
+in the registry at all).
+
+**The fix:** `CheckInTemplateAssignment` — an exact structural mirror of §6.2's
+already-approved `DoctorAssignedCondition` shape (many-per-patient, append-mostly,
+doctor/staff-only, one-way resolve, no real Doctor identity/session yet per §1.4's
+disclosed gap, no Web App write route). This is a gap-fill within PXP-5's own named
+scope, not a new architectural decision: it introduces no new registry, no new ADR, and
+does not alter §11's Template Registry design, §10.2's rule, or any other section above
+— it only gives that already-settled rule a place to persist its decision. Full detail:
+`shared/schemas/check-in-template-assignment.schema.json` and its companion `.md`,
+`apps-script/CheckInTemplateAssignment.gs`'s own header comment, and docs/33 §6.5's
+Batch PXP-5 status update.

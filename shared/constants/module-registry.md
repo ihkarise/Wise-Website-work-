@@ -35,15 +35,29 @@ consumer is built, wired, or authorized by this disclosure.
 
 ## Seeded modules — only what already exists
 
-This batch seeds the registry with descriptors for the three already-implemented Phase
-2A capabilities (Timeline, Symptom Tracker, Reports) — giving the future Dashboard
+Batch PXP-3 seeded the registry with descriptors for the three already-implemented
+Phase 2A capabilities (Timeline, Symptom Tracker, Reports) — giving the Dashboard
 Registry batch (PXP-4) real rows to migrate onto, per ADR-012's own amendment history.
-**Daily Check-ins, Calculators, and Personal Care Plan are deliberately not seeded
-here** — inventing their `data_source`/shape now would front-run design decisions that
-belong to their own future batches (PXP-5, PXP-6, PXP-7 respectively, per docs/47 §4:
-"a new module ... is added by registering a new registry entry" — by the batch that
-actually builds it). This mirrors `shared/constants/condition-slugs.json`'s own
-"populate a real consumer, not a hypothetical one" discipline.
+**Calculators and Personal Care Plan remain deliberately not seeded here** —
+inventing their `data_source`/shape now would front-run design decisions that belong
+to their own future batches (PXP-6, PXP-7 respectively, per docs/47 §4: "a new module
+... is added by registering a new registry entry" — by the batch that actually builds
+it). This mirrors `shared/constants/condition-slugs.json`'s own "populate a real
+consumer, not a hypothetical one" discipline.
+
+## Batch PXP-5 addition — `daily_checkin` (2026-07-12)
+
+The Daily Check-in Engine (docs/44 §10/§11/§22) registers its own module here,
+exactly the growth pattern this file's own header already anticipated — the three
+PXP-3 rows above are untouched. `data_source: "get_checkin_responses"` mirrors
+`symptom_tracker`'s own convention: the module's "preview" call is its
+response-history list; the dashboard card's own form additionally calls
+`get_checkin_template` (to know what to render — see
+`shared/schemas/check-in-response.md`) and `submit_checkin_response` (to write)
+directly, the same way the Symptom Tracker card calls `log_symptom` beyond its own
+`data_source`. `display_order: 15` places it between Timeline (10) and Symptom
+Tracker (20) — a same-day "something to do today" action ordered ahead of the two
+existing self-report history cards.
 
 ## Fields at a glance
 

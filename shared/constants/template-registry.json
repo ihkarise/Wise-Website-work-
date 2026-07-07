@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wisehomeopathy.com/shared/constants/template-registry.json",
+  "title": "Template Registry",
+  "version": "1.0.0",
+  "description": "The canonical, static list of Template Registry descriptors — Phase 2B Batch PXP-5 (docs/44-PHASE-2B-TECHNICAL-PLAN.md §11/§11.5/§17/§22, ADR-016, docs/47-PHASE-2B-IMPLEMENTATION-RULES.md). Defines the doctor-authored question sets ('CheckInTemplate' rows) any patient-facing form or questionnaire is generated from, never hardcoded per form — complementing shared/constants/module-registry.json's separate 'which capability is exposed' concern (ADR-012). Seeded, in this batch, with exactly one template ('daily_wellness_checkin' v1), the registry's first concrete category ('template_category': 'daily_checkin'). See template-registry.md for the field-by-field explanation, the disclosed 'template_category' field this batch adds beyond docs/44 §11.2's literal field list, and which reserved fields are presently inert. apps-script/TemplateRegistry.gs hand-ports this list into its own Foundation-prefixed array, the same convention module-registry.json's own consumer already uses.",
+  "templates": [
+    {
+      "template_id": "daily_wellness_checkin",
+      "version": 1,
+      "template_category": "daily_checkin",
+      "condition_slug": "",
+      "questions": [
+        { "field_key": "overall_feeling", "label": "How are you feeling today, overall?", "type": "number", "min": 1, "max": 10, "required": true },
+        { "field_key": "symptom_severity", "label": "Rate today's symptom severity", "type": "number", "min": 1, "max": 10, "required": true },
+        { "field_key": "took_medication", "label": "Did you take your prescribed medication today?", "type": "boolean", "required": true },
+        { "field_key": "notes", "label": "Anything else your doctor should know? (optional)", "type": "string", "required": false }
+      ],
+      "status": "active",
+      "future_ai_capable": false,
+      "created_by": "system",
+      "created_at": "2026-07-09T00:00:00.000Z"
+    }
+  ]
+}

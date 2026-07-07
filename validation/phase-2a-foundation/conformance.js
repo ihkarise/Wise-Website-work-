@@ -99,6 +99,30 @@
  * (get_doctor_assigned_conditions) is session-derived and cross-patient
  * isolated, with no corresponding write route reachable over HTTP.
  *
+ * Extended in Phase 2B batch PXP-5 with Stage 13, covering
+ * TemplateRegistry.gs, CheckInTemplateAssignment.gs (a disclosed, additive
+ * gap-fill entity — see that file's own header comment), and
+ * CheckInResponse.gs against the new shared/schemas/
+ * check-in-template-assignment.schema.json and shared/schemas/
+ * check-in-response.schema.json, plus the three new FoundationRouter.gs
+ * dispatch cases (get_checkin_template, submit_checkin_response,
+ * get_checkin_responses) end to end. This stage's highest-priority checks
+ * are: docs/44 §11.4's JSON storage policy is real (a flat-object
+ * requirement, unknown-field rejection, required-field rejection, type/min/
+ * max validation, and deterministic key-order serialization); a patient can
+ * only submit a response against a template_id they currently hold an
+ * active assignment for, never merely one that exists in the registry
+ * (docs/44 §10.2's enforcement boundary); every returned CheckInResponse's
+ * `answers` is a real, parsed object, never the raw stored JSON string
+ * (shared/README.md's "Contract vs. implementation-only detail"); and
+ * cross-patient isolation on every new route, mirroring every earlier
+ * stage's own discipline. Stage 12's own module-registry-derived count
+ * assertions (`3`) are updated to `4` in this same change — a mechanical,
+ * disclosed consequence of ModuleRegistry.gs's own designed, additive
+ * growth (docs/47 §4) now that this batch registers a fourth module
+ * (`daily_checkin`); PXP-3's actual shipped rows/logic are untouched, only
+ * this test file's hardcoded expectation of *how many* rows exist today.
+ *
  * Run with: node conformance.js  (no dependencies beyond Node's
  * standard library).
  */
@@ -123,6 +147,8 @@ var uploadLimits = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'constants/u
 var patientProfileSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/patient-profile.schema.json'), 'utf8'));
 var doctorAssignedConditionSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/doctor-assigned-condition.schema.json'), 'utf8'));
 var patientModuleStateSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/patient-module-state.schema.json'), 'utf8'));
+var checkInTemplateAssignmentSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/check-in-template-assignment.schema.json'), 'utf8'));
+var checkInResponseSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/check-in-response.schema.json'), 'utf8'));
 
 var results = [];
 function record(name, pass, detail) {
@@ -1313,15 +1339,20 @@ var ctx = loadProject(h.sandbox);
   record('Stage12: setup — two independent patients exist', patientA.status === 'ok' && patientB.status === 'ok');
 
   // ---- Module Registry — a static, pure config list ----
+  // Count/membership updated in Batch PXP-5 (4, was 3) — ModuleRegistry.gs's
+  // own designed, additive growth (docs/47 §4) now that this batch
+  // registers a fourth module ('daily_checkin'); this is the one, disclosed
+  // update to a PXP-3-authored assertion this stage still makes (see this
+  // file's own header comment).
   var registry = ctx.foundationGetModuleRegistry_();
-  record('Stage12: foundationGetModuleRegistry_() returns the three seeded Phase 2A modules (timeline, symptom_tracker, reports)',
-    registry.length === 3 && registry.map(function (m) { return m.module_id; }).sort().join(',') === 'reports,symptom_tracker,timeline');
+  record('Stage12: foundationGetModuleRegistry_() returns the four seeded modules (timeline, daily_checkin, symptom_tracker, reports)',
+    registry.length === 4 && registry.map(function (m) { return m.module_id; }).sort().join(',') === 'daily_checkin,reports,symptom_tracker,timeline');
 
   // ---- Fail-closed default: no PatientModuleState row exists yet for either patient ----
   var defaultStatesA = ctx.foundationGetPatientModuleStates_(patientA.data.patient_id);
   record('Stage12: foundationGetPatientModuleStates_() succeeds even with zero persisted rows', defaultStatesA.status === 'ok');
   record('Stage12: every module defaults to enabled=false when no row has ever been written — fail-closed (ADR-010)',
-    defaultStatesA.data.length === 3 && defaultStatesA.data.every(function (row) { return row.enabled === false && row.enabled_by === '' && row.enabled_at === ''; }));
+    defaultStatesA.data.length === 4 && defaultStatesA.data.every(function (row) { return row.enabled === false && row.enabled_by === '' && row.enabled_at === ''; }));
 
   // ---- Validation rejections ----
   var missingPatientId = ctx.foundationSetModuleState_({ module_id: 'timeline', enabled: true, enabled_by: 'dr-rao' });
@@ -1369,7 +1400,7 @@ var ctx = loadProject(h.sandbox);
   // ---- foundationGetPatientModuleStates_() — merges real rows with fail-closed synthesized defaults ----
   var statesA = ctx.foundationGetPatientModuleStates_(patientA.data.patient_id);
   record('Stage12: foundationGetPatientModuleStates_() returns exactly one entry per registered module, real rows merged with synthesized defaults',
-    statesA.data.length === 3);
+    statesA.data.length === 4);
   var timelineStateA = statesA.data.filter(function (row) { return row.module_id === 'timeline'; })[0];
   var reportsStateA = statesA.data.filter(function (row) { return row.module_id === 'reports'; })[0];
   var symptomTrackerStateA = statesA.data.filter(function (row) { return row.module_id === 'symptom_tracker'; })[0];
@@ -1389,14 +1420,14 @@ var ctx = loadProject(h.sandbox);
   // ---- Cross-patient isolation: patient B's own states are untouched by patient A's writes ----
   var statesB = ctx.foundationGetPatientModuleStates_(patientB.data.patient_id);
   record('Stage12: patient B\'s module states are all still fail-closed defaults, unaffected by patient A\'s writes',
-    statesB.data.length === 3 && statesB.data.every(function (row) { return row.enabled === false && row.enabled_by === ''; }));
+    statesB.data.length === 4 && statesB.data.every(function (row) { return row.enabled === false && row.enabled_by === ''; }));
 
   // ---- FoundationRouter.gs — the one new, read-only dispatch case, end to end ----
   var sessionA = ctx.foundationIssueSessionToken_(patientA.data.patient_id);
   var getStatesHttp = ctx.handleFoundationRequest_({ foundation_action: 'get_patient_module_states', session_token: sessionA });
   var getStatesBody = JSON.parse(getStatesHttp._text);
   record('Stage12: get_patient_module_states (real HTTP dispatch) resolves the caller\'s own module states from a valid session',
-    getStatesBody.status === 'ok' && getStatesBody.data.length === 3);
+    getStatesBody.status === 'ok' && getStatesBody.data.length === 4);
   record('Stage12: get_patient_module_states derives patient_id only from the verified session, never from a client-supplied field',
     (function () {
       var spoofed = ctx.handleFoundationRequest_({
@@ -1432,6 +1463,270 @@ var ctx = loadProject(h.sandbox);
   var disabledAuditRows = auditRowsOf(h, 'module_state_disabled');
   record('Stage12: every write that resulted in enabled=false wrote its own module_state_disabled AuditLog row',
     disabledAuditRows.length === 1);
+})();
+
+// ============================================================
+// Stage 13 (PXP-5) — TemplateRegistry.gs + CheckInTemplateAssignment.gs
+// (a disclosed, additive gap-fill entity — see that file's own header
+// comment) + CheckInResponse.gs -> check-in-template-assignment.schema.json
+// and check-in-response.schema.json, plus FoundationRouter.gs's three new
+// dispatch cases end to end. The Daily Check-in Engine — a consumer of
+// Pillars 1 and 2, shipped alongside (never replacing) Symptom Tracker
+// (docs/44 §10.1, §22).
+// ============================================================
+(function stage13_checkInEngine() {
+  var patientA = ctx.foundationCreatePatient_({
+    full_name: 'Stage13 Patient A', email: 'stage13-a@example.com',
+    condition_slug: 'mcas', created_by: 'conformance-harness'
+  });
+  var patientB = ctx.foundationCreatePatient_({
+    full_name: 'Stage13 Patient B', email: 'stage13-b@example.com',
+    condition_slug: 'mcas', created_by: 'conformance-harness'
+  });
+  record('Stage13: setup — two independent patients exist', patientA.status === 'ok' && patientB.status === 'ok');
+
+  // ---- Template Registry — a static, pure config list ----
+  record('Stage13: foundationGetRegisteredTemplateIds_() returns the allowlist CheckInTemplateAssignment.gs validates against',
+    ctx.foundationGetRegisteredTemplateIds_().join(',') === 'daily_wellness_checkin');
+  var seededTemplate = ctx.foundationGetTemplateByIdAndVersion_('daily_wellness_checkin', 1);
+  record('Stage13: foundationGetTemplateByIdAndVersion_() finds the one seeded template (daily_wellness_checkin v1)',
+    seededTemplate !== null && seededTemplate.template_id === 'daily_wellness_checkin' && seededTemplate.version === 1);
+  record('Stage13: foundationGetTemplateByIdAndVersion_() returns null for an unknown pair',
+    ctx.foundationGetTemplateByIdAndVersion_('not-a-real-template', 1) === null &&
+    ctx.foundationGetTemplateByIdAndVersion_('daily_wellness_checkin', 99) === null);
+  record('Stage13: foundationGetLatestActiveTemplateVersion_() resolves to the only active version',
+    ctx.foundationGetLatestActiveTemplateVersion_('daily_wellness_checkin').version === 1);
+
+  // ---- CheckInTemplateAssignment — validation rejections ----
+  var missingPatientId = ctx.foundationAssignCheckInTemplate_({ template_id: 'daily_wellness_checkin', assigned_by: 'dr-rao' });
+  record('Stage13: foundationAssignCheckInTemplate_() rejects a missing patient_id with FOUNDATION_INVALID_INPUT',
+    missingPatientId.status === 'error' && missingPatientId.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var badTemplateId = ctx.foundationAssignCheckInTemplate_({ patient_id: patientA.data.patient_id, template_id: 'not-a-real-template', assigned_by: 'dr-rao' });
+  record('Stage13: foundationAssignCheckInTemplate_() rejects a template_id outside the Template Registry',
+    badTemplateId.status === 'error' && badTemplateId.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var missingAssignedBy = ctx.foundationAssignCheckInTemplate_({ patient_id: patientA.data.patient_id, template_id: 'daily_wellness_checkin' });
+  record('Stage13: foundationAssignCheckInTemplate_() rejects a missing assigned_by (doctor/staff identifier) with FOUNDATION_INVALID_INPUT',
+    missingAssignedBy.status === 'error' && missingAssignedBy.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  // ---- CheckInTemplateAssignment — before any assignment exists ----
+  var unassignedLookup = ctx.foundationGetActiveTemplateAssignmentForPatient_(patientA.data.patient_id);
+  record('Stage13: foundationGetActiveTemplateAssignmentForPatient_() returns null before any assignment exists',
+    unassignedLookup.status === 'ok' && unassignedLookup.data === null);
+  var unassignedTemplate = ctx.foundationGetCurrentCheckInTemplateForPatient_(patientA.data.patient_id);
+  record('Stage13: foundationGetCurrentCheckInTemplateForPatient_() returns data:null (not an error) for an unassigned patient',
+    unassignedTemplate.status === 'ok' && unassignedTemplate.data === null);
+
+  // ---- CheckInTemplateAssignment — first assignment: proves the create path ----
+  var assignmentA1 = ctx.foundationAssignCheckInTemplate_({ patient_id: patientA.data.patient_id, template_id: 'daily_wellness_checkin', assigned_by: 'dr-rao' });
+  record('Stage13: foundationAssignCheckInTemplate_() succeeds on valid input', assignmentA1.status === 'ok');
+  var assignmentA1Result = validate(checkInTemplateAssignmentSchema, assignmentA1.data || {});
+  record('Stage13: a real foundationAssignCheckInTemplate_() result conforms to check-in-template-assignment.schema.json',
+    assignmentA1Result.valid === true, assignmentA1Result.errors.join('; '));
+  record('Stage13: a new assignment starts active, with empty-string resolved_at/resolved_by sentinels',
+    assignmentA1.data.status === 'active' && assignmentA1.data.resolved_at === '' && assignmentA1.data.resolved_by === '');
+
+  var assignmentB1 = ctx.foundationAssignCheckInTemplate_({ patient_id: patientB.data.patient_id, template_id: 'daily_wellness_checkin', assigned_by: 'dr-shah' });
+  record('Stage13: setup — patient B has their own independent assignment', assignmentB1.status === 'ok');
+
+  var currentTemplateA = ctx.foundationGetCurrentCheckInTemplateForPatient_(patientA.data.patient_id);
+  record('Stage13: foundationGetCurrentCheckInTemplateForPatient_() resolves an active assignment to its latest active Template Registry version',
+    currentTemplateA.status === 'ok' && currentTemplateA.data.template_id === 'daily_wellness_checkin' && currentTemplateA.data.version === 1 &&
+    Array.isArray(currentTemplateA.data.questions) && currentTemplateA.data.questions.length === 4);
+
+  // ---- CheckInTemplateAssignment — resolve: the one-way, exactly-once transition ----
+  var unknownResolve = ctx.foundationResolveCheckInTemplateAssignment_({ assignment_id: 'not-a-real-assignment-id', resolved_by: 'dr-rao' });
+  record('Stage13: foundationResolveCheckInTemplateAssignment_() rejects an unknown assignment_id with FOUNDATION_INVALID_INPUT',
+    unknownResolve.status === 'error' && unknownResolve.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var missingResolvedBy = ctx.foundationResolveCheckInTemplateAssignment_({ assignment_id: assignmentA1.data.assignment_id });
+  record('Stage13: foundationResolveCheckInTemplateAssignment_() rejects a missing resolved_by with FOUNDATION_INVALID_INPUT',
+    missingResolvedBy.status === 'error' && missingResolvedBy.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  // ---- CheckInResponse — write path enforcement, before any submission ----
+  var missingRespPatientId = ctx.foundationCreateCheckInResponse_({ template_id: 'daily_wellness_checkin', template_version: 1, answers: {} });
+  record('Stage13: foundationCreateCheckInResponse_() rejects a missing patient_id with FOUNDATION_INVALID_INPUT',
+    missingRespPatientId.status === 'error' && missingRespPatientId.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var missingAnswers = ctx.foundationCreateCheckInResponse_({ patient_id: patientA.data.patient_id, template_id: 'daily_wellness_checkin', template_version: 1 });
+  record('Stage13: foundationCreateCheckInResponse_() rejects missing answers with FOUNDATION_INVALID_INPUT',
+    missingAnswers.status === 'error' && missingAnswers.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var badVersionType = ctx.foundationCreateCheckInResponse_({ patient_id: patientA.data.patient_id, template_id: 'daily_wellness_checkin', template_version: 'one', answers: {} });
+  record('Stage13: foundationCreateCheckInResponse_() rejects a non-integer template_version with FOUNDATION_INVALID_INPUT',
+    badVersionType.status === 'error' && badVersionType.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var unknownTemplateVersion = ctx.foundationCreateCheckInResponse_({
+    patient_id: patientA.data.patient_id, template_id: 'daily_wellness_checkin', template_version: 99,
+    answers: { overall_feeling: 5, symptom_severity: 5, took_medication: true }
+  });
+  record('Stage13: foundationCreateCheckInResponse_() rejects a template_version that does not exist in the registry',
+    unknownTemplateVersion.status === 'error' && unknownTemplateVersion.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  // ---- The core docs/44 §10.2 enforcement: assignment, not mere registry existence ----
+  // patientB already holds a real, active assignment (assignmentB1 above) — resolve it first so the next check exercises a genuinely unassigned patient without disturbing patientB's own later checks.
+  var resolveB1ForThisCheck = ctx.foundationResolveCheckInTemplateAssignment_({ assignment_id: assignmentB1.data.assignment_id, resolved_by: 'dr-shah' });
+  record('Stage13: setup — patient B\'s assignment is resolved so the next check exercises a genuinely unassigned patient', resolveB1ForThisCheck.status === 'ok');
+  var notAssignedRejected = ctx.foundationCreateCheckInResponse_({
+    patient_id: patientB.data.patient_id, template_id: 'daily_wellness_checkin', template_version: 1,
+    answers: { overall_feeling: 5, symptom_severity: 5, took_medication: true }
+  });
+  record('Stage13: foundationCreateCheckInResponse_() rejects a submission when the caller has no active assignment for that template_id — docs/44 §10.2\'s enforcement boundary, not merely "does the template exist"',
+    notAssignedRejected.status === 'error' && notAssignedRejected.error.code === 'FOUNDATION_INVALID_INPUT');
+  var reassignB1 = ctx.foundationAssignCheckInTemplate_({ patient_id: patientB.data.patient_id, template_id: 'daily_wellness_checkin', assigned_by: 'dr-shah' });
+  record('Stage13: setup — patient B is re-assigned for their own later checks', reassignB1.status === 'ok');
+
+  // ---- CheckInResponse — answers validation against the template's own question list ----
+  var unrecognizedField = ctx.foundationCreateCheckInResponse_({
+    patient_id: patientA.data.patient_id, template_id: 'daily_wellness_checkin', template_version: 1,
+    answers: { overall_feeling: 5, symptom_severity: 5, took_medication: true, not_a_real_field: 'x' }
+  });
+  record('Stage13: foundationCreateCheckInResponse_() rejects an answers field_key not in the template\'s own question list',
+    unrecognizedField.status === 'error' && unrecognizedField.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var missingRequiredField = ctx.foundationCreateCheckInResponse_({
+    patient_id: patientA.data.patient_id, template_id: 'daily_wellness_checkin', template_version: 1,
+    answers: { overall_feeling: 5 } // symptom_severity and took_medication are also required
+  });
+  record('Stage13: foundationCreateCheckInResponse_() rejects answers missing a required field',
+    missingRequiredField.status === 'error' && missingRequiredField.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var wrongType = ctx.foundationCreateCheckInResponse_({
+    patient_id: patientA.data.patient_id, template_id: 'daily_wellness_checkin', template_version: 1,
+    answers: { overall_feeling: 5, symptom_severity: 5, took_medication: 'yes' } // took_medication must be boolean
+  });
+  record('Stage13: foundationCreateCheckInResponse_() rejects a value of the wrong declared type',
+    wrongType.status === 'error' && wrongType.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var outOfRange = ctx.foundationCreateCheckInResponse_({
+    patient_id: patientA.data.patient_id, template_id: 'daily_wellness_checkin', template_version: 1,
+    answers: { overall_feeling: 55, symptom_severity: 5, took_medication: true } // overall_feeling max is 10
+  });
+  record('Stage13: foundationCreateCheckInResponse_() rejects a number value above the question\'s declared max',
+    outOfRange.status === 'error' && outOfRange.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var nestedValue = ctx.foundationCreateCheckInResponse_({
+    patient_id: patientA.data.patient_id, template_id: 'daily_wellness_checkin', template_version: 1,
+    answers: { overall_feeling: 5, symptom_severity: 5, took_medication: true, notes: { nope: 'not flat' } }
+  });
+  record('Stage13: foundationCreateCheckInResponse_() rejects a nested-object answer value — docs/44 §11.4\'s flat-object-only rule',
+    nestedValue.status === 'error' && nestedValue.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  // ---- CheckInResponse — the real, valid create path ----
+  var responseA1 = ctx.foundationCreateCheckInResponse_({
+    patient_id: patientA.data.patient_id, template_id: 'daily_wellness_checkin', template_version: 1,
+    answers: { notes: '  feeling okay  ', overall_feeling: 7, took_medication: true, symptom_severity: 2 } // deliberately out of question-list order
+  });
+  record('Stage13: foundationCreateCheckInResponse_() succeeds on valid input', responseA1.status === 'ok');
+  var responseA1Result = validate(checkInResponseSchema, responseA1.data || {});
+  record('Stage13: a real foundationCreateCheckInResponse_() result conforms to check-in-response.schema.json',
+    responseA1Result.valid === true, responseA1Result.errors.join('; '));
+  record('Stage13: logged_at is server-set, never accepted from a client-supplied field',
+    typeof responseA1.data.logged_at === 'string' && responseA1.data.logged_at.length > 0);
+  record('Stage13: answers is returned as a real, parsed object (never the raw stored JSON string) — the contract boundary',
+    typeof responseA1.data.answers === 'object' && responseA1.data.answers.overall_feeling === 7 && responseA1.data.answers.took_medication === true);
+  record('Stage13: a string answer value is trimmed',
+    responseA1.data.answers.notes === 'feeling okay');
+  record('Stage13: answers keys are serialized in the template\'s own question-list order, not input order — deterministic serialization (docs/44 §11.4)',
+    Object.keys(JSON.parse(h.spreadsheet.getSheetByName(ctx.FOUNDATION_CHECKIN_RESPONSES_SHEET_)._debug().rows[0][5])).join(',') === 'overall_feeling,symptom_severity,took_medication,notes');
+
+  var responseA2 = ctx.foundationCreateCheckInResponse_({
+    patient_id: patientA.data.patient_id, template_id: 'daily_wellness_checkin', template_version: 1,
+    answers: { overall_feeling: 6, symptom_severity: 4, took_medication: false } // notes omitted — optional field
+  });
+  record('Stage13: an optional field (notes) may be omitted entirely', responseA2.status === 'ok' && responseA2.data.answers.notes === undefined);
+
+  var responseB1 = ctx.foundationCreateCheckInResponse_({
+    patient_id: patientB.data.patient_id, template_id: 'daily_wellness_checkin', template_version: 1,
+    answers: { overall_feeling: 3, symptom_severity: 8, took_medication: true }
+  });
+  record('Stage13: setup — patient B has their own independent response', responseB1.status === 'ok');
+
+  // ---- foundationGetPatientCheckInResponses_() — sorted newest-first, cross-patient isolated ----
+  var listA = ctx.foundationGetPatientCheckInResponses_(patientA.data.patient_id);
+  record('Stage13: foundationGetPatientCheckInResponses_() succeeds', listA.status === 'ok');
+  record('Stage13: patient A\'s list contains both of their own responses, never patient B\'s',
+    listA.data.length === 2 && listA.data.every(function (row) { return row.patient_id === patientA.data.patient_id; }));
+  record('Stage13: the list is sorted logged_at descending (newest-or-tied first) — responseA1/responseA2 were created back to back and may share a millisecond, an acceptable, undefined-tiebreak-order edge case FoundationSymptomLog.gs\'s own header comment already discloses for the identical single-timestamp-sort-key scheme',
+    listA.data[0].logged_at >= listA.data[1].logged_at);
+  var listedResult = validate(checkInResponseSchema, listA.data[0]);
+  record('Stage13: a real listed response conforms to check-in-response.schema.json',
+    listedResult.valid === true, listedResult.errors.join('; '));
+
+  var listB = ctx.foundationGetPatientCheckInResponses_(patientB.data.patient_id);
+  record('Stage13: patient B\'s list contains only their own response, never patient A\'s',
+    listB.data.length === 1 && listB.data[0].patient_id === patientB.data.patient_id);
+
+  // ---- FoundationRouter.gs — the three new dispatch cases, end to end ----
+  var sessionA = ctx.foundationIssueSessionToken_(patientA.data.patient_id);
+  var sessionB = ctx.foundationIssueSessionToken_(patientB.data.patient_id);
+
+  var getTemplateHttp = ctx.handleFoundationRequest_({ foundation_action: 'get_checkin_template', session_token: sessionA });
+  var getTemplateBody = JSON.parse(getTemplateHttp._text);
+  record('Stage13: get_checkin_template (real HTTP dispatch) resolves the caller\'s own current template from a valid session',
+    getTemplateBody.status === 'ok' && getTemplateBody.data.template_id === 'daily_wellness_checkin');
+  record('Stage13: get_checkin_template derives patient_id only from the verified session, never from a client-supplied field',
+    (function () {
+      var spoofed = ctx.handleFoundationRequest_({ foundation_action: 'get_checkin_template', session_token: sessionA, patient_id: 'not-my-own-id' });
+      var spoofedBody = JSON.parse(spoofed._text);
+      return spoofedBody.status === 'ok' && spoofedBody.data.template_id === 'daily_wellness_checkin';
+    })());
+
+  var submitHttp = ctx.handleFoundationRequest_({
+    foundation_action: 'submit_checkin_response', session_token: sessionA,
+    template_id: 'daily_wellness_checkin', template_version: 1,
+    answers: { overall_feeling: 8, symptom_severity: 1, took_medication: true }
+  });
+  var submitBody = JSON.parse(submitHttp._text);
+  record('Stage13: submit_checkin_response (real HTTP dispatch) creates a response for the session-derived patient',
+    submitBody.status === 'ok' && submitBody.data.patient_id === patientA.data.patient_id);
+  record('Stage13: submit_checkin_response derives patient_id only from the verified session, never from a client-supplied field',
+    (function () {
+      var spoofed = ctx.handleFoundationRequest_({
+        foundation_action: 'submit_checkin_response', session_token: sessionA, patient_id: patientB.data.patient_id,
+        template_id: 'daily_wellness_checkin', template_version: 1,
+        answers: { overall_feeling: 5, symptom_severity: 5, took_medication: true }
+      });
+      var spoofedBody = JSON.parse(spoofed._text);
+      return spoofedBody.status === 'ok' && spoofedBody.data.patient_id === patientA.data.patient_id;
+    })());
+
+  var getResponsesHttpA = ctx.handleFoundationRequest_({ foundation_action: 'get_checkin_responses', session_token: sessionA });
+  var getResponsesBodyA = JSON.parse(getResponsesHttpA._text);
+  record('Stage13: get_checkin_responses over real HTTP dispatch returns only patient A\'s own responses',
+    getResponsesBodyA.status === 'ok' && getResponsesBodyA.data.length === 4 && getResponsesBodyA.data.every(function (row) { return row.patient_id === patientA.data.patient_id; }));
+
+  var getResponsesHttpB = ctx.handleFoundationRequest_({ foundation_action: 'get_checkin_responses', session_token: sessionB });
+  var getResponsesBodyB = JSON.parse(getResponsesHttpB._text);
+  record('Stage13: get_checkin_responses over real HTTP dispatch returns only patient B\'s own responses, never patient A\'s — cross-patient isolation',
+    getResponsesBodyB.status === 'ok' && getResponsesBodyB.data.length === 1 && getResponsesBodyB.data[0].patient_id === patientB.data.patient_id);
+
+  ['get_checkin_template', 'submit_checkin_response', 'get_checkin_responses'].forEach(function (action) {
+    var unauthedHttp = ctx.handleFoundationRequest_({ foundation_action: action, session_token: 'not-a-real-session-token' });
+    var unauthedBody = JSON.parse(unauthedHttp._text);
+    record('Stage13: ' + action + ' rejects an invalid session_token with FOUNDATION_UNAUTHORIZED, never leaking any data',
+      unauthedBody.status === 'error' && unauthedBody.error.code === 'FOUNDATION_UNAUTHORIZED' && unauthedBody.data === null);
+  });
+
+  record('Stage13: there is no assign/resolve-template-assignment action reachable over HTTP dispatch — doctor/staff writes stay editor-only',
+    (function () {
+      var attempted = ctx.handleFoundationRequest_({
+        foundation_action: 'assign_checkin_template', session_token: sessionA, patient_id: patientA.data.patient_id, template_id: 'daily_wellness_checkin', assigned_by: 'dr-rao'
+      });
+      var attemptedBody = JSON.parse(attempted._text);
+      return attemptedBody.status === 'error' && attemptedBody.error.code === 'FOUNDATION_UNKNOWN_ACTION';
+    })());
+
+  var assignedAuditRows = auditRowsOf(h, 'checkin_template_assigned');
+  record('Stage13: every successful template assignment wrote its own checkin_template_assigned AuditLog row',
+    assignedAuditRows.length === 3);
+  var resolvedAuditRows = auditRowsOf(h, 'checkin_template_assignment_resolved');
+  record('Stage13: every successful resolution wrote its own checkin_template_assignment_resolved AuditLog row',
+    resolvedAuditRows.length === 1);
+  var createdResponseAuditRows = auditRowsOf(h, 'checkin_response_created');
+  record('Stage13: every successful response creation wrote its own checkin_response_created AuditLog row',
+    createdResponseAuditRows.length === 5);
 })();
 
 function auditRowsOf(h, eventType) {
