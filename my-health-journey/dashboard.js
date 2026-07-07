@@ -18,23 +18,62 @@
     goToLogin();
   });
 
+  // Batch PXP-4 (docs/44 §7.3/§13, docs/47 §3, ADR-012 (amended)) — the
+  // dashboard is now a registry-driven consumer of PXP-3's Module Registry
+  // plus PatientModuleState. Every card that renders here corresponds to a
+  // registry entry the patient is enabled for; no card is hardcoded, no
+  // card is disease-specific. Adding a new module later means (i) add a
+  // registry entry (in shared/constants/module-registry.json,
+  // apps-script/ModuleRegistry.gs, and this file's MODULE_REGISTRY below);
+  // (ii) register a loader against its data_source in MODULE_LOADERS
+  // below — renderDashboard() itself never learns any specific module_id.
+  //
+  // Hand-ported from shared/constants/module-registry.json version 1.0.0 —
+  // the same "port a shared/ definition into a consuming file" convention
+  // CONDITION_OPTIONS (below), REPORT_MAX_UPLOAD_BYTES (below), and
+  // apps-script/ModuleRegistry.gs's FOUNDATION_MODULE_REGISTRY_ already use
+  // (a browser has no ES-module/build-step to read the canonical JSON at
+  // runtime — a static hand-port is the same discipline every other
+  // shared/ constant already follows in this file). Only the fields the
+  // dashboard actually consumes today (module_id, title, display_order,
+  // empty_state, data_source) are duplicated here — the reserved/inert
+  // supports_*/future_ai_capable/etc. fields stay in the canonical JSON
+  // where a future consumer will pick them up (module-registry.md §
+  // "Which fields does PXP-3 code actually consume?"). Update all three
+  // ports by hand if the canonical list ever changes.
+  var MODULE_REGISTRY = [
+    { module_id: 'timeline',        title: 'Timeline',        display_order: 10, empty_state: 'nodata', data_source: 'get_timeline' },
+    { module_id: 'symptom_tracker', title: 'Symptom Tracker', display_order: 20, empty_state: 'nodata', data_source: 'get_symptom_logs' },
+    { module_id: 'reports',         title: 'Reports',         display_order: 30, empty_state: 'nodata', data_source: 'get_reports' }
+  ];
+
+  function getModuleDescriptor(moduleId) {
+    for (var i = 0; i < MODULE_REGISTRY.length; i++) {
+      if (MODULE_REGISTRY[i].module_id === moduleId) return MODULE_REGISTRY[i];
+    }
+    return null;
+  }
+
   // Three distinct empty-state types (docs/37 §5, approved design decision):
-  //  - nodata:  a real, wired feature with zero rows for this patient. No
-  //             card in this batch has a live data source yet, so this
-  //             variant has no consumer here — the same "built, verified,
-  //             consumer arrives in a later batch" pattern the backend's own
-  //             static-analysis findings already use (docs/29 §14 F4/F5).
-  //             Exercised directly (not reimplemented) by
-  //             validation/pa-2-dashboard/browser-test.js via window.WiseDashboard.
-  //  - phase2a: named, sequenced later in this same phase (5D/5E/5F). Batch
-  //             PA-5 (5F, Reports) was this badge's last live consumer —
-  //             no card renders it anymore, but it is kept, unremoved, for
-  //             the same "built, verified, no current consumer" reason
-  //             'nodata' above was kept through PA-2/PA-3: still exercised
-  //             by validation/pa-2-dashboard/browser-test.js via
-  //             window.WiseDashboard, and available again the moment a
-  //             future card needs a "coming later" state of its own.
-  //  - future:  no architecture exists yet for this feature at all (docs/29 §2.2).
+  //  - nodata:  a real, wired feature with zero rows for this patient. Every
+  //             registry-enabled card (Timeline, Symptom Tracker, Reports)
+  //             renders this variant when its own get_* call returns [].
+  //  - phase2a: named, sequenced later in the same phase. Kept here for the
+  //             same "built, verified, no current consumer" reason it was
+  //             kept through PA-5 — still exercised by
+  //             validation/pa-2-dashboard/browser-test.js via
+  //             window.WiseDashboard, and available the moment a future
+  //             card needs a "coming later" state of its own.
+  //  - future:  no architecture exists yet for this feature at all. PXP-4
+  //             removes this variant from any live card — the three
+  //             pre-PXP-4 "future" placeholders (Care Plan, Messages,
+  //             Digital Twin) are not in the Module Registry (docs/47 §4:
+  //             a not-yet-built module is not pre-declared here by an
+  //             earlier batch guessing its shape) so they simply do not
+  //             render on any patient's dashboard until a future batch
+  //             adds them, at which point they will re-appear via the
+  //             registry, not as a hardcoded emptyStateHtml('future', …)
+  //             call in this file.
   var EMPTY_STATE_BADGES = {
     nodata: ['badge-nodata', 'No entries yet'],
     phase2a: ['badge-phase2a', 'Coming later in Phase 2A'],
@@ -264,8 +303,12 @@
     });
   }
 
-  function loadReportsPreview(sessionToken) {
-    var reportsBody = document.getElementById('card-reports-body');
+  // Registry-driven signature (moduleId): the DOM id fragment is derived
+  // from the registry descriptor's module_id, not a hardcoded literal —
+  // renderDashboard() built '#card-' + moduleId + '-body' generically, so
+  // the loader looks it up the same way.
+  function loadReportsPreview(sessionToken, moduleId) {
+    var reportsBody = document.getElementById('card-' + moduleId + '-body');
     reportsBody.innerHTML = reportsFormHtml();
     wireReportForm(sessionToken);
     refreshReportsList(sessionToken);
@@ -391,8 +434,8 @@
     });
   }
 
-  function loadSymptomPreview(sessionToken) {
-    var symptomsBody = document.getElementById('card-symptoms-body');
+  function loadSymptomPreview(sessionToken, moduleId) {
+    var symptomsBody = document.getElementById('card-' + moduleId + '-body');
     symptomsBody.innerHTML = symptomFormHtml();
     wireSymptomForm(sessionToken);
     refreshSymptomSummary(sessionToken);
@@ -402,8 +445,8 @@
   // own forward note: per-card loading becomes real once a card has its
   // own separately-timed data call — this is the first one). A failure
   // here never disturbs the rest of the dashboard.
-  function loadTimelinePreview(sessionToken) {
-    var timelineBody = document.getElementById('card-timeline-body');
+  function loadTimelinePreview(sessionToken, moduleId) {
+    var timelineBody = document.getElementById('card-' + moduleId + '-body');
     fetch(WEB_APP_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -422,19 +465,83 @@
       });
   }
 
-  function renderDashboard(profile) {
+  // Loader-dispatcher registry — one entry per registry data_source. The
+  // registry entry declares data_source; the dashboard resolves that string
+  // to a loader function here. renderDashboard() never learns the mapping.
+  // Adding a new module: (i) add its registry entry above; (ii) register
+  // its loader here — nothing else changes.
+  var MODULE_LOADERS = {
+    'get_timeline':     loadTimelinePreview,
+    'get_symptom_logs': loadSymptomPreview,
+    'get_reports':      loadReportsPreview
+  };
+
+  // Merges the per-patient state rows from get_patient_module_states with
+  // the local registry: keeps only entries whose enabled === true and whose
+  // module_id is in the registry (fail-closed on both sides — a state row
+  // for a module the client doesn't know about is silently ignored, and a
+  // registry entry with no state row does not render). Sorts by
+  // display_order — the sole ordering signal, per docs/44 §7.1.
+  function filterEnabledModules(stateEntries) {
+    var enabled = [];
+    for (var i = 0; i < stateEntries.length; i++) {
+      var state = stateEntries[i];
+      if (!state || state.enabled !== true) continue;
+      var descriptor = getModuleDescriptor(state.module_id);
+      if (!descriptor) continue;
+      enabled.push({ descriptor: descriptor, state: state });
+    }
+    enabled.sort(function (a, b) { return a.descriptor.display_order - b.descriptor.display_order; });
+    return enabled;
+  }
+
+  // Whole-dashboard empty state: the patient is authenticated but has no
+  // enabled modules (docs/44 §13.3 / docs/47 §3 — the intentional
+  // "registry-driven visibility" outcome, not an error). One friendly,
+  // full-width card explaining what will change and when, using the same
+  // .card/.dash-card/.empty-text tokens every other card uses.
+  function dashboardEmptyStateHtml() {
+    return '<div class="card dash-card" style="grid-column:1/-1" id="dashEmptyState">' +
+      '<p class="empty-text">No dashboard modules are enabled for your account yet. Your doctor will enable modules relevant to your care — you\'ll see them here once they do.</p>' +
+      '</div>';
+  }
+
+  // Zero-line-per-card: renderDashboard() no longer knows about any
+  // specific module. Every card that appears is one whose registry entry
+  // exists and whose PatientModuleState.enabled === true.
+  function renderDashboard(profile, enabledModules) {
     greeting.textContent = 'Hi, ' + profile.full_name;
     grid.setAttribute('aria-busy', 'false');
-    grid.innerHTML =
-      cardHtml('timeline', 'Timeline', '<div class="skeleton"></div><div class="skeleton"></div>') +
-      cardHtml('symptoms', 'Symptom Tracker', '<div class="skeleton"></div><div class="skeleton"></div>') +
-      cardHtml('reports', 'Reports', '<div class="skeleton"></div><div class="skeleton"></div>') +
-      cardHtml('careplan', 'Care Plan', emptyStateHtml('future',
-        'A personalised care plan is planned for a future version of Wise Homeopathy.')) +
-      cardHtml('messages', 'Messages', emptyStateHtml('future',
-        'Secure messaging with the clinic is planned for a future version.')) +
-      cardHtml('digitaltwin', 'Digital Twin', emptyStateHtml('future',
-        'Your Wise Digital Twin and AI health summaries are planned for a future version.'));
+    if (!enabledModules.length) {
+      grid.innerHTML = dashboardEmptyStateHtml();
+      return;
+    }
+    var html = '';
+    for (var i = 0; i < enabledModules.length; i++) {
+      var d = enabledModules[i].descriptor;
+      html += cardHtml(d.module_id, d.title, '<div class="skeleton"></div><div class="skeleton"></div>');
+    }
+    grid.innerHTML = html;
+  }
+
+  function dispatchLoaders(sessionToken, enabledModules) {
+    for (var i = 0; i < enabledModules.length; i++) {
+      var d = enabledModules[i].descriptor;
+      var loader = MODULE_LOADERS[d.data_source];
+      if (!loader) {
+        // Registry declares a data_source we have no loader for — leave
+        // the card skeleton in place rather than crash. This is the only
+        // path where a registered, enabled module fails to render fully;
+        // logged so a maintainer notices in dev without disturbing the
+        // rest of the dashboard.
+        if (window.console && console.warn) {
+          console.warn('WiseDashboard: no loader registered for data_source "' + d.data_source +
+            '" (module_id "' + d.module_id + '") — card left as skeleton.');
+        }
+        continue;
+      }
+      loader(sessionToken, d.module_id);
+    }
   }
 
   var token = window.sessionStorage.getItem(SESSION_KEY);
@@ -443,25 +550,37 @@
     return;
   }
 
-  fetch(WEB_APP_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ foundation_action: 'get_profile', session_token: token })
-  })
-    .then(function (response) { return response.json(); })
-    .then(function (data) {
-      // Every rejection reason (expired, tampered, unknown) collapses to the
-      // same FOUNDATION_UNAUTHORIZED code server-side (FoundationRouteGuard.gs)
-      // — the client mirrors that by showing one generic message regardless
-      // of which occurred, rather than guessing a more specific one.
-      if (data.status === 'ok') {
-        renderDashboard(data.data);
-        loadTimelinePreview(token);
-        loadSymptomPreview(token);
-        loadReportsPreview(token);
-      } else {
+  // Two calls in parallel: get_profile (the header greeting) and
+  // get_patient_module_states (PXP-3, the per-patient enablement rows the
+  // Dashboard Registry consumer needs). Either rejecting with a non-'ok'
+  // envelope collapses to /login.html?reason=expired the same way
+  // get_profile did before this batch — every rejection reason
+  // (expired/tampered/unknown) becomes FOUNDATION_UNAUTHORIZED server-side
+  // (FoundationRouteGuard.gs), which the client mirrors as one generic
+  // message rather than guessing a more specific one.
+  Promise.all([
+    fetch(WEB_APP_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ foundation_action: 'get_profile', session_token: token })
+    }).then(function (response) { return response.json(); }),
+    fetch(WEB_APP_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ foundation_action: 'get_patient_module_states', session_token: token })
+    }).then(function (response) { return response.json(); })
+  ])
+    .then(function (results) {
+      var profileEnv = results[0];
+      var statesEnv = results[1];
+      if (profileEnv.status !== 'ok' || statesEnv.status !== 'ok') {
         goToLogin('expired');
+        return;
       }
+      var stateEntries = Array.isArray(statesEnv.data) ? statesEnv.data : [];
+      var enabled = filterEnabledModules(stateEntries);
+      renderDashboard(profileEnv.data, enabled);
+      dispatchLoaders(token, enabled);
     })
     .catch(function () {
       // A network failure is not a session failure — keep the token and let
@@ -472,9 +591,10 @@
     });
 
   // Explicit, minimal test-support surface — exposes the pure formatting
-  // functions so validation/pa-2-dashboard/browser-test.js can exercise the
-  // real code (including the 'nodata' variant, which has no page consumer
-  // yet) directly, rather than re-implementing this logic in the test.
+  // functions plus the new registry-consumer helpers so
+  // validation/pa-2-dashboard/browser-test.js and
+  // validation/pxp-4-dashboard-registry/browser-test.js can exercise the
+  // real code directly rather than re-implementing this logic in the test.
   window.WiseDashboard = {
     emptyStateHtml: emptyStateHtml,
     cardHtml: cardHtml,
@@ -486,6 +606,10 @@
     reportsFormHtml: reportsFormHtml,
     reportsListHtml: reportsListHtml,
     REPORT_MAX_UPLOAD_BYTES: REPORT_MAX_UPLOAD_BYTES,
-    REPORT_ALLOWED_MIME_TYPES: REPORT_ALLOWED_MIME_TYPES
+    REPORT_ALLOWED_MIME_TYPES: REPORT_ALLOWED_MIME_TYPES,
+    MODULE_REGISTRY: MODULE_REGISTRY,
+    getModuleDescriptor: getModuleDescriptor,
+    filterEnabledModules: filterEnabledModules,
+    dashboardEmptyStateHtml: dashboardEmptyStateHtml
   };
 })();

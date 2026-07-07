@@ -1,5 +1,5 @@
 # 33 - Domain Model
-## Version 1.7 — 2026-07-10
+## Version 1.8 — 2026-07-11
 
 > Defines every major business entity in the Wise Platform: what it means, what it
 > holds, how it relates to everything else, how it comes into being and ends, who is
@@ -678,6 +678,16 @@ Module State (§6.3) promoted from *Designed* to **Implemented** — see that
 subsection's own status update for the shipped shape, ADR-012's second amendment
 (generalizing the registry's framing beyond dashboard-only infrastructure), and the
 disclosed scope boundary that no dashboard rendering changes in this batch.
+**Updated 2026-07-11** for Batch PXP-4 (implementation): §6.3 promoted from
+**Implemented (backend scaffold)** to **Implemented (backend scaffold + frontend
+consumer)** — the patient dashboard is now a registry-driven consumer of PXP-3's
+Module Registry plus `PatientModuleState`. Every card that renders corresponds to a
+registry entry the patient is enabled for; `renderDashboard()` no longer contains any
+hardcoded knowledge of a specific module. See §6.3's own status update for the
+disclosed frozen-file exception (`my-health-journey/dashboard.js`, the exact
+"authorized migration" case ADR-012 (amended) commits to), the removal of the three
+pre-PXP-4 hardcoded "future" placeholder cards, and the new dedicated PXP-4 browser-
+test suite.
 
 ## 6.1 Patient Profile — *Implemented (Batch PXP-1)*
 **Purpose:** Patient-editable structured contact/personal data (phone, date of birth,
@@ -734,7 +744,7 @@ this batch is purely additive; `Patient.condition_slug` and every existing reade
 are completely untouched, and no existing reader is required to migrate as part of this
 change.
 
-## 6.3 Module Registry and Patient Module State — *Pillar 2, Implemented (Batch PXP-3)*
+## 6.3 Module Registry and Patient Module State — *Pillar 2, Implemented (Batches PXP-3 backend, PXP-4 frontend consumer)*
 **Purpose:** A config-level list of available capabilities (Module Registry) plus a
 per-patient enablement record (`PatientModuleState`) — the mechanism behind ADR-012
 (amended twice) and docs/44 §7/§14's per-patient feature enable/disable requirement.
@@ -781,6 +791,31 @@ docs/44 §7.1's own AI-readiness reservation) — see `shared/constants/
 module-registry.md` for the full, disclosed field list, including one field
 (`enabled_by_default`) considered and deliberately omitted for risking contradiction
 with the fail-closed/doctor-only-enablement rule.
+
+**Status update (Batch PXP-4, 2026-07-11):** the patient dashboard
+(`my-health-journey/dashboard.js`) is now a registry-driven consumer of this
+subsection's Module Registry plus `PatientModuleState`. Every card that renders
+corresponds to a registry entry the patient is enabled for (`enabled === true`);
+`renderDashboard()` no longer contains any hardcoded knowledge of a specific
+`module_id`, `title`, `display_order`, or `data_source`. `PatientModuleState` is now
+the sole source of enablement — fail-closed: absence of an enabled row means the card
+does not render (matching PXP-3's fail-closed default at the backend). The Module
+Registry is the sole source of presentation. A loader-dispatcher maps each registry
+`data_source` string to its registered loader function; adding a new module later
+means (i) add its registry entry, (ii) register a loader — nothing in the render
+path changes. One disclosed frozen-file exception: `my-health-journey/dashboard.js`,
+the exact "authorized migration" case ADR-012 (amended) commits to and docs/44 §7.3
+requires. The three pre-PXP-4 hardcoded "future" placeholder cards (Care Plan,
+Messages, Digital Twin) no longer render on any patient's dashboard, since none are
+in the Module Registry (docs/47 §4: a not-yet-built module is not pre-declared by an
+earlier batch guessing its shape; each will re-appear via its own future batch's
+registry entry, not a hardcoded call in `dashboard.js`). Zero backend change — the
+batch is entirely a frontend consumer of PXP-3's already-shipped
+`get_patient_module_states` route. New browser-test suite
+`validation/pxp-4-dashboard-registry/` covers PXP-4's own new surface (empty
+dashboard, per-patient enablement, `display_order` ordering, unregistered
+`data_source` fail-soft, `filterEnabledModules` pure-function behavior, session
+fail-closed on state rejection).
 
 ## 6.4 Calculator Registry, Calculator Definition, and Calculator Result — *Pillar 3*
 **Purpose:** A registry of available calculators (Calculator Registry, mirroring the
@@ -878,7 +913,7 @@ instantiated category; any future category would follow the same relationship sh
 | Calculator | Designed, not yet implemented — Patient variant only — **Pillar 3** | 2B (docs/44 §8, batch PXP-6, Calculator Registry). Public variant still unassigned — roadmap gap carried forward (docs/46 Part 3). |
 | Patient Profile | **Implemented** | 2B (docs/44 §17, batch PXP-1 — shipped, the platform's first upsert-style entity) |
 | Doctor Assigned Condition | **Implemented — Pillar 1** | 2B (docs/44 §6, batch PXP-2 — shipped, doctor/staff-owned; renamed from "Condition Assignment"; Option B (additive) settled and approved) |
-| Module Registry / Patient Module State | **Implemented (backend scaffold) — Pillar 2** | 2B (docs/44 §7, batch PXP-3 backend — shipped; PXP-4 Dashboard Registry frontend migration, still unbuilt, will cover every dashboard card) |
+| Module Registry / Patient Module State | **Implemented (backend scaffold + frontend consumer) — Pillar 2** | 2B (docs/44 §7, batch PXP-3 backend — shipped; docs/44 §7.3/§13, batch PXP-4 Dashboard Registry frontend consumer — shipped; the patient dashboard now renders every card from `PatientModuleState` × Module Registry, no hardcoded module knowledge in the render path) |
 | Template Registry | Designed, not yet implemented (new in Version 4.0) | 2B (docs/44 §11/§11.5, ADR-016, batch PXP-5 for its first category). Generalizes Check-In Template into a registry pattern; six future categories named, unscoped, unclaimed by any batch. |
 | Check-In Template / Check-In Response | Designed, not yet implemented | 2B (docs/44 §11/§10, batch PXP-5). Template assignment settled: doctor-driven, patient never configures. Now the Template Registry's first concrete category (§6.7). |
 | Trusted Device | Designed, not yet implemented | 2B (docs/44 §5, ADR-015, batch PXP-8) |

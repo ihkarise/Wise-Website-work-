@@ -1,5 +1,5 @@
 # 24 - Wise Product Roadmap
-## Version 1.8 — 2026-07-10
+## Version 1.9 — 2026-07-11
 
 # Phase 1 — Public Website
 Status: In Progress
@@ -176,8 +176,9 @@ moved to its own phase below. Batch-level sequencing (5A–5H): docs/29 §13.
 Status: **Architecture-freeze finalized (Version 4.0, 2026-07-09).
 Implementation underway: Batch PXP-1 (Patient Profile) shipped 2026-07-09;
 Batch PXP-2 (Doctor-Assigned Conditions) shipped 2026-07-09; Batch PXP-3
-(Module Registry) shipped 2026-07-10, approved as this phase's third batch
-per docs/47's per-batch gate.**
+(Module Registry) shipped 2026-07-10; Batch PXP-4 (Dashboard Registry)
+shipped 2026-07-11, approved as this phase's fourth batch per docs/47's
+per-batch gate.**
 This entry originally named only
 "Personal Care Plan" (per docs/32 Part 2's recommendation), then "Personal
 Care Plan, Module Engine & Personalized Check-ins" after the first
@@ -291,6 +292,36 @@ don't scope it" discipline ADR-016 already established. Zero dependency on
 any other Phase 2B batch beyond the registry itself, zero modification to
 any frozen file.
 
+**Batch PXP-4 (Dashboard Registry, docs/44 §7.3/§13)** — Pillar 2's
+frontend consumer half — has now shipped: the "My Health Journey" dashboard
+(`my-health-journey/dashboard.js`) is now a registry-driven consumer of
+PXP-3's Module Registry plus `PatientModuleState`. Every card that renders
+on the dashboard corresponds to a registry entry the patient is enabled
+for, ordered by `display_order`; there is no hardcoded knowledge of any
+specific module in `renderDashboard()`'s render path. `PatientModuleState`
+is now the sole source of enablement (fail-closed: absence of an
+`enabled === true` row means the card does not render); the Module
+Registry is the sole source of presentation (title, ordering, empty-state
+type, `data_source` string). A loader-dispatcher maps each registry
+`data_source` to its registered loader function — adding a new module
+later means (i) add its registry entry, (ii) register a loader — nothing
+in `renderDashboard()` itself changes. The three pre-PXP-4 hardcoded
+"future" placeholder cards (Care Plan, Messages, Digital Twin) no longer
+render on any patient's dashboard, since none are in the Module Registry
+(docs/47 §4: a not-yet-built module is not pre-declared by an earlier
+batch guessing its shape; a future batch will re-add each via the
+registry, not a hardcoded call in `dashboard.js`). One frozen-file
+exception, explicitly disclosed: `my-health-journey/dashboard.js` is
+Phase 2A-frozen except for genuine bug fixes, and this batch is the exact
+"authorized migration" case ADR-012 (amended) commits to and docs/44 §7.3
+requires — not a bug fix. Zero backend change (no new Apps Script route,
+no new schema, no `.gs` file added or edited — the batch is entirely a
+frontend consumer of PXP-3's already-shipped `get_patient_module_states`
+route). Zero dependency on any other Phase 2B batch beyond PXP-3, zero
+modification to any other frozen file (`my-health-journey/index.html`,
+every `.gs` file, every `shared/schemas/*.schema.json`, every
+`shared/constants/*.json` — all untouched).
+
 See docs/44-PHASE-2B-TECHNICAL-PLAN.md (Version 4.0) for the full design,
 docs/45-PHASE-2B-ARCHITECTURE-READINESS-REVIEW.md (Version 4.0) for the
 critique of every proposal, docs/46-PHASE-2B-REPOSITORY-CONSISTENCY-
@@ -303,9 +334,9 @@ documentation/git rules, and the mandatory three-phase batch workflow)
 every batch from PXP-1 onward must follow.
 
 **Implementation has begun with Batch PXP-1 (Patient Profile), Batch PXP-2
-(Doctor-Assigned Conditions), and Batch PXP-3 (Module Registry), all
-explicitly approved and shipped; no other batch is authorized by any of the
-above documents.** docs/44 §22
+(Doctor-Assigned Conditions), Batch PXP-3 (Module Registry), and Batch
+PXP-4 (Dashboard Registry), all explicitly approved and shipped; no other
+batch is authorized by any of the above documents.** docs/44 §22
 sequences **infrastructure before features**:
 Patient Profile → Doctor-Assigned Conditions → Module Registry → Dashboard
 Registry → Daily Check-in Engine → Calculator Registry → Personal Care
