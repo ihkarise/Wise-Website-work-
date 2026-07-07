@@ -1,5 +1,5 @@
 # 24 - Wise Product Roadmap
-## Version 1.10 — 2026-07-13
+## Version 1.11 — 2026-07-14
 
 # Phase 1 — Public Website
 Status: In Progress
@@ -178,8 +178,9 @@ Implementation underway: Batch PXP-1 (Patient Profile) shipped 2026-07-09;
 Batch PXP-2 (Doctor-Assigned Conditions) shipped 2026-07-09; Batch PXP-3
 (Module Registry) shipped 2026-07-10; Batch PXP-4 (Dashboard Registry)
 shipped 2026-07-11; Batch PXP-5 (Daily Check-in Engine) shipped 2026-07-12;
-Batch PXP-6 (Calculator Registry, backend only) shipped 2026-07-13,
-approved as this phase's sixth batch per docs/47's per-batch gate.**
+Batch PXP-6 (Calculator Registry, backend only) shipped 2026-07-13; Batch
+PXP-7 (Personal Care Plan) shipped 2026-07-14, approved as this phase's
+seventh batch per docs/47's per-batch gate.**
 This entry originally named only
 "Personal Care Plan" (per docs/32 Part 2's recommendation), then "Personal
 Care Plan, Module Engine & Personalized Check-ins" after the first
@@ -387,6 +388,47 @@ to render. No new ADR was required — ADR-013 and ADR-012's registry-driven
 principle already fully govern this pattern. Zero modification to any
 frozen Foundation/Identity & Access/Patient Access/PXP-1..5 file.
 
+**Batch PXP-7 (Personal Care Plan, docs/44 §12/§22)** — a consumer of
+Pillars 1 and 2 — has now shipped: `CarePlan`
+(`shared/schemas/care-plan.schema.json`, `apps-script/CarePlan.gs`) and
+`DoctorInstruction` (`shared/schemas/doctor-instruction.schema.json`,
+`apps-script/DoctorInstruction.gs`), matching docs/44 §12's design exactly.
+`CarePlan` is one evolving, append-only-versioned plan per patient — editing
+a plan never mutates an existing row, it appends a new version sharing the
+same stable `care_plan_id` and automatically flips the prior version's own
+row to `status: superseded`, exactly one `active` row per plan at any time.
+`DoctorInstruction` rows attach to a plan via that same stable
+`care_plan_id`, remaining correctly attached across every later version;
+each instruction's own `status` (active/discontinued/completed) transitions
+one-way, exactly once, mirroring `DoctorAssignedCondition`'s own precedent.
+One disclosed, additive field beyond docs/44 §12's literal list:
+`CarePlan.version_key` (server-derived, `care_plan_id + '::' + version`),
+mirroring `PatientModuleState.state_key`'s own precedent for addressing one
+row among several sharing the same logical identity. Doctor/staff-owned, a
+hard boundary — no real Doctor identity/authentication exists yet
+(docs/33 §1.4), so authoring/instruction-writes remain manually-run Apps
+Script editor functions (`CarePlan.gs`'s `saveFoundationCarePlan()`;
+`DoctorInstruction.gs`'s `createFoundationDoctorInstruction()`/
+`updateFoundationDoctorInstructionStatus()`), mirroring
+`DoctorAssignedCondition.gs`'s precedent exactly. Two new, additive
+`FoundationRouter.gs` read-only dispatch cases (`get_care_plan`,
+`get_doctor_instructions`) and one new, additive Module Registry entry
+(`care_plan`, `display_order: 40`) register the capability through
+PXP-3/PXP-4's existing mechanisms — no registry redesign. The "My Health
+Journey" dashboard gains one new, read-only card (a short goals preview plus
+a link to the full plan), and a new full-detail page
+(`/my-health-journey/care-plan/`) shows the current plan's full goals text
+plus every attached instruction, newest first. **Disclosed, deliberate scope
+decision:** docs/44 §12 states a new Care Plan version "emits a
+`TimelineEvent` (`entry_type: care_plan`)" — implementing this would require
+widening the frozen `consultation-history.schema.json`'s `entry_type` enum
+and changing `FoundationConsultationHistory.gs`, both Phase 2A files frozen
+except for a genuine bug fix (docs/43 §12); this batch makes the disclosed
+choice not to touch either frozen file, per docs/47 §6, and defers Timeline
+integration to a future, separately-approved change (full reasoning:
+`shared/schemas/care-plan.md`). Zero modification to any frozen
+Foundation/Identity & Access/Patient Access/PXP-1..6 file.
+
 See docs/44-PHASE-2B-TECHNICAL-PLAN.md (Version 4.0) for the full design,
 docs/45-PHASE-2B-ARCHITECTURE-READINESS-REVIEW.md (Version 4.0) for the
 critique of every proposal, docs/46-PHASE-2B-REPOSITORY-CONSISTENCY-
@@ -400,10 +442,11 @@ every batch from PXP-1 onward must follow.
 
 **Implementation has begun with Batch PXP-1 (Patient Profile), Batch PXP-2
 (Doctor-Assigned Conditions), Batch PXP-3 (Module Registry), Batch PXP-4
-(Dashboard Registry), Batch PXP-5 (Daily Check-in Engine), and Batch PXP-6
-(Calculator Registry, backend only), all explicitly approved and shipped;
-no other batch is authorized by any of the above documents.** docs/44 §22
-sequences **infrastructure before features**:
+(Dashboard Registry), Batch PXP-5 (Daily Check-in Engine), Batch PXP-6
+(Calculator Registry, backend only), and Batch PXP-7 (Personal Care Plan),
+all explicitly approved and shipped; no other batch is authorized by any of
+the above documents.** docs/44 §22 sequences **infrastructure before
+features**:
 Patient Profile → Doctor-Assigned Conditions → Module Registry → Dashboard
 Registry → Daily Check-in Engine → Calculator Registry → Personal Care
 Plan → Trusted Device + Long-Lived Session + Optional PIN → a reserved,

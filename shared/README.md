@@ -122,7 +122,15 @@ first implementation, `apps-script/CalculatorRegistry.gs` — seeded empty, a de
 disclosed scope decision explained in that file's own `.md`) and
 `schemas/calculator-result.schema.json` (the `CalculatorResult` record shape — this
 platform's second entity implementing docs/44 §11.4's JSON-storage policy, alongside
-its first implementation, `apps-script/CalculatorResult.gs`).
+its first implementation, `apps-script/CalculatorResult.gs`). Phase 2B Batch PXP-7
+added `schemas/care-plan.schema.json` (the `CarePlan` record shape — one evolving,
+versioned plan per patient, alongside its first implementation,
+`apps-script/CarePlan.gs`; its disclosed `version_key` field mirrors
+`patient-module-state.schema.json`'s own `state_key` precedent for addressing one row
+among many sharing the same logical identity) and `schemas/doctor-instruction.schema.json`
+(the `DoctorInstruction` record shape — the atomic unit of clinical direction aggregated
+by a Care Plan, alongside its first implementation,
+`apps-script/DoctorInstruction.gs`).
 
 ---
 

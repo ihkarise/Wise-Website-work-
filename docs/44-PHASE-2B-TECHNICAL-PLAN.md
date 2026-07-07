@@ -793,3 +793,41 @@ does not alter §11's Template Registry design, §10.2's rule, or any other sect
 `shared/schemas/check-in-template-assignment.schema.json` and its companion `.md`,
 `apps-script/CheckInTemplateAssignment.gs`'s own header comment, and docs/33 §6.5's
 Batch PXP-5 status update.
+
+# 24. Implementation-Time Amendment — Batch PXP-7 (2026-07-14)
+
+Per docs/47-PHASE-2B-IMPLEMENTATION-RULES.md §12's explicit provision (the same
+provision §23 above already invoked), this section records one disclosed, deliberate
+scope decision found while implementing PXP-7, additively, without altering a single
+word of this document's own frozen Version 4.0 body text above.
+
+**The gap:** §12 states "a new Care Plan version emits a `TimelineEvent`
+(`entry_type: care_plan`)." Implementing this literally requires two changes to files
+outside this batch's own scope: widening `consultation-history.schema.json`'s
+`entry_type` enum (currently `["consultation"]` only, per that schema's own disclosed
+narrowing — see `shared/schemas/consultation-history.md`) and changing
+`apps-script/FoundationConsultationHistory.gs`'s
+`foundationBuildConsultationEntryRecord_()`, which today hardcodes
+`entry_type: 'consultation'` unconditionally. Both are Phase 2A files, frozen except for
+a genuine, disclosed bug fix (docs/43 §12) — and adding a new, real entry_type value is
+new functionality, not a bug fix, so touching either requires the explicit disclosure
+docs/47 §6 requires before a frozen file is touched for a batch's own design reasons.
+
+**The decision:** PXP-7 does **not** touch either frozen file. docs/33-DOMAIN-MODEL.md
+§3.1 itself already named the correct trigger for this exact widening: "Widening
+`entry_type`'s enum is the concrete signal that moment has arrived — not before." This
+batch does not treat itself as that moment, and defers Timeline-feed integration for
+Care Plan updates to a future, separately-approved change. This is a disclosed,
+deliberate scope narrowing — the same category of decision docs/24-ROADMAP.md's own
+PXP-6 entry already made for its "no dashboard card, no patient-facing UI" boundary —
+not a silent omission: a patient's Care Plan and its full instruction history remain
+completely visible today via the `get_care_plan`/`get_doctor_instructions` routes and
+their own dedicated page (`my-health-journey/care-plan/`); only the cross-cutting
+Timeline feed itself does not yet reflect a Care Plan update. This introduces no new
+registry, no new ADR, and does not alter §12's own design, §7's Module Registry design,
+or any other section above — it only discloses one design question §12's own sentence
+left unaddressed (which file, if any, is touched to make that sentence literally true)
+and states the answer chosen. Full detail: `shared/schemas/care-plan.schema.json` and
+its companion `.md`'s own "Disclosed, deliberate scope decision" section,
+`apps-script/CarePlan.gs`'s own header comment, and docs/33 §3.4's Batch PXP-7 status
+update.

@@ -152,6 +152,26 @@
  * isolation on every new route, mirroring every earlier stage's own
  * discipline.
  *
+ * Extended in Phase 2B batch PXP-7 with Stage 15, covering CarePlan.gs and
+ * DoctorInstruction.gs against the new shared/schemas/care-plan.schema.json
+ * and shared/schemas/doctor-instruction.schema.json, plus the two new
+ * FoundationRouter.gs dispatch cases (get_care_plan, get_doctor_instructions)
+ * end to end. Also updates Stage 12's Module Registry count/membership
+ * assertions (`4`) to `5` in this same change — the same mechanical,
+ * disclosed consequence PXP-5's own Stage-12 update already established
+ * (docs/47 §4's designed, additive growth) — now that this batch registers
+ * a fifth module (`care_plan`); PXP-3's actual shipped rows/logic are
+ * untouched, only this test file's hardcoded expectation of *how many* rows
+ * exist today. This stage's highest-priority checks are: CarePlan's
+ * append-only versioning (a new version always supersedes exactly the prior
+ * active row, never any other row, via the disclosed version_key identity
+ * column); DoctorInstruction's care_plan_id existence/ownership check
+ * (rejects a care_plan_id that does not belong to the caller); the one-way,
+ * exactly-once status transitions both entities' resolve-style operations
+ * share with DoctorAssignedCondition's own precedent; and cross-patient
+ * isolation on every new route, mirroring every earlier stage's own
+ * discipline.
+ *
  * Run with: node conformance.js  (no dependencies beyond Node's
  * standard library).
  */
@@ -179,6 +199,8 @@ var patientModuleStateSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 
 var checkInTemplateAssignmentSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/check-in-template-assignment.schema.json'), 'utf8'));
 var checkInResponseSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/check-in-response.schema.json'), 'utf8'));
 var calculatorResultSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/calculator-result.schema.json'), 'utf8'));
+var carePlanSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/care-plan.schema.json'), 'utf8'));
+var doctorInstructionSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/doctor-instruction.schema.json'), 'utf8'));
 
 var results = [];
 function record(name, pass, detail) {
@@ -1369,20 +1391,20 @@ var ctx = loadProject(h.sandbox);
   record('Stage12: setup — two independent patients exist', patientA.status === 'ok' && patientB.status === 'ok');
 
   // ---- Module Registry — a static, pure config list ----
-  // Count/membership updated in Batch PXP-5 (4, was 3) — ModuleRegistry.gs's
-  // own designed, additive growth (docs/47 §4) now that this batch
-  // registers a fourth module ('daily_checkin'); this is the one, disclosed
-  // update to a PXP-3-authored assertion this stage still makes (see this
-  // file's own header comment).
+  // Count/membership updated in Batch PXP-5 (4, was 3) and again in Batch
+  // PXP-7 (5, was 4) — ModuleRegistry.gs's own designed, additive growth
+  // (docs/47 §4) now that this batch registers a fifth module
+  // ('care_plan'); this is the one, disclosed update to a PXP-3-authored
+  // assertion this stage still makes (see this file's own header comment).
   var registry = ctx.foundationGetModuleRegistry_();
-  record('Stage12: foundationGetModuleRegistry_() returns the four seeded modules (timeline, daily_checkin, symptom_tracker, reports)',
-    registry.length === 4 && registry.map(function (m) { return m.module_id; }).sort().join(',') === 'daily_checkin,reports,symptom_tracker,timeline');
+  record('Stage12: foundationGetModuleRegistry_() returns the five seeded modules (timeline, daily_checkin, symptom_tracker, reports, care_plan)',
+    registry.length === 5 && registry.map(function (m) { return m.module_id; }).sort().join(',') === 'care_plan,daily_checkin,reports,symptom_tracker,timeline');
 
   // ---- Fail-closed default: no PatientModuleState row exists yet for either patient ----
   var defaultStatesA = ctx.foundationGetPatientModuleStates_(patientA.data.patient_id);
   record('Stage12: foundationGetPatientModuleStates_() succeeds even with zero persisted rows', defaultStatesA.status === 'ok');
   record('Stage12: every module defaults to enabled=false when no row has ever been written — fail-closed (ADR-010)',
-    defaultStatesA.data.length === 4 && defaultStatesA.data.every(function (row) { return row.enabled === false && row.enabled_by === '' && row.enabled_at === ''; }));
+    defaultStatesA.data.length === 5 && defaultStatesA.data.every(function (row) { return row.enabled === false && row.enabled_by === '' && row.enabled_at === ''; }));
 
   // ---- Validation rejections ----
   var missingPatientId = ctx.foundationSetModuleState_({ module_id: 'timeline', enabled: true, enabled_by: 'dr-rao' });
@@ -1430,7 +1452,7 @@ var ctx = loadProject(h.sandbox);
   // ---- foundationGetPatientModuleStates_() — merges real rows with fail-closed synthesized defaults ----
   var statesA = ctx.foundationGetPatientModuleStates_(patientA.data.patient_id);
   record('Stage12: foundationGetPatientModuleStates_() returns exactly one entry per registered module, real rows merged with synthesized defaults',
-    statesA.data.length === 4);
+    statesA.data.length === 5);
   var timelineStateA = statesA.data.filter(function (row) { return row.module_id === 'timeline'; })[0];
   var reportsStateA = statesA.data.filter(function (row) { return row.module_id === 'reports'; })[0];
   var symptomTrackerStateA = statesA.data.filter(function (row) { return row.module_id === 'symptom_tracker'; })[0];
@@ -1450,14 +1472,14 @@ var ctx = loadProject(h.sandbox);
   // ---- Cross-patient isolation: patient B's own states are untouched by patient A's writes ----
   var statesB = ctx.foundationGetPatientModuleStates_(patientB.data.patient_id);
   record('Stage12: patient B\'s module states are all still fail-closed defaults, unaffected by patient A\'s writes',
-    statesB.data.length === 4 && statesB.data.every(function (row) { return row.enabled === false && row.enabled_by === ''; }));
+    statesB.data.length === 5 && statesB.data.every(function (row) { return row.enabled === false && row.enabled_by === ''; }));
 
   // ---- FoundationRouter.gs — the one new, read-only dispatch case, end to end ----
   var sessionA = ctx.foundationIssueSessionToken_(patientA.data.patient_id);
   var getStatesHttp = ctx.handleFoundationRequest_({ foundation_action: 'get_patient_module_states', session_token: sessionA });
   var getStatesBody = JSON.parse(getStatesHttp._text);
   record('Stage12: get_patient_module_states (real HTTP dispatch) resolves the caller\'s own module states from a valid session',
-    getStatesBody.status === 'ok' && getStatesBody.data.length === 4);
+    getStatesBody.status === 'ok' && getStatesBody.data.length === 5);
   record('Stage12: get_patient_module_states derives patient_id only from the verified session, never from a client-supplied field',
     (function () {
       var spoofed = ctx.handleFoundationRequest_({
@@ -1978,6 +2000,265 @@ var ctx = loadProject(h.sandbox);
   }
   record('Stage14: the synthetic test-only fixture is removed again — the registry ends this stage exactly as empty as it started',
     ctx.FOUNDATION_CALCULATOR_REGISTRY_.length === 0);
+})();
+
+// ============================================================
+// Stage 15 (PXP-7) — CarePlan.gs + DoctorInstruction.gs ->
+// care-plan.schema.json / doctor-instruction.schema.json, plus
+// FoundationRouter.gs's two new dispatch cases end to end. Personal Care
+// Plan — a consumer of Pillars 1 and 2.
+// ============================================================
+(function stage15_carePlan() {
+  var patientA = ctx.foundationCreatePatient_({
+    full_name: 'Stage15 Patient A', email: 'stage15-a@example.com',
+    condition_slug: 'mcas', created_by: 'conformance-harness'
+  });
+  var patientB = ctx.foundationCreatePatient_({
+    full_name: 'Stage15 Patient B', email: 'stage15-b@example.com',
+    condition_slug: 'mcas', created_by: 'conformance-harness'
+  });
+  record('Stage15: setup — two independent patients exist', patientA.status === 'ok' && patientB.status === 'ok');
+
+  // ---- No Care Plan authored yet — a real, expected outcome, not an error ----
+  var noPlanA = ctx.foundationGetCurrentCarePlanForPatient_(patientA.data.patient_id);
+  record('Stage15: foundationGetCurrentCarePlanForPatient_() succeeds with no plan authored yet',
+    noPlanA.status === 'ok' && noPlanA.data === null);
+
+  // ---- foundationSaveCarePlan_() — request-shape rejections ----
+  var missingPatientId = ctx.foundationSaveCarePlan_({ goals: 'Reduce flare frequency.', created_by: 'dr-rao' });
+  record('Stage15: foundationSaveCarePlan_() rejects a missing patient_id with FOUNDATION_INVALID_INPUT',
+    missingPatientId.status === 'error' && missingPatientId.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var missingGoals = ctx.foundationSaveCarePlan_({ patient_id: patientA.data.patient_id, created_by: 'dr-rao' });
+  record('Stage15: foundationSaveCarePlan_() rejects a missing goals with FOUNDATION_INVALID_INPUT',
+    missingGoals.status === 'error' && missingGoals.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var missingCreatedBy = ctx.foundationSaveCarePlan_({ patient_id: patientA.data.patient_id, goals: 'Reduce flare frequency.' });
+  record('Stage15: foundationSaveCarePlan_() rejects a missing created_by with FOUNDATION_INVALID_INPUT',
+    missingCreatedBy.status === 'error' && missingCreatedBy.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var badReviewDate = ctx.foundationSaveCarePlan_({
+    patient_id: patientA.data.patient_id, goals: 'Reduce flare frequency.', next_review_date: 'not-a-date', created_by: 'dr-rao'
+  });
+  record('Stage15: foundationSaveCarePlan_() rejects a next_review_date that is not a real calendar date',
+    badReviewDate.status === 'error' && badReviewDate.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  // ---- The real, valid first-version create path ----
+  var plan1 = ctx.foundationSaveCarePlan_({
+    patient_id: patientA.data.patient_id, goals: 'Reduce flare frequency. Follow elimination diet.',
+    next_review_date: '2026-09-01', created_by: 'dr-rao'
+  });
+  record('Stage15: foundationSaveCarePlan_() succeeds on a first, valid save', plan1.status === 'ok');
+  record('Stage15: a real foundationSaveCarePlan_() result conforms to care-plan.schema.json',
+    (function () { var r = validate(carePlanSchema, plan1.data); return r.valid; })(),
+    (function () { var r = validate(carePlanSchema, plan1.data); return r.errors.join('; '); })());
+  record('Stage15: the first version starts at version=1, status=active',
+    plan1.data.version === 1 && plan1.data.status === 'active');
+  record('Stage15: created_at is server-set, never accepted from a client-supplied field',
+    typeof plan1.data.created_at === 'string' && plan1.data.created_at !== '');
+  record('Stage15: version_key is server-derived from care_plan_id + version, never patient/doctor-supplied',
+    plan1.data.version_key === plan1.data.care_plan_id + '::1');
+
+  var currentAfterFirstSave = ctx.foundationGetCurrentCarePlanForPatient_(patientA.data.patient_id);
+  record('Stage15: foundationGetCurrentCarePlanForPatient_() now returns the just-saved version 1',
+    currentAfterFirstSave.status === 'ok' && currentAfterFirstSave.data.care_plan_id === plan1.data.care_plan_id && currentAfterFirstSave.data.version === 1);
+
+  // ---- A second version — same care_plan_id, version incremented, prior row superseded ----
+  var plan2 = ctx.foundationSaveCarePlan_({
+    patient_id: patientA.data.patient_id, goals: 'Diet stabilized. Begin taper of antihistamines.',
+    next_review_date: '2026-11-01', created_by: 'dr-shah'
+  });
+  record('Stage15: foundationSaveCarePlan_() succeeds on a second save (the versioning branch)', plan2.status === 'ok');
+  record('Stage15: the second version reuses the same care_plan_id, with version incremented by 1',
+    plan2.data.care_plan_id === plan1.data.care_plan_id && plan2.data.version === 2 && plan2.data.status === 'active');
+
+  var carePlanSheetRows = h.spreadsheet.getSheetByName(ctx.FOUNDATION_CARE_PLANS_SHEET_)._debug().rows;
+  var patientAPlanRows = carePlanSheetRows.filter(function (row) { return row[2] === patientA.data.patient_id; });
+  record('Stage15: exactly two CarePlan rows exist for patient A after two saves — an append, never an in-place content edit',
+    patientAPlanRows.length === 2);
+  // Row layout: [version_key, care_plan_id, patient_id, version, status, ...]
+  var priorVersionRow = patientAPlanRows.filter(function (row) { return row[0] === plan1.data.version_key; })[0];
+  record('Stage15: creating a new version flipped the prior version\'s own row to status=superseded, and only that row',
+    priorVersionRow && priorVersionRow[4] === 'superseded');
+
+  var currentAfterSecondSave = ctx.foundationGetCurrentCarePlanForPatient_(patientA.data.patient_id);
+  record('Stage15: foundationGetCurrentCarePlanForPatient_() now returns version 2, never the superseded version 1',
+    currentAfterSecondSave.status === 'ok' && currentAfterSecondSave.data.version === 2);
+
+  // ---- Cross-patient isolation: patient B has no plan yet, unaffected by patient A's saves ----
+  var noPlanB = ctx.foundationGetCurrentCarePlanForPatient_(patientB.data.patient_id);
+  record('Stage15: patient B still has no Care Plan — completely unaffected by patient A\'s saves',
+    noPlanB.status === 'ok' && noPlanB.data === null);
+
+  // ---- FoundationRouter.gs — get_care_plan, end to end ----
+  var sessionA = ctx.foundationIssueSessionToken_(patientA.data.patient_id);
+  var sessionB = ctx.foundationIssueSessionToken_(patientB.data.patient_id);
+
+  var getCarePlanHttpA = ctx.handleFoundationRequest_({ foundation_action: 'get_care_plan', session_token: sessionA });
+  var getCarePlanBodyA = JSON.parse(getCarePlanHttpA._text);
+  record('Stage15: get_care_plan (real HTTP dispatch) resolves the caller\'s own current plan from a valid session',
+    getCarePlanBodyA.status === 'ok' && getCarePlanBodyA.data.version === 2);
+  record('Stage15: get_care_plan derives patient_id only from the verified session, never from a client-supplied field',
+    (function () {
+      var spoofed = ctx.handleFoundationRequest_({ foundation_action: 'get_care_plan', session_token: sessionA, patient_id: patientB.data.patient_id });
+      var spoofedBody = JSON.parse(spoofed._text);
+      return spoofedBody.status === 'ok' && spoofedBody.data.care_plan_id === plan1.data.care_plan_id;
+    })());
+
+  var getCarePlanHttpB = ctx.handleFoundationRequest_({ foundation_action: 'get_care_plan', session_token: sessionB });
+  var getCarePlanBodyB = JSON.parse(getCarePlanHttpB._text);
+  record('Stage15: get_care_plan over real HTTP dispatch returns data:null for a patient with no plan yet — not an error',
+    getCarePlanBodyB.status === 'ok' && getCarePlanBodyB.data === null);
+
+  var unauthedCarePlan = JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'get_care_plan', session_token: 'not-a-real-session-token' })._text);
+  record('Stage15: get_care_plan rejects an invalid session_token with FOUNDATION_UNAUTHORIZED, never leaking any data',
+    unauthedCarePlan.status === 'error' && unauthedCarePlan.error.code === 'FOUNDATION_UNAUTHORIZED' && unauthedCarePlan.data === null);
+
+  record('Stage15: there is no author/version action reachable over HTTP dispatch — doctor/staff writes stay editor-only',
+    JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'save_care_plan', session_token: sessionA })._text).error.code === 'FOUNDATION_UNKNOWN_ACTION');
+
+  record('Stage15: the first save wrote its own care_plan_created AuditLog row',
+    auditRowsOf(h, 'care_plan_created').length === 1);
+  record('Stage15: the second save wrote its own care_plan_versioned AuditLog row',
+    auditRowsOf(h, 'care_plan_versioned').length === 1);
+
+  // ============================================================
+  // Doctor Instruction — a consumer of this stage's own CarePlan rows.
+  // ============================================================
+
+  // ---- foundationCreateDoctorInstruction_() — request-shape rejections ----
+  var instrMissingPatientId = ctx.foundationCreateDoctorInstruction_({
+    care_plan_id: plan1.data.care_plan_id, instruction_type: 'medicine', content: 'Arsenicum album 30C, twice daily.', prescribed_by: 'dr-rao', effective_date: '2026-07-07'
+  });
+  record('Stage15: foundationCreateDoctorInstruction_() rejects a missing patient_id with FOUNDATION_INVALID_INPUT',
+    instrMissingPatientId.status === 'error' && instrMissingPatientId.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var instrMissingCarePlanId = ctx.foundationCreateDoctorInstruction_({
+    patient_id: patientA.data.patient_id, instruction_type: 'medicine', content: 'Arsenicum album 30C, twice daily.', prescribed_by: 'dr-rao', effective_date: '2026-07-07'
+  });
+  record('Stage15: foundationCreateDoctorInstruction_() rejects a missing care_plan_id with FOUNDATION_INVALID_INPUT',
+    instrMissingCarePlanId.status === 'error' && instrMissingCarePlanId.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var instrBadType = ctx.foundationCreateDoctorInstruction_({
+    patient_id: patientA.data.patient_id, care_plan_id: plan1.data.care_plan_id, instruction_type: 'not-a-real-type', content: 'x', prescribed_by: 'dr-rao', effective_date: '2026-07-07'
+  });
+  record('Stage15: foundationCreateDoctorInstruction_() rejects an instruction_type outside the canonical list',
+    instrBadType.status === 'error' && instrBadType.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var instrMissingContent = ctx.foundationCreateDoctorInstruction_({
+    patient_id: patientA.data.patient_id, care_plan_id: plan1.data.care_plan_id, instruction_type: 'medicine', prescribed_by: 'dr-rao', effective_date: '2026-07-07'
+  });
+  record('Stage15: foundationCreateDoctorInstruction_() rejects a missing content with FOUNDATION_INVALID_INPUT',
+    instrMissingContent.status === 'error' && instrMissingContent.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var instrMissingPrescribedBy = ctx.foundationCreateDoctorInstruction_({
+    patient_id: patientA.data.patient_id, care_plan_id: plan1.data.care_plan_id, instruction_type: 'medicine', content: 'x', effective_date: '2026-07-07'
+  });
+  record('Stage15: foundationCreateDoctorInstruction_() rejects a missing prescribed_by with FOUNDATION_INVALID_INPUT',
+    instrMissingPrescribedBy.status === 'error' && instrMissingPrescribedBy.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var instrMissingEffectiveDate = ctx.foundationCreateDoctorInstruction_({
+    patient_id: patientA.data.patient_id, care_plan_id: plan1.data.care_plan_id, instruction_type: 'medicine', content: 'x', prescribed_by: 'dr-rao'
+  });
+  record('Stage15: foundationCreateDoctorInstruction_() rejects a missing effective_date with FOUNDATION_INVALID_INPUT',
+    instrMissingEffectiveDate.status === 'error' && instrMissingEffectiveDate.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  // ---- care_plan_id existence/ownership check ----
+  var instrUnknownCarePlan = ctx.foundationCreateDoctorInstruction_({
+    patient_id: patientA.data.patient_id, care_plan_id: 'not-a-real-care-plan-id', instruction_type: 'medicine', content: 'x', prescribed_by: 'dr-rao', effective_date: '2026-07-07'
+  });
+  record('Stage15: foundationCreateDoctorInstruction_() rejects a care_plan_id that does not exist',
+    instrUnknownCarePlan.status === 'error' && instrUnknownCarePlan.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  // patientB has no Care Plan of their own, but attempting to attach an
+  // instruction to patient A's real care_plan_id under patient B's
+  // patient_id must still be rejected — cross-patient ownership, not mere
+  // existence.
+  var instrCrossPatientCarePlan = ctx.foundationCreateDoctorInstruction_({
+    patient_id: patientB.data.patient_id, care_plan_id: plan1.data.care_plan_id, instruction_type: 'medicine', content: 'x', prescribed_by: 'dr-rao', effective_date: '2026-07-07'
+  });
+  record('Stage15: foundationCreateDoctorInstruction_() rejects a care_plan_id that belongs to a different patient',
+    instrCrossPatientCarePlan.status === 'error' && instrCrossPatientCarePlan.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  // ---- The real, valid create path — care_plan_id is stable across versions ----
+  var instr1 = ctx.foundationCreateDoctorInstruction_({
+    patient_id: patientA.data.patient_id, care_plan_id: plan1.data.care_plan_id, instruction_type: 'medicine',
+    content: 'Arsenicum album 30C, twice daily.', prescribed_by: 'dr-rao', effective_date: '2026-07-07'
+  });
+  record('Stage15: foundationCreateDoctorInstruction_() succeeds on valid input, referencing the plan\'s stable care_plan_id even after it was later versioned',
+    instr1.status === 'ok');
+  record('Stage15: a real foundationCreateDoctorInstruction_() result conforms to doctor-instruction.schema.json',
+    (function () { var r = validate(doctorInstructionSchema, instr1.data); return r.valid; })(),
+    (function () { var r = validate(doctorInstructionSchema, instr1.data); return r.errors.join('; '); })());
+  record('Stage15: a new instruction starts active, with an empty-string consultation_id sentinel (no Consultation entity exists yet)',
+    instr1.data.status === 'active' && instr1.data.consultation_id === '');
+
+  var instr2 = ctx.foundationCreateDoctorInstruction_({
+    patient_id: patientA.data.patient_id, care_plan_id: plan1.data.care_plan_id, instruction_type: 'lifestyle',
+    content: 'Avoid known trigger foods for 8 weeks.', prescribed_by: 'dr-rao', effective_date: '2026-07-10'
+  });
+  record('Stage15: a second, independent instruction for the same care plan succeeds — many-per-plan, not 1:1',
+    instr2.status === 'ok');
+
+  // ---- foundationUpdateDoctorInstructionStatus_() — request-shape rejections ----
+  var statusMissingId = ctx.foundationUpdateDoctorInstructionStatus_({ status: 'completed' });
+  record('Stage15: foundationUpdateDoctorInstructionStatus_() rejects a missing instruction_id with FOUNDATION_INVALID_INPUT',
+    statusMissingId.status === 'error' && statusMissingId.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var statusBadValue = ctx.foundationUpdateDoctorInstructionStatus_({ instruction_id: instr1.data.instruction_id, status: 'active' });
+  record('Stage15: foundationUpdateDoctorInstructionStatus_() rejects a status outside discontinued/completed (e.g. reverting to active)',
+    statusBadValue.status === 'error' && statusBadValue.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var statusUnknownId = ctx.foundationUpdateDoctorInstructionStatus_({ instruction_id: 'not-a-real-instruction-id', status: 'completed' });
+  record('Stage15: foundationUpdateDoctorInstructionStatus_() rejects an unknown instruction_id with FOUNDATION_INVALID_INPUT',
+    statusUnknownId.status === 'error' && statusUnknownId.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  // ---- The real, valid status-transition path ----
+  var completeInstr1 = ctx.foundationUpdateDoctorInstructionStatus_({ instruction_id: instr1.data.instruction_id, status: 'completed' });
+  record('Stage15: foundationUpdateDoctorInstructionStatus_() succeeds on a real, active instruction_id', completeInstr1.status === 'ok');
+  record('Stage15: the completed instruction has status=completed', completeInstr1.data.status === 'completed');
+
+  var reCloseInstr1 = ctx.foundationUpdateDoctorInstructionStatus_({ instruction_id: instr1.data.instruction_id, status: 'discontinued' });
+  record('Stage15: closing an already-closed instruction_id is rejected — a one-way, exactly-once transition',
+    reCloseInstr1.status === 'error' && reCloseInstr1.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  // ---- foundationGetPatientDoctorInstructions_() — full history, both statuses ----
+  var instructionsA = ctx.foundationGetPatientDoctorInstructions_(patientA.data.patient_id);
+  record('Stage15: foundationGetPatientDoctorInstructions_() succeeds', instructionsA.status === 'ok');
+  record('Stage15: patient A\'s list contains both of their own instructions (one completed, one still active), never patient B\'s',
+    instructionsA.data.length === 2 && instructionsA.data.every(function (row) { return row.patient_id === patientA.data.patient_id; }));
+  record('Stage15: the list is sorted effective_date descending (newest first)',
+    instructionsA.data[0].effective_date >= instructionsA.data[1].effective_date);
+
+  var instructionsB = ctx.foundationGetPatientDoctorInstructions_(patientB.data.patient_id);
+  record('Stage15: patient B\'s instruction list is empty — cross-patient isolation',
+    instructionsB.status === 'ok' && instructionsB.data.length === 0);
+
+  // ---- FoundationRouter.gs — get_doctor_instructions, end to end ----
+  var getInstrHttpA = ctx.handleFoundationRequest_({ foundation_action: 'get_doctor_instructions', session_token: sessionA });
+  var getInstrBodyA = JSON.parse(getInstrHttpA._text);
+  record('Stage15: get_doctor_instructions (real HTTP dispatch) resolves the caller\'s own instructions from a valid session',
+    getInstrBodyA.status === 'ok' && getInstrBodyA.data.length === 2);
+  record('Stage15: get_doctor_instructions derives patient_id only from the verified session, never from a client-supplied field',
+    (function () {
+      var spoofed = ctx.handleFoundationRequest_({ foundation_action: 'get_doctor_instructions', session_token: sessionA, patient_id: patientB.data.patient_id });
+      var spoofedBody = JSON.parse(spoofed._text);
+      return spoofedBody.status === 'ok' && spoofedBody.data.length === 2;
+    })());
+
+  var getInstrHttpB = ctx.handleFoundationRequest_({ foundation_action: 'get_doctor_instructions', session_token: sessionB });
+  var getInstrBodyB = JSON.parse(getInstrHttpB._text);
+  record('Stage15: get_doctor_instructions over real HTTP dispatch returns an empty list for patient B, never patient A\'s — cross-patient isolation',
+    getInstrBodyB.status === 'ok' && getInstrBodyB.data.length === 0);
+
+  var unauthedInstr = JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'get_doctor_instructions', session_token: 'not-a-real-session-token' })._text);
+  record('Stage15: get_doctor_instructions rejects an invalid session_token with FOUNDATION_UNAUTHORIZED, never leaking any data',
+    unauthedInstr.status === 'error' && unauthedInstr.error.code === 'FOUNDATION_UNAUTHORIZED' && unauthedInstr.data === null);
+
+  record('Stage15: every successful instruction creation wrote its own doctor_instruction_created AuditLog row',
+    auditRowsOf(h, 'doctor_instruction_created').length === 2);
+  record('Stage15: the successful status transition wrote its own doctor_instruction_completed AuditLog row',
+    auditRowsOf(h, 'doctor_instruction_completed').length === 1);
 })();
 
 function auditRowsOf(h, eventType) {

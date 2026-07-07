@@ -44,12 +44,14 @@
   // Batch PXP-5 (docs/44 §10/§11/§22) adds the 'daily_checkin' entry below —
   // the same growth this file's own header comment already anticipated
   // ("Adding a new module later means (i) add a registry entry ..."). The
-  // three PXP-4 rows above are untouched.
+  // three PXP-4 rows above are untouched. Batch PXP-7 (docs/44 §12/§22)
+  // adds 'care_plan' the same way — every earlier row is untouched.
   var MODULE_REGISTRY = [
     { module_id: 'timeline',        title: 'Timeline',        display_order: 10, empty_state: 'nodata', data_source: 'get_timeline' },
     { module_id: 'daily_checkin',   title: 'Daily Check-in',  display_order: 15, empty_state: 'nodata', data_source: 'get_checkin_responses' },
     { module_id: 'symptom_tracker', title: 'Symptom Tracker', display_order: 20, empty_state: 'nodata', data_source: 'get_symptom_logs' },
-    { module_id: 'reports',         title: 'Reports',         display_order: 30, empty_state: 'nodata', data_source: 'get_reports' }
+    { module_id: 'reports',         title: 'Reports',         display_order: 30, empty_state: 'nodata', data_source: 'get_reports' },
+    { module_id: 'care_plan',       title: 'Care Plan',       display_order: 40, empty_state: 'nodata', data_source: 'get_care_plan' }
   ];
 
   function getModuleDescriptor(moduleId) {
@@ -657,6 +659,54 @@
       });
   }
 
+  // Batch PXP-7 (docs/44 §12/§22) — the Care Plan card's read-only preview.
+  // Doctor-authored only (docs/44 §4.3) — unlike every other card on this
+  // dashboard, this one has no form and no write affordance at all.
+  function carePlanNotAuthoredHtml() {
+    return '<p class="empty-text">Your doctor hasn\'t created a care plan for you yet. Check back after your next visit.</p>';
+  }
+
+  // A short preview only (goals, truncated, plus the next review date if
+  // set) — the same "bare summary, link to the full page" scope every
+  // other history-backed card already applies (mirrors
+  // checkInSummaryHtml()/symptomSummaryHtml()'s own brevity).
+  function carePlanPreviewHtml(carePlan) {
+    var goalsPreview = carePlan.goals.length > 140 ? carePlan.goals.slice(0, 140) + '…' : carePlan.goals;
+    var reviewLine = carePlan.next_review_date
+      ? '<p style="margin:0 0 8px;font-size:13.5px;color:var(--color-text-secondary)">' +
+        '<strong style="color:var(--color-brand-strong)">Next review</strong> — ' + escapeHtmlForDisplay(carePlan.next_review_date) + '</p>'
+      : '';
+    return '<p style="margin:0 0 8px;font-size:14px;color:var(--color-text-secondary);line-height:1.5">' + escapeHtmlForDisplay(goalsPreview) + '</p>' +
+      reviewLine +
+      '<a class="secondary" href="../my-health-journey/care-plan/">View full care plan</a>';
+  }
+
+  function loadCarePlanPreview(sessionToken, moduleId) {
+    var body = document.getElementById('card-' + moduleId + '-body');
+    fetch(WEB_APP_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ foundation_action: 'get_care_plan', session_token: sessionToken })
+    })
+      .then(function (response) { return response.json(); })
+      .then(function (data) {
+        if (data.status !== 'ok') {
+          body.innerHTML = '<p class="empty-text">Could not load your care plan. Check your connection and reload the page.</p>';
+          return;
+        }
+        if (!data.data) {
+          // A real, expected outcome — the patient's doctor hasn't
+          // authored a plan yet — not an error state.
+          body.innerHTML = carePlanNotAuthoredHtml();
+          return;
+        }
+        body.innerHTML = carePlanPreviewHtml(data.data);
+      })
+      .catch(function () {
+        body.innerHTML = '<p class="empty-text">Could not load your care plan. Check your connection and reload the page.</p>';
+      });
+  }
+
   // Loader-dispatcher registry — one entry per registry data_source. The
   // registry entry declares data_source; the dashboard resolves that string
   // to a loader function here. renderDashboard() never learns the mapping.
@@ -666,7 +716,8 @@
     'get_timeline':          loadTimelinePreview,
     'get_checkin_responses': loadCheckInPreview,
     'get_symptom_logs':      loadSymptomPreview,
-    'get_reports':           loadReportsPreview
+    'get_reports':           loadReportsPreview,
+    'get_care_plan':         loadCarePlanPreview
   };
 
   // Merges the per-patient state rows from get_patient_module_states with
@@ -808,6 +859,8 @@
     checkInQuestionFieldHtml: checkInQuestionFieldHtml,
     checkInSummaryHtml: checkInSummaryHtml,
     checkInNotAssignedHtml: checkInNotAssignedHtml,
-    readCheckInAnswers: readCheckInAnswers
+    readCheckInAnswers: readCheckInAnswers,
+    carePlanPreviewHtml: carePlanPreviewHtml,
+    carePlanNotAuthoredHtml: carePlanNotAuthoredHtml
   };
 })();

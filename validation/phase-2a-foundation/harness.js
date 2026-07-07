@@ -87,6 +87,11 @@
  * `CalculatorResult.gs` in the FILES list — no new mock needed, since both
  * only reuse SpreadsheetApp/Utilities/Logger primitives already mocked
  * above.
+ *
+ * Extended in Phase 2B batch PXP-7 with `CarePlan.gs` and
+ * `DoctorInstruction.gs` in the FILES list — no new mock needed, since both
+ * only reuse SpreadsheetApp/Utilities/Logger primitives already mocked
+ * above.
  */
 
 var fs = require('fs');
@@ -121,6 +126,8 @@ var FILES = [
   'CheckInResponse.gs',
   'CalculatorRegistry.gs',
   'CalculatorResult.gs',
+  'CarePlan.gs',
+  'DoctorInstruction.gs',
   'FoundationRouter.gs'
 ];
 
