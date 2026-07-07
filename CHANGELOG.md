@@ -8,6 +8,114 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-14 — Phase 2B Batch PXP-7: Personal Care Plan
+
+Personal Care Plan (docs/44 §4.2/§12/§22, docs/47) — a consumer of Pillar 1
+(Doctor-Assigned Conditions) and Pillar 2 (Module Engine). Explicitly approved per
+docs/47's per-batch gate. Zero dependency on any other Phase 2B batch beyond
+PXP-3/PXP-4's existing registry mechanism; zero modification to any frozen
+Foundation/Identity & Access/Patient Access/PXP-1..6 file. No new ADR was needed —
+ADR-012's registry-driven principle already fully governs this pattern.
+
+**One disclosed, deliberate scope decision.** docs/44 §12 states a new Care Plan
+version "emits a `TimelineEvent` (`entry_type: care_plan`)." Implementing this
+literally would require widening the frozen, conformance-tested
+`consultation-history.schema.json`'s `entry_type` enum and changing
+`FoundationConsultationHistory.gs` — both Phase 2A files frozen except for a genuine
+bug fix (docs/43 §12), and this is new functionality, not a bug fix. This batch makes
+the disclosed choice not to touch either file, per docs/47 §6, deferring Timeline-feed
+integration to a future, separately-approved change — docs/33-DOMAIN-MODEL.md §3.1
+itself names widening that enum as "the concrete signal that moment has arrived, not
+before," and this batch does not treat itself as that moment. A patient's Care Plan
+and its full instruction history remain completely visible today via this batch's own
+routes and dedicated page; only the cross-cutting Timeline feed does not yet reflect a
+Care Plan update. Full reasoning: `shared/schemas/care-plan.md`, docs/44's new §24.
+
+### Added
+- **`shared/schemas/care-plan.schema.json`** (+ `.md`) — `CarePlan`, one evolving,
+  append-only-versioned plan per patient. `care_plan_id` is a stable, logical identity
+  reused across every version; editing a plan never mutates an existing row, it always
+  appends a new version and automatically flips the prior version's own row to
+  `status: superseded` — exactly one `active` row per plan at any time. One disclosed,
+  additive field beyond docs/44 §12's literal list: `version_key` (server-derived,
+  `care_plan_id + '::' + version`), mirroring `patient-module-state.schema.json`'s own
+  `state_key` precedent for addressing one row among several sharing the same logical
+  identity.
+- **`apps-script/CarePlan.gs`** (new) — `foundationSaveCarePlan_()` (the
+  create-or-version upsert, doctor/staff-supplied `patient_id`) and
+  `foundationGetCurrentCarePlanForPatient_()` (returns the caller's current active
+  plan, or `null` — a real, expected "not yet authored" outcome, not an error,
+  mirroring `get_checkin_template`'s own unassigned-patient discipline).
+- **`shared/schemas/doctor-instruction.schema.json`** (+ `.md`) — `DoctorInstruction`,
+  the atomic unit of clinical direction (medicine/lifestyle/investigation/follow_up),
+  aggregated by a Care Plan via its stable `care_plan_id`. Many-per-patient,
+  many-per-plan, append-mostly: `status` transitions `active` → `discontinued`/
+  `completed` exactly once, one-way, mirroring `doctor-assigned-condition.schema.json`'s
+  own precedent. `consultation_id` is a disclosed, presently-empty sentinel field — no
+  `Consultation` entity exists yet (docs/33 §2.1, an unrelated, pre-existing gap).
+- **`apps-script/DoctorInstruction.gs`** (new) — `foundationCreateDoctorInstruction_()`
+  (validates `care_plan_id` references a real plan belonging to the same patient before
+  inserting), `foundationUpdateDoctorInstructionStatus_()` (the one-way status
+  transition), and `foundationGetPatientDoctorInstructions_()` (full history across
+  every one of the patient's plan versions, sorted `effective_date` descending).
+- **`apps-script/FoundationRouter.gs`** — two new, additive, read-only dispatch cases:
+  `get_care_plan` and `get_doctor_instructions`. Both derive `patient_id` exclusively
+  from the verified session. There is no author/create/status-update route reachable
+  over HTTP — every write remains a manually-run Apps Script editor function
+  (`saveFoundationCarePlan()`, `createFoundationDoctorInstruction()`,
+  `updateFoundationDoctorInstructionStatus()`), mirroring
+  `DoctorAssignedCondition.gs`'s precedent exactly, since no real Doctor
+  identity/session exists yet (docs/33 §1.4).
+- **`shared/constants/module-registry.json`** (+ `apps-script/ModuleRegistry.gs`) — one
+  new, additive registry entry (`care_plan`, `display_order: 40`), registering the
+  capability through PXP-3/PXP-4's existing mechanisms. Every earlier entry is
+  untouched.
+- **`my-health-journey/dashboard.js`** — one new registered module + loader
+  (`loadCarePlanPreview`), rendering a short, truncated goals preview plus the next
+  review date (if set) and a link to the full plan — the same "bare summary, link to
+  the full page" scope every other history-backed card already applies. No form, no
+  write affordance — this card is entirely read-only (docs/44 §4.3).
+- **`my-health-journey/care-plan/`** (new) — the full-detail page: the current plan's
+  complete goals text, version, and next review date, plus every attached
+  `DoctorInstruction`, newest `effective_date` first, each labeled with a humanized
+  `instruction_type`/`status` badge.
+- **`validation/phase-2a-foundation/`**: Stage 15 in `conformance.js` (versioning/
+  supersession, `version_key` addressing, `care_plan_id` ownership validation,
+  one-way instruction status transitions, cross-patient isolation, audit-log entries)
+  and `CarePlan.gs`/`DoctorInstruction.gs` added to `harness.js`'s `FILES` list —
+  382/382 conformance checks passing (68 new). Stage 12's Module Registry
+  count/membership assertions mechanically bumped 4→5, the same disclosed consequence
+  PXP-5's own Stage-12 update already established.
+- **`validation/pxp-7-care-plan-engine/`** (new browser-test suite) — the
+  unauthored-plan state, the dashboard card's truncated read-only preview, the
+  disabled-module fail-closed check, and the full-detail page's plan summary +
+  instruction history rendering. 17/17 checks passing.
+- **`validation/static-analysis/analyze.js`** — three new entries in
+  `MANUAL_DROPDOWN_WRAPPERS` (`saveFoundationCarePlan`,
+  `createFoundationDoctorInstruction`, `updateFoundationDoctorInstructionStatus`), the
+  same disclosed, designed extension point every earlier manually-run wrapper already
+  used.
+
+### Changed (documentation)
+- `docs/33-DOMAIN-MODEL.md` bumped to Version 1.11 — Doctor Instruction (§2.3) and Care
+  Plan (§3.4) promoted from "Designed, not yet implemented" to **Implemented**; Summary
+  Table updated.
+- `docs/24-ROADMAP.md` bumped to Version 1.11 — Phase 2B status updated: Batch PXP-7
+  shipped, with the disclosed Timeline-emission scope decision stated explicitly.
+- `docs/44-PHASE-2B-TECHNICAL-PLAN.md` — new §24, an additive implementation-time
+  amendment (mirroring §23's existing PXP-5 precedent) disclosing the Timeline-emission
+  scope decision, without altering a single word of the frozen Version 4.0 body text.
+- `shared/README.md` — paragraph added noting the two new schema files/implementations.
+- `shared/constants/module-registry.md` — new "Batch PXP-7 addition" section.
+
+### Verified
+- Static Analysis: PASS, 0 findings (43 files scanned). Conformance: 382/382. Phase
+  1.5 Regression: 42/42. Browser test suites: 233/233 across nine suites
+  (`pa-2-dashboard`, `pa-3-timeline`, `pa-4-symptom-tracker`, `pa-5-reports`,
+  `pa-6-public-nav`, `pxp-1-patient-profile`, `pxp-4-dashboard-registry`,
+  `pxp-5-checkin-engine`, `pxp-7-care-plan-engine`) — every pre-existing suite passes
+  unchanged, confirming this batch's additive-only discipline.
+
 ## 2026-07-13 — Phase 2B Batch PXP-6: Calculator Registry
 
 Phase 2B's Pillar 3 (docs/44 §4.1/§8/§22, ADR-013, docs/47) — the platform's only

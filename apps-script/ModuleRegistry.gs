@@ -18,11 +18,12 @@
  * Seeded, in Batch PXP-3, with only the three already-implemented Phase 2A
  * capabilities (Timeline, Symptom Tracker, Reports) — see
  * shared/constants/module-registry.md for why Calculators and Personal Care
- * Plan remain deliberately not pre-declared here. Batch PXP-5 adds the
- * fourth entry below (`daily_checkin`) — exactly the "a new module ... is
- * added by registering a new registry entry, by the batch that actually
- * builds it" growth docs/47 §4 and this file's own original header comment
- * already anticipated; the three PXP-3 rows above are untouched.
+ * Plan remain deliberately not pre-declared here. Batch PXP-5 adds a fourth
+ * entry (`daily_checkin`) and Batch PXP-7 adds a fifth (`care_plan`) —
+ * exactly the "a new module ... is added by registering a new registry
+ * entry, by the batch that actually builds it" growth docs/47 §4 and this
+ * file's own original header comment already anticipated; every earlier
+ * row is untouched by each later addition.
  *
  * Every `supports_*`/`future_ai_capable` field below is a reserved,
  * presently-inert extension point, consumed by zero code in this batch —
@@ -128,6 +129,35 @@ var FOUNDATION_MODULE_REGISTRY_ = [
     supports_ai: false,
     supports_doctor_notes: false,
     supports_patient_input: true
+  },
+  {
+    // Batch PXP-7 (docs/44 §12/§22) — the Personal Care Plan's own
+    // registration. data_source mirrors daily_checkin's own convention:
+    // the module's "preview" call is get_care_plan (the patient's current
+    // plan); the card's own view additionally calls get_doctor_instructions
+    // directly, the same way the Daily Check-in card calls
+    // get_checkin_template beyond its own data_source. display_order: 40
+    // places it after Reports (30) — the three PXP-3 rows and the PXP-5 row
+    // above are untouched.
+    module_id: 'care_plan',
+    title: 'Care Plan',
+    description: 'Your doctor-authored goals, instructions, and next review date.',
+    icon: 'careplan',
+    display_order: 40,
+    visibility: 'patient',
+    permissions: [],
+    data_source: 'get_care_plan',
+    empty_state: 'nodata',
+    rendering_type: 'card',
+    future_ai_capable: false,
+    supports_notifications: false,
+    supports_history: true,
+    supports_export: false,
+    supports_badges: false,
+    supports_reminders: false,
+    supports_ai: false,
+    supports_doctor_notes: true,
+    supports_patient_input: false
   }
 ];
 

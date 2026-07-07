@@ -90,7 +90,10 @@ var MANUAL_DROPDOWN_WRAPPERS = [
   'resolveFoundationCondition', // DoctorAssignedCondition.gs — PXP-2's manually-run doctor/staff resolution tool
   'setFoundationModuleState', // PatientModuleState.gs — PXP-3's manually-run doctor/staff enable/disable tool
   'assignFoundationCheckInTemplate', // CheckInTemplateAssignment.gs — PXP-5's manually-run doctor/staff assignment tool
-  'resolveFoundationCheckInTemplateAssignment' // CheckInTemplateAssignment.gs — PXP-5's manually-run doctor/staff resolution tool
+  'resolveFoundationCheckInTemplateAssignment', // CheckInTemplateAssignment.gs — PXP-5's manually-run doctor/staff resolution tool
+  'saveFoundationCarePlan', // CarePlan.gs — PXP-7's manually-run doctor/staff authoring tool
+  'createFoundationDoctorInstruction', // DoctorInstruction.gs — PXP-7's manually-run doctor/staff creation tool
+  'updateFoundationDoctorInstructionStatus' // DoctorInstruction.gs — PXP-7's manually-run doctor/staff status-transition tool
 ];
 
 function listGsFiles() {

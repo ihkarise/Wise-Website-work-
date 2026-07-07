@@ -124,6 +124,21 @@
  *     Registry (PXP-3, backend) / Dashboard Registry (PXP-4, frontend)
  *     split precedent — see docs/24-ROADMAP.md's PXP-6 entry for the full
  *     disclosure).
+ *   - get_care_plan / get_doctor_instructions — Batch PXP-7 additions
+ *     (docs/44 §12/§22, docs/47), the Personal Care Plan capability.
+ *     patient_id is always session-derived, never client-supplied — the
+ *     same authorization primitive every read route above already uses.
+ *     Both are read-only: there is no author/create/status-update route
+ *     reachable over HTTP — CarePlan and DoctorInstruction writes are
+ *     doctor/staff-only and, since no real Doctor identity/session exists
+ *     yet (docs/33 §1.4), remain manually-run Apps Script editor functions
+ *     (CarePlan.gs's saveFoundationCarePlan(); DoctorInstruction.gs's
+ *     createFoundationDoctorInstruction()/
+ *     updateFoundationDoctorInstructionStatus()), mirroring every earlier
+ *     doctor/staff-only entity's precedent exactly. get_care_plan returns
+ *     `data: null` (not an error) when the caller has no Care Plan authored
+ *     yet, the same "not yet configured is not an error" discipline
+ *     get_checkin_template's unassigned-patient outcome already established.
  *
  * A disclosed, additive exception, same category as Code.gs's own
  * one-line dispatch shim (IA-2): this file was previously listed among
@@ -151,7 +166,7 @@
  * FoundationSymptomLog.gs, FoundationReports.gs, FoundationPatientProfile.gs,
  * DoctorAssignedCondition.gs, ModuleRegistry.gs, PatientModuleState.gs,
  * TemplateRegistry.gs, CheckInTemplateAssignment.gs, CheckInResponse.gs,
- * CalculatorRegistry.gs, CalculatorResult.gs.
+ * CalculatorRegistry.gs, CalculatorResult.gs, CarePlan.gs, DoctorInstruction.gs.
  */
 
 /**
@@ -411,6 +426,31 @@ function foundationHandleGetCalculatorResults_(input) {
 }
 
 /**
+ * Batch PXP-7: returns the caller's own current Care Plan, or `data: null`
+ * if none has ever been authored yet (not an error — the same "not yet
+ * configured is not an error" discipline get_checkin_template's
+ * unassigned-patient outcome already established). patient_id is always
+ * session-derived, never client-supplied.
+ */
+function foundationHandleGetCarePlan_(input) {
+  return withFoundationAuth_(input && input.session_token, function (patientId) {
+    return foundationGetCurrentCarePlanForPatient_(patientId);
+  });
+}
+
+/**
+ * Batch PXP-7: returns the caller's own DoctorInstruction entries, across
+ * every one of their Care Plan's versions, sorted newest-effective-date
+ * first, mirroring get_doctor_assigned_conditions exactly. patient_id is
+ * always session-derived, never client-supplied.
+ */
+function foundationHandleGetDoctorInstructions_(input) {
+  return withFoundationAuth_(input && input.session_token, function (patientId) {
+    return foundationGetPatientDoctorInstructions_(patientId);
+  });
+}
+
+/**
  * Serializes a response-envelope-shaped value to the wire. Apps Script
  * Web Apps cannot set a real HTTP status code (every response transports
  * as HTTP 200 regardless — the same platform fact Code.gs's own
@@ -487,6 +527,12 @@ function handleFoundationRequest_(input) {
       break;
     case 'get_calculator_results':
       envelope = foundationHandleGetCalculatorResults_(input);
+      break;
+    case 'get_care_plan':
+      envelope = foundationHandleGetCarePlan_(input);
+      break;
+    case 'get_doctor_instructions':
+      envelope = foundationHandleGetDoctorInstructions_(input);
       break;
     default:
       envelope = buildFoundationErrorEnvelope_('FOUNDATION_UNKNOWN_ACTION', 'Unknown request.');

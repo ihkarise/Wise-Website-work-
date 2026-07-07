@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wisehomeopathy.com/shared/schemas/doctor-instruction.schema.json",
+  "title": "Doctor Instruction",
+  "version": "1.0.0",
+  "description": "The canonical shape of a DoctorInstruction record — docs/44-PHASE-2B-TECHNICAL-PLAN.md §12's design, batch PXP-7 (docs/44 §22), governed by docs/47-PHASE-2B-IMPLEMENTATION-RULES.md. The atomic unit of clinical direction (docs/33-DOMAIN-MODEL.md §2.3) — a single medicine, lifestyle change, investigation order, or follow-up instruction, aggregated by a CarePlan (care-plan.schema.json) into a patient's current set of instructions. Doctor/staff-authored only, patient-viewable only (docs/44 §4.3). Many-per-patient, many-per-care_plan_id, append-mostly: a row is created 'active' and may transition to 'discontinued' or 'completed' exactly once (a one-way transition, mirroring doctor-assigned-condition.schema.json's active/resolved discipline) — never deleted, never reverted. See doctor-instruction.md for the full lifecycle and validation rules.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["instruction_id", "patient_id", "care_plan_id", "consultation_id", "instruction_type", "content", "prescribed_by", "effective_date", "status"],
+  "properties": {
+    "instruction_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "This row's own identity column (UUID), server-generated. Never patient-supplied."
+    },
+    "patient_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The Patient Identity this instruction belongs to (docs/33 §1.2, ADR-002). Session-derived at read time; doctor/staff-supplied at write time (no real Doctor identity/session exists yet, docs/33 §1.4)."
+    },
+    "care_plan_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The CarePlan (care-plan.schema.json) this instruction is aggregated into — must reference a care_plan_id that already exists for this same patient_id (any version). care_plan_id is stable across a plan's versions (care-plan.md), so one instruction row remains correctly attached to its plan's full lineage even as the plan itself is later versioned. Doctor/staff-supplied, never patient-supplied."
+    },
+    "consultation_id": {
+      "type": "string",
+      "description": "Optional pointer to the Consultation this instruction was given during, once a Consultation entity exists (docs/33 §2.1, a disclosed, not-yet-implemented gap). Empty-string sentinel today for every row, mirroring consultation-history.schema.json's own source_ref convention — never patient-supplied."
+    },
+    "instruction_type": {
+      "type": "string",
+      "enum": ["medicine", "lifestyle", "investigation", "follow_up"],
+      "description": "What kind of clinical direction this is (docs/33 §2.3). A Prescription is simply an instruction_type of 'medicine' — not a separate entity (docs/33 §2.3's already-anticipated mapping). Doctor/staff-supplied, never patient-supplied."
+    },
+    "content": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The doctor-authored, free-text instruction itself (e.g. a medicine name and dosage, a lifestyle change, an investigation to order, a follow-up action). Doctor/staff-supplied only, never patient-editable."
+    },
+    "prescribed_by": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The doctor/staff identifier who authored this instruction (a free-text string — no real Doctor identity entity exists yet, docs/33 §1.4, the same provenance convention doctor-assigned-condition.schema.json's assigned_by already uses). Never patient-supplied."
+    },
+    "effective_date": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The date this instruction takes effect (YYYY-MM-DD). Doctor/staff-supplied. This entity's own sort key for full-history display (descending), mirroring consultation-history.schema.json's entry_date convention."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["active", "discontinued", "completed"],
+      "description": "Always 'active' at creation. Transitions to 'discontinued' (the doctor decided to stop it) or 'completed' (it ran its course) exactly once — a one-way transition, never reverted; a new instruction row is created instead of ever reopening a closed one (docs/33 §2.3: 'updated (discontinued) at a follow-up, never deleted'). Doctor/staff-set only, never patient-supplied."
+    }
+  }
+}

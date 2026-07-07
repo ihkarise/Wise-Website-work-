@@ -38,12 +38,12 @@ consumer is built, wired, or authorized by this disclosure.
 Batch PXP-3 seeded the registry with descriptors for the three already-implemented
 Phase 2A capabilities (Timeline, Symptom Tracker, Reports) — giving the Dashboard
 Registry batch (PXP-4) real rows to migrate onto, per ADR-012's own amendment history.
-**Calculators and Personal Care Plan remain deliberately not seeded here** —
-inventing their `data_source`/shape now would front-run design decisions that belong
-to their own future batches (PXP-6, PXP-7 respectively, per docs/47 §4: "a new module
-... is added by registering a new registry entry" — by the batch that actually builds
-it). This mirrors `shared/constants/condition-slugs.json`'s own "populate a real
-consumer, not a hypothetical one" discipline.
+**Calculators remain deliberately not seeded here** — inventing its `data_source`/shape
+now would front-run a design decision that belongs to its own future batch (per docs/47
+§4: "a new module ... is added by registering a new registry entry" — by the batch that
+actually builds it). This mirrors `shared/constants/condition-slugs.json`'s own
+"populate a real consumer, not a hypothetical one" discipline. Personal Care Plan was
+seeded once its own batch (PXP-7) actually designed and built it — see below.
 
 ## Batch PXP-5 addition — `daily_checkin` (2026-07-12)
 
@@ -58,6 +58,21 @@ directly, the same way the Symptom Tracker card calls `log_symptom` beyond its o
 `data_source`. `display_order: 15` places it between Timeline (10) and Symptom
 Tracker (20) — a same-day "something to do today" action ordered ahead of the two
 existing self-report history cards.
+
+## Batch PXP-7 addition — `care_plan` (2026-07-14)
+
+The Personal Care Plan capability (docs/44 §12/§22) registers its own module here,
+the same growth pattern PXP-5's `daily_checkin` addition already used — every earlier
+row is untouched. `data_source: "get_care_plan"` mirrors `daily_checkin`'s own
+convention: the module's "preview" call is the patient's current plan summary; the
+dashboard card's own view additionally calls `get_doctor_instructions` directly (to
+show the plan's attached instructions), the same way the Daily Check-in card calls
+`get_checkin_template` beyond its own `data_source`. `display_order: 40` places it
+after Reports (30) — read-only, doctor-authored content ordered after every card with
+a patient write affordance. `supports_doctor_notes: true` is set for the first time by
+any registry entry (documentation-accurate — this module's entire content is
+doctor-authored — but still not consumed by any authorization check, per this file's
+own "reserved, inert" discipline for every `supports_*` field).
 
 ## Fields at a glance
 

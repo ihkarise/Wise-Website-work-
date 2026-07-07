@@ -1,5 +1,5 @@
 # 33 - Domain Model
-## Version 1.10 — 2026-07-13
+## Version 1.11 — 2026-07-14
 
 > Defines every major business entity in the Wise Platform: what it means, what it
 > holds, how it relates to everything else, how it comes into being and ends, who is
@@ -256,7 +256,7 @@ for any future feature that needs to show or reuse an already-approved summary.
 
 ---
 
-## 2.3 Doctor Instruction — *Designed, not yet implemented (Phase 2B, docs/44 §12)*
+## 2.3 Doctor Instruction — *Implemented (Phase 2B, Batch PXP-7, docs/44 §12)*
 
 **Purpose:** The atomic unit of clinical direction — a single medicine, lifestyle
 change, investigation order, or follow-up instruction — that a doctor gives during or
@@ -292,6 +292,23 @@ docs/44-PHASE-2B-TECHNICAL-PLAN.md §12 formalizes this entity's exact attribute
 Prescription-is-a-`medicine`-type-instruction mapping this section already anticipated.
 A consumer of Doctor Assigned Condition (Pillar 1) and Module Engine (Pillar 2), per
 docs/44 §4.2. Not yet implemented — see docs/44 §22's `PXP-7` batch.
+
+**Status update (2026-07-14, Batch PXP-7): Implemented.**
+`apps-script/DoctorInstruction.gs` backs `foundationCreateDoctorInstruction_()`/
+`foundationUpdateDoctorInstructionStatus_()`/`foundationGetPatientDoctorInstructions_()`,
+matching docs/44 §12's field list exactly. Doctor/staff-owned, a hard boundary — the
+patient never creates, edits, or resolves a row of this shape. No real Doctor identity/
+authentication exists yet (docs/33 §1.4), so creation and status transitions are
+manually-run Apps Script editor functions
+(`createFoundationDoctorInstruction()`/`updateFoundationDoctorInstructionStatus()`),
+mirroring `DoctorAssignedCondition.gs`'s precedent exactly. Every write validates that
+`care_plan_id` references a real `CarePlan` row (§3.4) for the same patient — the "Care
+Plan cannot meaningfully exist without this entity underneath it" relationship this
+section already anticipated, enforced server-side. `status` transitions
+`active` → `discontinued`/`completed` exactly once, one-way, never reverted. One
+read-only, session-derived route — `get_doctor_instructions` (`FoundationRouter.gs`) —
+returns the caller's full instruction history across every version of their plan
+(`care_plan_id` is stable across Care Plan versions, §3.4).
 
 ---
 
@@ -436,7 +453,7 @@ AI Summary-pattern (§2.4) implementation is designed for it, per ADR-001/005.
 
 ---
 
-## 3.4 Care Plan — *Designed, not yet implemented (Phase 2B, docs/44 §12)*
+## 3.4 Care Plan — *Implemented (Phase 2B, Batch PXP-7, docs/44 §12)*
 
 **Purpose:** The patient's currently active goals, medicines, lifestyle guidance, and
 next review date — docs/09's "Personal Care Plan" module. No architecture exists for
@@ -468,6 +485,35 @@ architecture-freeze pass is docs/44 (§12), which formalizes `care_plan_id`,
 named. Doctor-authored/patient-viewable ownership (below) is unchanged. A consumer of
 Doctor Assigned Condition (Pillar 1) and Module Engine (Pillar 2), per docs/44 §4.2.
 Not yet implemented — see docs/44 §22's `PXP-7` batch.
+
+**Status update (2026-07-14, Batch PXP-7): Implemented.** `apps-script/CarePlan.gs`
+backs `foundationSaveCarePlan_()`/`foundationGetCurrentCarePlanForPatient_()`, matching
+docs/44 §12's field list plus one disclosed, additive field (`version_key` — a
+server-derived, deterministic per-row identity, mirroring `PatientModuleState`'s own
+`state_key` precedent, see `shared/schemas/care-plan.md`). `care_plan_id` is a stable,
+logical identity reused across every version — the versioning instinct this section
+already named is now implemented as append-only version rows, never in-place editing:
+creating a new version automatically flips the prior version's own row from
+`status: active` to `status: superseded`, so exactly one active row exists per plan at
+any time. Doctor/staff-owned, a hard boundary — the patient never authors or versions
+their own plan; no real Doctor identity/authentication exists yet (docs/33 §1.4), so
+authoring is a manually-run Apps Script editor function (`saveFoundationCarePlan()`),
+mirroring `DoctorAssignedCondition.gs`'s precedent exactly. Two read-only,
+session-derived routes — `get_care_plan` and `get_doctor_instructions`
+(`FoundationRouter.gs`) — are this batch's patient-facing surface, plus a dedicated
+dashboard card and full-detail page (`my-health-journey/care-plan/`), registered via the
+Module Registry/Dashboard Registry exactly as docs/44 §22 names for this batch.
+**Disclosed, deliberate scope decision:** docs/44 §12 states a new Care Plan version
+"emits a `TimelineEvent` (`entry_type: care_plan`)" — implementing this would require
+widening the frozen, conformance-tested `consultation-history.schema.json`'s
+`entry_type` enum and changing `FoundationConsultationHistory.gs`, both Phase 2A files
+frozen except for a genuine bug fix (docs/43 §12), and this is new functionality, not a
+bug fix. Per docs/47 §6, this batch makes the disclosed choice not to touch either
+frozen file this batch — see `shared/schemas/care-plan.md`'s own "Disclosed, deliberate
+scope decision" section for the full reasoning. A patient's plan and instruction history
+remain fully visible via `get_care_plan`/`get_doctor_instructions` and their own
+dedicated page; only the cross-cutting Timeline feed does not yet reflect a Care Plan
+update.
 
 ---
 
@@ -712,6 +758,12 @@ gap-fill entity (`CheckInTemplateAssignment`) this batch adds to make docs/44 §
 §6.8 (Calculator Registry and Calculator Result) promoted to **Implemented — backend
 only** — see those subsections' own status updates for the shipped shape and the
 disclosed "ships empty, no UI in this batch" scope decision.
+**Updated 2026-07-14** for Batch PXP-7 (implementation): §2.3 (Doctor Instruction) and
+§3.4 (Care Plan) promoted from *Designed* to **Implemented** — see those subsections'
+own status updates for the shipped shape, the disclosed additive `version_key` field,
+and the disclosed decision not to emit a Timeline Event in this batch (docs/44 §12
+names this; doing so would require touching two frozen Phase 2A files for new
+functionality, not a bug fix, per docs/47 §6).
 
 ## 6.1 Patient Profile — *Implemented (Batch PXP-1)*
 **Purpose:** Patient-editable structured contact/personal data (phone, date of birth,
@@ -1002,12 +1054,12 @@ labeled test-only fixture pushed directly into the test harness's own registry a
 | Doctor | Conceptual (gap) | Unassigned |
 | Consultation | Conceptual | Unassigned |
 | Consultation Summary | Implemented | Phase 1.5 |
-| Doctor Instruction | Designed, not yet implemented | 2B (docs/44 §12, batch PXP-7) |
+| Doctor Instruction | **Implemented** | 2B (docs/44 §12, batch PXP-7 — shipped, doctor/staff-owned, aggregated by Care Plan via its stable care_plan_id) |
 | AI Summary | Conceptual (pattern) | Instantiated by Phase 1.5, 2D |
 | Timeline Event | Implemented | 2A (Batch PA-3, one entry_type) |
 | Symptom Log | Implemented | 2A (Batch PA-4) — Phase 2B coexists with, later retires (docs/44 §10.1, §22 batch PXP-10) |
 | Report | Implemented | 2A (Batch PA-5) |
-| Care Plan | Designed, not yet implemented | 2B (docs/44 §12, batch PXP-7) |
+| Care Plan | **Implemented** | 2B (docs/44 §12, batch PXP-7 — shipped, one evolving plan per patient, append-only versioned, Timeline Event emission deliberately deferred — see §3.4's own status update) |
 | Digital Twin | Conceptual (view) | Recommended 2D — future consumer of Timeline, Reports, Check-ins, Care Plans, Calculators (docs/44 §16), not tightly coupled to Phase 2B |
 | Appointment | Conceptual (gap) | Unassigned |
 | Notification | Conceptual (gap) | Unassigned |

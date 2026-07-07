@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wisehomeopathy.com/shared/schemas/care-plan.schema.json",
+  "title": "Care Plan",
+  "version": "1.0.0",
+  "description": "The canonical shape of a CarePlan record — docs/44-PHASE-2B-TECHNICAL-PLAN.md §12's design, batch PXP-7 (docs/44 §22), governed by docs/47-PHASE-2B-IMPLEMENTATION-RULES.md. Doctor/staff-authored only, patient-viewable only (docs/44 §4.3). care_plan_id is the stable, logical identity of a patient's one evolving plan, unchanged across edits — the same (stable-id, incrementing version, immutable-per-row) discipline shared/schemas/check-in-response.schema.json's own referenced CheckInTemplate already established (docs/44 §11.2/§11.4), applied here instead of in-place editing so a plan's full history is preserved (docs/33-DOMAIN-MODEL.md §3.4: 'likely needs versioning, not in-place editing, to preserve history'). A new version is a new row sharing the same care_plan_id; creating it flips the prior version's own status from active to superseded — exactly one active row per (patient_id, care_plan_id) at a time. See care-plan.md for the versioning lifecycle and the disclosed decision not to emit a Timeline Event in this batch.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version_key", "care_plan_id", "patient_id", "version", "status", "goals", "next_review_date", "created_by", "created_at"],
+  "properties": {
+    "version_key": {
+      "type": "string",
+      "minLength": 1,
+      "description": "This row's own unique identity column — server-derived, deterministic: care_plan_id + '::' + version. A disclosed, additive field beyond docs/44 §12's literal field list, the same category of implementation-time addition patient-module-state.schema.json's state_key already established: apps-script/FoundationDataStore.gs's foundationDsGetById_/foundationDsUpdateById_ operate on a single idColumn, and since many rows legitimately share the same care_plan_id (one per version), that field alone cannot address one specific row. Never doctor/staff-supplied, never patient-visible."
+    },
+    "care_plan_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "This plan's stable, logical identity — unchanged across every version. Generated once, at the first version's creation, and reused by every subsequent version row for the same patient's evolving plan (mirrors CheckInTemplate's template_id, docs/44 §11.2)."
+    },
+    "patient_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The Patient Identity this plan belongs to (docs/33 §1.2, ADR-002). Session-derived at read time; doctor/staff-supplied at write time (there is no patient session at authoring time — no real Doctor identity/session exists yet, docs/33 §1.4)."
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Starts at 1 for a patient's first Care Plan and increments by exactly 1 for each later version of the same care_plan_id. Immutable once created — a later edit always appends a new version row, never mutates an earlier one in place (docs/33 §3.4)."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["active", "superseded"],
+      "description": "Always 'active' at creation. Automatically transitions to 'superseded' the moment a newer version of the same care_plan_id is created — a one-way transition, never reverted (mirrors doctor-assigned-condition.schema.json's active/resolved discipline, applied here to version supersession instead of a manual resolve action). Exactly one 'active' row exists per (patient_id, care_plan_id) at any time."
+    },
+    "goals": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The doctor-authored, free-text current goals for this version of the plan (docs/09's 'current goals, medicines, lifestyle guidance' — the individual medicine/lifestyle/investigation/follow-up items themselves live in DoctorInstruction, doctor-instruction.schema.json, aggregated by this plan via their own care_plan_id). Doctor/staff-supplied only, never patient-editable."
+    },
+    "next_review_date": {
+      "type": "string",
+      "description": "Optional. A YYYY-MM-DD calendar date when provided; empty-string sentinel when not set, mirroring consultation-history.schema.json's own source_ref sentinel convention. Doctor/staff-supplied only."
+    },
+    "created_by": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The doctor/staff identifier who authored this version (a free-text string — no real Doctor identity entity exists yet, docs/33 §1.4, the same provenance convention doctor-assigned-condition.schema.json's assigned_by already uses). Never patient-supplied."
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Server-set at this version's creation (foundationNowIso_()). Never doctor/staff-supplied directly, never patient-supplied."
+    }
+  }
+}
