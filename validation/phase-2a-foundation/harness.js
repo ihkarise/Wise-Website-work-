@@ -82,6 +82,11 @@
  * `CheckInTemplateAssignment.gs`, and `CheckInResponse.gs` in the FILES
  * list — no new mock needed, since all three only reuse SpreadsheetApp/
  * Utilities/Logger primitives already mocked above.
+ *
+ * Extended in Phase 2B batch PXP-6 with `CalculatorRegistry.gs` and
+ * `CalculatorResult.gs` in the FILES list — no new mock needed, since both
+ * only reuse SpreadsheetApp/Utilities/Logger primitives already mocked
+ * above.
  */
 
 var fs = require('fs');
@@ -114,6 +119,8 @@ var FILES = [
   'TemplateRegistry.gs',
   'CheckInTemplateAssignment.gs',
   'CheckInResponse.gs',
+  'CalculatorRegistry.gs',
+  'CalculatorResult.gs',
   'FoundationRouter.gs'
 ];
 

@@ -115,7 +115,14 @@ registry, ADR-016, alongside its first implementation,
 `apps-script/CheckInResponse.gs`), and `schemas/
 check-in-template-assignment.schema.json` (`CheckInTemplateAssignment` — a disclosed,
 additive entity filling a gap docs/44 §10.2 settles but names no persisted shape for;
-see that schema's own `.md` for the full disclosure).
+see that schema's own `.md` for the full disclosure). Phase 2B Batch PXP-6 added
+`constants/calculator-registry.json` (the Calculator Registry's static, versioned list
+of `CalculatorDefinition` descriptors — Phase 2B's Pillar 3, ADR-013, alongside its
+first implementation, `apps-script/CalculatorRegistry.gs` — seeded empty, a deliberate,
+disclosed scope decision explained in that file's own `.md`) and
+`schemas/calculator-result.schema.json` (the `CalculatorResult` record shape — this
+platform's second entity implementing docs/44 §11.4's JSON-storage policy, alongside
+its first implementation, `apps-script/CalculatorResult.gs`).
 
 ---
 

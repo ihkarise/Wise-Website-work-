@@ -123,6 +123,35 @@
  * (`daily_checkin`); PXP-3's actual shipped rows/logic are untouched, only
  * this test file's hardcoded expectation of *how many* rows exist today.
  *
+ * Extended in Phase 2B batch PXP-6 with Stage 14, covering
+ * CalculatorRegistry.gs and CalculatorResult.gs against the new
+ * shared/schemas/calculator-result.schema.json, plus the two new
+ * FoundationRouter.gs dispatch cases (submit_calculator_result,
+ * get_calculator_results) end to end -- Phase 2B's Pillar 3. The shipped
+ * shared/constants/calculator-registry.json is deliberately seeded empty
+ * (see that file's own .md for the disclosed "ships empty" scope decision)
+ * -- every real create attempt against it is therefore expected to be
+ * rejected ("calculator_slug/definition_version does not match a real
+ * Calculator Registry entry"), the same fail-closed-by-absence outcome
+ * patient-module-state.md already documents for its own registry. To still
+ * prove the generic input_snapshot-validation/deterministic-serialization/
+ * storage mechanism end to end without shipping any concrete calculator
+ * (disease-specific or otherwise) in the committed registry, this stage
+ * temporarily pushes one synthetic, clearly-labeled test-only fixture
+ * entry directly into the loaded sandbox's own
+ * ctx.FOUNDATION_CALCULATOR_REGISTRY_ array (never into
+ * shared/constants/calculator-registry.json itself) for the duration of
+ * its own happy-path checks, then removes it again -- mirroring Stage 0's
+ * own "prove the tool against a deliberately-constructed fixture" spirit,
+ * applied here to a registry array instead of a schema fragment. This
+ * stage's highest-priority checks are: the registry ships empty in
+ * production, so a real create against it is rejected; the generic
+ * validation/deterministic-serialization logic is correct against a
+ * synthetic fixture; every returned CalculatorResult's input_snapshot is a
+ * real, parsed object, never the raw stored JSON string; and cross-patient
+ * isolation on every new route, mirroring every earlier stage's own
+ * discipline.
+ *
  * Run with: node conformance.js  (no dependencies beyond Node's
  * standard library).
  */
@@ -149,6 +178,7 @@ var doctorAssignedConditionSchema = JSON.parse(fs.readFileSync(path.join(SHARED_
 var patientModuleStateSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/patient-module-state.schema.json'), 'utf8'));
 var checkInTemplateAssignmentSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/check-in-template-assignment.schema.json'), 'utf8'));
 var checkInResponseSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/check-in-response.schema.json'), 'utf8'));
+var calculatorResultSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/calculator-result.schema.json'), 'utf8'));
 
 var results = [];
 function record(name, pass, detail) {
@@ -1727,6 +1757,227 @@ var ctx = loadProject(h.sandbox);
   var createdResponseAuditRows = auditRowsOf(h, 'checkin_response_created');
   record('Stage13: every successful response creation wrote its own checkin_response_created AuditLog row',
     createdResponseAuditRows.length === 5);
+})();
+
+// ============================================================
+// Stage 14 (PXP-6) — CalculatorRegistry.gs + CalculatorResult.gs ->
+// calculator-result.schema.json, plus FoundationRouter.gs's two new
+// dispatch cases end to end. Phase 2B's Pillar 3, mirroring the
+// deterministic-JSON-storage discipline Stage 13 already proved for
+// CheckInResponse.gs.
+// ============================================================
+(function stage14_calculatorRegistry() {
+  var patientA = ctx.foundationCreatePatient_({
+    full_name: 'Stage14 Patient A', email: 'stage14-a@example.com',
+    condition_slug: 'mcas', created_by: 'conformance-harness'
+  });
+  var patientB = ctx.foundationCreatePatient_({
+    full_name: 'Stage14 Patient B', email: 'stage14-b@example.com',
+    condition_slug: 'mcas', created_by: 'conformance-harness'
+  });
+  record('Stage14: setup — two independent patients exist', patientA.status === 'ok' && patientB.status === 'ok');
+
+  // ---- Calculator Registry — ships empty in production (disclosed scope decision) ----
+  record('Stage14: shared/constants/calculator-registry.json ships with zero registered calculators — a deliberate, disclosed scope decision (calculator-registry.md)',
+    ctx.FOUNDATION_CALCULATOR_REGISTRY_.length === 0);
+  record('Stage14: foundationGetCalculatorBySlugAndVersion_() returns null for any slug/version — nothing is registered yet',
+    ctx.foundationGetCalculatorBySlugAndVersion_('anything', 1) === null);
+
+  // ---- foundationCreateCalculatorResult_() — request-shape rejections ----
+  var missingPatientId = ctx.foundationCreateCalculatorResult_({ calculator_slug: 'x', definition_version: 1, input_snapshot: {}, result_value: 1 });
+  record('Stage14: foundationCreateCalculatorResult_() rejects a missing patient_id with FOUNDATION_INVALID_INPUT',
+    missingPatientId.status === 'error' && missingPatientId.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var missingSlug = ctx.foundationCreateCalculatorResult_({ patient_id: patientA.data.patient_id, definition_version: 1, input_snapshot: {}, result_value: 1 });
+  record('Stage14: foundationCreateCalculatorResult_() rejects a missing calculator_slug with FOUNDATION_INVALID_INPUT',
+    missingSlug.status === 'error' && missingSlug.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var badVersionType = ctx.foundationCreateCalculatorResult_({ patient_id: patientA.data.patient_id, calculator_slug: 'x', definition_version: 'one', input_snapshot: {}, result_value: 1 });
+  record('Stage14: foundationCreateCalculatorResult_() rejects a non-integer definition_version with FOUNDATION_INVALID_INPUT',
+    badVersionType.status === 'error' && badVersionType.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var missingInputSnapshot = ctx.foundationCreateCalculatorResult_({ patient_id: patientA.data.patient_id, calculator_slug: 'x', definition_version: 1, result_value: 1 });
+  record('Stage14: foundationCreateCalculatorResult_() rejects a missing input_snapshot with FOUNDATION_INVALID_INPUT',
+    missingInputSnapshot.status === 'error' && missingInputSnapshot.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var missingResultValue = ctx.foundationCreateCalculatorResult_({ patient_id: patientA.data.patient_id, calculator_slug: 'x', definition_version: 1, input_snapshot: {} });
+  record('Stage14: foundationCreateCalculatorResult_() rejects a missing result_value with FOUNDATION_INVALID_INPUT',
+    missingResultValue.status === 'error' && missingResultValue.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var objectResultValue = ctx.foundationCreateCalculatorResult_({ patient_id: patientA.data.patient_id, calculator_slug: 'x', definition_version: 1, input_snapshot: {}, result_value: { nope: true } });
+  record('Stage14: foundationCreateCalculatorResult_() rejects a non-scalar result_value with FOUNDATION_INVALID_INPUT',
+    objectResultValue.status === 'error' && objectResultValue.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  // ---- The real, empty-registry fail-closed outcome ----
+  var noRegistryEntry = ctx.foundationCreateCalculatorResult_({
+    patient_id: patientA.data.patient_id, calculator_slug: 'not_a_real_calculator', definition_version: 1, input_snapshot: {}, result_value: 5
+  });
+  record('Stage14: foundationCreateCalculatorResult_() rejects any submission today — the registry ships empty, docs/44 §11.4\'s fail-closed-by-absence discipline',
+    noRegistryEntry.status === 'error' && noRegistryEntry.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  // ---- Prove the generic mechanism end to end via a synthetic, test-only
+  // fixture entry, pushed directly into the loaded sandbox's own registry
+  // array — never committed to shared/constants/calculator-registry.json
+  // (see this file's own Stage 14 header note). Removed again at the end
+  // of this stage. ----
+  var TEST_ONLY_FIXTURE_SLUG = 'stage14_test_only_fixture_calculator';
+  ctx.FOUNDATION_CALCULATOR_REGISTRY_.push({
+    calculator_slug: TEST_ONLY_FIXTURE_SLUG,
+    version: 1,
+    title: 'Stage14 Test-Only Fixture Calculator (never shipped)',
+    description: 'A synthetic, conformance-test-only fixture proving the generic registry/result mechanism — not a real, product-registered calculator.',
+    input_fields: [
+      { field_key: 'value_a', label: 'Value A', type: 'number', min: 0, max: 100, required: true },
+      { field_key: 'value_b', label: 'Value B', type: 'number', min: 0, max: 100, required: true },
+      { field_key: 'note', label: 'Note (optional)', type: 'string', required: false }
+    ],
+    formula_reference: 'stage14-test-fixture-v1',
+    relevant_condition_slugs: [],
+    status: 'active',
+    future_ai_capable: false,
+    created_by: 'conformance-harness',
+    created_at: '2026-07-13T00:00:00.000Z'
+  });
+
+  record('Stage14: foundationGetCalculatorBySlugAndVersion_() finds the test-only fixture once pushed',
+    ctx.foundationGetCalculatorBySlugAndVersion_(TEST_ONLY_FIXTURE_SLUG, 1) !== null);
+
+  // ---- input_snapshot validation against the fixture's own input_fields ----
+  var unrecognizedField = ctx.foundationCreateCalculatorResult_({
+    patient_id: patientA.data.patient_id, calculator_slug: TEST_ONLY_FIXTURE_SLUG, definition_version: 1,
+    input_snapshot: { value_a: 1, value_b: 2, not_a_real_field: 'x' }, result_value: 3
+  });
+  record('Stage14: foundationCreateCalculatorResult_() rejects an input_snapshot field_key not in the calculator\'s own input_fields list',
+    unrecognizedField.status === 'error' && unrecognizedField.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var missingRequiredField = ctx.foundationCreateCalculatorResult_({
+    patient_id: patientA.data.patient_id, calculator_slug: TEST_ONLY_FIXTURE_SLUG, definition_version: 1,
+    input_snapshot: { value_a: 1 }, result_value: 3 // value_b is also required
+  });
+  record('Stage14: foundationCreateCalculatorResult_() rejects input_snapshot missing a required field',
+    missingRequiredField.status === 'error' && missingRequiredField.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var wrongType = ctx.foundationCreateCalculatorResult_({
+    patient_id: patientA.data.patient_id, calculator_slug: TEST_ONLY_FIXTURE_SLUG, definition_version: 1,
+    input_snapshot: { value_a: 'not-a-number', value_b: 2 }, result_value: 3
+  });
+  record('Stage14: foundationCreateCalculatorResult_() rejects a value of the wrong declared type',
+    wrongType.status === 'error' && wrongType.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var outOfRange = ctx.foundationCreateCalculatorResult_({
+    patient_id: patientA.data.patient_id, calculator_slug: TEST_ONLY_FIXTURE_SLUG, definition_version: 1,
+    input_snapshot: { value_a: 999, value_b: 2 }, result_value: 3 // value_a max is 100
+  });
+  record('Stage14: foundationCreateCalculatorResult_() rejects a number value above the field\'s declared max',
+    outOfRange.status === 'error' && outOfRange.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var nestedValue = ctx.foundationCreateCalculatorResult_({
+    patient_id: patientA.data.patient_id, calculator_slug: TEST_ONLY_FIXTURE_SLUG, definition_version: 1,
+    input_snapshot: { value_a: 1, value_b: 2, note: { nope: 'not flat' } }, result_value: 3
+  });
+  record('Stage14: foundationCreateCalculatorResult_() rejects a nested-object input value — docs/44 §11.4\'s flat-object-only rule',
+    nestedValue.status === 'error' && nestedValue.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  // ---- The real, valid create path ----
+  var resultA1 = ctx.foundationCreateCalculatorResult_({
+    patient_id: patientA.data.patient_id, calculator_slug: TEST_ONLY_FIXTURE_SLUG, definition_version: 1,
+    input_snapshot: { note: '  looks fine  ', value_b: 7, value_a: 3 }, // deliberately out of input_fields order
+    result_value: 10
+  });
+  record('Stage14: foundationCreateCalculatorResult_() succeeds on valid input', resultA1.status === 'ok');
+  var resultA1Validation = validate(calculatorResultSchema, resultA1.data || {});
+  record('Stage14: a real foundationCreateCalculatorResult_() result conforms to calculator-result.schema.json',
+    resultA1Validation.valid === true, resultA1Validation.errors.join('; '));
+  record('Stage14: computed_at is server-set, never accepted from a client-supplied field',
+    typeof resultA1.data.computed_at === 'string' && resultA1.data.computed_at.length > 0);
+  record('Stage14: input_snapshot is returned as a real, parsed object (never the raw stored JSON string) — the contract boundary',
+    typeof resultA1.data.input_snapshot === 'object' && resultA1.data.input_snapshot.value_a === 3 && resultA1.data.input_snapshot.value_b === 7);
+  record('Stage14: a string input value is trimmed',
+    resultA1.data.input_snapshot.note === 'looks fine');
+  record('Stage14: result_value round-trips exactly as supplied (never computed by this generic layer, ADR-013)',
+    resultA1.data.result_value === 10);
+  record('Stage14: input_snapshot keys are serialized in the calculator\'s own input_fields-list order, not input order — deterministic serialization (docs/44 §11.4)',
+    Object.keys(JSON.parse(h.spreadsheet.getSheetByName(ctx.FOUNDATION_CALCULATOR_RESULTS_SHEET_)._debug().rows[0][4])).join(',') === 'value_a,value_b,note');
+
+  var resultA2 = ctx.foundationCreateCalculatorResult_({
+    patient_id: patientA.data.patient_id, calculator_slug: TEST_ONLY_FIXTURE_SLUG, definition_version: 1,
+    input_snapshot: { value_a: 5, value_b: 6 }, result_value: 'moderate' // note omitted (optional); a categorical, non-numeric result_value
+  });
+  record('Stage14: an optional field (note) may be omitted entirely', resultA2.status === 'ok' && resultA2.data.input_snapshot.note === undefined);
+  record('Stage14: result_value may be a non-numeric string (a categorical result), not narrowed to number alone',
+    resultA2.status === 'ok' && resultA2.data.result_value === 'moderate');
+
+  var resultB1 = ctx.foundationCreateCalculatorResult_({
+    patient_id: patientB.data.patient_id, calculator_slug: TEST_ONLY_FIXTURE_SLUG, definition_version: 1,
+    input_snapshot: { value_a: 1, value_b: 1 }, result_value: 2
+  });
+  record('Stage14: setup — patient B has their own independent result', resultB1.status === 'ok');
+
+  // ---- foundationGetPatientCalculatorResults_() — sorted newest-first, cross-patient isolated ----
+  var listA = ctx.foundationGetPatientCalculatorResults_(patientA.data.patient_id);
+  record('Stage14: foundationGetPatientCalculatorResults_() succeeds', listA.status === 'ok');
+  record('Stage14: patient A\'s list contains both of their own results, never patient B\'s',
+    listA.data.length === 2 && listA.data.every(function (row) { return row.patient_id === patientA.data.patient_id; }));
+  var listedResult = validate(calculatorResultSchema, listA.data[0]);
+  record('Stage14: a real listed result conforms to calculator-result.schema.json',
+    listedResult.valid === true, listedResult.errors.join('; '));
+
+  var listB = ctx.foundationGetPatientCalculatorResults_(patientB.data.patient_id);
+  record('Stage14: patient B\'s list contains only their own result, never patient A\'s',
+    listB.data.length === 1 && listB.data[0].patient_id === patientB.data.patient_id);
+
+  // ---- FoundationRouter.gs — the two new dispatch cases, end to end ----
+  var sessionA = ctx.foundationIssueSessionToken_(patientA.data.patient_id);
+  var sessionB = ctx.foundationIssueSessionToken_(patientB.data.patient_id);
+
+  var submitHttp = ctx.handleFoundationRequest_({
+    foundation_action: 'submit_calculator_result', session_token: sessionA,
+    calculator_slug: TEST_ONLY_FIXTURE_SLUG, definition_version: 1,
+    input_snapshot: { value_a: 8, value_b: 9 }, result_value: 17
+  });
+  var submitBody = JSON.parse(submitHttp._text);
+  record('Stage14: submit_calculator_result (real HTTP dispatch) creates a result for the session-derived patient',
+    submitBody.status === 'ok' && submitBody.data.patient_id === patientA.data.patient_id);
+  record('Stage14: submit_calculator_result derives patient_id only from the verified session, never from a client-supplied field',
+    (function () {
+      var spoofed = ctx.handleFoundationRequest_({
+        foundation_action: 'submit_calculator_result', session_token: sessionA, patient_id: patientB.data.patient_id,
+        calculator_slug: TEST_ONLY_FIXTURE_SLUG, definition_version: 1,
+        input_snapshot: { value_a: 4, value_b: 4 }, result_value: 8
+      });
+      var spoofedBody = JSON.parse(spoofed._text);
+      return spoofedBody.status === 'ok' && spoofedBody.data.patient_id === patientA.data.patient_id;
+    })());
+
+  var getResultsHttpA = ctx.handleFoundationRequest_({ foundation_action: 'get_calculator_results', session_token: sessionA });
+  var getResultsBodyA = JSON.parse(getResultsHttpA._text);
+  record('Stage14: get_calculator_results over real HTTP dispatch returns only patient A\'s own results',
+    getResultsBodyA.status === 'ok' && getResultsBodyA.data.length === 4 && getResultsBodyA.data.every(function (row) { return row.patient_id === patientA.data.patient_id; }));
+
+  var getResultsHttpB = ctx.handleFoundationRequest_({ foundation_action: 'get_calculator_results', session_token: sessionB });
+  var getResultsBodyB = JSON.parse(getResultsHttpB._text);
+  record('Stage14: get_calculator_results over real HTTP dispatch returns only patient B\'s own results, never patient A\'s — cross-patient isolation',
+    getResultsBodyB.status === 'ok' && getResultsBodyB.data.length === 1 && getResultsBodyB.data[0].patient_id === patientB.data.patient_id);
+
+  ['submit_calculator_result', 'get_calculator_results'].forEach(function (action) {
+    var unauthedHttp = ctx.handleFoundationRequest_({ foundation_action: action, session_token: 'not-a-real-session-token' });
+    var unauthedBody = JSON.parse(unauthedHttp._text);
+    record('Stage14: ' + action + ' rejects an invalid session_token with FOUNDATION_UNAUTHORIZED, never leaking any data',
+      unauthedBody.status === 'error' && unauthedBody.error.code === 'FOUNDATION_UNAUTHORIZED' && unauthedBody.data === null);
+  });
+
+  var createdResultAuditRows = auditRowsOf(h, 'calculator_result_created');
+  record('Stage14: every successful result creation wrote its own calculator_result_created AuditLog row',
+    createdResultAuditRows.length === 5);
+
+  // ---- Remove the synthetic, test-only fixture again — never left behind
+  // as if it were a shipped registry entry. ----
+  var fixtureIndex = ctx.FOUNDATION_CALCULATOR_REGISTRY_.indexOf(ctx.foundationGetCalculatorBySlugAndVersion_(TEST_ONLY_FIXTURE_SLUG, 1));
+  if (fixtureIndex !== -1) {
+    ctx.FOUNDATION_CALCULATOR_REGISTRY_.splice(fixtureIndex, 1);
+  }
+  record('Stage14: the synthetic test-only fixture is removed again — the registry ends this stage exactly as empty as it started',
+    ctx.FOUNDATION_CALCULATOR_REGISTRY_.length === 0);
 })();
 
 function auditRowsOf(h, eventType) {

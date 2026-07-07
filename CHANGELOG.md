@@ -8,6 +8,86 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-13 — Phase 2B Batch PXP-6: Calculator Registry
+
+Phase 2B's Pillar 3 (docs/44 §4.1/§8/§22, ADR-013, docs/47) — the platform's only
+mechanism for expressing which deterministic, doctor/staff-authored calculators exist
+at all, mirroring the Module Registry (ADR-012) and Template Registry (ADR-016)
+pattern exactly. Explicitly approved per docs/47's per-batch gate. Zero dependency on
+any other Phase 2B batch beyond PXP-3/PXP-4's existing registry mechanism; zero
+modification to any frozen Foundation/Identity & Access/Patient Access/PXP-1..5 file.
+No new ADR was needed — ADR-013 (calculators are deterministic, never AI-computed) and
+ADR-012's registry-driven principle already fully govern this pattern.
+
+**One disclosed, explicit scope decision — this batch ships backend infrastructure
+only.** docs/44 §22's own PXP-6 row names "Patient Calculator UI" alongside the
+registry; this batch deliberately does not build it, per this batch's own explicit
+approval scope. `shared/constants/calculator-registry.json` ships with **zero**
+registered calculators — disease-specific or otherwise — the generic
+registry-and-result mechanism is this batch's entire scope. No `module-registry.json`
+entry, no `my-health-journey/dashboard.js` change, no new HTML page. This mirrors the
+exact Module Registry (PXP-3, backend) / Dashboard Registry (PXP-4, frontend) split
+precedent: the mechanism ships first, patient-facing rendering is a later, separately-
+scoped batch once a real calculator exists to render.
+
+### Added
+- **`shared/constants/calculator-registry.json`** (+ `.md`) — Phase 2B's fifth
+  registry, a static, versioned list of `CalculatorDefinition` descriptors
+  (`calculator_slug`, `version`, `input_fields`, `formula_reference` — a descriptive
+  pointer only, never executable logic, `relevant_condition_slugs` metadata,
+  `status`, reserved `future_ai_capable`). Seeded **empty** — see the disclosed scope
+  decision above.
+- **`apps-script/CalculatorRegistry.gs`** (new) —
+  `foundationGetCalculatorBySlugAndVersion_()`, a hand-ported, static copy of the
+  canonical (empty) list, mirroring `TemplateRegistry.gs`'s own consumer convention.
+- **`shared/schemas/calculator-result.schema.json`** (+ `.md`) — `CalculatorResult`,
+  the platform's second entity implementing docs/44 §11.4's JSON-storage policy
+  (`check-in-response.schema.json`'s own `.md` had already anticipated this as its
+  "second use"). `input_snapshot` is a flat, JSON-encoded-at-rest object, validated
+  field-by-field against the referenced `(calculator_slug, definition_version)`'s own
+  `input_fields`, size-bounded, and serialized with deterministic key order.
+  `result_value` is never computed by this schema or its backing code — ADR-013's
+  formula logic is the responsibility of whichever future batch authors a real
+  calculator; this generic layer only validates and stores.
+- **`apps-script/CalculatorResult.gs`** (new) — `foundationCreateCalculatorResult_()`
+  (create, cross-patient-isolated, session-derived `patient_id`) and
+  `foundationGetPatientCalculatorResults_()` (sorted, capped list) — a close structural
+  mirror of `CheckInResponse.gs`, minus an assignment-enforcement step (docs/44 §8.4:
+  calculator visibility is governed by `PatientModuleState` alone, once a future batch
+  wires a calculator into the Module Registry — no separate assignment entity exists
+  for this pillar).
+- **`apps-script/FoundationRouter.gs`** — two new, additive dispatch cases:
+  `submit_calculator_result` (the platform's fourth patient-writable route) and
+  `get_calculator_results`. Both are rejected today for any real calculator_slug, since
+  the registry ships empty — the same fail-closed-by-absence outcome
+  `patient-module-state.md` already documents for its own registry.
+- **`validation/phase-2a-foundation/`**: Stage 14 in `conformance.js` (validation
+  rejections, the empty-registry fail-closed outcome, a synthetic, clearly-labeled
+  test-only fixture pushed directly into the loaded sandbox's own registry array —
+  never committed to `calculator-registry.json` — to prove the generic
+  input-validation/deterministic-serialization/storage mechanism end to end, cross-
+  patient isolation, and audit-log entries) and `CalculatorRegistry.gs`/
+  `CalculatorResult.gs` added to `harness.js`'s `FILES` list — 329/329 conformance
+  checks passing. No new browser-test suite is introduced, mirroring
+  `DoctorAssignedCondition.gs`'s PXP-2 and `ModuleRegistry.gs`'s PXP-3 precedent — this
+  batch adds no patient-facing UI, so there is no browser-drivable surface to test.
+
+### Changed (documentation)
+- `docs/33-DOMAIN-MODEL.md` bumped to Version 1.10 — Calculator (§5.3) promoted from
+  "Designed, not yet implemented" to **Implemented (backend only)**; new §6.8
+  (Calculator Registry and Calculator Result).
+- `docs/24-ROADMAP.md` bumped to Version 1.10 — Phase 2B status updated: Batch PXP-6
+  shipped, with the disclosed backend-only scope decision stated explicitly.
+- `shared/README.md` — paragraph added noting the new constants file/schema/
+  implementation set.
+
+### Verified
+- Static Analysis: PASS, 0 findings (41 files scanned). Conformance: 329/329. Phase
+  1.5 Regression: 42/42. Browser test suites: 216/216 across eight suites
+  (`pa-2-dashboard`, `pa-3-timeline`, `pa-4-symptom-tracker`, `pa-5-reports`,
+  `pa-6-public-nav`, `pxp-1-patient-profile`, `pxp-4-dashboard-registry`,
+  `pxp-5-checkin-engine`) — unchanged, since this batch adds no patient-facing UI.
+
 ## 2026-07-12 — Phase 2B Batch PXP-5: Daily Check-in Engine
 
 The Daily Check-in Engine (docs/44 §10/§11/§22, ADR-016, docs/47) — a consumer of

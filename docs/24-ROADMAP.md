@@ -1,5 +1,5 @@
 # 24 - Wise Product Roadmap
-## Version 1.9 — 2026-07-11
+## Version 1.10 — 2026-07-13
 
 # Phase 1 — Public Website
 Status: In Progress
@@ -177,8 +177,9 @@ Status: **Architecture-freeze finalized (Version 4.0, 2026-07-09).
 Implementation underway: Batch PXP-1 (Patient Profile) shipped 2026-07-09;
 Batch PXP-2 (Doctor-Assigned Conditions) shipped 2026-07-09; Batch PXP-3
 (Module Registry) shipped 2026-07-10; Batch PXP-4 (Dashboard Registry)
-shipped 2026-07-11; Batch PXP-5 (Daily Check-in Engine) shipped 2026-07-12,
-approved as this phase's fifth batch per docs/47's per-batch gate.**
+shipped 2026-07-11; Batch PXP-5 (Daily Check-in Engine) shipped 2026-07-12;
+Batch PXP-6 (Calculator Registry, backend only) shipped 2026-07-13,
+approved as this phase's sixth batch per docs/47's per-batch gate.**
 This entry originally named only
 "Personal Care Plan" (per docs/32 Part 2's recommendation), then "Personal
 Care Plan, Module Engine & Personalized Check-ins" after the first
@@ -354,6 +355,38 @@ PXP-1..4 file — one disclosed, mechanical test-infrastructure update
 (`validation/phase-2a-foundation/conformance.js`'s Stage 12 module-count
 assertions, `3`→`4`, since the Module Registry is designed to grow).
 
+**Batch PXP-6 (Calculator Registry, docs/44 §8/§22, ADR-013)** — Pillar 3 —
+has now shipped, **backend infrastructure only, a deliberate and disclosed
+scope decision:** `shared/constants/calculator-registry.json`
+(`apps-script/CalculatorRegistry.gs`) defines the generic, pluggable
+Calculator Registry mechanism, mirroring Module Registry (ADR-012) and
+Template Registry (ADR-016) exactly — **seeded with zero registered
+calculators**, disease-specific or otherwise. This batch's own scope is the
+registry-and-result mechanism itself, not a concrete `CalculatorDefinition`;
+a future calculator becomes real only once a later, separately-approved
+batch adds its own registry entry (docs/47 §4's "a new calculator is a new
+registry entry, never new architecture"). `shared/schemas/
+calculator-result.schema.json` (`apps-script/CalculatorResult.gs`) backs
+two new, additive `FoundationRouter.gs` dispatch cases
+(`submit_calculator_result`, `get_calculator_results`) — the platform's
+second entity implementing docs/44 §11.4's JSON storage policy in full
+(`check-in-response.schema.json`'s own documentation had already anticipated
+this as its "second use"). `result_value` is never computed by this generic
+layer — ADR-013's deterministic formula logic remains a future batch's
+responsibility once a real calculator is authored; this batch only
+validates a submitted `input_snapshot` against a registry entry's declared
+input fields and stores whatever `result_value` the caller supplies. **No
+Module Registry entry, no dashboard card, no patient-facing UI ships in this
+batch** — docs/44 §22's own PXP-6 row names "Patient Calculator UI" as part
+of this batch's architectural scope, but this batch's own explicit approval
+narrows that to backend infrastructure only, mirroring the exact Module
+Registry (PXP-3, backend) / Dashboard Registry (PXP-4, frontend) split
+precedent: the registry-and-storage mechanism ships first, patient-facing
+rendering is a later, separately-scoped batch once a real calculator exists
+to render. No new ADR was required — ADR-013 and ADR-012's registry-driven
+principle already fully govern this pattern. Zero modification to any
+frozen Foundation/Identity & Access/Patient Access/PXP-1..5 file.
+
 See docs/44-PHASE-2B-TECHNICAL-PLAN.md (Version 4.0) for the full design,
 docs/45-PHASE-2B-ARCHITECTURE-READINESS-REVIEW.md (Version 4.0) for the
 critique of every proposal, docs/46-PHASE-2B-REPOSITORY-CONSISTENCY-
@@ -367,9 +400,9 @@ every batch from PXP-1 onward must follow.
 
 **Implementation has begun with Batch PXP-1 (Patient Profile), Batch PXP-2
 (Doctor-Assigned Conditions), Batch PXP-3 (Module Registry), Batch PXP-4
-(Dashboard Registry), and Batch PXP-5 (Daily Check-in Engine), all
-explicitly approved and shipped; no other batch is authorized by any of the
-above documents.** docs/44 §22
+(Dashboard Registry), Batch PXP-5 (Daily Check-in Engine), and Batch PXP-6
+(Calculator Registry, backend only), all explicitly approved and shipped;
+no other batch is authorized by any of the above documents.** docs/44 §22
 sequences **infrastructure before features**:
 Patient Profile → Doctor-Assigned Conditions → Module Registry → Dashboard
 Registry → Daily Check-in Engine → Calculator Registry → Personal Care
