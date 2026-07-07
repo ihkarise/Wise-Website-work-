@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wisehomeopathy.com/shared/schemas/trusted-device.schema.json",
+  "title": "Trusted Device",
+  "version": "1.0.0",
+  "description": "The canonical shape of a TrustedDevice record — docs/44-PHASE-2B-TECHNICAL-PLAN.md §5.1/§5.3's design, batch PXP-8 (docs/44 §22), governed by docs/47-PHASE-2B-IMPLEMENTATION-RULES.md and ADR-015. Patient-owned (a hard boundary distinct from every other PXP-1..7 entity, all of which are doctor/staff-owned): every write is the session-authenticated patient's own action, never a doctor/staff action, since a Trusted Device is a credential for the patient's own device, not clinical content. device_token_hash is the SHA-256 hash of a high-entropy, server-generated raw token (never the raw token itself, never stored) — the same entropy class and hashing pattern shared/schemas/login-token.schema.json's token_hash already established (ADR-015 §Decision 1: 'the same entropy class as LoginToken, so it safely reuses LoginToken's already-proven plain-SHA-256 hashing pattern'). The raw token rotates on every successful presentation (apps-script/TrustedDevice.gs's foundationConsumeTrustedDevice_()) — device_token_hash's value at any moment reflects only the current, not-yet-used raw token. See trusted-device.md for the full lifecycle, the Long-Lived Session relationship, and the disclosed revocation-latency limitation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["device_id", "patient_id", "device_token_hash", "device_label", "created_at", "last_used_at", "expires_at", "revoked_at", "revoked_by"],
+  "properties": {
+    "device_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "This device's stable, server-generated identity (UUID) — never derived from the raw device token, so it is safe to expose to the patient's own 'manage my devices' view and to accept back as a revoke target, without ever revealing device_token_hash itself."
+    },
+    "patient_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The Patient Identity this device belongs to (docs/33 §1.2, ADR-002). Session-derived at every write and read — a patient can only ever create, list, or revoke their own devices."
+    },
+    "device_token_hash": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Hex-encoded SHA-256 digest of the current raw device token (never the raw token itself — mirrors login-token.schema.json's token_hash exactly, reusing the same foundationHashLoginToken_() algorithm). Rotates on every successful foundationConsumeTrustedDevice_() call. The patient-facing get_trusted_devices route deliberately omits this field from its response (an implementation detail, not a schema violation — mirrors download_report never returning a raw Drive URL)."
+    },
+    "device_label": {
+      "type": "string",
+      "description": "Optional, patient-supplied free text (e.g. 'My iPhone', 'Work laptop') for the 'manage my devices' view docs/44 §5.3 names as in-scope for this batch ('revocability without visibility is not meaningfully usable'). Empty-string sentinel when not supplied."
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Server-set at this device's creation (foundationNowIso_()). Never patient-supplied directly."
+    },
+    "last_used_at": {
+      "type": "string",
+      "description": "Server-set on every successful foundationConsumeTrustedDevice_() call. Empty-string sentinel until the device's first use after creation."
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "A sliding expiry — extended to now + the device TTL on every successful use, mirroring what makes 'persistent login' actually persistent for a returning patient (deliberately distinct from the Session mechanism's own non-renewing, fixed-TTL design, ADR-010, which this batch leaves entirely unchanged). A dormant device whose expires_at passes can no longer be exchanged for a session — the patient falls back to Magic Link, the permanent root of trust."
+    },
+    "revoked_at": {
+      "type": "string",
+      "description": "Empty-string sentinel when not revoked, mirroring doctor-assigned-condition.schema.json's resolved_at convention. Set once, server-side, on a successful revoke_trusted_device call — a one-way transition, never reverted."
+    },
+    "revoked_by": {
+      "type": "string",
+      "description": "The session-derived patient_id who revoked this device (always the device's own owning patient in this batch — there is no doctor/staff revocation path, since a device is the patient's own, not clinical content). Empty-string sentinel until revoked."
+    }
+  }
+}

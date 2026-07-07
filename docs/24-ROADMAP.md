@@ -179,8 +179,9 @@ Batch PXP-2 (Doctor-Assigned Conditions) shipped 2026-07-09; Batch PXP-3
 (Module Registry) shipped 2026-07-10; Batch PXP-4 (Dashboard Registry)
 shipped 2026-07-11; Batch PXP-5 (Daily Check-in Engine) shipped 2026-07-12;
 Batch PXP-6 (Calculator Registry, backend only) shipped 2026-07-13; Batch
-PXP-7 (Personal Care Plan) shipped 2026-07-14, approved as this phase's
-seventh batch per docs/47's per-batch gate.**
+PXP-7 (Personal Care Plan) shipped 2026-07-14; Batch PXP-8 (Trusted Device +
+Long-Lived Session, PIN out of scope) shipped 2026-07-14, approved as this
+phase's eighth batch per docs/47's per-batch gate.**
 This entry originally named only
 "Personal Care Plan" (per docs/32 Part 2's recommendation), then "Personal
 Care Plan, Module Engine & Personalized Check-ins" after the first
@@ -429,6 +430,51 @@ integration to a future, separately-approved change (full reasoning:
 `shared/schemas/care-plan.md`). Zero modification to any frozen
 Foundation/Identity & Access/Patient Access/PXP-1..6 file.
 
+**Batch PXP-8 (Trusted Device + Long-Lived Session, docs/44 §5/§22, ADR-015)** —
+Persistent Authentication — has also now shipped: `TrustedDevice`
+(`shared/schemas/trusted-device.schema.json`, `apps-script/TrustedDevice.gs`), the
+platform's first Phase 2B entity that is *patient*-owned rather than doctor/staff-owned
+— every write is a real, session-authenticated Web App route
+(`mark_device_trusted`/`revoke_trusted_device`), with no manually-run editor
+counterpart at all, unlike every prior PXP-1..7 entity. **PIN
+(`PatientCredential`) is explicitly out of scope for this batch** — docs/45 Part 5's
+finding that it "requires its own dedicated security review... independent of Trusted
+Device/Long-Lived Session" remains an open gate, unchanged. docs/44 §5.5's
+implementation-time question (whether Long-Lived Session touches the frozen
+`FoundationSession.gs`) is resolved as an additive wrapper: `TrustedDevice.gs`'s
+`foundationIssueLongLivedSessionToken_()` reuses that file's own unmodified signing
+primitives with a longer, local TTL constant (14 days, materially longer than the
+default 60-minute Session) — **zero lines changed in `FoundationSession.gs`,
+`FoundationRouteGuard.gs`, or `session.schema.json`**, verified directly in
+`validation/phase-2a-foundation/conformance.js`'s new Stage 16 (a magic-link-issued
+session still carries exactly its unchanged 3600-second TTL). The device token
+(90-day sliding expiry) rotates on every successful presentation
+(`consume_trusted_device`, unauthenticated — the token itself is the credential),
+which is also this design's "session renewal" mechanic — no separate renew action
+exists. Four new, additive `FoundationRouter.gs` dispatch cases
+(`mark_device_trusted`, `consume_trusted_device`, `get_trusted_devices`,
+`revoke_trusted_device`) register the capability; no Module Registry entry was added —
+Persistent Authentication is infrastructure available to every patient, mirroring
+Patient Profile's own plain-nav-link precedent, not a doctor-enabled dashboard module.
+**Disclosed, deliberately minimized frozen-file footprint:** `login.html` (the one
+universal silent-recovery point every session-guarded page's existing redirect already
+lands on), `verify.html` (an opt-in, unchecked-by-default "Keep me signed in on this
+device" checkbox), and `my-health-journey/index.html` (one new "Manage Devices" nav
+link, mirroring PXP-1's own "My Profile" link exception exactly, plus one mechanical,
+disclosed update to `validation/pa-2-dashboard/browser-test.js`'s own keyboard-Tab-order
+assertion). **`my-health-journey/dashboard.js` and `my-health-journey/session-guard.js`
+are both completely untouched** (`git diff --stat` empty on both) — a deliberate design
+choice to route all silent recovery through `login.html` alone rather than touching
+every page that might redirect there. A disclosed, honest limitation, not an oversight:
+since `FoundationSession.gs` stays untouched and stateless (no revocation list),
+revoking a `TrustedDevice` stops it from renewing again but cannot retroactively kill an
+already-issued Long-Lived Session token still held client-side, which simply expires
+naturally within 14 days (full reasoning: `shared/schemas/trusted-device.md`). A patient
+who never opts into Trusted Device experiences no behavior change at all — Magic Link
+alone remains the complete, unconditional default (docs/44 §5.2). Zero modification to
+any frozen Foundation/Identity & Access/Patient Access/PXP-1..7 file beyond the three
+disclosed exceptions above.
+
 See docs/44-PHASE-2B-TECHNICAL-PLAN.md (Version 4.0) for the full design,
 docs/45-PHASE-2B-ARCHITECTURE-READINESS-REVIEW.md (Version 4.0) for the
 critique of every proposal, docs/46-PHASE-2B-REPOSITORY-CONSISTENCY-
@@ -443,7 +489,8 @@ every batch from PXP-1 onward must follow.
 **Implementation has begun with Batch PXP-1 (Patient Profile), Batch PXP-2
 (Doctor-Assigned Conditions), Batch PXP-3 (Module Registry), Batch PXP-4
 (Dashboard Registry), Batch PXP-5 (Daily Check-in Engine), Batch PXP-6
-(Calculator Registry, backend only), and Batch PXP-7 (Personal Care Plan),
+(Calculator Registry, backend only), Batch PXP-7 (Personal Care Plan), and
+Batch PXP-8 (Trusted Device + Long-Lived Session, PIN out of scope),
 all explicitly approved and shipped; no other batch is authorized by any of
 the above documents.** docs/44 §22 sequences **infrastructure before
 features**:
@@ -461,9 +508,11 @@ Each remaining batch requires its own separate, explicit approval, per
 docs/43 §12's Phase 2B gate — the same gate PXP-1 itself passed through
 before its implementation began. docs/45 Part 5 flags the optional-PIN
 sub-batch (within PXP-8) as requiring a dedicated security review before it
-specifically can be approved, independent of the rest of the plan. The
-Public (no-login) Calculator variant remains an unclaimed roadmap gap
-(docs/46 Part 3) — only the Patient variant is claimed by this phase.
+specifically can be approved, independent of the rest of the plan — **that
+gate remains open; PXP-8's own shipped scope explicitly excludes PIN**, per
+that same finding. The Public (no-login) Calculator variant remains an
+unclaimed roadmap gap (docs/46 Part 3) — only the Patient variant is
+claimed by this phase.
 
 # Phase 2C — Health Milestones
 - Scheduled progress reviews (30/90 days, 6 months, 1 year, per docs/21)

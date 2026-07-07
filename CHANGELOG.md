@@ -8,6 +8,118 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-14 — Phase 2B Batch PXP-8: Trusted Device + Long-Lived Session
+
+Persistent Authentication (docs/44 §4/§5/§22, docs/47, ADR-015) — Trusted Device and
+the Long-Lived Session it grants. Explicitly approved per docs/47's per-batch gate.
+**PIN (`PatientCredential`) is explicitly out of scope for this batch** — docs/45
+Part 5's finding that it "requires its own dedicated security review... independent of
+Trusted Device/Long-Lived Session" remains an open gate; nothing in this batch
+implements, schemas, or routes a PIN. No new ADR was needed — ADR-015 already fully
+governs this pattern; see docs/44's new §25 for the implementation-time decisions this
+batch made within it.
+
+**docs/44 §5.5's open question, resolved: Long-Lived Session is an additive wrapper,
+`FoundationSession.gs` untouched.** `apps-script/TrustedDevice.gs`'s
+`foundationIssueLongLivedSessionToken_()` reuses that frozen file's own already-existing
+pure helpers (payload building, base64url encoding, HMAC signing, secret retrieval)
+with a different, longer, local TTL constant (14 days) in place of
+`FOUNDATION_CONFIG.SESSION_TTL_SECONDS`. The token produced is byte-for-byte the same
+wire format `session.schema.json` already defines, verified completely unmodified by
+`foundationVerifySessionToken_()`. **Zero lines changed in `FoundationSession.gs`,
+`FoundationRouteGuard.gs`, or `session.schema.json`** — proven directly in
+`validation/phase-2a-foundation/conformance.js`'s new Stage 16, which checks a
+magic-link-issued session's own unchanged 3600-second TTL side by side with a
+Long-Lived Session's materially longer one, both verified through the identical code
+path.
+
+### Added
+- **`shared/schemas/trusted-device.schema.json`** (+ `.md`) — `TrustedDevice`. Unlike
+  every other Phase 2B entity shipped so far (all doctor/staff-owned, since no real
+  Doctor identity/session exists yet, docs/33 §1.4), this is patient-owned — every
+  write is a real, session-authenticated Web App route, with no manually-run Apps
+  Script editor wrapper at all, the first Phase 2B entity for which one isn't needed.
+  `device_token_hash` reuses `LoginToken`'s already-proven plain-SHA-256 hashing
+  pattern (ADR-015 §Decision 1) — no new cryptographic bridge. The raw device token
+  rotates on every successful presentation; `expires_at` is a deliberate,
+  disclosed *sliding* window (90 days, extended on each use) — a design distinct from
+  the base Session mechanism's own unchanged, non-renewing, fixed-TTL discipline
+  (ADR-010).
+- **`apps-script/TrustedDevice.gs`** (new) — `foundationCreateTrustedDevice_()`
+  (session-authenticated device creation, returns the raw token exactly once, never
+  persisted after), `foundationConsumeTrustedDevice_()` (hashes, looks up, checks
+  revoked/expired, rotates the token, slides the expiry, and issues a fresh Long-Lived
+  Session — this one action is also this design's "session renewal" mechanic, no
+  separate renew action exists), `foundationGetPatientTrustedDevices_()` (the caller's
+  own device history, `device_token_hash` deliberately redacted from every row before
+  it is ever returned), and `foundationRevokeTrustedDevice_()` (self-service,
+  one-way, exactly-once, rejects an unknown or another patient's `device_id` with the
+  same generic `FOUNDATION_NOT_FOUND` `get_timeline_entry`'s own cross-patient check
+  already uses).
+- **`apps-script/FoundationRouter.gs`** — four new, additive dispatch cases:
+  `mark_device_trusted`, `get_trusted_devices`, and `revoke_trusted_device`
+  (authenticated, `patient_id` always session-derived), plus `consume_trusted_device`
+  (this batch's one unauthenticated addition, mirroring `consume_login_link` exactly —
+  the presented device token is itself the credential).
+- **`login.html`** — the app's one, single silent-recovery point: before revealing the
+  login form, attempts a silent sign-in via any locally-stored trusted device token.
+  On success, redirects straight to the dashboard with a fresh Long-Lived Session; on
+  failure (no device token, or a rejected one), reveals the login form exactly as
+  before this batch, clearing any stale device token. `?reason=expired`'s existing
+  generic session-expiry message now displays only once silent recovery has already
+  been tried and failed — a successful recovery never shows it at all.
+- **`verify.html`** — an opt-in, **unchecked-by-default** "Keep me signed in on this
+  device" checkbox (docs/44 §5.2, passwordless-by-default reaffirmed). Checking it
+  marks the device trusted as a separate, best-effort step *after* magic-link sign-in
+  has already succeeded — its own failure never blocks or reverses the sign-in itself.
+- **`my-health-journey/device-trust.js`** (new, non-frozen) — the only
+  `localStorage`-writing code this batch adds (`wise_trusted_device_token`), holding
+  the shared device-token logic `login.html` and `verify.html` both consume. The
+  Session token itself continues to live exclusively in `sessionStorage`, cleared on
+  tab close — completely unchanged from Phase 2A (docs/29 §3).
+- **`my-health-journey/devices/`** (new) — the "Manage Devices" page: lists every
+  trusted device (active and revoked), with a Revoke button on each active one.
+- **`my-health-journey/index.html`** — one new, disclosed "Manage Devices" nav link,
+  mirroring PXP-1's own "My Profile" link exception exactly. No Module Registry entry
+  was added — Persistent Authentication is infrastructure available to every patient,
+  not a doctor-enabled dashboard module (mirrors Patient Profile's own precedent).
+
+### Disclosed, deliberately minimized frozen-file footprint
+`login.html`, `verify.html`, and `my-health-journey/index.html` (one nav link) are the
+only Phase 2A/2B-frozen files this batch touches, each justified in its own header
+comment. **`my-health-journey/dashboard.js` and `my-health-journey/session-guard.js`
+are both completely untouched** (`git diff --stat` empty on both) — every
+session-guarded page already redirects to `login.html` on a missing/rejected session,
+so routing all silent recovery through that one page, rather than the dashboard's own
+front door and every `session-guard.js` consumer individually, keeps this batch's
+frozen-file surface as small as possible. One mechanical, disclosed test-infrastructure
+update: `validation/pa-2-dashboard/browser-test.js`'s keyboard-Tab-order assertion,
+updated for the one new nav link, the same category of update PXP-5's own Stage 12
+module-count fix already established.
+
+### Disclosed, honest limitation
+Since `FoundationSession.gs` stays untouched and stateless (no revocation list),
+revoking a `TrustedDevice` immediately and permanently stops it from being exchanged
+for a new Long-Lived Session again, but cannot retroactively kill a Long-Lived Session
+token already issued and currently held client-side — it simply expires naturally
+within 14 days. A real, deliberate tradeoff of honoring docs/47 §6's "do not touch a
+frozen file for new functionality" rule, disclosed here rather than silently assumed
+away. Full reasoning: `shared/schemas/trusted-device.md`.
+
+### Validation
+- Static Analysis: PASS (0 findings).
+- Conformance (`validation/phase-2a-foundation/conformance.js`): 419/419 checks pass,
+  including the new Stage 16 (device creation/consumption/rotation/revocation,
+  cross-patient isolation, and the Long-Lived Session token's own longer TTL verified
+  against the real, unmodified `foundationVerifySessionToken_()`).
+- Phase 1.5 Regression (`validation/phase-1-5/validate.js`): 42/42 checks pass,
+  unchanged.
+- Browser Tests: every existing `validation/pa-*`/`validation/pxp-*` suite passes
+  (one mechanical, disclosed update, above); the new
+  `validation/pxp-8-persistent-login/` suite adds 25/25 passing checks covering
+  `login.html`'s silent recovery, `verify.html`'s opt-in checkbox, and the new Manage
+  Devices page.
+
 ## 2026-07-14 — Phase 2B Batch PXP-7: Personal Care Plan
 
 Personal Care Plan (docs/44 §4.2/§12/§22, docs/47) — a consumer of Pillar 1

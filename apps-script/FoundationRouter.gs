@@ -139,6 +139,22 @@
  *     `data: null` (not an error) when the caller has no Care Plan authored
  *     yet, the same "not yet configured is not an error" discipline
  *     get_checkin_template's unassigned-patient outcome already established.
+ *   - mark_device_trusted / get_trusted_devices / revoke_trusted_device —
+ *     Batch PXP-8 additions (docs/44 §5/§22, ADR-015, docs/47), the
+ *     Trusted Device + Long-Lived Session capability. All three are
+ *     authenticated; patient_id is always session-derived, never
+ *     client-supplied. Unlike every other Phase 2B entity, TrustedDevice
+ *     is patient-owned — mark_device_trusted and revoke_trusted_device are
+ *     the platform's first Phase 2B writes with no manually-run editor
+ *     counterpart at all (TrustedDevice.gs's own header comment).
+ *   - consume_trusted_device — Batch PXP-8's one unauthenticated addition,
+ *     mirroring consume_login_link exactly: the presented raw device token
+ *     is itself the credential, so there is no session yet to authenticate
+ *     with. On success, rotates the device token and issues a Long-Lived
+ *     Session — an additive wrapper around FoundationSession.gs's own
+ *     unmodified signing primitives (TrustedDevice.gs's own header
+ *     comment; docs/44 §5.5's implementation-time decision, resolved here
+ *     without touching that frozen file).
  *
  * A disclosed, additive exception, same category as Code.gs's own
  * one-line dispatch shim (IA-2): this file was previously listed among
@@ -166,7 +182,8 @@
  * FoundationSymptomLog.gs, FoundationReports.gs, FoundationPatientProfile.gs,
  * DoctorAssignedCondition.gs, ModuleRegistry.gs, PatientModuleState.gs,
  * TemplateRegistry.gs, CheckInTemplateAssignment.gs, CheckInResponse.gs,
- * CalculatorRegistry.gs, CalculatorResult.gs, CarePlan.gs, DoctorInstruction.gs.
+ * CalculatorRegistry.gs, CalculatorResult.gs, CarePlan.gs, DoctorInstruction.gs,
+ * TrustedDevice.gs.
  */
 
 /**
@@ -451,6 +468,55 @@ function foundationHandleGetDoctorInstructions_(input) {
 }
 
 /**
+ * Batch PXP-8: marks the caller's current device as trusted, issuing a
+ * new TrustedDevice + its one-time raw device_token. patient_id is always
+ * session-derived, never client-supplied — the same authorization
+ * primitive every other write route already uses. device_label is the
+ * only other field, validated by foundationCreateTrustedDevice_() itself.
+ */
+function foundationHandleMarkDeviceTrusted_(input) {
+  return withFoundationAuth_(input && input.session_token, function (patientId) {
+    return foundationCreateTrustedDevice_(patientId, input && input.device_label);
+  });
+}
+
+/**
+ * Batch PXP-8: the one unauthenticated addition this batch makes,
+ * mirroring consume_login_link exactly — the presented device_token is
+ * itself the credential, so there is no session yet to derive patient_id
+ * from. On success, rotates the device token and issues a fresh
+ * Long-Lived Session (TrustedDevice.gs's foundationConsumeTrustedDevice_()).
+ */
+function foundationHandleConsumeTrustedDevice_(input) {
+  return foundationConsumeTrustedDevice_(input && input.device_token);
+}
+
+/**
+ * Batch PXP-8: returns the caller's own TrustedDevice rows (active and
+ * revoked alike, device_token_hash always redacted), for the patient-facing
+ * "manage my devices" view (docs/44 §5.3). patient_id is always
+ * session-derived, never client-supplied.
+ */
+function foundationHandleGetTrustedDevices_(input) {
+  return withFoundationAuth_(input && input.session_token, function (patientId) {
+    return foundationGetPatientTrustedDevices_(patientId);
+  });
+}
+
+/**
+ * Batch PXP-8: revokes one of the caller's own TrustedDevice rows by
+ * device_id — self-service, patient-only. patient_id is always
+ * session-derived; foundationRevokeTrustedDevice_() itself performs the
+ * ownership check and returns the same generic FOUNDATION_NOT_FOUND
+ * whether device_id doesn't exist or belongs to someone else.
+ */
+function foundationHandleRevokeTrustedDevice_(input) {
+  return withFoundationAuth_(input && input.session_token, function (patientId) {
+    return foundationRevokeTrustedDevice_(patientId, input && input.device_id);
+  });
+}
+
+/**
  * Serializes a response-envelope-shaped value to the wire. Apps Script
  * Web Apps cannot set a real HTTP status code (every response transports
  * as HTTP 200 regardless — the same platform fact Code.gs's own
@@ -533,6 +599,18 @@ function handleFoundationRequest_(input) {
       break;
     case 'get_doctor_instructions':
       envelope = foundationHandleGetDoctorInstructions_(input);
+      break;
+    case 'mark_device_trusted':
+      envelope = foundationHandleMarkDeviceTrusted_(input);
+      break;
+    case 'consume_trusted_device':
+      envelope = foundationHandleConsumeTrustedDevice_(input);
+      break;
+    case 'get_trusted_devices':
+      envelope = foundationHandleGetTrustedDevices_(input);
+      break;
+    case 'revoke_trusted_device':
+      envelope = foundationHandleRevokeTrustedDevice_(input);
       break;
     default:
       envelope = buildFoundationErrorEnvelope_('FOUNDATION_UNKNOWN_ACTION', 'Unknown request.');

@@ -68,6 +68,12 @@ body{background:var(--color-surface)}
            touched — see shared/schemas/patient-profile.md's "No dashboard
            card in this batch" section for why this is a link, not a card. -->
       <a class="dash-signout" href="./profile/" id="profileLink">My Profile</a>
+      <!-- Batch PXP-8's own disclosed, additive exception, the same
+           category as the My Profile link above: a static link to the new
+           Manage Devices page (shared/schemas/trusted-device.md's "No
+           Module Registry entry" section — this is infrastructure, not a
+           dashboard module). -->
+      <a class="dash-signout" href="./devices/" id="devicesLink">Manage Devices</a>
       <button class="dash-signout" type="button" id="signOutBtn">Sign out</button>
     </div>
   </div>

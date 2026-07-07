@@ -280,6 +280,67 @@ crawler could not usefully index them regardless). Verified end-to-end by
 `validation/pa-6-public-nav/browser-test.js` (22/22) and a full, unchanged re-run of
 every backend and browser validation suite from every prior Patient Access batch.
 
+## Phase 2B — Implementation Notes (Batch PXP-8, Trusted Device + Long-Lived Session)
+
+Persistent Authentication (docs/44 §5, ADR-015) — the first genuinely new
+*authentication* mechanism since IA-2's magic-link/session-token pair (reviewed above,
+PA-7 closeout), rather than a new authorization shape applied to the same existing
+mechanism (as every PXP-1..7 batch's own writes were). Specifically verified:
+
+- **The device token reuses `LoginToken`'s already-proven entropy/hashing pattern
+  exactly** (`foundationGenerateRawLoginToken_()`/`foundationHashLoginToken_()`,
+  `FoundationLoginTokens.gs`, reused unmodified) — no new cryptographic bridge. Only the
+  SHA-256 hash is ever persisted (`device_token_hash`); the raw token is returned
+  exactly once and never stored server-side after that.
+- **Rotation, not mere single-use.** Every successful `consume_trusted_device` call
+  replaces the stored hash with a freshly generated raw token before returning the new
+  one — the pre-rotation raw token is rejected on any later presentation
+  (`validation/phase-2a-foundation/conformance.js`'s Stage 16 proves this directly: the
+  same raw token, presented twice, succeeds once and is rejected the second time).
+- **Rejection is deliberately generic**, mirroring `FOUNDATION_LOGIN_TOKEN_INVALID`'s
+  own discipline exactly: an unknown, expired, or revoked device token all return the
+  identical `FOUNDATION_TRUSTED_DEVICE_INVALID` code and message — never a
+  distinguishable reason a caller could use to probe device state.
+- **`revoke_trusted_device` is cross-patient-isolated** the same way
+  `get_timeline_entry`'s own record-ownership check already established (docs/40 Q3):
+  an unknown `device_id` and one belonging to a different patient both return the
+  identical generic `FOUNDATION_NOT_FOUND` — never distinguishing "doesn't exist" from
+  "not yours."
+- **The Long-Lived Session token is not a new credential format.** It is produced by
+  `FoundationSession.gs`'s own unmodified HMAC-signing primitive (same secret, same
+  constant-time signature comparison, same fail-closed-on-unparsable-expiry behavior) —
+  only the TTL constant differs. No new signing secret, no new verification code path,
+  no new attack surface on the signature/verification boundary itself.
+- **Where each token lives is a deliberate, disclosed split**, not an oversight:
+  the Session token (whether short- or long-lived) continues to live *only* in
+  `sessionStorage`, cleared on tab close — completely unchanged from Phase 2A's own
+  `docs/29 §3` rule, verified unchanged in this same batch's Stage 16 (a magic-link
+  session's TTL is still exactly 3600 seconds). The new Trusted Device raw token is the
+  only token this batch ever writes to `localStorage`
+  (`my-health-journey/device-trust.js`) — a deliberately different, separate, revocable
+  credential, never used as a `session_token` for any authenticated route.
+- **Disclosed, honest limitation — revocation latency.** Because `FoundationSession.gs`
+  stays completely untouched and stateless (no revocation list, per this batch's own
+  §5.5 decision, docs/44 §25), revoking a `TrustedDevice` stops it from being exchanged
+  for a *new* Long-Lived Session immediately, but cannot retroactively invalidate a
+  Long-Lived Session token already issued and currently held client-side — it simply
+  expires naturally within `FOUNDATION_LONG_LIVED_SESSION_TTL_SECONDS_` (14 days). This
+  bounds, but does not eliminate, the exposure window of a stolen-and-later-revoked
+  device's already-issued session — a real, deliberate tradeoff of not touching a
+  frozen file for new functionality (docs/47 §6), not an unconsidered gap. Full
+  reasoning: `shared/schemas/trusted-device.md`.
+- **No secrets in frontend, unchanged.** The device token is high-entropy and
+  server-generated (never a low-entropy, human-chosen credential — that risk category
+  is explicitly PIN's, still gated separately per docs/45 Part 5, and not part of this
+  batch at all).
+
+Verified, not just designed: `validation/phase-2a-foundation/conformance.js`'s Stage 16
+(37 checks: creation, consumption, rotation, revocation, cross-patient isolation, audit
+logging, and the Long-Lived Session's own real, unmodified verification) and
+`validation/pxp-8-persistent-login/browser-test.js` (25 checks: `login.html`'s silent
+recovery and its `localStorage`/`sessionStorage` split, `verify.html`'s opt-in default,
+and the Manage Devices page).
+
 ## Phase 1.5 — Implementation Notes (Consultation Summary Pipeline)
 
 Full mapping of every standard above to its Phase 1.5 implementation is

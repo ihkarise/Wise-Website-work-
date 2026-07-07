@@ -130,7 +130,16 @@ versioned plan per patient, alongside its first implementation,
 among many sharing the same logical identity) and `schemas/doctor-instruction.schema.json`
 (the `DoctorInstruction` record shape — the atomic unit of clinical direction aggregated
 by a Care Plan, alongside its first implementation,
-`apps-script/DoctorInstruction.gs`).
+`apps-script/DoctorInstruction.gs`). Phase 2B Batch PXP-8 added
+`schemas/trusted-device.schema.json` (the `TrustedDevice` record shape — Persistent
+Authentication, ADR-015, alongside its first implementation,
+`apps-script/TrustedDevice.gs`; the first Phase 2B entity that is patient-owned rather
+than doctor/staff-owned, and the first whose patient-facing read route deliberately
+redacts one of its own schema's required fields, `device_token_hash`, before ever
+returning a row — see that schema's own `.md` for the full disclosure). Long-Lived
+Session, the other named mechanism this batch ships, has no schema of its own — per
+docs/33-DOMAIN-MODEL.md §6.6, it is "not a stored entity of its own, a parameterization
+of the existing Session mechanism" (`schemas/session.schema.json`, unchanged).
 
 ---
 
