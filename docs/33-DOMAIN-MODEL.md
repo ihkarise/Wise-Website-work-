@@ -1,5 +1,5 @@
 # 33 - Domain Model
-## Version 1.6 — 2026-07-09
+## Version 1.7 — 2026-07-10
 
 > Defines every major business entity in the Wise Platform: what it means, what it
 > holds, how it relates to everything else, how it comes into being and ends, who is
@@ -673,6 +673,11 @@ its first concrete category.
 (§6.2) promoted from *Designed* to **Implemented** — see that subsection's own status
 update for the shipped shape, the resolved docs/45 Part 1.2 coexistence loose end, and
 the one read-only patient route this batch adds.
+**Updated 2026-07-10** for Batch PXP-3 (implementation): Module Registry and Patient
+Module State (§6.3) promoted from *Designed* to **Implemented** — see that
+subsection's own status update for the shipped shape, ADR-012's second amendment
+(generalizing the registry's framing beyond dashboard-only infrastructure), and the
+disclosed scope boundary that no dashboard rendering changes in this batch.
 
 ## 6.1 Patient Profile — *Implemented (Batch PXP-1)*
 **Purpose:** Patient-editable structured contact/personal data (phone, date of birth,
@@ -729,18 +734,53 @@ this batch is purely additive; `Patient.condition_slug` and every existing reade
 are completely untouched, and no existing reader is required to migrate as part of this
 change.
 
-## 6.3 Module Registry and Patient Module State — *Pillar 2*
-**Purpose:** A config-level list of available dashboard capabilities (Module Registry)
-plus a per-patient enablement record (`PatientModuleState`) — the mechanism behind
-ADR-012 (amended) and docs/44 §7/§14's per-patient feature enable/disable requirement.
+## 6.3 Module Registry and Patient Module State — *Pillar 2, Implemented (Batch PXP-3)*
+**Purpose:** A config-level list of available capabilities (Module Registry) plus a
+per-patient enablement record (`PatientModuleState`) — the mechanism behind ADR-012
+(amended twice) and docs/44 §7/§14's per-patient feature enable/disable requirement.
 **Enablement is always an explicit doctor/staff action — never automatic based on a
 Doctor Assigned Condition, never patient-controlled** (docs/44 §14, settled). Governs
-whether Daily Check-ins, Calculator, and Care Plan appear on a given patient's
-dashboard. **The dashboard's rendering is now fully registry-driven for every module,
-including the pre-existing Timeline, Symptom Tracker, and Reports cards** — not deferred
-indefinitely as originally allowed (ADR-012's amendment; docs/44 §7.3/§13 "Dashboard
-Registry" is its own dedicated migration batch). **Relationships:** `PatientModuleState`
-is many-per-Patient (one row per module). **Full detail:** docs/44 §7, ADR-012 (amended).
+whether Daily Check-ins, Calculator, and Care Plan will someday appear on a given
+patient's dashboard, once each of those batches ships. **The dashboard's rendering will
+become fully registry-driven for every module, including the pre-existing Timeline,
+Symptom Tracker, and Reports cards** — not deferred indefinitely as originally allowed
+(ADR-012's first amendment; docs/44 §7.3/§13 "Dashboard Registry," PXP-4, is its own
+dedicated, still-unbuilt migration batch — this batch ships no dashboard rendering
+change). **Relationships:** `PatientModuleState` is many-per-Patient (one row per
+module). **Full detail:** docs/44 §7, ADR-012 (amended twice).
+
+**Status update (this change):** Implemented, as a backend scaffold only.
+`shared/constants/module-registry.json` (Module Registry) and
+`apps-script/ModuleRegistry.gs` (its hand-ported runtime copy) define module
+*availability*, seeded with descriptors for the three already-implemented Phase 2A
+capabilities (Timeline, Symptom Tracker, Reports) only — Daily Check-ins, Calculators,
+and Personal Care Plan are deliberately not pre-declared, per
+`shared/constants/module-registry.md`'s own disclosed reasoning (inventing their shape
+now would front-run their own future batches' design decisions). `shared/schemas/
+patient-module-state.schema.json` and `apps-script/PatientModuleState.gs` implement
+per-patient *enablement*: one row per `(patient_id, module_id)` pair, addressed by a
+server-derived, deterministic `state_key` field (so the frozen, single-idColumn
+`FoundationDataStore.gs` needed no change), fail-closed by absence (ADR-010) —
+`foundationGetPatientModuleStates_()` merges real rows with synthesized, empty-sentinel
+defaults for any module a doctor/staff member has never acted on. No real Doctor
+identity/authentication exists yet (docs/33 §1.4), so enable/disable stays a
+manually-run Apps Script editor function (`setFoundationModuleState()`), mirroring
+`DoctorAssignedCondition.gs`'s own precedent exactly. One read-only, session-derived
+route — `get_patient_module_states` (`FoundationRouter.gs`) — is this batch's approved,
+minimal patient-facing surface; it has no UI consumer in this batch (docs/44 §22's
+"no dashboard rendering change yet" for PXP-3) and is infrastructure for the future
+Dashboard Registry batch (PXP-4) to eventually consume. **ADR-012 was amended a second
+time** (2026-07-10) to generalize its framing from dashboard-specific infrastructure to
+a platform-wide capability-exposure mechanism — the dashboard remains its first and,
+as of this batch, its only implemented consumer; Timeline, Personal Care Plan, and a
+future AI system are named, not scoped, as potential future consumers, the same
+discipline ADR-016 already established for its own future template categories. The
+registry's descriptor shape also gained additional, presently-inert display/
+extensibility metadata and a family of reserved `supports_*` capability flags (mirroring
+docs/44 §7.1's own AI-readiness reservation) — see `shared/constants/
+module-registry.md` for the full, disclosed field list, including one field
+(`enabled_by_default`) considered and deliberately omitted for risking contradiction
+with the fail-closed/doctor-only-enablement rule.
 
 ## 6.4 Calculator Registry, Calculator Definition, and Calculator Result — *Pillar 3*
 **Purpose:** A registry of available calculators (Calculator Registry, mirroring the
@@ -838,7 +878,7 @@ instantiated category; any future category would follow the same relationship sh
 | Calculator | Designed, not yet implemented — Patient variant only — **Pillar 3** | 2B (docs/44 §8, batch PXP-6, Calculator Registry). Public variant still unassigned — roadmap gap carried forward (docs/46 Part 3). |
 | Patient Profile | **Implemented** | 2B (docs/44 §17, batch PXP-1 — shipped, the platform's first upsert-style entity) |
 | Doctor Assigned Condition | **Implemented — Pillar 1** | 2B (docs/44 §6, batch PXP-2 — shipped, doctor/staff-owned; renamed from "Condition Assignment"; Option B (additive) settled and approved) |
-| Module Registry / Patient Module State | Designed, not yet implemented — **Pillar 2** | 2B (docs/44 §7, batch PXP-3 backend + PXP-4 Dashboard Registry frontend migration, now covering every dashboard card) |
+| Module Registry / Patient Module State | **Implemented (backend scaffold) — Pillar 2** | 2B (docs/44 §7, batch PXP-3 backend — shipped; PXP-4 Dashboard Registry frontend migration, still unbuilt, will cover every dashboard card) |
 | Template Registry | Designed, not yet implemented (new in Version 4.0) | 2B (docs/44 §11/§11.5, ADR-016, batch PXP-5 for its first category). Generalizes Check-In Template into a registry pattern; six future categories named, unscoped, unclaimed by any batch. |
 | Check-In Template / Check-In Response | Designed, not yet implemented | 2B (docs/44 §11/§10, batch PXP-5). Template assignment settled: doctor-driven, patient never configures. Now the Template Registry's first concrete category (§6.7). |
 | Trusted Device | Designed, not yet implemented | 2B (docs/44 §5, ADR-015, batch PXP-8) |

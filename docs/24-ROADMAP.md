@@ -1,5 +1,5 @@
 # 24 - Wise Product Roadmap
-## Version 1.7 — 2026-07-09
+## Version 1.8 — 2026-07-10
 
 # Phase 1 — Public Website
 Status: In Progress
@@ -175,8 +175,9 @@ moved to its own phase below. Batch-level sequencing (5A–5H): docs/29 §13.
 # Phase 2B — Wise Patient Experience Platform
 Status: **Architecture-freeze finalized (Version 4.0, 2026-07-09).
 Implementation underway: Batch PXP-1 (Patient Profile) shipped 2026-07-09;
-Batch PXP-2 (Doctor-Assigned Conditions) shipped 2026-07-09, approved as
-this phase's second batch per docs/47's per-batch gate.**
+Batch PXP-2 (Doctor-Assigned Conditions) shipped 2026-07-09; Batch PXP-3
+(Module Registry) shipped 2026-07-10, approved as this phase's third batch
+per docs/47's per-batch gate.**
 This entry originally named only
 "Personal Care Plan" (per docs/32 Part 2's recommendation), then "Personal
 Care Plan, Module Engine & Personalized Check-ins" after the first
@@ -264,6 +265,32 @@ condition_slug` coexistence loose end is resolved: this batch is purely
 additive, no existing reader migrates. Zero dependency on any other Phase
 2B batch, zero modification to any frozen file.
 
+**Batch PXP-3 (Module Registry, docs/44 §7/§22)** — Pillar 2's backend half
+— has now shipped: `shared/constants/module-registry.json`
+(`apps-script/ModuleRegistry.gs`) defines which capabilities exist at all
+(availability), seeded only with the three already-implemented Phase 2A
+capabilities (Timeline, Symptom Tracker, Reports) — Daily Check-ins,
+Calculators, and Personal Care Plan are deliberately not pre-declared, so
+their own future batches make their own design decisions rather than this
+one guessing them. `shared/schemas/patient-module-state.schema.json`
+(`apps-script/PatientModuleState.gs`) implements per-patient *enablement*,
+fail-closed by absence of a row (ADR-010) — never automatic from a Doctor
+Assigned Condition, never patient-controlled (docs/44 §14). No real Doctor
+identity/authentication exists yet, so enable/disable stays a manually-run
+editor function, mirroring `DoctorAssignedCondition.gs`'s own precedent. One
+new, read-only `get_patient_module_states` route is this batch's minimal
+patient-facing surface — infrastructure for the still-unbuilt Dashboard
+Registry batch (PXP-4) to eventually consume; **no dashboard rendering
+change ships in this batch** (`dashboard.js` is untouched). ADR-012 was
+amended a second time, generalizing the registry's framing from
+dashboard-specific infrastructure to a platform-wide capability-exposure
+mechanism — the dashboard remains its first and, as of this batch, its only
+implemented consumer; Timeline, Personal Care Plan, and a future AI system
+are named, not scoped, as potential future consumers, the same "name it,
+don't scope it" discipline ADR-016 already established. Zero dependency on
+any other Phase 2B batch beyond the registry itself, zero modification to
+any frozen file.
+
 See docs/44-PHASE-2B-TECHNICAL-PLAN.md (Version 4.0) for the full design,
 docs/45-PHASE-2B-ARCHITECTURE-READINESS-REVIEW.md (Version 4.0) for the
 critique of every proposal, docs/46-PHASE-2B-REPOSITORY-CONSISTENCY-
@@ -275,9 +302,10 @@ implementation standard (registry rules, entity rules, validation/
 documentation/git rules, and the mandatory three-phase batch workflow)
 every batch from PXP-1 onward must follow.
 
-**Implementation has begun with Batch PXP-1 (Patient Profile) and Batch
-PXP-2 (Doctor-Assigned Conditions), both explicitly approved and shipped;
-no other batch is authorized by any of the above documents.** docs/44 §22
+**Implementation has begun with Batch PXP-1 (Patient Profile), Batch PXP-2
+(Doctor-Assigned Conditions), and Batch PXP-3 (Module Registry), all
+explicitly approved and shipped; no other batch is authorized by any of the
+above documents.** docs/44 §22
 sequences **infrastructure before features**:
 Patient Profile → Doctor-Assigned Conditions → Module Registry → Dashboard
 Registry → Daily Check-in Engine → Calculator Registry → Personal Care

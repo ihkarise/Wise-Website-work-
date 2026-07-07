@@ -104,6 +104,8 @@ var FILES = [
   'FoundationReports.gs',
   'FoundationPatientProfile.gs',
   'DoctorAssignedCondition.gs',
+  'ModuleRegistry.gs',
+  'PatientModuleState.gs',
   'FoundationRouter.gs'
 ];
 

@@ -100,6 +100,12 @@ implementation, `apps-script/FoundationPatientProfile.gs`). Phase 2B Batch PXP-2
 shape — Phase 2B's Pillar 1, doctor/staff-owned, alongside its first implementation,
 `apps-script/DoctorAssignedCondition.gs`; its condition_slug field manually re-adapts
 the same canonical list, per this file's own duplication-by-convention rule above).
+Phase 2B Batch PXP-3 added `constants/module-registry.json` (the Module Registry's
+static, versioned list of module descriptors — Phase 2B's Pillar 2 *availability*
+concern, alongside its first implementation, `apps-script/ModuleRegistry.gs`) and
+`schemas/patient-module-state.schema.json` (the `PatientModuleState` record shape —
+Pillar 2's per-patient *enablement* concern, doctor/staff-owned, fail-closed by
+absence, alongside its first implementation, `apps-script/PatientModuleState.gs`).
 
 ---
 

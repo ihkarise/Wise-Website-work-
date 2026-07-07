@@ -8,6 +8,97 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-10 — Phase 2B Batch PXP-3: Module Registry
+
+Phase 2B's Pillar 2 backend (docs/44 §4.1/§7/§22) — the platform's only mechanism for
+expressing which patient-facing capabilities exist at all (availability) and whether a
+given patient may see one (enablement). Explicitly approved per docs/47's per-batch
+gate. Zero dependency on any other Phase 2B batch beyond the registry itself; zero
+modification to any frozen Foundation/Identity & Access/Patient Access/PXP-1/PXP-2
+file. **No dashboard rendering change ships in this batch** — `my-health-journey/
+dashboard.js` is untouched; that migration is the still-unbuilt Dashboard Registry
+batch (PXP-4).
+
+### Changed
+- **ADR-012 amended a second time** (`adr/ADR-012-dashboard-modules-are-registry-driven.md`)
+  — generalizes the Module Registry's framing from dashboard-specific infrastructure to
+  a platform-wide, data-driven capability-exposure mechanism. The patient dashboard
+  (via the still-unbuilt PXP-4) remains this registry's first and, as of this batch,
+  its only implemented consumer. Timeline, Personal Care Plan, and a future AI system
+  are named, but explicitly not scoped, batched, or authorized, as potential future
+  consumers of this same registry/`PatientModuleState` mechanism — the same
+  "name it, don't scope it" discipline ADR-016 already established for its own six
+  future template categories. No new consumer, batch, or behavior change is authorized
+  by this amendment; `PatientModuleState`'s fail-closed absence-of-row default and
+  docs/44 §14's "enablement is always an explicit doctor/staff action" are unchanged
+  and unreopened. `docs/31-ADR-INDEX.md`'s ADR-012 status line updated to match.
+
+### Added
+- `shared/constants/module-registry.json` + companion `.md` (new) — the Module
+  Registry's static, versioned list of module descriptors (availability, not
+  enablement). Seeded, in this batch, with only the three already-implemented Phase 2A
+  capabilities (Timeline, Symptom Tracker, Reports) — Daily Check-ins, Calculators, and
+  Personal Care Plan are deliberately not pre-declared, since inventing their shape now
+  would front-run their own future batches' design decisions (docs/47 §4). Each
+  descriptor carries display/extensibility metadata (`title`, `description`, `icon`,
+  `display_order`, `visibility`, `permissions`, `data_source`, `empty_state`,
+  `rendering_type`) plus a reserved AI-compatibility field (`future_ai_capable`,
+  docs/44 §7.1's own requirement) and a family of reserved, presently-inert
+  `supports_*` capability flags (`notifications`/`history`/`export`/`badges`/
+  `reminders`/`ai`/`doctor_notes`/`patient_input`) — every reserved field is consumed
+  by zero code in this batch. One field (`enabled_by_default`) was explicitly
+  considered and omitted, disclosed in `module-registry.md`, for risking contradiction
+  with the fail-closed/doctor-only-enablement rule.
+- `apps-script/ModuleRegistry.gs` (new) — `foundationGetModuleRegistry_()`/
+  `foundationGetRegisteredModuleIds_()`, a hand-ported, static copy of the canonical
+  list, mirroring `condition-slugs.json`'s own consumer convention.
+- `shared/schemas/patient-module-state.schema.json` + companion `.md` (new) —
+  `PatientModuleState`: one row per `(patient_id, module_id)` pair, addressed by a
+  server-derived, deterministic `state_key` field (`patient_id + '::' + module_id`) so
+  the frozen, single-idColumn `FoundationDataStore.gs` needed no change for this
+  composite-keyed entity. `enabled`/`enabled_by`/`enabled_at` — fail-closed by absence
+  of a row (ADR-010); `enabled_by`/`enabled_at` are empty-string sentinels for a
+  synthesized, never-written default, the same convention
+  `doctor-assigned-condition.schema.json`'s `resolved_by`/`resolved_at` already
+  establishes.
+- `apps-script/PatientModuleState.gs` (new) — `foundationSetModuleState_()` (doctor/
+  staff-only upsert by `state_key`) and `foundationGetPatientModuleStates_()` (merges
+  real rows with synthesized, fail-closed defaults for every registered module). No
+  real Doctor identity/authentication exists yet (docs/33 §1.4), so enable/disable
+  stays a manually-run Apps Script editor function (`setFoundationModuleState()`),
+  mirroring `DoctorAssignedCondition.gs`'s own precedent exactly.
+- `apps-script/FoundationRouter.gs` — one new, read-only dispatch case,
+  `get_patient_module_states`, deriving `patient_id` exclusively from the verified
+  session. No UI consumes it in this batch — infrastructure for the future Dashboard
+  Registry batch (PXP-4).
+- `validation/phase-2a-foundation/`: Stage 12 in `conformance.js` (validation
+  rejections, the fail-closed default across all three seeded modules, the
+  create-then-update-in-place upsert via `state_key`, distinct rows per module for the
+  same patient, cross-patient isolation on the read route, proof that no
+  enable/disable action is reachable over HTTP dispatch, and audit-log entries for
+  both enable and disable) and `ModuleRegistry.gs`/`PatientModuleState.gs` added to
+  `harness.js`'s `FILES` list — 236/236 conformance checks passing.
+- `validation/static-analysis/analyze.js`'s `MANUAL_DROPDOWN_WRAPPERS` allowlist
+  extended with `setFoundationModuleState`, the same documented exception every prior
+  manually-run editor wrapper already uses.
+
+### Changed (documentation)
+- `docs/33-DOMAIN-MODEL.md` bumped to Version 1.7 — Module Registry and Patient Module
+  State (§6.3) promoted from "Designed, not yet implemented" to **Implemented (backend
+  scaffold)**.
+- `docs/24-ROADMAP.md` bumped to Version 1.8 — Phase 2B status updated: Batch PXP-3
+  shipped.
+- `shared/README.md` — two-line addition noting the new constants file/schema/
+  implementation set.
+
+### Verified
+- Static Analysis: PASS, 0 findings. Conformance: 236/236. Phase 1.5 Regression:
+  42/42. Browser test suites: 168/168 across six suites (`pa-2-dashboard`,
+  `pa-3-timeline`, `pa-4-symptom-tracker`, `pa-5-reports`, `pa-6-public-nav`,
+  `pxp-1-patient-profile`) — unchanged, since this batch adds no patient-facing UI. No
+  new browser-test suite is introduced, matching `DoctorAssignedCondition.gs`'s own
+  PXP-2 precedent (a read-only, UI-less route has no browser-drivable surface to test).
+
 ## 2026-07-09 — Phase 2B Batch PXP-2: Doctor-Assigned Conditions
 
 Phase 2B's Pillar 1 — the platform's only mechanism for expressing which patient needs
