@@ -73,6 +73,10 @@
  * (previously only used by `FoundationLoginTokens.gs`'s system-managed
  * `used_at` patch and this harness's own test fixtures) for a genuinely
  * patient-driven field update.
+ *
+ * Extended in Phase 2B batch PXP-2 with `DoctorAssignedCondition.gs` in the
+ * FILES list — no new mock needed, since it only reuses SpreadsheetApp/
+ * Utilities/Logger primitives already mocked above.
  */
 
 var fs = require('fs');
@@ -99,6 +103,7 @@ var FILES = [
   'FoundationSymptomLog.gs',
   'FoundationReports.gs',
   'FoundationPatientProfile.gs',
+  'DoctorAssignedCondition.gs',
   'FoundationRouter.gs'
 ];
 

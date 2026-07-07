@@ -85,7 +85,9 @@ var MANUAL_DROPDOWN_WRAPPERS = [
   'createFoundationPatient', // PatientIdentity.gs — F3's manually-run patient creation
   'createFoundationLoginToken', // FoundationLoginTokens.gs — IA-1's manually-run token creation
   'createFoundationConsultationEntry', // FoundationConsultationHistory.gs — PA-3's manually-run entry creation
-  'createFoundationReportForExistingDriveFile' // FoundationReports.gs — PA-5's manually-run staff-attributed upload wrapper
+  'createFoundationReportForExistingDriveFile', // FoundationReports.gs — PA-5's manually-run staff-attributed upload wrapper
+  'assignFoundationCondition', // DoctorAssignedCondition.gs — PXP-2's manually-run doctor/staff assignment tool
+  'resolveFoundationCondition' // DoctorAssignedCondition.gs — PXP-2's manually-run doctor/staff resolution tool
 ];
 
 function listGsFiles() {

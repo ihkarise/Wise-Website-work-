@@ -85,6 +85,20 @@
  * both branches; and every field's own validation rule
  * (shared/schemas/patient-profile.md).
  *
+ * Extended in Phase 2B batch PXP-2 with Stage 11, covering
+ * DoctorAssignedCondition.gs against the new
+ * shared/schemas/doctor-assigned-condition.schema.json, plus the one new
+ * FoundationRouter.gs dispatch case (get_doctor_assigned_conditions) end to
+ * end — Phase 2B's Pillar 1. This stage's highest-priority checks are:
+ * every assignment write requires a doctor/staff-supplied patient_id,
+ * condition_slug, and assigned_by (never session-derived, since there is no
+ * patient session at assignment time); many-per-patient (multiple active
+ * assignments coexist for one patient); the resolve operation is a
+ * one-way, exactly-once transition (an unknown or already-resolved
+ * assignment_id is rejected); and the one read route
+ * (get_doctor_assigned_conditions) is session-derived and cross-patient
+ * isolated, with no corresponding write route reachable over HTTP.
+ *
  * Run with: node conformance.js  (no dependencies beyond Node's
  * standard library).
  */
@@ -107,6 +121,7 @@ var symptomLogSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas
 var reportSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/report.schema.json'), 'utf8'));
 var uploadLimits = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'constants/upload-limits.json'), 'utf8'));
 var patientProfileSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/patient-profile.schema.json'), 'utf8'));
+var doctorAssignedConditionSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/doctor-assigned-condition.schema.json'), 'utf8'));
 
 var results = [];
 function record(name, pass, detail) {
@@ -1146,6 +1161,136 @@ var ctx = loadProject(h.sandbox);
   var updatedAuditRows = auditRowsOf(h, 'patient_profile_updated');
   record('Stage10: every subsequent save (direct and via HTTP dispatch) wrote its own patient_profile_updated AuditLog row',
     updatedAuditRows.length === 3);
+})();
+
+// ============================================================
+// Stage 11 (PXP-2) — DoctorAssignedCondition.gs -> doctor-assigned-condition.schema.json,
+// plus FoundationRouter.gs's one new read-only dispatch case end to end.
+// Phase 2B's Pillar 1 — doctor/staff-owned, patient never writes (docs/44
+// §6/§22; docs/47-PHASE-2B-IMPLEMENTATION-RULES.md).
+// ============================================================
+(function stage11_doctorAssignedCondition() {
+  var patientA = ctx.foundationCreatePatient_({
+    full_name: 'Stage11 Patient A', email: 'stage11-a@example.com',
+    condition_slug: 'mcas', created_by: 'conformance-harness'
+  });
+  var patientB = ctx.foundationCreatePatient_({
+    full_name: 'Stage11 Patient B', email: 'stage11-b@example.com',
+    condition_slug: 'mcas', created_by: 'conformance-harness'
+  });
+  record('Stage11: setup — two independent patients exist', patientA.status === 'ok' && patientB.status === 'ok');
+
+  // ---- Validation rejections ----
+  var missingPatientId = ctx.foundationAssignCondition_({ condition_slug: 'mcas', assigned_by: 'dr-rao' });
+  record('Stage11: foundationAssignCondition_() rejects a missing patient_id with FOUNDATION_INVALID_INPUT',
+    missingPatientId.status === 'error' && missingPatientId.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var badConditionSlug = ctx.foundationAssignCondition_({ patient_id: patientA.data.patient_id, condition_slug: 'not-a-real-condition', assigned_by: 'dr-rao' });
+  record('Stage11: foundationAssignCondition_() rejects a condition_slug outside the canonical list',
+    badConditionSlug.status === 'error' && badConditionSlug.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var missingAssignedBy = ctx.foundationAssignCondition_({ patient_id: patientA.data.patient_id, condition_slug: 'mcas' });
+  record('Stage11: foundationAssignCondition_() rejects a missing assigned_by (doctor/staff identifier) with FOUNDATION_INVALID_INPUT',
+    missingAssignedBy.status === 'error' && missingAssignedBy.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  // ---- First assignment: proves the create path ----
+  var assignmentA1 = ctx.foundationAssignCondition_({ patient_id: patientA.data.patient_id, condition_slug: 'mcas', assigned_by: 'dr-rao' });
+  record('Stage11: foundationAssignCondition_() succeeds on valid input', assignmentA1.status === 'ok');
+  var assignmentA1Result = validate(doctorAssignedConditionSchema, assignmentA1.data || {});
+  record('Stage11: a real foundationAssignCondition_() result conforms to doctor-assigned-condition.schema.json',
+    assignmentA1Result.valid === true, assignmentA1Result.errors.join('; '));
+  record('Stage11: a new assignment starts active, with empty-string resolved_at/resolved_by sentinels',
+    assignmentA1.data.status === 'active' && assignmentA1.data.resolved_at === '' && assignmentA1.data.resolved_by === '');
+  record('Stage11: assigned_at is server-set, never accepted from a client-supplied field',
+    typeof assignmentA1.data.assigned_at === 'string' && assignmentA1.data.assigned_at.length > 0);
+
+  // ---- Many-per-patient: a second, independent active assignment for the same patient ----
+  var assignmentA2 = ctx.foundationAssignCondition_({ patient_id: patientA.data.patient_id, condition_slug: 'chronic-urticaria', assigned_by: 'dr-rao' });
+  record('Stage11: a second, independent assignment for the same patient succeeds — many-per-patient, not 1:1',
+    assignmentA2.status === 'ok' && assignmentA2.data.assignment_id !== assignmentA1.data.assignment_id);
+
+  // ---- A different patient's own assignment ----
+  var assignmentB1 = ctx.foundationAssignCondition_({ patient_id: patientB.data.patient_id, condition_slug: 'eczema', assigned_by: 'dr-shah' });
+  record('Stage11: setup — patient B has one independent assignment', assignmentB1.status === 'ok');
+
+  // ---- Resolve: the one-way, exactly-once transition ----
+  var unknownResolve = ctx.foundationResolveCondition_({ assignment_id: 'not-a-real-assignment-id', resolved_by: 'dr-rao' });
+  record('Stage11: foundationResolveCondition_() rejects an unknown assignment_id with FOUNDATION_INVALID_INPUT',
+    unknownResolve.status === 'error' && unknownResolve.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var missingResolvedBy = ctx.foundationResolveCondition_({ assignment_id: assignmentA1.data.assignment_id });
+  record('Stage11: foundationResolveCondition_() rejects a missing resolved_by with FOUNDATION_INVALID_INPUT',
+    missingResolvedBy.status === 'error' && missingResolvedBy.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var resolveA1 = ctx.foundationResolveCondition_({ assignment_id: assignmentA1.data.assignment_id, resolved_by: 'dr-rao' });
+  record('Stage11: foundationResolveCondition_() succeeds on a real, active assignment_id', resolveA1.status === 'ok');
+  var resolveA1Result = validate(doctorAssignedConditionSchema, resolveA1.data || {});
+  record('Stage11: a real foundationResolveCondition_() result conforms to doctor-assigned-condition.schema.json',
+    resolveA1Result.valid === true, resolveA1Result.errors.join('; '));
+  record('Stage11: a resolved assignment has status=resolved and real, server-set resolved_at/resolved_by',
+    resolveA1.data.status === 'resolved' && resolveA1.data.resolved_at.length > 0 && resolveA1.data.resolved_by === 'dr-rao');
+
+  var doubleResolve = ctx.foundationResolveCondition_({ assignment_id: assignmentA1.data.assignment_id, resolved_by: 'dr-rao' });
+  record('Stage11: resolving an already-resolved assignment_id is rejected — a one-way, exactly-once transition',
+    doubleResolve.status === 'error' && doubleResolve.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var doctorAssignedConditionSheetRows = h.spreadsheet.getSheetByName(ctx.FOUNDATION_CONDITION_ASSIGNMENTS_SHEET_)._debug().rows;
+  record('Stage11: the resolve operation patched the existing row in place — no duplicate row was inserted',
+    doctorAssignedConditionSheetRows.filter(function (row) { return row[0] === assignmentA1.data.assignment_id; }).length === 1);
+
+  // ---- foundationGetPatientConditionAssignments_() — many-per-patient, sorted newest first ----
+  var patientAAssignments = ctx.foundationGetPatientConditionAssignments_(patientA.data.patient_id);
+  record('Stage11: foundationGetPatientConditionAssignments_() succeeds', patientAAssignments.status === 'ok');
+  record('Stage11: patient A\'s list contains both of their own assignments (one resolved, one still active), never patient B\'s',
+    patientAAssignments.data.length === 2 &&
+    patientAAssignments.data.every(function (row) { return row.patient_id === patientA.data.patient_id; }));
+  record('Stage11: the list is sorted assigned_at descending (newest first)',
+    patientAAssignments.data[0].assignment_id === assignmentA2.data.assignment_id);
+  var listedRowResult = validate(doctorAssignedConditionSchema, patientAAssignments.data[0]);
+  record('Stage11: a real listed assignment conforms to doctor-assigned-condition.schema.json',
+    listedRowResult.valid === true, listedRowResult.errors.join('; '));
+
+  // ---- FoundationRouter.gs — the one new, read-only dispatch case, end to end ----
+  var sessionA = ctx.foundationIssueSessionToken_(patientA.data.patient_id);
+  var getAssignmentsHttp = ctx.handleFoundationRequest_({ foundation_action: 'get_doctor_assigned_conditions', session_token: sessionA });
+  var getAssignmentsBody = JSON.parse(getAssignmentsHttp._text);
+  record('Stage11: get_doctor_assigned_conditions (real HTTP dispatch) resolves the caller\'s own assignments from a valid session',
+    getAssignmentsBody.status === 'ok' && getAssignmentsBody.data.length === 2);
+  record('Stage11: get_doctor_assigned_conditions derives patient_id only from the verified session, never from a client-supplied field',
+    (function () {
+      var spoofed = ctx.handleFoundationRequest_({
+        foundation_action: 'get_doctor_assigned_conditions', session_token: sessionA, patient_id: patientB.data.patient_id
+      });
+      var spoofedBody = JSON.parse(spoofed._text);
+      return spoofedBody.status === 'ok' && spoofedBody.data.every(function (row) { return row.patient_id === patientA.data.patient_id; });
+    })());
+
+  var sessionB = ctx.foundationIssueSessionToken_(patientB.data.patient_id);
+  var getAssignmentsHttpB = ctx.handleFoundationRequest_({ foundation_action: 'get_doctor_assigned_conditions', session_token: sessionB });
+  var getAssignmentsBodyB = JSON.parse(getAssignmentsHttpB._text);
+  record('Stage11: get_doctor_assigned_conditions over real HTTP dispatch returns only patient B\'s own assignment, never patient A\'s — cross-patient isolation',
+    getAssignmentsBodyB.status === 'ok' && getAssignmentsBodyB.data.length === 1 && getAssignmentsBodyB.data[0].patient_id === patientB.data.patient_id);
+
+  var unauthedGetAssignmentsHttp = ctx.handleFoundationRequest_({ foundation_action: 'get_doctor_assigned_conditions', session_token: 'not-a-real-session-token' });
+  var unauthedGetAssignmentsBody = JSON.parse(unauthedGetAssignmentsHttp._text);
+  record('Stage11: get_doctor_assigned_conditions rejects an invalid session_token with FOUNDATION_UNAUTHORIZED, never leaking any data',
+    unauthedGetAssignmentsBody.status === 'error' && unauthedGetAssignmentsBody.error.code === 'FOUNDATION_UNAUTHORIZED' && unauthedGetAssignmentsBody.data === null);
+
+  record('Stage11: there is no assign/resolve action reachable over HTTP dispatch — doctor/staff writes stay editor-only',
+    (function () {
+      var attemptedAssignHttp = ctx.handleFoundationRequest_({
+        foundation_action: 'assign_doctor_condition', session_token: sessionA, patient_id: patientA.data.patient_id, condition_slug: 'mcas', assigned_by: 'dr-rao'
+      });
+      var attemptedAssignBody = JSON.parse(attemptedAssignHttp._text);
+      return attemptedAssignBody.status === 'error' && attemptedAssignBody.error.code === 'FOUNDATION_UNKNOWN_ACTION';
+    })());
+
+  var assignedAuditRows = auditRowsOf(h, 'condition_assigned');
+  record('Stage11: every successful assignment wrote its own condition_assigned AuditLog row',
+    assignedAuditRows.length === 3);
+  var resolvedAuditRows = auditRowsOf(h, 'condition_resolved');
+  record('Stage11: the successful resolution wrote its own condition_resolved AuditLog row',
+    resolvedAuditRows.length === 1);
 })();
 
 function auditRowsOf(h, eventType) {

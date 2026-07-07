@@ -8,6 +8,66 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-09 — Phase 2B Batch PXP-2: Doctor-Assigned Conditions
+
+Phase 2B's Pillar 1 — the platform's only mechanism for expressing which patient needs
+which capability (docs/44 §4.1). Explicitly approved per docs/47's per-batch gate. Zero
+dependency on any other Phase 2B batch; zero modification to any frozen Foundation/
+Identity & Access/Patient Access/PXP-1 file.
+
+### Added
+- `shared/schemas/doctor-assigned-condition.schema.json` + companion `.md` (new) —
+  `DoctorAssignedCondition`: `assignment_id`, `patient_id`, `condition_slug`,
+  `assigned_by`, `assigned_at`, `status` (active/resolved), plus `resolved_at`/
+  `resolved_by` (empty-string sentinels until resolved — a disclosed, additive
+  completion of docs/44 §6.2's stated "full audit history of every assignment and
+  resolution"). A wholly additive entity — the frozen `Patients` sheet/
+  `patient-identity.schema.json` (ADR-002) is never widened; `Patient.condition_slug`
+  remains exactly where it is, untouched.
+- `apps-script/DoctorAssignedCondition.gs` (new) — `foundationAssignCondition_()`/
+  `foundationResolveCondition_()`/`foundationGetPatientConditionAssignments_()`.
+  Doctor/staff-owned, a hard boundary: the patient never creates, edits, or resolves a
+  row of this shape. No real Doctor identity/authentication exists yet (docs/33 §1.4,
+  a disclosed gap), so — mirroring `PatientIdentity.gs`'s `createFoundationPatient()`
+  precedent exactly — assignment and resolution are manually-run Apps Script editor
+  functions (`assignFoundationCondition()`/`resolveFoundationCondition()`), not a new
+  authenticated Web App route. A resolve is a one-way, exactly-once transition: an
+  unknown or already-resolved `assignment_id` is rejected, never idempotent.
+- `apps-script/FoundationRouter.gs` — one new, read-only dispatch case,
+  `get_doctor_assigned_conditions`, deriving `patient_id` exclusively from the verified
+  session, the same authorization primitive every other Foundation read route already
+  uses. This is the batch's approved, minimal patient-facing surface (docs/44 §22's
+  "zero patient-facing surface beyond a read-only reflection, if any") — infrastructure
+  for later batches (Module Registry, Dashboard Registry, Daily Check-in Engine,
+  Calculator Registry, Personal Care Plan) to eventually consume; no patient-facing UI
+  is built on top of it in this batch.
+- `validation/phase-2a-foundation/`: Stage 11 in `conformance.js` (validation
+  rejections, many-per-patient assignment, the one-way resolve transition and its
+  double-resolve rejection, cross-patient isolation on the read route, and proof that
+  no assign/resolve action is reachable over HTTP dispatch) and
+  `DoctorAssignedCondition.gs` added to `harness.js`'s `FILES` list — 206/206
+  conformance checks passing.
+- `validation/static-analysis/analyze.js`'s `MANUAL_DROPDOWN_WRAPPERS` allowlist
+  extended with `assignFoundationCondition`/`resolveFoundationCondition`, the same
+  documented exception every prior manually-run editor wrapper already uses.
+
+### Changed
+- `docs/33-DOMAIN-MODEL.md` bumped to Version 1.6 — Doctor Assigned Condition (§6.2)
+  promoted from "Designed, not yet implemented" to **Implemented**; docs/45 Version
+  3.0/4.0 Part 1.2's `DoctorAssignedCondition`/`Patient.condition_slug` coexistence
+  loose end resolved (this batch is purely additive; no existing reader migrates).
+- `docs/24-ROADMAP.md` bumped to Version 1.7 — Phase 2B status updated: Batch PXP-2
+  shipped.
+- `shared/README.md` — one-line addition noting the new schema/implementation pair.
+
+### Verified
+- Static Analysis: PASS, 0 findings. Conformance: 206/206. Phase 1.5 Regression: 42/42.
+  Browser test suites: 168/168 across six suites (`pa-2-dashboard`, `pa-3-timeline`,
+  `pa-4-symptom-tracker`, `pa-5-reports`, `pa-6-public-nav`, `pxp-1-patient-profile`) —
+  unchanged, since this batch adds no patient-facing UI. No new browser-test suite is
+  introduced, matching `PatientIdentity.gs`'s own precedent (an editor-only tool has no
+  browser-drivable UI to test).
+
 ## 2026-07-09 — Phase 2B Batch PXP-1: Patient Profile
 
 The first Phase 2B implementation batch, explicitly approved per docs/47's per-batch
