@@ -1,5 +1,5 @@
 # 24 - Wise Product Roadmap
-## Version 1.11 — 2026-07-14
+## Version 1.12 — 2026-07-15
 
 # Phase 1 — Public Website
 Status: In Progress
@@ -173,8 +173,10 @@ grouped into Phase 2A; it did not have a designed architecture and is
 moved to its own phase below. Batch-level sequencing (5A–5H): docs/29 §13.
 
 # Phase 2B — Wise Patient Experience Platform
-Status: **Architecture-freeze finalized (Version 4.0, 2026-07-09).
-Implementation underway: Batch PXP-1 (Patient Profile) shipped 2026-07-09;
+Status: **Closed — frozen except for genuine bug fixes (Batch PXP-11 Closeout,
+2026-07-15, docs/48-PHASE-2B-CLOSEOUT.md).
+Architecture-freeze finalized (Version 4.0, 2026-07-09).
+Implementation: Batch PXP-1 (Patient Profile) shipped 2026-07-09;
 Batch PXP-2 (Doctor-Assigned Conditions) shipped 2026-07-09; Batch PXP-3
 (Module Registry) shipped 2026-07-10; Batch PXP-4 (Dashboard Registry)
 shipped 2026-07-11; Batch PXP-5 (Daily Check-in Engine) shipped 2026-07-12;
@@ -188,7 +190,17 @@ docs/45's own readiness verdict both name it as "not ready for any scoping
 at all," so it was skipped rather than implemented; PXP-10 was approved and
 built directly, out of numeric order, since it carries no dependency on
 PXP-9 (docs/44 §22's own dependency column: PXP-10 depends only on PXP-5
-proven in production).**
+proven in production).** Batch PXP-11 (Closeout) shipped 2026-07-15 —
+**Phase 2B is now closed and frozen except for genuine bug fixes**, per
+docs/48-PHASE-2B-CLOSEOUT.md. A fresh, aggregate re-run of every validation
+suite (710 automated checks across 13 suites, 0 failures) and a repository
+consistency review (docs/47 §14) found and fixed three genuine, disclosed,
+documentation-only inconsistencies in docs/33-DOMAIN-MODEL.md (stale status
+tags left over from Batches PXP-6/PXP-10, corrected — no entity's shape,
+schema, or code changed). Next roadmap milestone: **Phase 2C — Health
+Milestones**, or a future, separately-proposed **PXP-9 — AI Integration**
+design — neither is authorized to begin by this document; each requires
+its own explicit approval, per docs/47 §9's per-batch gate.
 This entry originally named only
 "Personal Care Plan" (per docs/32 Part 2's recommendation), then "Personal
 Care Plan, Module Engine & Personalized Check-ins" after the first
@@ -526,41 +538,50 @@ implementation standard (registry rules, entity rules, validation/
 documentation/git rules, and the mandatory three-phase batch workflow)
 every batch from PXP-1 onward must follow.
 
-**Implementation has begun with Batch PXP-1 (Patient Profile), Batch PXP-2
+**Implementation is complete: Batch PXP-1 (Patient Profile), Batch PXP-2
 (Doctor-Assigned Conditions), Batch PXP-3 (Module Registry), Batch PXP-4
 (Dashboard Registry), Batch PXP-5 (Daily Check-in Engine), Batch PXP-6
 (Calculator Registry, backend only), Batch PXP-7 (Personal Care Plan),
-Batch PXP-8 (Trusted Device + Long-Lived Session, PIN out of scope), and
-Batch PXP-10 (Symptom Tracker Migration),
-all explicitly approved and shipped; no other batch is authorized by any of
-the above documents.** docs/44 §22 sequences **infrastructure before
+Batch PXP-8 (Trusted Device + Long-Lived Session, PIN out of scope),
+Batch PXP-10 (Symptom Tracker Migration), and Batch PXP-11 (Closeout) are
+all explicitly approved and shipped; no batch beyond PXP-11 is authorized by
+any of the above documents.** docs/44 §22 sequences **infrastructure before
 features**:
 Patient Profile → Doctor-Assigned Conditions → Module Registry → Dashboard
 Registry → Daily Check-in Engine → Calculator Registry → Personal Care
 Plan → Trusted Device + Long-Lived Session + Optional PIN → a reserved,
 unscoped "AI Integration" placeholder — plus Symptom Tracker Migration and
-Closeout, eleven batches total (PXP-1 through PXP-11 — renamed from
+Closeout, eleven named batch slots (PXP-1 through PXP-11 — renamed from
 PCP-1 through PCP-11 for platform-wide naming consistency, no scope
-change). **PXP-9 (AI Integration) remains unbuilt, per its own "reserved
+change), ten shipped and one (PXP-9) intentionally left unbuilt.
+**PXP-9 (AI Integration) remains unbuilt, per its own "reserved
 placeholder, not ready for any scoping at all" status (docs/44 §22,
 docs/45)** — PXP-10 (Symptom Tracker Migration) was approved and shipped
 directly after PXP-8, out of the sequence's numeric order but not out of
 its dependency order, since docs/44 §22's own dependency column names only
 "PXP-5 proven in production" as PXP-10's prerequisite, not PXP-9. No batch
 numbers were renumbered; PXP-9's slot stays reserved for a future,
-separately-approved AI Integration proposal.
+separately-approved AI Integration proposal. **Batch PXP-11 (Closeout,
+2026-07-15, docs/48-PHASE-2B-CLOSEOUT.md)** re-ran every validation suite
+fresh as one platform (710 checks across 13 suites, 0 failures), performed
+docs/47 §14's repository consistency review, and found and fixed three
+genuine, disclosed, documentation-only inconsistencies in
+docs/33-DOMAIN-MODEL.md (stale status tags, §5 of docs/48) — no code,
+schema, or architecture changed. **Phase 2B is now closed and frozen except
+for genuine bug fixes.**
 Digital Twin is explicitly **not** part of this sequence — it remains a
 later roadmap consumer of Timeline, Reports, Check-ins, Care Plans, and
 Calculators (Phase 2D), not tightly coupled to Phase 2B's implementation.
-Each remaining batch requires its own separate, explicit approval, per
-docs/43 §12's Phase 2B gate — the same gate PXP-1 itself passed through
-before its implementation began. docs/45 Part 5 flags the optional-PIN
-sub-batch (within PXP-8) as requiring a dedicated security review before it
-specifically can be approved, independent of the rest of the plan — **that
-gate remains open; PXP-8's own shipped scope explicitly excludes PIN**, per
-that same finding. The Public (no-login) Calculator variant remains an
+Any future batch (a real PXP-9 design, or Phase 2C) requires its own
+separate, explicit approval, per docs/47 §9's per-batch gate — the same
+gate every batch through PXP-11 already passed through. docs/45 Part 5
+flagged the optional-PIN sub-batch (within PXP-8) as requiring a dedicated
+security review before it specifically could be approved, independent of
+the rest of the plan — **that gate remains open and unbuilt; PXP-8's
+shipped scope explicitly excluded PIN**, per that same finding, unchanged
+by Phase 2B's closeout. The Public (no-login) Calculator variant remains an
 unclaimed roadmap gap (docs/46 Part 3) — only the Patient variant is
-claimed by this phase.
+claimed by this phase (and only its backend, Batch PXP-6).
 
 # Phase 2C — Health Milestones
 - Scheduled progress reviews (30/90 days, 6 months, 1 year, per docs/21)

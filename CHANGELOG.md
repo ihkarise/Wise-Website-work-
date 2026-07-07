@@ -8,6 +8,71 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-15 — Phase 2B Batch PXP-11: Closeout
+
+Phase 2B's own closeout batch (docs/44 §22, docs/47 §13/§15) — the final named slot
+in the eleven-batch sequence. Documentation-only: no `apps-script/*.gs` file, no
+`shared/schemas/*.schema.json` file, no `shared/constants/*.json` registry file, and
+no patient-facing page was touched. Full record: **docs/48-PHASE-2B-CLOSEOUT.md**
+(new), mirroring docs/43-PHASE-2A-CLOSEOUT.md's own closeout discipline.
+
+Confirmed before any work began: `main` synced, repository clean, and every batch
+PXP-1 through PXP-8 plus PXP-10 frozen with zero code drift; PXP-9 (AI Integration)
+remains the intentionally unbuilt, reserved placeholder docs/44 §22 and docs/45
+already established — this batch does not build it, scope it, or reopen that
+decision.
+
+### Verified (fresh re-run, zero code changes)
+- Static Analysis: PASS, 0 findings (44 `apps-script/*.gs` files).
+- Conformance (`validation/phase-2a-foundation/conformance.js`): 419/419.
+- Phase 1.5 Regression (`validation/phase-1-5/validate.js`): 42/42.
+- Browser Tests: all 10 existing suites pass — `pa-2-dashboard` (30/30),
+  `pa-3-timeline` (29/29), `pa-4-symptom-tracker` (21/21), `pa-5-reports` (32/32),
+  `pa-6-public-nav` (22/22), `pxp-1-patient-profile` (25/25),
+  `pxp-4-dashboard-registry` (23/23), `pxp-5-checkin-engine` (25/25),
+  `pxp-7-care-plan-engine` (17/17), `pxp-8-persistent-login` (25/25).
+- **710 automated checks across 13 suites, 0 failures.** No suite required a fix to
+  pass — every result was already true going into this batch.
+
+### Changed (documentation)
+- **`docs/48-PHASE-2B-CLOSEOUT.md`** (new) — Phase 2B's closeout record: scope
+  recap, validation summary, frozen-file boundary confirmation, the three
+  inconsistencies found and fixed (below), the security-review record, deferred/
+  accepted items, final project statistics, and the release-readiness verdict.
+- **`docs/33-DOMAIN-MODEL.md`** bumped to Version 1.12 — three genuine, disclosed,
+  documentation-only inconsistencies fixed, none changing any entity's shape, schema,
+  or status in substance: §5.3 (Calculator)'s header updated from "Designed, not yet
+  implemented" to "Implemented — backend only" (its own body text already said this,
+  since Batch PXP-6; only the header was stale); §6.4 (the pre-PXP-6 Calculator
+  Registry design), left as an unmarked stale duplicate of §6.8 since PXP-6 shipped,
+  now carries an explicit "Superseded by §6.8" pointer, with the historical text kept,
+  not deleted; §6's own top-level header updated from "Designed, not yet implemented"
+  to "Mostly Implemented," matching the fact that nine of its eleven subsections now
+  are. Also closes a minor, disclosed gap in Batch PXP-10's own version-bump
+  discipline (its 2026-07-15 status updates to §3.2/§6.3 were never reflected in the
+  document's version line).
+- **`docs/24-ROADMAP.md`** bumped to Version 1.12 — Phase 2B status updated:
+  **closed and frozen except for genuine bug fixes**; Batch PXP-11 recorded as
+  shipped; next roadmap milestone named as Phase 2C or a future, separately-proposed
+  PXP-9 design, neither authorized to begin by this document.
+
+### Repository consistency review (docs/47 §14)
+Architecture, schema, contract, and ADR consistency all confirmed already correct —
+docs/31-ADR-INDEX.md and every shipped batch's own CHANGELOG entry cross-checked
+directly, no drift found. No stale cross-reference, TODO/FIXME marker, temporary
+file, debug artifact, or local path found anywhere in `apps-script/`,
+`my-health-journey/`, or `shared/`. Security review: Phase 2B's one genuinely new
+authentication mechanism (Trusted Device + Long-Lived Session, Batch PXP-8) already
+has its own dedicated review recorded in `docs/15-SECURITY-STANDARDS.md` at the time
+it shipped — re-confirmed against the current source, not re-derived; nothing was
+left pending to discover at closeout, unlike Phase 2A's magic-link review. Optional
+PIN remains explicitly out of scope for all of Phase 2B, its dedicated security-review
+gate still open by design.
+
+### Recommendation
+Tag this state `v2.1.0-phase2b`. Do not begin Phase 2C, a real PXP-9 design, or any
+other phase without a separate, explicit approval, per docs/47 §9's per-batch gate.
+
 ## 2026-07-15 — Phase 2B Batch PXP-10: Symptom Tracker Migration
 
 Symptom Tracker Migration (docs/44 §10.1/§22, docs/47) — Symptom Tracker's dashboard
