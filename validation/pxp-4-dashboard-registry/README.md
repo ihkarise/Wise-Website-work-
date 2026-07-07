@@ -8,11 +8,24 @@ consumer of PXP-3's Module Registry plus `PatientModuleState`.
 This suite is the **PXP-4-specific** coverage: the new registry-driven
 surface (per-patient enablement, `display_order`, empty-dashboard state,
 unregistered `data_source` fallback). The pre-existing dashboard shell,
-Timeline, Symptom Tracker, and Reports behavior is still fully covered by
+Timeline, and Reports behavior is still fully covered by
 `validation/pa-2-dashboard/`, `validation/pa-3-timeline/`,
-`validation/pa-4-symptom-tracker/`, `validation/pa-5-reports/`, all of which
-this batch updated (their existing checks continue to pass, unchanged) to
-seed the new `get_patient_module_states` response.
+`validation/pa-5-reports/`, all of which this batch updated (their existing
+checks continue to pass, unchanged) to seed the new
+`get_patient_module_states` response.
+
+## Updated in Batch PXP-10 (Symptom Tracker Migration, docs/44 §10.1/§22)
+
+This suite's own three-module fixtures (tests 1-4, 6 below) used Timeline +
+Symptom Tracker + Reports purely because those were the three modules seeded
+at PXP-3 — none of these tests are about Symptom Tracker specifically.
+`symptom_tracker` is retired from the Module Registry
+(`shared/constants/module-registry.md`'s "Batch PXP-10 removal" section), so
+this suite swaps in `care_plan` (registered by PXP-7) as its third generic
+fixture module — the tests' own intent (fail-closed filtering,
+`display_order`-driven ordering, loader dispatch) is unchanged. Symptom
+Tracker's own retirement is proven directly by
+`validation/pa-4-symptom-tracker/`'s own updated suite, not duplicated here.
 
 ## What this proves
 
@@ -27,11 +40,11 @@ the same discipline every PA-* browser test already uses:
    docs/44 §13.3.
 2. **A subset of enabled modules → only those cards render, in
    `display_order`.** Enabling only `timeline` + `reports` (with
-   `symptom_tracker` explicitly `enabled: false`) yields exactly two
+   `care_plan` explicitly `enabled: false`) yields exactly two
    cards, in order, with the correct DOM ids (`card-timeline-body`,
    `card-reports-body`).
 3. **Every enabled module → all three cards render, ordered by
-   `display_order`.** Timeline (10) < Symptom Tracker (20) < Reports (30) —
+   `display_order`.** Timeline (10) < Reports (30) < Care Plan (40) —
    deliberately fed to the client shuffled to prove that ordering comes
    from the registry, not the response order.
 4. **Each card's registered loader fires exactly once with the correct

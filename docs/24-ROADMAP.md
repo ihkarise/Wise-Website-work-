@@ -180,8 +180,15 @@ Batch PXP-2 (Doctor-Assigned Conditions) shipped 2026-07-09; Batch PXP-3
 shipped 2026-07-11; Batch PXP-5 (Daily Check-in Engine) shipped 2026-07-12;
 Batch PXP-6 (Calculator Registry, backend only) shipped 2026-07-13; Batch
 PXP-7 (Personal Care Plan) shipped 2026-07-14; Batch PXP-8 (Trusted Device +
-Long-Lived Session, PIN out of scope) shipped 2026-07-14, approved as this
-phase's eighth batch per docs/47's per-batch gate.**
+Long-Lived Session, PIN out of scope) shipped 2026-07-14; Batch PXP-10
+(Symptom Tracker Migration) shipped 2026-07-15, approved as this phase's
+ninth shipped batch per docs/47's per-batch gate. **PXP-9 (AI Integration)
+remains an intentionally unscoped, reserved placeholder** — docs/44 §22 and
+docs/45's own readiness verdict both name it as "not ready for any scoping
+at all," so it was skipped rather than implemented; PXP-10 was approved and
+built directly, out of numeric order, since it carries no dependency on
+PXP-9 (docs/44 §22's own dependency column: PXP-10 depends only on PXP-5
+proven in production).**
 This entry originally named only
 "Personal Care Plan" (per docs/32 Part 2's recommendation), then "Personal
 Care Plan, Module Engine & Personalized Check-ins" after the first
@@ -475,6 +482,39 @@ alone remains the complete, unconditional default (docs/44 §5.2). Zero modifica
 any frozen Foundation/Identity & Access/Patient Access/PXP-1..7 file beyond the three
 disclosed exceptions above.
 
+**PXP-9 (AI Integration) is intentionally skipped, not built.** docs/44 §22 names it a
+*"reserved placeholder"* with nothing concrete to implement and docs/45 independently
+confirms it is *"correctly not ready for any scoping at all"* — building anything under
+that name would mean inventing an unapproved AI feature outside the ADR-001/004/005/013
+gate docs/44 §15 requires before any such feature is even designed. No code, schema, or
+documentation exists for PXP-9; it remains reserved for a future, separately-proposed
+and separately-approved AI Integration batch.
+
+**Batch PXP-10 (Symptom Tracker Migration, docs/44 §10.1/§22, docs/47)** — has now
+shipped, built directly after PXP-8 since it depends only on Daily Check-in (PXP-5)
+being proven in production, not on PXP-9. Retires Symptom Tracker's dashboard entry now
+that Daily Check-in (§10.3) is its proven successor: the `symptom_tracker` Module
+Registry entry is removed from all three hand-ported copies
+(`shared/constants/module-registry.json`, `apps-script/ModuleRegistry.gs`,
+`my-health-journey/dashboard.js`), which is sufficient on its own to stop the card
+rendering, since the dashboard has been fully registry-driven since PXP-4 — zero change
+to `renderDashboard()`/`filterEnabledModules()`/`dispatchLoaders()`. Symptom Tracker's
+own dead card-rendering code (quick-log form, summary, condition options) is removed
+from `dashboard.js` in the same change. **`log_symptom`/`get_symptom_logs`
+(`apps-script/FoundationSymptomLog.gs`, `FoundationRouter.gs`'s existing dispatch
+cases) are deprecated by documentation disclosure only — zero lines changed in either
+frozen Phase 2A file**, mirroring PXP-8's own "zero lines changed in a frozen file"
+discipline; both routes stay fully functional, no breaking API contract (docs/47 §6).
+**`SymptomLogs` rows are retained permanently, exactly as docs/44 §10.1/§19 already
+promised** — no row is touched, migrated, or deleted. The standalone Symptom History
+page (`my-health-journey/symptoms/`) is unchanged and still reachable by direct URL; it
+is simply no longer linked from the dashboard, since its only link lived inside the
+now-removed card — a disclosed, deliberate scope boundary (full reasoning:
+`shared/constants/module-registry.md`'s "Batch PXP-10 removal" section,
+`shared/schemas/symptom-log.md`'s "Deprecated" section). Zero modification to any
+frozen Foundation/Identity & Access/Patient Access file beyond the disclosed,
+documentation-only touches above.
+
 See docs/44-PHASE-2B-TECHNICAL-PLAN.md (Version 4.0) for the full design,
 docs/45-PHASE-2B-ARCHITECTURE-READINESS-REVIEW.md (Version 4.0) for the
 critique of every proposal, docs/46-PHASE-2B-REPOSITORY-CONSISTENCY-
@@ -489,8 +529,9 @@ every batch from PXP-1 onward must follow.
 **Implementation has begun with Batch PXP-1 (Patient Profile), Batch PXP-2
 (Doctor-Assigned Conditions), Batch PXP-3 (Module Registry), Batch PXP-4
 (Dashboard Registry), Batch PXP-5 (Daily Check-in Engine), Batch PXP-6
-(Calculator Registry, backend only), Batch PXP-7 (Personal Care Plan), and
-Batch PXP-8 (Trusted Device + Long-Lived Session, PIN out of scope),
+(Calculator Registry, backend only), Batch PXP-7 (Personal Care Plan),
+Batch PXP-8 (Trusted Device + Long-Lived Session, PIN out of scope), and
+Batch PXP-10 (Symptom Tracker Migration),
 all explicitly approved and shipped; no other batch is authorized by any of
 the above documents.** docs/44 §22 sequences **infrastructure before
 features**:
@@ -500,7 +541,14 @@ Plan → Trusted Device + Long-Lived Session + Optional PIN → a reserved,
 unscoped "AI Integration" placeholder — plus Symptom Tracker Migration and
 Closeout, eleven batches total (PXP-1 through PXP-11 — renamed from
 PCP-1 through PCP-11 for platform-wide naming consistency, no scope
-change).
+change). **PXP-9 (AI Integration) remains unbuilt, per its own "reserved
+placeholder, not ready for any scoping at all" status (docs/44 §22,
+docs/45)** — PXP-10 (Symptom Tracker Migration) was approved and shipped
+directly after PXP-8, out of the sequence's numeric order but not out of
+its dependency order, since docs/44 §22's own dependency column names only
+"PXP-5 proven in production" as PXP-10's prerequisite, not PXP-9. No batch
+numbers were renumbered; PXP-9's slot stays reserved for a future,
+separately-approved AI Integration proposal.
 Digital Twin is explicitly **not** part of this sequence — it remains a
 later roadmap consumer of Timeline, Reports, Check-ins, Care Plans, and
 Calculators (Phase 2D), not tightly coupled to Phase 2B's implementation.

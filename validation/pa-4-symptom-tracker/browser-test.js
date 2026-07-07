@@ -1,10 +1,7 @@
 /**
  * Browser-driven verification for Batch PA-4 — the Symptom History page
- * (my-health-journey/symptoms/index.html), the dashboard's Symptom
- * Tracker card now that it carries a real quick-log form and
- * most-recent-value summary (my-health-journey/dashboard.js's
- * loadSymptomPreview()/symptomFormHtml()/symptomSummaryHtml()), and reuse
- * of the shared my-health-journey/session-guard.js module. Mirrors
+ * (my-health-journey/symptoms/index.html) and reuse of the shared
+ * my-health-journey/session-guard.js module. Mirrors
  * validation/pa-3-timeline/browser-test.js's discipline exactly: a local
  * static server + headless Chromium (Playwright), the backend mocked at
  * the network layer, external font requests blocked for speed/determinism,
@@ -15,6 +12,24 @@
  * route's cross-patient isolation, is
  * validation/phase-2a-foundation/conformance.js's Stage 8. This suite
  * verifies frontend behavior only.
+ *
+ * Updated in Batch PXP-10 (Symptom Tracker Migration, docs/44 §10.1/§22,
+ * docs/47): the dashboard's own Symptom Tracker card (quick-log form,
+ * most-recent-value summary — previously
+ * my-health-journey/dashboard.js's loadSymptomPreview()/
+ * symptomFormHtml()/symptomSummaryHtml()) is retired along with the
+ * `symptom_tracker` Module Registry entry
+ * (shared/constants/module-registry.md's "Batch PXP-10 removal" section)
+ * — that code no longer exists in dashboard.js. The five dashboard-card
+ * checks this suite used to run are replaced by one retirement proof
+ * (test 5 below): the dashboard renders with no Symptom Tracker card at
+ * all, even though the endpoint it used to call remains reachable.
+ * **This standalone Symptom History page and its own tests (1-4, 6-9
+ * below) are completely unaffected** — my-health-journey/symptoms/ and
+ * symptoms.js are untouched by PXP-10, still reachable by direct URL, and
+ * `get_symptom_logs` (mocked below) is still fully functional
+ * (deprecated by documentation disclosure only, never by code change —
+ * shared/schemas/symptom-log.md's "Deprecated" section).
  *
  * Run: NODE_PATH=$(npm root -g) node validation/pa-4-symptom-tracker/browser-test.js
  * (see validation/pa-2-dashboard/README.md for why NODE_PATH may be needed)
@@ -132,15 +147,6 @@ async function blockExternalFonts(context) {
   await context.route('https://fonts.gstatic.com/**', (route) => route.abort());
 }
 
-async function fillSymptomForm(page, values) {
-  await page.fill('#sxSeverity', String(values.severity));
-  await page.fill('#sxSleep', String(values.sleep));
-  await page.fill('#sxEnergy', String(values.energy));
-  await page.fill('#sxStress', String(values.stress));
-  if (values.notes !== undefined) await page.fill('#sxNotes', values.notes);
-  if (values.condition_slug !== undefined) await page.selectOption('#sxCondition', values.condition_slug);
-}
-
 async function main() {
   const server = await startServer();
   const baseUrl = `http://127.0.0.1:${server.address().port}`;
@@ -221,100 +227,27 @@ async function main() {
       await context.close();
     }
 
-    // ---- 5. Dashboard: Symptom Tracker card always shows the quick-log form, even with zero entries ----
+    // ---- 5. Dashboard: Symptom Tracker card is retired (Batch PXP-10) — no card, no form, even with a stale enabled state row ----
     {
       const context = await browser.newContext();
       await blockExternalFonts(context);
       const page = await context.newPage();
-      await mockFoundation(page, { symptomLogs: [] });
-      await withSessionToken(page, baseUrl, FAKE_TOKEN);
-      await page.goto(`${baseUrl}/my-health-journey/`);
-      await page.waitForSelector('#greeting:not(:has(.skeleton))');
-      await page.waitForSelector('#symptomForm');
-
-      const fieldCount = await page.$$eval('#symptomForm .field', (els) => els.length);
-      check('Dashboard: Symptom Tracker card renders a multi-field quick-log form (4 scales + notes + condition)', fieldCount === 6);
-
-      const labelsForIds = await page.$$eval('#symptomForm label', (els) => els.map((e) => e.getAttribute('for')));
-      check('Dashboard: every scale field has a real, associated <label for>', ['sxSeverity', 'sxSleep', 'sxEnergy', 'sxStress', 'sxNotes', 'sxCondition'].every((id) => labelsForIds.indexOf(id) !== -1));
-
-      await page.waitForSelector('.badge-nodata');
-      const summaryBadge = await page.textContent('#sxSummary .badge-nodata');
-      check('Dashboard: zero entries still shows the "No entries yet" summary badge alongside the form', summaryBadge === 'No entries yet');
-
-      await context.close();
-    }
-
-    // ---- 6. Dashboard: Symptom Tracker card shows a bare recent-value summary + "View full history" link when entries exist ----
-    {
-      const context = await browser.newContext();
-      await blockExternalFonts(context);
-      const page = await context.newPage();
+      // mockFoundation's own get_patient_module_states response (above)
+      // still includes a symptom_tracker enabled:true row — simulating a
+      // real deployment's leftover PatientModuleState row from before this
+      // batch. Proves the card's absence is driven by the Module Registry
+      // entry being gone (shared/constants/module-registry.md's "Batch
+      // PXP-10 removal"), not merely by a coincidentally-disabled state row.
       await mockFoundation(page, { symptomLogs: SAMPLE_LOGS });
       await withSessionToken(page, baseUrl, FAKE_TOKEN);
       await page.goto(`${baseUrl}/my-health-journey/`);
       await page.waitForSelector('#greeting:not(:has(.skeleton))');
-      await page.waitForSelector('#card-symptom_tracker-body a.secondary');
+      await page.waitForSelector('#card-timeline-body:not(:has(.skeleton))');
 
-      const summaryText = await page.textContent('#sxSummary');
-      check('Dashboard: Symptom Tracker card shows the most recent entry\'s values, not a chart or trend',
-        /2026-07-01/.test(summaryText) && /severity 7/.test(summaryText) && /sleep 4/.test(summaryText));
-
-      const viewFullHref = await page.$eval('#card-symptom_tracker-body a.secondary', (el) => el.getAttribute('href'));
-      check('Dashboard: Symptom Tracker card\'s "View full history" link points at the real Symptom History page',
-        viewFullHref === '../my-health-journey/symptoms/');
-
-      check('Dashboard: the quick-log form is still present even when entries already exist (docs/41 §2: write affordance is the card\'s primary content)',
-        (await page.$('#symptomForm')) !== null);
-
-      await context.close();
-    }
-
-    // ---- 7. Dashboard: submitting the quick-log form succeeds, resets the form, and refreshes the summary ----
-    {
-      const context = await browser.newContext();
-      await blockExternalFonts(context);
-      const page = await context.newPage();
-      await mockFoundation(page, { symptomLogs: [] });
-      await withSessionToken(page, baseUrl, FAKE_TOKEN);
-      await page.goto(`${baseUrl}/my-health-journey/`);
-      await page.waitForSelector('#symptomForm');
-
-      await fillSymptomForm(page, { severity: 6, sleep: 6, energy: 6, stress: 6, notes: 'Test note.', condition_slug: 'mcas' });
-      await page.click('#sxSubmitBtn');
-      await page.waitForSelector('#sxStatus.ok');
-
-      const statusText = await page.textContent('#sxStatus');
-      check('Dashboard: a successful submission shows a confirmation in the aria-live status region', statusText.indexOf('Logged') !== -1);
-
-      const severityAfterReset = await page.inputValue('#sxSeverity');
-      check('Dashboard: a successful submission resets the form', severityAfterReset === '');
-
-      await context.close();
-    }
-
-    // ---- 8. Dashboard: a rejected submission shows the backend's error message and preserves in-progress values ----
-    {
-      const context = await browser.newContext();
-      await blockExternalFonts(context);
-      const page = await context.newPage();
-      await mockFoundation(page, {
-        symptomLogs: [],
-        logSymptomResult: { status: 'error', data: null, error: { code: 'FOUNDATION_INVALID_INPUT', message: 'severity must be a whole number from 1 to 10.' } }
-      });
-      await withSessionToken(page, baseUrl, FAKE_TOKEN);
-      await page.goto(`${baseUrl}/my-health-journey/`);
-      await page.waitForSelector('#symptomForm');
-
-      await fillSymptomForm(page, { severity: 6, sleep: 6, energy: 6, stress: 6 });
-      await page.click('#sxSubmitBtn');
-      await page.waitForSelector('#sxStatus.err');
-
-      const statusText = await page.textContent('#sxStatus');
-      check('Dashboard: a rejected submission shows the backend\'s own message verbatim', statusText === 'severity must be a whole number from 1 to 10.');
-
-      const severityKept = await page.inputValue('#sxSeverity');
-      check('Dashboard: a rejected submission preserves the patient\'s in-progress values (not cleared)', severityKept === '6');
+      check('Dashboard: no Symptom Tracker card DOM element exists, even with a stale enabled PatientModuleState row', (await page.$('#card-symptom_tracker-body')) === null);
+      check('Dashboard: the quick-log form no longer exists anywhere on the dashboard', (await page.$('#symptomForm')) === null);
+      const cardTitles = await page.$$eval('.dash-card h2', (els) => els.map((e) => e.textContent));
+      check('Dashboard: "Symptom Tracker" is not among the rendered card titles', cardTitles.indexOf('Symptom Tracker') === -1);
 
       await context.close();
     }

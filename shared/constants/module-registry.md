@@ -1,7 +1,8 @@
 # Module Registry
 
-Explains `module-registry.json` (version `1.0.0`, the authoritative definition — this
-file explains, it does not define, per `shared/README.md`'s format rule).
+Explains `module-registry.json` (version `1.1.0` as of Batch PXP-10, the authoritative
+definition — this file explains, it does not define, per `shared/README.md`'s format
+rule).
 
 ## Scope: Batch PXP-3 (docs/44-PHASE-2B-TECHNICAL-PLAN.md §7.1/§17/§22)
 
@@ -73,6 +74,51 @@ a patient write affordance. `supports_doctor_notes: true` is set for the first t
 any registry entry (documentation-accurate — this module's entire content is
 doctor-authored — but still not consumed by any authorization check, per this file's
 own "reserved, inert" discipline for every `supports_*` field).
+
+## Batch PXP-10 removal — `symptom_tracker` (2026-07-15)
+
+Symptom Tracker Migration (docs/44 §10.1/§22, docs/47) removes the `symptom_tracker`
+entry seeded by Batch PXP-3 above — the growth pattern this file's header always
+anticipated, run in reverse for the first time. **Depends on Daily Check-in (PXP-5)
+proven in production first**, per docs/44 §22's own PXP-10 row — satisfied, since PXP-5
+shipped and merged (docs/33 §6.5).
+
+**What "dashboard entry removed" means concretely:** the `symptom_tracker` descriptor
+is deleted from all three hand-ported copies (this canonical JSON,
+`apps-script/ModuleRegistry.gs`'s `FOUNDATION_MODULE_REGISTRY_`, and
+`my-health-journey/dashboard.js`'s own `MODULE_REGISTRY`) — the same "update all three
+ports by hand" discipline this file's own header already named. Since the dashboard has
+been fully registry-driven since Batch PXP-4, removing the entry is sufficient on its
+own to stop the card from rendering for every patient; no change to
+`renderDashboard()`/`filterEnabledModules()`/`dispatchLoaders()` is needed or made.
+Dead card-rendering code specific to Symptom Tracker's own quick-log form
+(`symptomFormHtml`/`symptomSummaryHtml`/`refreshSymptomSummary`/`wireSymptomForm`/
+`loadSymptomPreview`/`CONDITION_OPTIONS`/`conditionOptionsHtml`) is removed from
+`dashboard.js` in the same change, along with its `MODULE_LOADERS['get_symptom_logs']`
+registration.
+
+**What "endpoints deprecated" means concretely:** `log_symptom`/`get_symptom_logs`
+(`apps-script/FoundationSymptomLog.gs`, `FoundationRouter.gs`'s existing dispatch
+cases) are **not** modified — zero lines changed in either frozen Phase 2A file,
+mirroring Batch PXP-8's "zero lines changed in `FoundationSession.gs`" discipline. Both
+routes remain fully functional (no breaking API change, docs/47 §6) so a patient who
+still has the standalone Symptom History page open, or any future staff tool, can keep
+reading (and, if reached directly, writing) `SymptomLogs` rows — only the *registry
+availability* that made the route reachable from the dashboard's own card is retired.
+The deprecation itself is recorded as a documentation disclosure —
+`shared/schemas/symptom-log.md`'s own "Deprecated (Batch PXP-10)" section — not a code
+change to either endpoint.
+
+**What is explicitly *not* removed:** `SymptomLogs` rows (never deleted, per docs/44
+§10.1/§19) and the standalone Symptom History page
+(`my-health-journey/symptoms/index.html`, `symptoms.js`) — both remain fully
+functional, reachable by direct URL. This is a disclosed, deliberate scope boundary,
+the same category of decision `care-plan.md`'s own "Disclosed, deliberate scope
+decision" section already used: the page is now orphaned from dashboard navigation
+(its own "View full history" link lived inside the now-removed Symptom Tracker card),
+but deleting a page that still serves a patient's own permanent historical data would
+be a strictly larger, unrequested change than docs/44 §22's own three-item PXP-10
+scope ("dashboard entry removed, endpoints deprecated, SymptomLogs retained") names.
 
 ## Fields at a glance
 

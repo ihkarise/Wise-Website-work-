@@ -11,11 +11,21 @@
  * Covers only PXP-4's own new surface (empty dashboard, per-patient
  * enablement, display_order, unregistered data_source, fail-closed
  * session, pure-function ordering). The pre-existing dashboard shell,
- * Timeline, Symptom Tracker, and Reports behavior is still fully covered
- * by validation/pa-2-dashboard/, pa-3-timeline/, pa-4-symptom-tracker/,
- * pa-5-reports/, all of which this batch updated to seed the new
- * get_patient_module_states call — those existing checks continue to
- * pass unchanged.
+ * Timeline, and Reports behavior is still fully covered by
+ * validation/pa-2-dashboard/, pa-3-timeline/, pa-5-reports/, all of which
+ * this batch updated to seed the new get_patient_module_states call —
+ * those existing checks continue to pass unchanged.
+ *
+ * Updated in Batch PXP-10 (Symptom Tracker Migration, docs/44 §10.1/§22):
+ * this suite's generic three-module fixtures (empty/subset/ordering/loader-
+ * dispatch) used Timeline + Symptom Tracker + Reports as their filler
+ * modules purely because those were the three seeded at PXP-3 — none of
+ * these tests are about Symptom Tracker specifically. Now that
+ * `symptom_tracker` is retired from the Module Registry
+ * (shared/constants/module-registry.md's "Batch PXP-10 removal" section),
+ * this suite swaps in `care_plan` (registered by PXP-7) as its third
+ * generic fixture module — the tests' own intent (fail-closed filtering,
+ * display_order-driven ordering, loader dispatch) is unchanged.
  *
  * No apps-script/*.gs file is exercised by this suite — the backend's
  * own get_patient_module_states route (per-patient merge, cross-patient
@@ -100,7 +110,7 @@ async function mockFoundation(page, opts) {
     moduleStatesEnvelope: null,
     moduleStates: [],
     timeline: [],
-    symptomLogs: [],
+    carePlan: null,
     reports: []
   }, opts || {});
   const calls = [];
@@ -122,8 +132,8 @@ async function mockFoundation(page, opts) {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'ok', data: options.timeline }) });
       return;
     }
-    if (action === 'get_symptom_logs') {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'ok', data: options.symptomLogs }) });
+    if (action === 'get_care_plan') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'ok', data: options.carePlan }) });
       return;
     }
     if (action === 'get_reports') {
@@ -165,7 +175,7 @@ async function main() {
       // module default).
       await mockFoundation(page, { moduleStates: [
         stateRow('timeline', false),
-        stateRow('symptom_tracker', false),
+        stateRow('care_plan', false),
         stateRow('reports', false)
       ] });
       await withSessionToken(page, baseUrl, FAKE_TOKEN);
@@ -191,11 +201,11 @@ async function main() {
       const context = await browser.newContext();
       await blockExternalFonts(context);
       const page = await context.newPage();
-      // Explicit: symptom_tracker is enabled:false, not just missing —
+      // Explicit: care_plan is enabled:false, not just missing —
       // proves filtering, not fallback-to-registry-defaults.
       await mockFoundation(page, { moduleStates: [
         stateRow('timeline', true),
-        stateRow('symptom_tracker', false),
+        stateRow('care_plan', false),
         stateRow('reports', true)
       ] });
       await withSessionToken(page, baseUrl, FAKE_TOKEN);
@@ -207,10 +217,10 @@ async function main() {
       const cardTitles = await page.$$eval('.dash-card h2', (els) => els.map((e) => e.textContent));
       check('Dashboard Registry: exactly the two enabled modules render (Timeline + Reports)',
         cardTitles.length === 2 && cardTitles.indexOf('Timeline') !== -1 && cardTitles.indexOf('Reports') !== -1);
-      check('Dashboard Registry: the disabled Symptom Tracker module does not render even though its registry entry exists',
-        cardTitles.indexOf('Symptom Tracker') === -1);
-      const symptomsCard = await page.$('#card-symptom_tracker-body');
-      check('Dashboard Registry: no DOM element exists for the disabled Symptom Tracker card', symptomsCard === null);
+      check('Dashboard Registry: the disabled Care Plan module does not render even though its registry entry exists',
+        cardTitles.indexOf('Care Plan') === -1);
+      const carePlanCard = await page.$('#card-care_plan-body');
+      check('Dashboard Registry: no DOM element exists for the disabled Care Plan card', carePlanCard === null);
 
       await context.close();
     }
@@ -226,19 +236,19 @@ async function main() {
       // ordering signal).
       await mockFoundation(page, { moduleStates: [
         stateRow('reports', true),
-        stateRow('symptom_tracker', true),
+        stateRow('care_plan', true),
         stateRow('timeline', true)
       ] });
       await withSessionToken(page, baseUrl, FAKE_TOKEN);
       await page.goto(`${baseUrl}/my-health-journey/`);
       await page.waitForSelector('#greeting:not(:has(.skeleton))');
       await page.waitForSelector('#card-timeline-body:not(:has(.skeleton))');
-      await page.waitForSelector('#sxSummary .badge-nodata');
+      await page.waitForSelector('#card-care_plan-body:not(:has(.skeleton))');
       await page.waitForSelector('#reportsList .badge-nodata');
 
       const cardTitles = await page.$$eval('.dash-card h2', (els) => els.map((e) => e.textContent));
       check('Dashboard Registry: cards render strictly in registry display_order regardless of response order',
-        cardTitles.length === 3 && cardTitles[0] === 'Timeline' && cardTitles[1] === 'Symptom Tracker' && cardTitles[2] === 'Reports');
+        cardTitles.length === 3 && cardTitles[0] === 'Timeline' && cardTitles[1] === 'Reports' && cardTitles[2] === 'Care Plan');
 
       // Registry-derived DOM ids too — the id fragment is the registry's
       // module_id, not any hardcoded literal.
@@ -246,8 +256,8 @@ async function main() {
       check('Dashboard Registry: every card\'s DOM id fragment is its registry module_id, not a hardcoded literal',
         cardIds.length === 3 &&
         cardIds[0] === 'card-timeline-title' &&
-        cardIds[1] === 'card-symptom_tracker-title' &&
-        cardIds[2] === 'card-reports-title');
+        cardIds[1] === 'card-reports-title' &&
+        cardIds[2] === 'card-care_plan-title');
 
       await context.close();
     }
@@ -259,32 +269,32 @@ async function main() {
       const page = await context.newPage();
       const calls = await mockFoundation(page, { moduleStates: [
         stateRow('timeline', true),
-        stateRow('symptom_tracker', true),
+        stateRow('care_plan', true),
         stateRow('reports', true)
       ] });
       await withSessionToken(page, baseUrl, FAKE_TOKEN);
       await page.goto(`${baseUrl}/my-health-journey/`);
       await page.waitForSelector('#greeting:not(:has(.skeleton))');
       await page.waitForSelector('#card-timeline-body:not(:has(.skeleton))');
-      await page.waitForSelector('#sxSummary .badge-nodata');
+      await page.waitForSelector('#card-care_plan-body:not(:has(.skeleton))');
       await page.waitForSelector('#reportsList .badge-nodata');
 
       // Dashboard boot: get_profile + get_patient_module_states run in
       // parallel (Promise.all in dashboard.js); then each enabled
       // module's data_source loader fires once. get_reports fires twice —
       // loadReportsPreview() calls refreshReportsList() itself (docs/29 §5's
-      // separate initial load pattern PA-5 committed to). Same for
-      // get_symptom_logs (loadSymptomPreview → refreshSymptomSummary).
+      // separate initial load pattern PA-5 committed to). get_care_plan
+      // fires once — loadCarePlanPreview() calls it directly.
       const profileCalls = calls.filter((a) => a === 'get_profile').length;
       const stateCalls = calls.filter((a) => a === 'get_patient_module_states').length;
       const timelineCalls = calls.filter((a) => a === 'get_timeline').length;
-      const symptomCalls = calls.filter((a) => a === 'get_symptom_logs').length;
+      const carePlanCalls = calls.filter((a) => a === 'get_care_plan').length;
       const reportCalls = calls.filter((a) => a === 'get_reports').length;
 
       check('Dashboard Registry: get_profile is called exactly once', profileCalls === 1);
       check('Dashboard Registry: get_patient_module_states is called exactly once (in parallel with get_profile)', stateCalls === 1);
       check('Dashboard Registry: get_timeline (the Timeline module\'s registered data_source) is called at least once', timelineCalls >= 1);
-      check('Dashboard Registry: get_symptom_logs (the Symptom Tracker module\'s registered data_source) is called at least once', symptomCalls >= 1);
+      check('Dashboard Registry: get_care_plan (the Care Plan module\'s registered data_source) is called at least once', carePlanCalls >= 1);
       check('Dashboard Registry: get_reports (the Reports module\'s registered data_source) is called at least once', reportCalls >= 1);
 
       // No orphan calls to actions that aren't a registered data_source
@@ -292,7 +302,7 @@ async function main() {
       // loaders, never a hardcoded fallback.
       const unexpected = calls.filter((a) =>
         a !== 'get_profile' && a !== 'get_patient_module_states' &&
-        a !== 'get_timeline' && a !== 'get_symptom_logs' && a !== 'get_reports'
+        a !== 'get_timeline' && a !== 'get_care_plan' && a !== 'get_reports'
       );
       check('Dashboard Registry: no unexpected foundation_action is called during dashboard boot', unexpected.length === 0);
 
@@ -382,16 +392,16 @@ async function main() {
 
       const result = await page.evaluate(() => {
         const input = [
-          { state_key: 'p1::reports',         patient_id: 'p1', module_id: 'reports',         enabled: true,  enabled_by: 's', enabled_at: 't' },
-          { state_key: 'p1::symptom_tracker', patient_id: 'p1', module_id: 'symptom_tracker', enabled: false, enabled_by: '',  enabled_at: '' },
-          { state_key: 'p1::timeline',        patient_id: 'p1', module_id: 'timeline',        enabled: true,  enabled_by: 's', enabled_at: 't' },
-          { state_key: 'p1::not_a_module',    patient_id: 'p1', module_id: 'not_a_module',    enabled: true,  enabled_by: 's', enabled_at: 't' }
+          { state_key: 'p1::reports',   patient_id: 'p1', module_id: 'reports',   enabled: true,  enabled_by: 's', enabled_at: 't' },
+          { state_key: 'p1::care_plan', patient_id: 'p1', module_id: 'care_plan', enabled: false, enabled_by: '',  enabled_at: '' },
+          { state_key: 'p1::timeline',  patient_id: 'p1', module_id: 'timeline',  enabled: true,  enabled_by: 's', enabled_at: 't' },
+          { state_key: 'p1::not_a_module', patient_id: 'p1', module_id: 'not_a_module', enabled: true, enabled_by: 's', enabled_at: 't' }
         ];
         return window.WiseDashboard.filterEnabledModules(input).map((e) => e.descriptor.module_id);
       });
       check('filterEnabledModules: returns entries in display_order regardless of input order', result.length === 2 && result[0] === 'timeline' && result[1] === 'reports');
       check('filterEnabledModules: silently drops an enabled state row whose module_id is not in the registry (fail-closed on unknown modules)', result.indexOf('not_a_module') === -1);
-      check('filterEnabledModules: drops entries with enabled === false (the sole enablement source is PatientModuleState.enabled, not registry presence)', result.indexOf('symptom_tracker') === -1);
+      check('filterEnabledModules: drops entries with enabled === false (the sole enablement source is PatientModuleState.enabled, not registry presence)', result.indexOf('care_plan') === -1);
 
       await context.close();
     }

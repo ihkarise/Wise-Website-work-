@@ -2,8 +2,8 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://wisehomeopathy.com/shared/constants/module-registry.json",
   "title": "Module Registry",
-  "version": "1.0.0",
-  "description": "The canonical, static list of Module Registry descriptors — Phase 2B Batch PXP-3 (docs/44-PHASE-2B-TECHNICAL-PLAN.md §7.1/§17/§22, ADR-012 (amended), docs/47-PHASE-2B-IMPLEMENTATION-RULES.md). Defines which patient-facing capabilities exist on the platform at all (availability) — per-patient enablement is a separate, Sheet-backed concern (shared/schemas/patient-module-state.schema.json). Seeded, in Batch PXP-3, with only the three already-implemented Phase 2A capabilities — a new module belonging to a not-yet-built capability is added as its own registry entry by the batch that actually designs and builds it (docs/47 §4), never pre-declared by an earlier batch guessing its data_source/shape. Batch PXP-5 adds a fourth entry ('daily_checkin', docs/44 §10/§11/§22) and Batch PXP-7 adds a fifth ('care_plan', docs/44 §12/§22) — exactly this growth pattern; Calculators remain deliberately not pre-declared for their own future batch. See module-registry.md for the field-by-field explanation, which fields are reserved/inert extension points, and which fields this batch actually consumes. apps-script/ModuleRegistry.gs hand-ports this list into its own Foundation-prefixed array, the same convention condition-slugs.json's consumers already use.",
+  "version": "1.1.0",
+  "description": "The canonical, static list of Module Registry descriptors — Phase 2B Batch PXP-3 (docs/44-PHASE-2B-TECHNICAL-PLAN.md §7.1/§17/§22, ADR-012 (amended), docs/47-PHASE-2B-IMPLEMENTATION-RULES.md). Defines which patient-facing capabilities exist on the platform at all (availability) — per-patient enablement is a separate, Sheet-backed concern (shared/schemas/patient-module-state.schema.json). Seeded, in Batch PXP-3, with only the three already-implemented Phase 2A capabilities — a new module belonging to a not-yet-built capability is added as its own registry entry by the batch that actually designs and builds it (docs/47 §4), never pre-declared by an earlier batch guessing its data_source/shape. Batch PXP-5 adds a fourth entry ('daily_checkin', docs/44 §10/§11/§22) and Batch PXP-7 adds a fifth ('care_plan', docs/44 §12/§22) — exactly this growth pattern; Calculators remain deliberately not pre-declared for their own future batch. **Batch PXP-10 (docs/44 §10.1/§22, docs/47) removes the 'symptom_tracker' entry** — Daily Check-in (PXP-5) proven in production is this migration's replacement; SymptomLogs rows are retained permanently and the standalone Symptom History page remains reachable, only the dashboard entry point and Module Registry availability are retired (see module-registry.md's own 'Batch PXP-10 removal' section). See module-registry.md for the field-by-field explanation, which fields are reserved/inert extension points, and which fields this batch actually consumes. apps-script/ModuleRegistry.gs hand-ports this list into its own Foundation-prefixed array, the same convention condition-slugs.json's consumers already use.",
   "modules": [
     {
       "module_id": "timeline",
@@ -25,27 +25,6 @@
       "supports_ai": false,
       "supports_doctor_notes": false,
       "supports_patient_input": false
-    },
-    {
-      "module_id": "symptom_tracker",
-      "title": "Symptom Tracker",
-      "description": "The patient's own severity/sleep/energy/stress self-report history.",
-      "icon": "symptoms",
-      "display_order": 20,
-      "visibility": "patient",
-      "permissions": [],
-      "data_source": "get_symptom_logs",
-      "empty_state": "nodata",
-      "rendering_type": "card",
-      "future_ai_capable": false,
-      "supports_notifications": false,
-      "supports_history": true,
-      "supports_export": false,
-      "supports_badges": false,
-      "supports_reminders": true,
-      "supports_ai": false,
-      "supports_doctor_notes": false,
-      "supports_patient_input": true
     },
     {
       "module_id": "reports",

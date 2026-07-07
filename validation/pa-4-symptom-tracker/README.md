@@ -1,13 +1,28 @@
 # Patient Access Batch PA-4 Browser Testing
 
 Browser-driven verification for the Symptom History page
-(`my-health-journey/symptoms/index.html`), the dashboard's Symptom Tracker card now
-that it carries a real quick-log form and most-recent-value summary
-(`my-health-journey/dashboard.js`'s `loadSymptomPreview()`), and reuse of the shared
+(`my-health-journey/symptoms/index.html`) and reuse of the shared
 `my-health-journey/session-guard.js` module. Mirrors `validation/pa-3-timeline/`'s
 discipline exactly — a local static server + headless Chromium (Playwright), the
 backend mocked at the network layer, external font requests blocked for
 speed/determinism, keyboard-driven focus checks.
+
+## Updated in Batch PXP-10 (Symptom Tracker Migration, docs/44 §10.1/§22, docs/47)
+
+The dashboard's own Symptom Tracker card (quick-log form, most-recent-value summary)
+is retired along with the `symptom_tracker` Module Registry entry
+(`shared/constants/module-registry.md`'s "Batch PXP-10 removal" section) — that
+rendering code no longer exists in `dashboard.js`. The five dashboard-card checks this
+suite used to run (quick-log form present, summary + "View full history" link,
+successful/rejected submission) are replaced by one retirement proof: the dashboard
+renders with no Symptom Tracker card at all, even when the mocked backend still
+returns a stale `symptom_tracker` `enabled: true` `PatientModuleState` row — proving
+the card's absence is driven by the registry entry being gone, not a coincidentally
+disabled state row. **The standalone Symptom History page and its own tests below are
+completely unaffected** — `my-health-journey/symptoms/` and `symptoms.js` are
+untouched, still reachable by direct URL, and `get_symptom_logs` (mocked below) is
+still fully functional — deprecated by documentation disclosure only
+(`shared/schemas/symptom-log.md`'s "Deprecated" section), never by a code change.
 
 ## What this proves, and how
 
@@ -21,15 +36,10 @@ Covers: the Symptom History list rendering real entries newest-first with escape
 notes (a deliberately malicious `<script>` fixture proves it is never rendered as a
 live element) and the optional condition tag; the "No entries yet" Empty State for a
 zero-entry patient; a network-failure fallback that preserves the session; the
-dashboard's Symptom Tracker card always showing the quick-log form (the card's primary
-content, per docs/41 §2, present regardless of whether entries exist yet) with every
-scale field carrying a real `<label for>`; the bare most-recent-value summary + "View
-full history" link once entries exist; a successful quick-log submission showing an
-`aria-live` confirmation and resetting the form; a rejected submission showing the
-backend's own message verbatim while preserving the patient's in-progress values
-(docs/41 §11); sign-out from the Symptom History page; 375px responsive layout; and
-real keyboard-driven focus-visibility and heading-hierarchy checks (including
-confirming the entry list is a genuine `<ol>`, not decorative `<div>`s).
+dashboard's retirement of the Symptom Tracker card (Batch PXP-10, above); sign-out
+from the Symptom History page; 375px responsive layout; and real keyboard-driven
+focus-visibility and heading-hierarchy checks (including confirming the entry list is
+a genuine `<ol>`, not decorative `<div>`s).
 
 ## Running it
 

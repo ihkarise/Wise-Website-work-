@@ -398,7 +398,7 @@ moment has arrived — not before (`shared/schemas/consultation-history.md`).
 
 ---
 
-## 3.2 Symptom Log — *Implemented (Batch PA-4)*
+## 3.2 Symptom Log — *Implemented (Batch PA-4), retired from the patient dashboard (Batch PXP-10)*
 
 **Purpose:** A patient's own, plain data-capture entry — severity, sleep, energy,
 stress, and optional notes — logged by the patient, about themselves. The only entity
@@ -423,6 +423,28 @@ one entity.
 
 **Future evolution:** The natural first data source for Digital Twin's "symptom trends"
 (docs/09) once Phase 2D exists — no schema change anticipated, only a new consumer.
+
+**Status update (2026-07-15, Batch PXP-10): dashboard entry retired, endpoints
+deprecated, data retained.** Symptom Tracker Migration (docs/44 §10.1/§22, docs/47),
+gated on Daily Check-in (§6.5) proven in production — satisfied, since PXP-5 shipped
+and merged. The `symptom_tracker` Module Registry entry is removed from all three
+hand-ported copies (`shared/constants/module-registry.json`,
+`apps-script/ModuleRegistry.gs`, `my-health-journey/dashboard.js`'s own
+`MODULE_REGISTRY`), so the dashboard's fully registry-driven rendering (Batch PXP-4)
+simply stops rendering the card for every patient — zero change to
+`renderDashboard()`/`filterEnabledModules()`/`dispatchLoaders()` itself. **This
+section's own schema, lifecycle, and `apps-script/FoundationSymptomLog.gs` are
+completely unchanged** — zero lines touched in that frozen file or in
+`FoundationRouter.gs`'s existing `log_symptom`/`get_symptom_logs` dispatch cases,
+mirroring Batch PXP-8's own "zero lines changed in a frozen file" discipline; both
+routes stay fully functional (no breaking API contract, docs/47 §6). **Data is retained
+exactly as this section's own "never edited or deleted" lifecycle already promised** —
+no `SymptomLogs` row is touched, migrated, or deleted by this batch. The standalone
+Symptom History page (`my-health-journey/symptoms/`) is unchanged and still reachable
+by direct URL; it is simply no longer linked from the dashboard, since its only link
+lived inside the now-removed card. Full detail:
+`shared/schemas/symptom-log.md`'s own "Deprecated (Batch PXP-10)" section and
+`shared/constants/module-registry.md`'s own "Batch PXP-10 removal" section.
 
 ---
 
@@ -764,6 +786,14 @@ own status updates for the shipped shape, the disclosed additive `version_key` f
 and the disclosed decision not to emit a Timeline Event in this batch (docs/44 §12
 names this; doing so would require touching two frozen Phase 2A files for new
 functionality, not a bug fix, per docs/47 §6).
+**Updated 2026-07-15** for Batch PXP-10 (implementation, docs/44 §10.1/§22, docs/47):
+§3.2 (Symptom Log) updated in place — its dashboard entry is retired (the
+`symptom_tracker` Module Registry entry removed from all three hand-ported copies) and
+its `log_symptom`/`get_symptom_logs` endpoints are deprecated by documentation
+disclosure only (zero lines changed in either frozen Apps Script file); `SymptomLogs`
+rows are retained permanently and the standalone Symptom History page remains
+reachable by direct URL, unlinked from the dashboard. §6.3 (Module Registry) updated
+to record the registry's first removal.
 
 ## 6.1 Patient Profile — *Implemented (Batch PXP-1)*
 **Purpose:** Patient-editable structured contact/personal data (phone, date of birth,
@@ -892,6 +922,17 @@ batch is entirely a frontend consumer of PXP-3's already-shipped
 dashboard, per-patient enablement, `display_order` ordering, unregistered
 `data_source` fail-soft, `filterEnabledModules` pure-function behavior, session
 fail-closed on state rejection).
+
+**Status update (2026-07-15, Batch PXP-10):** the registry's first removal. The
+`symptom_tracker` entry (§6.3's own PXP-3 seeding) is deleted from all three
+hand-ported copies (`shared/constants/module-registry.json`,
+`apps-script/ModuleRegistry.gs`, `my-health-journey/dashboard.js`), the same
+"update all three ports by hand" discipline every prior addition already followed, run
+in reverse for the first time. `PatientModuleState` itself is unaffected — any
+already-persisted `symptom_tracker` row simply stops matching a registry entry and is
+silently dropped by `foundationGetPatientModuleStates_()`'s existing registry-merge
+logic (no schema change, no migration). See §3.2's own status update and
+`shared/constants/module-registry.md`'s "Batch PXP-10 removal" section for full detail.
 
 ## 6.4 Calculator Registry, Calculator Definition, and Calculator Result — *Pillar 3*
 **Purpose:** A registry of available calculators (Calculator Registry, mirroring the
@@ -1074,7 +1115,7 @@ labeled test-only fixture pushed directly into the test harness's own registry a
 | Doctor Instruction | **Implemented** | 2B (docs/44 §12, batch PXP-7 — shipped, doctor/staff-owned, aggregated by Care Plan via its stable care_plan_id) |
 | AI Summary | Conceptual (pattern) | Instantiated by Phase 1.5, 2D |
 | Timeline Event | Implemented | 2A (Batch PA-3, one entry_type) |
-| Symptom Log | Implemented | 2A (Batch PA-4) — Phase 2B coexists with, later retires (docs/44 §10.1, §22 batch PXP-10) |
+| Symptom Log | Implemented, **dashboard entry retired (Batch PXP-10)** | 2A (Batch PA-4) — dashboard entry removed and endpoints deprecated (docs/44 §10.1, §22 batch PXP-10, shipped); `SymptomLogs` rows and their standalone history page remain, schema/Apps Script file unchanged |
 | Report | Implemented | 2A (Batch PA-5) |
 | Care Plan | **Implemented** | 2B (docs/44 §12, batch PXP-7 — shipped, one evolving plan per patient, append-only versioned, Timeline Event emission deliberately deferred — see §3.4's own status update) |
 | Digital Twin | Conceptual (view) | Recommended 2D — future consumer of Timeline, Reports, Check-ins, Care Plans, Calculators (docs/44 §16), not tightly coupled to Phase 2B |
@@ -1085,7 +1126,7 @@ labeled test-only fixture pushed directly into the test harness's own registry a
 | Calculator | **Implemented — backend only — Pillar 3** | 2B (docs/44 §8, batch PXP-6, Calculator Registry — shipped, registry seeded empty, no UI; see §6.8). Public variant still unassigned — roadmap gap carried forward (docs/46 Part 3). |
 | Patient Profile | **Implemented** | 2B (docs/44 §17, batch PXP-1 — shipped, the platform's first upsert-style entity) |
 | Doctor Assigned Condition | **Implemented — Pillar 1** | 2B (docs/44 §6, batch PXP-2 — shipped, doctor/staff-owned; renamed from "Condition Assignment"; Option B (additive) settled and approved) |
-| Module Registry / Patient Module State | **Implemented (backend scaffold + frontend consumer) — Pillar 2** | 2B (docs/44 §7, batch PXP-3 backend — shipped; docs/44 §7.3/§13, batch PXP-4 Dashboard Registry frontend consumer — shipped; the patient dashboard now renders every card from `PatientModuleState` × Module Registry, no hardcoded module knowledge in the render path) |
+| Module Registry / Patient Module State | **Implemented (backend scaffold + frontend consumer) — Pillar 2** | 2B (docs/44 §7, batch PXP-3 backend — shipped; docs/44 §7.3/§13, batch PXP-4 Dashboard Registry frontend consumer — shipped; the patient dashboard now renders every card from `PatientModuleState` × Module Registry, no hardcoded module knowledge in the render path; batch PXP-10 removed the `symptom_tracker` entry — the registry's first removal, docs/44 §10.1/§22) |
 | Template Registry | **Implemented** | 2B (docs/44 §11/§11.5, ADR-016, batch PXP-5 — shipped, seeded with one template). Generalizes Check-In Template into a registry pattern; six future categories named, unscoped, unclaimed by any batch. |
 | Check-In Template / Check-In Response | **Implemented** | 2B (docs/44 §11/§10, batch PXP-5 — shipped, shipped alongside Symptom Log, never replacing it). Template assignment settled: doctor-driven, patient never configures, enforced server-side via the disclosed additive `CheckInTemplateAssignment` entity. Now the Template Registry's first concrete category (§6.7). |
 | Check-In Template Assignment (disclosed, additive gap-fill) | **Implemented** | 2B (docs/44 §10.2, batch PXP-5 — shipped). Fills a gap docs/44 §10.2 settles but names no persisted shape for; an exact structural mirror of Doctor Assigned Condition (§6.2). |

@@ -28,9 +28,9 @@
   // (ii) register a loader against its data_source in MODULE_LOADERS
   // below — renderDashboard() itself never learns any specific module_id.
   //
-  // Hand-ported from shared/constants/module-registry.json version 1.0.0 —
-  // the same "port a shared/ definition into a consuming file" convention
-  // CONDITION_OPTIONS (below), REPORT_MAX_UPLOAD_BYTES (below), and
+  // Hand-ported from shared/constants/module-registry.json (version 1.1.0
+  // as of Batch PXP-10) — the same "port a shared/ definition into a
+  // consuming file" convention REPORT_MAX_UPLOAD_BYTES (below) and
   // apps-script/ModuleRegistry.gs's FOUNDATION_MODULE_REGISTRY_ already use
   // (a browser has no ES-module/build-step to read the canonical JSON at
   // runtime — a static hand-port is the same discipline every other
@@ -45,11 +45,16 @@
   // the same growth this file's own header comment already anticipated
   // ("Adding a new module later means (i) add a registry entry ..."). The
   // three PXP-4 rows above are untouched. Batch PXP-7 (docs/44 §12/§22)
-  // adds 'care_plan' the same way — every earlier row is untouched.
+  // adds 'care_plan' the same way — every earlier row is untouched. Batch
+  // PXP-10 (docs/44 §10.1/§22, docs/47) removes the 'symptom_tracker' row —
+  // Symptom Tracker's dashboard entry is retired now that Daily Check-in is
+  // proven in production; SymptomLogs rows are retained permanently and the
+  // standalone Symptom History page (my-health-journey/symptoms/) remains
+  // reachable directly, only its dashboard entry point is gone (see
+  // shared/constants/module-registry.md's "Batch PXP-10 removal" section).
   var MODULE_REGISTRY = [
     { module_id: 'timeline',        title: 'Timeline',        display_order: 10, empty_state: 'nodata', data_source: 'get_timeline' },
     { module_id: 'daily_checkin',   title: 'Daily Check-in',  display_order: 15, empty_state: 'nodata', data_source: 'get_checkin_responses' },
-    { module_id: 'symptom_tracker', title: 'Symptom Tracker', display_order: 20, empty_state: 'nodata', data_source: 'get_symptom_logs' },
     { module_id: 'reports',         title: 'Reports',         display_order: 30, empty_state: 'nodata', data_source: 'get_reports' },
     { module_id: 'care_plan',       title: 'Care Plan',       display_order: 40, empty_state: 'nodata', data_source: 'get_care_plan' }
   ];
@@ -131,29 +136,6 @@
     }).join('');
     return '<ul style="list-style:none;padding:0;margin:0 0 14px">' + items + '</ul>' +
       '<a class="secondary" href="../my-health-journey/timeline/">View full timeline</a>';
-  }
-
-  // Batch PA-4: the Symptom Tracker card's canonical condition-slug
-  // options, manually adapted from shared/constants/condition-slugs.json
-  // version 1.0.0 (the same "port a shared/ definition into a consuming
-  // file" convention apps-script/FoundationSymptomLog.gs's own
-  // FOUNDATION_ALLOWED_CONDITION_SLUGS_ already uses) — update both
-  // places by hand if the canonical list ever changes.
-  var CONDITION_OPTIONS = [
-    { slug: 'mcas', label: 'MCAS (Mast Cell Activation Syndrome)' },
-    { slug: 'hashimotos-thyroiditis', label: "Hashimoto's Thyroiditis" },
-    { slug: 'chronic-urticaria', label: 'Chronic Urticaria' },
-    { slug: 'eczema', label: 'Eczema' },
-    { slug: 'allergic-rhinitis', label: 'Allergic Rhinitis' },
-    { slug: 'eosinophilic-esophagitis', label: 'Eosinophilic Esophagitis' },
-    { slug: 'pots', label: 'POTS' },
-    { slug: 'dermographism', label: 'Dermographism' }
-  ];
-
-  function conditionOptionsHtml() {
-    return '<option value="">— None —</option>' + CONDITION_OPTIONS.map(function (c) {
-      return '<option value="' + c.slug + '">' + escapeHtmlForDisplay(c.label) + '</option>';
-    }).join('');
   }
 
   // Batch PA-5: manually adapted from shared/constants/upload-limits.json
@@ -321,132 +303,16 @@
     refreshReportsList(sessionToken);
   }
 
-  // The Symptom Tracker card's write affordance (docs/29 §9, docs/41 §2) —
-  // the only dashboard card whose primary content is a form, not a read
-  // preview. All four scale fields are plain number inputs (type="number",
-  // min/max/step), not range sliders — sidesteps the "bare slider with no
-  // visible value" accessibility gap docs/41 §13 warns about, while still
-  // reusing assets/site.css's existing .field/label pattern unchanged.
-  function symptomFormHtml() {
-    return '<form id="symptomForm">' +
-      '<div style="display:flex;gap:10px">' +
-      '<div class="field" style="flex:1"><label for="sxSeverity">Severity (1–10)</label><input id="sxSeverity" type="number" min="1" max="10" step="1" required></div>' +
-      '<div class="field" style="flex:1"><label for="sxSleep">Sleep (1–10)</label><input id="sxSleep" type="number" min="1" max="10" step="1" required></div>' +
-      '</div>' +
-      '<div style="display:flex;gap:10px">' +
-      '<div class="field" style="flex:1"><label for="sxEnergy">Energy (1–10)</label><input id="sxEnergy" type="number" min="1" max="10" step="1" required></div>' +
-      '<div class="field" style="flex:1"><label for="sxStress">Stress (1–10)</label><input id="sxStress" type="number" min="1" max="10" step="1" required></div>' +
-      '</div>' +
-      '<div class="field"><label for="sxNotes">Notes (optional)</label><textarea id="sxNotes" rows="2"></textarea></div>' +
-      '<div class="field"><label for="sxCondition">Condition tag (optional)</label><select id="sxCondition">' + conditionOptionsHtml() + '</select></div>' +
-      '<button class="submit" type="submit" id="sxSubmitBtn">Log symptoms</button>' +
-      '<div class="status" id="sxStatus" role="status" aria-live="polite"></div>' +
-      '</form>' +
-      '<div id="sxSummary" style="margin-top:14px"></div>';
-  }
-
-  // The card's "at most a bare recent-value list" (docs/29 §9) — the
-  // most recent entry's four values, one line, no chart, no trend.
-  function symptomSummaryHtml(entries) {
-    if (!entries.length) {
-      return emptyStateHtml('nodata', 'Your logged symptoms will appear here once you log your first entry.');
-    }
-    var latest = entries[0];
-    return '<p style="margin:0 0 8px;font-size:13.5px;color:var(--color-text-secondary)">' +
-      '<strong style="color:var(--color-brand-strong)">Last logged ' + escapeHtmlForDisplay(latest.logged_at.slice(0, 10)) + '</strong> — ' +
-      'severity ' + escapeHtmlForDisplay(latest.severity) + ', sleep ' + escapeHtmlForDisplay(latest.sleep) +
-      ', energy ' + escapeHtmlForDisplay(latest.energy) + ', stress ' + escapeHtmlForDisplay(latest.stress) +
-      '</p>' +
-      '<a class="secondary" href="../my-health-journey/symptoms/">View full history</a>';
-  }
-
-  // Independent of loadTimelinePreview()'s own call, same "per-card
-  // loading, one failure never disturbs another card" discipline PA-3
-  // established.
-  function refreshSymptomSummary(sessionToken) {
-    var summaryEl = document.getElementById('sxSummary');
-    if (!summaryEl) return;
-    fetch(WEB_APP_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ foundation_action: 'get_symptom_logs', session_token: sessionToken })
-    })
-      .then(function (response) { return response.json(); })
-      .then(function (data) {
-        if (data.status === 'ok' && Array.isArray(data.data)) {
-          summaryEl.innerHTML = symptomSummaryHtml(data.data);
-        } else {
-          summaryEl.innerHTML = '<p class="empty-text">Could not load your symptom history. Check your connection and reload the page.</p>';
-        }
-      })
-      .catch(function () {
-        summaryEl.innerHTML = '<p class="empty-text">Could not load your symptom history. Check your connection and reload the page.</p>';
-      });
-  }
-
-  // Submission feedback via the existing .status/role=status/aria-live
-  // component (login.html's own pattern) — this phase's first form whose
-  // patient stays on the same page after submitting, so an aria-live
-  // region actually matters here for the first time (docs/41 §13).
-  function wireSymptomForm(sessionToken) {
-    var form = document.getElementById('symptomForm');
-    var submitBtn = document.getElementById('sxSubmitBtn');
-    var statusBox = document.getElementById('sxStatus');
-
-    form.addEventListener('submit', function (event) {
-      event.preventDefault();
-      if (!form.checkValidity()) {
-        form.reportValidity();
-        return;
-      }
-      submitBtn.disabled = true;
-      statusBox.className = 'status loading';
-      statusBox.textContent = 'Saving…';
-
-      fetch(WEB_APP_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({
-          foundation_action: 'log_symptom',
-          session_token: sessionToken,
-          severity: Number(document.getElementById('sxSeverity').value),
-          sleep: Number(document.getElementById('sxSleep').value),
-          energy: Number(document.getElementById('sxEnergy').value),
-          stress: Number(document.getElementById('sxStress').value),
-          notes: document.getElementById('sxNotes').value,
-          condition_slug: document.getElementById('sxCondition').value
-        })
-      })
-        .then(function (response) { return response.json(); })
-        .then(function (data) {
-          submitBtn.disabled = false;
-          if (data.status === 'ok') {
-            statusBox.className = 'status ok';
-            statusBox.textContent = 'Logged. Thank you.';
-            form.reset();
-            refreshSymptomSummary(sessionToken);
-          } else {
-            statusBox.className = 'status err';
-            statusBox.textContent = (data.error && data.error.message) || 'Something went wrong. Please try again.';
-          }
-        })
-        .catch(function () {
-          // A network failure keeps the patient's in-progress values in
-          // place (no form.reset()) rather than asking them to re-type a
-          // health entry (docs/41 §11, docs/04 Error State).
-          submitBtn.disabled = false;
-          statusBox.className = 'status err';
-          statusBox.textContent = 'Could not reach the server. Check your connection and try again.';
-        });
-    });
-  }
-
-  function loadSymptomPreview(sessionToken, moduleId) {
-    var symptomsBody = document.getElementById('card-' + moduleId + '-body');
-    symptomsBody.innerHTML = symptomFormHtml();
-    wireSymptomForm(sessionToken);
-    refreshSymptomSummary(sessionToken);
-  }
+  // Batch PXP-10 (docs/44 §10.1/§22, docs/47) removed the Symptom Tracker
+  // card's write affordance (symptomFormHtml/symptomSummaryHtml/
+  // refreshSymptomSummary/wireSymptomForm/loadSymptomPreview) and its
+  // condition-slug options from this file — the module is no longer in
+  // MODULE_REGISTRY above, so no loader is needed. SymptomLogs rows are
+  // retained permanently and remain readable via the standalone
+  // my-health-journey/symptoms/ page (my-health-journey/symptoms/
+  // symptoms.js, untouched by this batch); see shared/constants/
+  // module-registry.md's "Batch PXP-10 removal" section for the full,
+  // disclosed reasoning.
 
   // Independent of renderDashboard()'s own get_profile call (docs/38 §5's
   // own forward note: per-card loading becomes real once a card has its
@@ -715,7 +581,6 @@
   var MODULE_LOADERS = {
     'get_timeline':          loadTimelinePreview,
     'get_checkin_responses': loadCheckInPreview,
-    'get_symptom_logs':      loadSymptomPreview,
     'get_reports':           loadReportsPreview,
     'get_care_plan':         loadCarePlanPreview
   };
@@ -843,10 +708,6 @@
     emptyStateHtml: emptyStateHtml,
     cardHtml: cardHtml,
     EMPTY_STATE_BADGES: EMPTY_STATE_BADGES,
-    symptomFormHtml: symptomFormHtml,
-    symptomSummaryHtml: symptomSummaryHtml,
-    conditionOptionsHtml: conditionOptionsHtml,
-    CONDITION_OPTIONS: CONDITION_OPTIONS,
     reportsFormHtml: reportsFormHtml,
     reportsListHtml: reportsListHtml,
     REPORT_MAX_UPLOAD_BYTES: REPORT_MAX_UPLOAD_BYTES,

@@ -53,6 +53,18 @@
  * browser-test.js covers the registry-driven surface directly (empty
  * dashboard, ordering, missing loader) — not duplicated here.
  *
+ * Updated again in Batch PXP-10 (Symptom Tracker Migration, docs/44
+ * §10.1/§22): the `symptom_tracker` Module Registry entry is retired
+ * (shared/constants/module-registry.md's "Batch PXP-10 removal" section),
+ * so ALL_MODULES_ENABLED drops that fixture row — this suite's own "three
+ * cards" story becomes "two cards" (Timeline + Reports); phase2aCount and
+ * futureCount stay at 0; nodataCount drops from 3 to 2 (one real "No data
+ * yet" badge per remaining seeded card); h2Count drops from 3 to 2. The
+ * Symptom Tracker card's own quick-log form behavior, previously covered
+ * by validation/pa-4-symptom-tracker/browser-test.js, is retired in that
+ * suite's own update for this same batch — its standalone Symptom History
+ * page tests (unaffected, that page is untouched) remain.
+ *
  * Run: node validation/pa-2-dashboard/browser-test.js
  */
 
@@ -119,9 +131,8 @@ const FAKE_TOKEN = 'fake-session-token-for-tests';
 // existing dashboard test relied on — a test that needs a different
 // enablement mix can pass its own list.
 const ALL_MODULES_ENABLED = [
-  { state_key: 'p1::timeline',        patient_id: 'p1', module_id: 'timeline',        enabled: true, enabled_by: 'staff-1', enabled_at: '2026-07-01T00:00:00.000Z' },
-  { state_key: 'p1::symptom_tracker', patient_id: 'p1', module_id: 'symptom_tracker', enabled: true, enabled_by: 'staff-1', enabled_at: '2026-07-01T00:00:00.000Z' },
-  { state_key: 'p1::reports',         patient_id: 'p1', module_id: 'reports',         enabled: true, enabled_by: 'staff-1', enabled_at: '2026-07-01T00:00:00.000Z' }
+  { state_key: 'p1::timeline', patient_id: 'p1', module_id: 'timeline', enabled: true, enabled_by: 'staff-1', enabled_at: '2026-07-01T00:00:00.000Z' },
+  { state_key: 'p1::reports',  patient_id: 'p1', module_id: 'reports',  enabled: true, enabled_by: 'staff-1', enabled_at: '2026-07-01T00:00:00.000Z' }
 ];
 
 async function mockGetProfile(page, envelope, moduleStates) {
@@ -134,10 +145,6 @@ async function mockGetProfile(page, envelope, moduleStates) {
       return;
     }
     if (action === 'get_timeline') {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'ok', data: [] }) });
-      return;
-    }
-    if (action === 'get_symptom_logs') {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'ok', data: [] }) });
       return;
     }
@@ -202,41 +209,35 @@ async function main() {
       await page.goto(`${baseUrl}/my-health-journey/`);
       await page.waitForSelector('#greeting:not(:has(.skeleton))');
       // Batch PA-3: the Timeline card resolves via its own, separate
-      // get_timeline call (dashboard.js's loadTimelinePreview()); Batch PA-4:
-      // the Symptom Tracker card similarly resolves via get_symptom_logs
-      // (loadSymptomPreview()). Batch PXP-4: the DOM id fragment for the
-      // Symptom Tracker card is now its registry module_id
-      // ("symptom_tracker"), not the pre-PXP-4 literal "symptoms".
+      // get_timeline call (dashboard.js's loadTimelinePreview()). Batch
+      // PXP-10 retired the Symptom Tracker card entirely (docs/44
+      // §10.1/§22) — see this file's own header comment.
       await page.waitForSelector('#card-timeline-body:not(:has(.skeleton))');
-      await page.waitForSelector('#sxSummary .badge-nodata');
       await page.waitForSelector('#reportsList .badge-nodata');
 
       const greetingText = await page.textContent('#greeting');
       check('Dashboard: greeting shows the real patient name from get_profile', greetingText.indexOf('Asha Menon') !== -1);
 
-      // Batch PXP-4: exactly three cards now — one per seeded registry
-      // module, ordered by display_order (Timeline 10, Symptom Tracker 20,
-      // Reports 30). Care Plan / Messages / Digital Twin are not in the
-      // Module Registry (docs/47 §4: a not-yet-built module is not
-      // pre-declared by an earlier batch) so they no longer render.
+      // Batch PXP-4: registry-driven cards only, ordered by display_order.
+      // Batch PXP-10: Symptom Tracker (display_order 20) is retired, so
+      // exactly two cards remain — Timeline (10) and Reports (30). Care
+      // Plan / Messages / Digital Twin are not in the Module Registry
+      // (docs/47 §4: a not-yet-built module is not pre-declared by an
+      // earlier batch) so they no longer render either.
       const cardTitles = await page.$$eval('.dash-card h2', (els) => els.map((e) => e.textContent));
-      check('Dashboard: renders exactly three registry-driven cards for a fully enabled patient (Timeline / Symptom Tracker / Reports)',
-        cardTitles.length === 3 &&
-        cardTitles[0] === 'Timeline' && cardTitles[1] === 'Symptom Tracker' && cardTitles[2] === 'Reports');
+      check('Dashboard: renders exactly two registry-driven cards for a fully enabled patient (Timeline / Reports) — Symptom Tracker retired by Batch PXP-10',
+        cardTitles.length === 2 &&
+        cardTitles[0] === 'Timeline' && cardTitles[1] === 'Reports');
 
       const phase2aCount = await page.$$eval('.badge-phase2a', (els) => els.length);
       const futureCount = await page.$$eval('.badge-future', (els) => els.length);
       const nodataCount = await page.$$eval('.badge-nodata', (els) => els.length);
-      check('Dashboard: zero "Coming later in Phase 2A" placeholders remain — Reports (PA-5) was the last one (Timeline PA-3, Symptom Tracker PA-4 were wired earlier)', phase2aCount === 0);
+      check('Dashboard: zero "Coming later in Phase 2A" placeholders remain — Reports (PA-5) was the last one (Timeline PA-3 was wired earlier)', phase2aCount === 0);
       check('Dashboard: zero "Planned for a future version" placeholders remain — PXP-4 removed the three hardcoded future cards (Care Plan/Messages/Digital Twin); a future module will re-appear via its own registry entry, not a hardcoded call in dashboard.js', futureCount === 0);
-      check('Dashboard: Timeline, Symptom Tracker, and Reports cards each render their own real "No data yet" badge for a patient with zero rows (PA-3/PA-4/PA-5)',
-        nodataCount === 3);
+      check('Dashboard: Timeline and Reports cards each render their own real "No data yet" badge for a patient with zero rows (PA-3/PA-5)',
+        nodataCount === 2);
       const timelineBadgeParent = await page.$eval('#card-timeline-body', (el) => el.querySelector('.badge-nodata') !== null);
       check('Dashboard: the Timeline card carries its own "No data yet" badge', timelineBadgeParent);
-      const symptomsBadgeParent = await page.$eval('#card-symptom_tracker-body', (el) => el.querySelector('.badge-nodata') !== null);
-      check('Dashboard: the Symptom Tracker card (now keyed by registry module_id "symptom_tracker") carries its own "No data yet" badge (PA-4/PXP-4)', symptomsBadgeParent);
-      const symptomFormPresent = await page.$eval('#card-symptom_tracker-body', (el) => el.querySelector('#symptomForm') !== null);
-      check('Dashboard: the Symptom Tracker card still shows its quick-log form alongside the empty summary (docs/41 §2: write affordance is the card\'s primary content)', symptomFormPresent);
       const reportsBadgeParent = await page.$eval('#card-reports-body', (el) => el.querySelector('.badge-nodata') !== null);
       check('Dashboard: the Reports card carries its own "No data yet" badge (PA-5)', reportsBadgeParent);
       const reportFormPresent = await page.$eval('#card-reports-body', (el) => el.querySelector('#reportForm') !== null);
@@ -342,7 +343,6 @@ async function main() {
       await page.goto(`${baseUrl}/my-health-journey/`);
       await page.waitForSelector('#greeting:not(:has(.skeleton))');
       await page.waitForSelector('#card-timeline-body:not(:has(.skeleton))');
-      await page.waitForSelector('#sxSummary .badge-nodata');
       await page.waitForSelector('#reportsList .badge-nodata');
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       check('Dashboard: zero horizontal overflow at 375px viewport', overflow === 0);
@@ -376,13 +376,12 @@ async function main() {
       await page.goto(`${baseUrl}/my-health-journey/`);
       await page.waitForSelector('#greeting:not(:has(.skeleton))');
       await page.waitForSelector('#card-timeline-body:not(:has(.skeleton))');
-      await page.waitForSelector('#sxSummary .badge-nodata');
       await page.waitForSelector('#reportsList .badge-nodata');
 
       const h1Count = await page.$$eval('h1', (els) => els.length);
       check('Dashboard: exactly one h1 on the page', h1Count === 1);
       const h2Count = await page.$$eval('h2', (els) => els.length);
-      check('Dashboard: exactly one h2 per card (three total — one per enabled registry module, per PXP-4)', h2Count === 3);
+      check('Dashboard: exactly one h2 per card (two total — one per enabled registry module, Symptom Tracker retired by Batch PXP-10)', h2Count === 2);
 
       const skipHref = await page.getAttribute('a.skip', 'href');
       check('Dashboard: skip-to-content link targets #main', skipHref === '#main');
