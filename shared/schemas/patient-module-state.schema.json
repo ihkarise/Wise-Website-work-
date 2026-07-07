@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wisehomeopathy.com/shared/schemas/patient-module-state.schema.json",
+  "title": "Patient Module State",
+  "version": "1.0.0",
+  "description": "The canonical shape of a PatientModuleState record — docs/44-PHASE-2B-TECHNICAL-PLAN.md §7.2's per-patient module-enablement design, batch PXP-3 (docs/44 §22), governed by docs/47-PHASE-2B-IMPLEMENTATION-RULES.md, ADR-012 (amended). One row per (patient_id, module_id) pair. Absence of a row for a given (patient_id, module_id) means that module is disabled for that patient — fail-closed, ADR-010 — never inferred as enabled. Doctor/staff-authored only: every write is a doctor/staff action, enforced server-side; enablement is never automatic from a DoctorAssignedCondition and never patient-controlled (docs/44 §14, settled). See shared/constants/module-registry.json for the separate concern of which modules exist at all (availability), and patient-module-state.md for the enable/disable lifecycle, the state_key field's own rationale, and the read-only patient route this schema also backs.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["state_key", "patient_id", "module_id", "enabled", "enabled_by", "enabled_at"],
+  "properties": {
+    "state_key": {
+      "type": "string",
+      "minLength": 1,
+      "description": "This row's own identity column, server-derived and deterministic: `patient_id + '::' + module_id`, never doctor/staff-supplied and never patient-visible. Exists solely so FoundationDataStore.gs's existing, frozen, single-idColumn getById_/updateById_ primitives (ADR-009's 'no new Data Store primitive' reuse discipline) can address this composite-keyed (patient_id, module_id) entity without any change to that frozen file. Deliberately deterministic rather than a random UUID — recomputing it from patient_id/module_id always yields the same value, so there is no drift risk between this column and the two natural-key columns it is derived from."
+    },
+    "patient_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The Patient Identity this module-state row belongs to (docs/33 §1.2, ADR-002). Many PatientModuleState rows may share the same patient_id (one per module). Session-derived at read time for the patient-facing route; supplied by the doctor/staff caller at write time (there is no patient session at the point a doctor is enabling/disabling a module for a patient)."
+    },
+    "module_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "One of shared/constants/module-registry.json's canonical module_id values (manually adapted into apps-script/PatientModuleState.gs's own allowlist, the same convention DoctorAssignedCondition.gs's condition_slug allowlist already established). Doctor/staff-supplied at write time — never patient-selected."
+    },
+    "enabled": {
+      "type": "boolean",
+      "description": "Whether this module is currently turned on for this patient. Always an explicit doctor/staff-set value (docs/44 §14) — never automatically derived from a DoctorAssignedCondition, never patient-controlled. A patient/module pair with no row at all is disabled by default (fail-closed, ADR-010) — this field only exists once a doctor/staff member has explicitly acted at least once for that pair."
+    },
+    "enabled_by": {
+      "type": "string",
+      "description": "The doctor/staff identifier who most recently set this row's `enabled` value (a free-text string, the same provenance convention doctor-assigned-condition.schema.json's assigned_by already uses — no real Doctor identity entity exists yet, docs/33 §1.4). Never patient-supplied. Despite the name, this field is also updated when a module is explicitly disabled — it always names whoever performed the most recent write, not only an 'enabling' actor. Empty-string sentinel (the same convention doctor-assigned-condition.schema.json's resolved_by already establishes) for a module/patient pair that has never been written at all — foundationGetPatientModuleStates_() synthesizes exactly this empty-sentinel shape, never a persisted row, for any module absent from the PatientModuleState sheet (the fail-closed default, ADR-010)."
+    },
+    "enabled_at": {
+      "type": "string",
+      "description": "Server-set (foundationNowIso_()) at the most recent write, whether that write enabled or disabled the module. Never doctor/staff-supplied directly and never patient-supplied."
+    }
+  }
+}

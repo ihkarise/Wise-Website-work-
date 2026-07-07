@@ -87,7 +87,8 @@ var MANUAL_DROPDOWN_WRAPPERS = [
   'createFoundationConsultationEntry', // FoundationConsultationHistory.gs — PA-3's manually-run entry creation
   'createFoundationReportForExistingDriveFile', // FoundationReports.gs — PA-5's manually-run staff-attributed upload wrapper
   'assignFoundationCondition', // DoctorAssignedCondition.gs — PXP-2's manually-run doctor/staff assignment tool
-  'resolveFoundationCondition' // DoctorAssignedCondition.gs — PXP-2's manually-run doctor/staff resolution tool
+  'resolveFoundationCondition', // DoctorAssignedCondition.gs — PXP-2's manually-run doctor/staff resolution tool
+  'setFoundationModuleState' // PatientModuleState.gs — PXP-3's manually-run doctor/staff enable/disable tool
 ];
 
 function listGsFiles() {

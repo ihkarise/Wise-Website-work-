@@ -44,7 +44,7 @@ deprecates any ADR.
 | ADR-009 | Every Module Must Be Independently Replaceable | Accepted | `/adr/ADR-009-modules-independently-replaceable.md` |
 | ADR-010 | Security Decisions Always Take Precedence Over Convenience | Accepted | `/adr/ADR-010-security-before-convenience.md` |
 | ADR-011 | A Persistent Credential (PIN/Password) May Be Added as an Optional Second Factor, Magic Link Remains the Mandatory Baseline | Superseded by ADR-014 | `/adr/ADR-011-persistent-credential-as-additional-factor.md` |
-| ADR-012 | Patient Dashboard Capabilities Are Registry-Driven, With Per-Patient Enablement | Accepted — amended (existing-card migration now committed, not deferred) | `/adr/ADR-012-dashboard-modules-are-registry-driven.md` |
+| ADR-012 | Patient Dashboard Capabilities Are Registry-Driven, With Per-Patient Enablement | Accepted — amended twice (existing-card migration now committed, not deferred; and, at PXP-3, the registry's framing generalized to a platform-wide capability-exposure mechanism, dashboard remaining its first/only implemented consumer) | `/adr/ADR-012-dashboard-modules-are-registry-driven.md` |
 | ADR-013 | Calculators Are Deterministic and Never AI-Generated | Accepted | `/adr/ADR-013-calculators-are-deterministic-never-ai-generated.md` |
 | ADR-014 | Persistent Login Is Achieved Primarily Through Trusted Devices; Magic Link Is the Root of Trust | Superseded by ADR-015 | `/adr/ADR-014-trusted-device-persistent-login.md` |
 | ADR-015 | Persistent Login Adds a Long-Lived Session Alongside Trusted Device; Passwordless-by-Default Is Reaffirmed as Non-Negotiable | Accepted — supersedes ADR-014, amends ADR-003 | `/adr/ADR-015-long-lived-session-and-passwordless-reaffirmation.md` |

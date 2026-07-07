@@ -65,6 +65,20 @@
  *     manually-run Apps Script editor functions
  *     (DoctorAssignedCondition.gs's assignFoundationCondition()/
  *     resolveFoundationCondition()), not a Web App route.
+ *   - get_patient_module_states — Batch PXP-3 addition (docs/44 §7/§22,
+ *     ADR-012 (amended), docs/47), Phase 2B's Pillar 2 read surface.
+ *     patient_id is session-derived exactly like every route above. Returns
+ *     the caller's own module-state view across the entire Module Registry
+ *     (ModuleRegistry.gs), synthesizing a fail-closed `enabled: false` entry
+ *     for any module with no PatientModuleState row yet. This is a
+ *     read-only route: there is no enable/disable route here, and none is
+ *     planned — PatientModuleState writes are doctor/staff-only and, since
+ *     no real Doctor identity/session exists yet (docs/33 §1.4), remain a
+ *     manually-run Apps Script editor function
+ *     (PatientModuleState.gs's setFoundationModuleState()), not a Web App
+ *     route. No dashboard rendering change ships in this batch — this route
+ *     has no UI consumer yet; migrating dashboard.js onto this registry is
+ *     the Dashboard Registry batch (PXP-4), not this one.
  *
  * A disclosed, additive exception, same category as Code.gs's own
  * one-line dispatch shim (IA-2): this file was previously listed among
@@ -90,7 +104,7 @@
  * Depends on FoundationContracts.gs, FoundationLoginFlow.gs,
  * FoundationRouteGuard.gs, PatientIdentity.gs, FoundationConsultationHistory.gs,
  * FoundationSymptomLog.gs, FoundationReports.gs, FoundationPatientProfile.gs,
- * DoctorAssignedCondition.gs.
+ * DoctorAssignedCondition.gs, ModuleRegistry.gs, PatientModuleState.gs.
  */
 
 /**
@@ -254,6 +268,20 @@ function foundationHandleGetDoctorAssignedConditions_(input) {
 }
 
 /**
+ * Batch PXP-3: returns the caller's own PatientModuleState view across the
+ * entire Module Registry (ModuleRegistry.gs), synthesizing a fail-closed
+ * `enabled: false` entry for any module with no persisted row yet.
+ * patient_id is always session-derived, never client-supplied. Read-only —
+ * there is no corresponding write route (see this file's own header
+ * comment).
+ */
+function foundationHandleGetPatientModuleStates_(input) {
+  return withFoundationAuth_(input && input.session_token, function (patientId) {
+    return foundationGetPatientModuleStates_(patientId);
+  });
+}
+
+/**
  * Serializes a response-envelope-shaped value to the wire. Apps Script
  * Web Apps cannot set a real HTTP status code (every response transports
  * as HTTP 200 regardless — the same platform fact Code.gs's own
@@ -312,6 +340,9 @@ function handleFoundationRequest_(input) {
       break;
     case 'get_doctor_assigned_conditions':
       envelope = foundationHandleGetDoctorAssignedConditions_(input);
+      break;
+    case 'get_patient_module_states':
+      envelope = foundationHandleGetPatientModuleStates_(input);
       break;
     default:
       envelope = buildFoundationErrorEnvelope_('FOUNDATION_UNKNOWN_ACTION', 'Unknown request.');

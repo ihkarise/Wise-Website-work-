@@ -122,6 +122,7 @@ var reportSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/rep
 var uploadLimits = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'constants/upload-limits.json'), 'utf8'));
 var patientProfileSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/patient-profile.schema.json'), 'utf8'));
 var doctorAssignedConditionSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/doctor-assigned-condition.schema.json'), 'utf8'));
+var patientModuleStateSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/patient-module-state.schema.json'), 'utf8'));
 
 var results = [];
 function record(name, pass, detail) {
@@ -1291,6 +1292,146 @@ var ctx = loadProject(h.sandbox);
   var resolvedAuditRows = auditRowsOf(h, 'condition_resolved');
   record('Stage11: the successful resolution wrote its own condition_resolved AuditLog row',
     resolvedAuditRows.length === 1);
+})();
+
+// ============================================================
+// Stage 12 (PXP-3) — ModuleRegistry.gs + PatientModuleState.gs ->
+// patient-module-state.schema.json, plus FoundationRouter.gs's one new
+// read-only dispatch case end to end. Phase 2B's Pillar 2 — doctor/staff-
+// owned, patient never writes, fail-closed absence-of-row default (docs/44
+// §7/§14/§22, ADR-012 (amended), docs/47-PHASE-2B-IMPLEMENTATION-RULES.md).
+// ============================================================
+(function stage12_patientModuleState() {
+  var patientA = ctx.foundationCreatePatient_({
+    full_name: 'Stage12 Patient A', email: 'stage12-a@example.com',
+    condition_slug: 'mcas', created_by: 'conformance-harness'
+  });
+  var patientB = ctx.foundationCreatePatient_({
+    full_name: 'Stage12 Patient B', email: 'stage12-b@example.com',
+    condition_slug: 'mcas', created_by: 'conformance-harness'
+  });
+  record('Stage12: setup — two independent patients exist', patientA.status === 'ok' && patientB.status === 'ok');
+
+  // ---- Module Registry — a static, pure config list ----
+  var registry = ctx.foundationGetModuleRegistry_();
+  record('Stage12: foundationGetModuleRegistry_() returns the three seeded Phase 2A modules (timeline, symptom_tracker, reports)',
+    registry.length === 3 && registry.map(function (m) { return m.module_id; }).sort().join(',') === 'reports,symptom_tracker,timeline');
+
+  // ---- Fail-closed default: no PatientModuleState row exists yet for either patient ----
+  var defaultStatesA = ctx.foundationGetPatientModuleStates_(patientA.data.patient_id);
+  record('Stage12: foundationGetPatientModuleStates_() succeeds even with zero persisted rows', defaultStatesA.status === 'ok');
+  record('Stage12: every module defaults to enabled=false when no row has ever been written — fail-closed (ADR-010)',
+    defaultStatesA.data.length === 3 && defaultStatesA.data.every(function (row) { return row.enabled === false && row.enabled_by === '' && row.enabled_at === ''; }));
+
+  // ---- Validation rejections ----
+  var missingPatientId = ctx.foundationSetModuleState_({ module_id: 'timeline', enabled: true, enabled_by: 'dr-rao' });
+  record('Stage12: foundationSetModuleState_() rejects a missing patient_id with FOUNDATION_INVALID_INPUT',
+    missingPatientId.status === 'error' && missingPatientId.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var badModuleId = ctx.foundationSetModuleState_({ patient_id: patientA.data.patient_id, module_id: 'not-a-real-module', enabled: true, enabled_by: 'dr-rao' });
+  record('Stage12: foundationSetModuleState_() rejects a module_id outside the registered Module Registry',
+    badModuleId.status === 'error' && badModuleId.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var nonBooleanEnabled = ctx.foundationSetModuleState_({ patient_id: patientA.data.patient_id, module_id: 'timeline', enabled: 'yes', enabled_by: 'dr-rao' });
+  record('Stage12: foundationSetModuleState_() rejects a non-boolean enabled value',
+    nonBooleanEnabled.status === 'error' && nonBooleanEnabled.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var missingEnabledBy = ctx.foundationSetModuleState_({ patient_id: patientA.data.patient_id, module_id: 'timeline', enabled: true });
+  record('Stage12: foundationSetModuleState_() rejects a missing enabled_by (doctor/staff identifier) with FOUNDATION_INVALID_INPUT',
+    missingEnabledBy.status === 'error' && missingEnabledBy.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  // ---- First enable: proves the create path ----
+  var enableA1 = ctx.foundationSetModuleState_({ patient_id: patientA.data.patient_id, module_id: 'timeline', enabled: true, enabled_by: 'dr-rao' });
+  record('Stage12: foundationSetModuleState_() succeeds on valid input', enableA1.status === 'ok');
+  var enableA1Result = validate(patientModuleStateSchema, enableA1.data || {});
+  record('Stage12: a real foundationSetModuleState_() result conforms to patient-module-state.schema.json',
+    enableA1Result.valid === true, enableA1Result.errors.join('; '));
+  record('Stage12: enabled_at is server-set, never accepted from a client-supplied field',
+    typeof enableA1.data.enabled_at === 'string' && enableA1.data.enabled_at.length > 0);
+  record('Stage12: state_key is server-derived as patient_id + \'::\' + module_id, never accepted from a client-supplied field',
+    enableA1.data.state_key === patientA.data.patient_id + '::timeline');
+
+  // ---- Second write to the same (patient, module) pair: proves the update-in-place path ----
+  var disableA1 = ctx.foundationSetModuleState_({ patient_id: patientA.data.patient_id, module_id: 'timeline', enabled: false, enabled_by: 'dr-shah' });
+  record('Stage12: a second write to the same patient/module pair succeeds — the update branch', disableA1.status === 'ok');
+  record('Stage12: the update patched enabled/enabled_by/enabled_at in place — reflects the newest write',
+    disableA1.data.enabled === false && disableA1.data.enabled_by === 'dr-shah');
+
+  var moduleStateSheetRows = h.spreadsheet.getSheetByName(ctx.FOUNDATION_PATIENT_MODULE_STATE_SHEET_)._debug().rows;
+  record('Stage12: exactly one PatientModuleState row exists for (patient A, timeline) after two writes — patched in place, never a duplicate',
+    moduleStateSheetRows.filter(function (row) { return row[0] === patientA.data.patient_id + '::timeline'; }).length === 1);
+
+  // ---- A second module for the same patient — proves distinct rows per module_id, not a 1:1 collision ----
+  var enableA2 = ctx.foundationSetModuleState_({ patient_id: patientA.data.patient_id, module_id: 'reports', enabled: true, enabled_by: 'dr-rao' });
+  record('Stage12: enabling a second, different module for the same patient succeeds — one row per (patient_id, module_id), not 1:1 per patient',
+    enableA2.status === 'ok' && enableA2.data.state_key !== disableA1.data.state_key);
+
+  // ---- foundationGetPatientModuleStates_() — merges real rows with fail-closed synthesized defaults ----
+  var statesA = ctx.foundationGetPatientModuleStates_(patientA.data.patient_id);
+  record('Stage12: foundationGetPatientModuleStates_() returns exactly one entry per registered module, real rows merged with synthesized defaults',
+    statesA.data.length === 3);
+  var timelineStateA = statesA.data.filter(function (row) { return row.module_id === 'timeline'; })[0];
+  var reportsStateA = statesA.data.filter(function (row) { return row.module_id === 'reports'; })[0];
+  var symptomTrackerStateA = statesA.data.filter(function (row) { return row.module_id === 'symptom_tracker'; })[0];
+  record('Stage12: patient A\'s timeline module reflects the real, persisted disabled state (not a synthesized default)',
+    timelineStateA.enabled === false && timelineStateA.enabled_by === 'dr-shah');
+  record('Stage12: patient A\'s reports module reflects the real, persisted enabled state',
+    reportsStateA.enabled === true && reportsStateA.enabled_by === 'dr-rao');
+  record('Stage12: patient A\'s symptom_tracker module — never written — is still a synthesized, fail-closed default',
+    symptomTrackerStateA.enabled === false && symptomTrackerStateA.enabled_by === '' && symptomTrackerStateA.enabled_at === '');
+  var listedRowResult = validate(patientModuleStateSchema, timelineStateA);
+  record('Stage12: a real, persisted listed row conforms to patient-module-state.schema.json',
+    listedRowResult.valid === true, listedRowResult.errors.join('; '));
+  var syntheticRowResult = validate(patientModuleStateSchema, symptomTrackerStateA);
+  record('Stage12: a synthesized, fail-closed-default row also conforms to patient-module-state.schema.json',
+    syntheticRowResult.valid === true, syntheticRowResult.errors.join('; '));
+
+  // ---- Cross-patient isolation: patient B's own states are untouched by patient A's writes ----
+  var statesB = ctx.foundationGetPatientModuleStates_(patientB.data.patient_id);
+  record('Stage12: patient B\'s module states are all still fail-closed defaults, unaffected by patient A\'s writes',
+    statesB.data.length === 3 && statesB.data.every(function (row) { return row.enabled === false && row.enabled_by === ''; }));
+
+  // ---- FoundationRouter.gs — the one new, read-only dispatch case, end to end ----
+  var sessionA = ctx.foundationIssueSessionToken_(patientA.data.patient_id);
+  var getStatesHttp = ctx.handleFoundationRequest_({ foundation_action: 'get_patient_module_states', session_token: sessionA });
+  var getStatesBody = JSON.parse(getStatesHttp._text);
+  record('Stage12: get_patient_module_states (real HTTP dispatch) resolves the caller\'s own module states from a valid session',
+    getStatesBody.status === 'ok' && getStatesBody.data.length === 3);
+  record('Stage12: get_patient_module_states derives patient_id only from the verified session, never from a client-supplied field',
+    (function () {
+      var spoofed = ctx.handleFoundationRequest_({
+        foundation_action: 'get_patient_module_states', session_token: sessionA, patient_id: patientB.data.patient_id
+      });
+      var spoofedBody = JSON.parse(spoofed._text);
+      return spoofedBody.status === 'ok' && spoofedBody.data.every(function (row) { return row.patient_id === patientA.data.patient_id; });
+    })());
+
+  var sessionB = ctx.foundationIssueSessionToken_(patientB.data.patient_id);
+  var getStatesHttpB = ctx.handleFoundationRequest_({ foundation_action: 'get_patient_module_states', session_token: sessionB });
+  var getStatesBodyB = JSON.parse(getStatesHttpB._text);
+  record('Stage12: get_patient_module_states over real HTTP dispatch returns only patient B\'s own (still-default) states, never patient A\'s — cross-patient isolation',
+    getStatesBodyB.status === 'ok' && getStatesBodyB.data.every(function (row) { return row.patient_id === patientB.data.patient_id && row.enabled === false; }));
+
+  var unauthedGetStatesHttp = ctx.handleFoundationRequest_({ foundation_action: 'get_patient_module_states', session_token: 'not-a-real-session-token' });
+  var unauthedGetStatesBody = JSON.parse(unauthedGetStatesHttp._text);
+  record('Stage12: get_patient_module_states rejects an invalid session_token with FOUNDATION_UNAUTHORIZED, never leaking any data',
+    unauthedGetStatesBody.status === 'error' && unauthedGetStatesBody.error.code === 'FOUNDATION_UNAUTHORIZED' && unauthedGetStatesBody.data === null);
+
+  record('Stage12: there is no enable/disable action reachable over HTTP dispatch — doctor/staff writes stay editor-only',
+    (function () {
+      var attemptedSetHttp = ctx.handleFoundationRequest_({
+        foundation_action: 'set_patient_module_state', session_token: sessionA, patient_id: patientA.data.patient_id, module_id: 'timeline', enabled: true, enabled_by: 'dr-rao'
+      });
+      var attemptedSetBody = JSON.parse(attemptedSetHttp._text);
+      return attemptedSetBody.status === 'error' && attemptedSetBody.error.code === 'FOUNDATION_UNKNOWN_ACTION';
+    })());
+
+  var enabledAuditRows = auditRowsOf(h, 'module_state_enabled');
+  record('Stage12: every write that resulted in enabled=true wrote its own module_state_enabled AuditLog row',
+    enabledAuditRows.length === 2);
+  var disabledAuditRows = auditRowsOf(h, 'module_state_disabled');
+  record('Stage12: every write that resulted in enabled=false wrote its own module_state_disabled AuditLog row',
+    disabledAuditRows.length === 1);
 })();
 
 function auditRowsOf(h, eventType) {

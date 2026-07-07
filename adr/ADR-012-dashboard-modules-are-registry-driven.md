@@ -13,6 +13,29 @@ docs/44 §7/§13 (Version 3.0) for the committed migration batch. The core Decis
 (registry-driven, per-patient-enabled modules) is unchanged; only the scope of what
 migrates, and when, is resolved.
 
+**Amended again (2026-07-10, Batch PXP-3 implementation):** this ADR's own title and
+Context/Decision text frame the Module Registry as dashboard-specific infrastructure
+("the patient dashboard is driven by a Module Registry"). PXP-3's implementation
+generalizes that framing: the Module Registry is a platform-wide, data-driven
+capability-exposure mechanism — module *availability* (the registry) and module
+*enablement* (`PatientModuleState`) are decided once, generically, for any patient-
+facing capability, not only ones a dashboard card renders. The patient dashboard (via
+the still-unbuilt Dashboard Registry, PXP-4) remains this registry's first and, as of
+PXP-3, its only implemented consumer — nothing about that changes. **Named, but
+explicitly not scoped, batched, or authorized by this amendment:** Timeline, Personal
+Care Plan, and a future AI system are disclosed as *potential* future consumers of the
+same registry/`PatientModuleState` mechanism, the same "name a future consumer without
+scoping it" discipline ADR-016 already established for its own six future template
+categories. This amendment authorizes no new consumer, no new batch, and no behavior
+change — `PatientModuleState`'s fail-closed absence-of-row default (this ADR's own
+Decision, restated below) and docs/44 §14's "enablement is always an explicit doctor/
+staff action" are both unchanged and unreopened. Only the registry's own descriptor
+shape gains additional, purely additive, presently-inert metadata fields (display/
+extensibility metadata, and a family of reserved `supports_*` capability flags mirroring
+this ADR's own AI-readiness reservation) so that a genuinely new consumer, if one is
+ever actually proposed, does not require a schema redesign — see
+`shared/constants/module-registry.md` for the full, disclosed field list.
+
 ## Context
 `my-health-journey/dashboard.js`'s `renderDashboard()` hardcodes exactly six cards by
 name (Timeline, Symptoms, Reports, Care Plan, Messages, Digital Twin), each with its own
