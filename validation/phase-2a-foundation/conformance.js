@@ -211,6 +211,27 @@
  * only, shared/schemas/symptom-log.md), so this stage's own Stage 8
  * (Symptom Log) assertions are unaffected and still pass unchanged.
  *
+ * Extended in Phase 3/WHIMS batch WPI-1 with Stage 17, covering
+ * DoctorIdentity.gs, DoctorSession.gs, DoctorLoginTokens.gs, DoctorEmail.gs,
+ * DoctorLoginFlow.gs, and DoctorRouteGuard.gs end to end (Doctor Identity &
+ * Session, docs/50 §5, ADR-017) — the platform's first doctor-facing
+ * infrastructure. This stage's highest-priority checks are the ones
+ * shared/schemas/doctor-session.md's dedicated pre-ship security review
+ * (docs/50 §14 gate) names as needing direct proof, not just argument: a
+ * real, freshly-issued DoctorSession token is rejected by the patient-side
+ * withFoundationAuth_() guard, and a real, freshly-issued patient Session
+ * token is rejected by the new withFoundationDoctorAuth_() guard — proving
+ * the two identity spaces' structurally distinct payload shapes
+ * (doctor_id vs. patient_id) actually prevent cross-identity-type
+ * authorization confusion, not merely assert it. Also covers: a Doctor
+ * Session's signing secret is the identical FOUNDATION_SESSION_SIGNING_SECRET
+ * a magic-link-issued Patient Session already uses (proving the disclosed,
+ * accepted shared-secret design choice is real); doctor login token
+ * issuance/consumption/single-use/expiry mirrors LoginTokens' own discipline
+ * exactly, stored in a separate DoctorLoginTokens sheet; cross-doctor
+ * isolation on get_doctor_profile; and the full HTTP dispatch round trip
+ * (request_doctor_login_link, consume_doctor_login_link, get_doctor_profile).
+ *
  * Run with: node conformance.js  (no dependencies beyond Node's
  * standard library).
  */
@@ -241,6 +262,9 @@ var calculatorResultSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 's
 var carePlanSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/care-plan.schema.json'), 'utf8'));
 var doctorInstructionSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/doctor-instruction.schema.json'), 'utf8'));
 var trustedDeviceSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/trusted-device.schema.json'), 'utf8'));
+var doctorIdentitySchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/doctor-identity.schema.json'), 'utf8'));
+var doctorSessionSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/doctor-session.schema.json'), 'utf8'));
+var doctorLoginTokenSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/doctor-login-token.schema.json'), 'utf8'));
 
 var results = [];
 function record(name, pass, detail) {
@@ -2459,6 +2483,191 @@ var ctx = loadProject(h.sandbox);
     auditRowsOf(h, 'trusted_device_rejected').length >= 1);
   record('Stage16: every successful revoke wrote its own trusted_device_revoked AuditLog row',
     auditRowsOf(h, 'trusted_device_revoked').length >= 1);
+})();
+
+// ============================================================
+// Stage 17 (WPI-1) — DoctorIdentity.gs, DoctorSession.gs,
+// DoctorLoginTokens.gs, DoctorEmail.gs, DoctorLoginFlow.gs,
+// DoctorRouteGuard.gs -> shared/schemas/doctor-identity.schema.json,
+// doctor-session.schema.json, doctor-login-token.schema.json
+// ============================================================
+(function stage17_doctorIdentityAndSession() {
+  // ---- foundationCreateDoctor_() / foundationValidateDoctorInput_() ----
+  var doctorA = ctx.foundationCreateDoctor_({
+    full_name: 'Stage17 Doctor A', role: 'physician', email: 'stage17-doctor-a@example.com',
+    specialty_slug: 'homeopathy', created_by: 'admin-1'
+  });
+  var doctorB = ctx.foundationCreateDoctor_({
+    full_name: 'Stage17 Doctor B', role: 'staff', email: 'stage17-doctor-b@example.com',
+    created_by: 'admin-1'
+  });
+  record('Stage17: setup — two independent doctors exist', doctorA.status === 'ok' && doctorB.status === 'ok');
+  var doctorIdA = doctorA.data.doctor_id;
+  var doctorIdB = doctorB.data.doctor_id;
+
+  record('Stage17: a real stored Doctor row conforms to doctor-identity.schema.json',
+    validate(doctorIdentitySchema, doctorA.data).valid === true);
+  record('Stage17: specialty_slug is optional — doctor B (no specialty_slug given) still conforms',
+    validate(doctorIdentitySchema, doctorB.data).valid === true && doctorB.data.specialty_slug === '');
+
+  var badRole = ctx.foundationCreateDoctor_({ full_name: 'X', role: 'admin', email: 'x@example.com', created_by: 'admin-1' });
+  record('Stage17: foundationCreateDoctor_() rejects a role outside physician/staff with FOUNDATION_INVALID_INPUT',
+    badRole.status === 'error' && badRole.error.code === 'FOUNDATION_INVALID_INPUT');
+  var badEmail = ctx.foundationCreateDoctor_({ full_name: 'X', role: 'staff', email: 'not-an-email', created_by: 'admin-1' });
+  record('Stage17: foundationCreateDoctor_() rejects a malformed email', badEmail.status === 'error' && badEmail.error.code === 'FOUNDATION_INVALID_INPUT');
+  var missingCreatedBy = ctx.foundationCreateDoctor_({ full_name: 'X', role: 'staff', email: 'x2@example.com' });
+  record('Stage17: foundationCreateDoctor_() rejects a missing created_by (no public self-registration)',
+    missingCreatedBy.status === 'error' && missingCreatedBy.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  // ---- foundationGetDoctorById_() ----
+  var lookupA = ctx.foundationGetDoctorById_(doctorIdA);
+  record('Stage17: foundationGetDoctorById_() resolves a real doctor_id', lookupA.status === 'ok' && lookupA.data.doctor_id === doctorIdA);
+  var lookupUnknown = ctx.foundationGetDoctorById_('not-a-real-doctor-id');
+  record('Stage17: foundationGetDoctorById_() returns FOUNDATION_NOT_FOUND for an unknown doctor_id',
+    lookupUnknown.status === 'error' && lookupUnknown.error.code === 'FOUNDATION_NOT_FOUND');
+
+  // ---- DoctorSession: issuance, verification, TTL ----
+  var doctorSessionA = ctx.foundationIssueDoctorSessionToken_(doctorIdA);
+  var doctorSessionVerified = ctx.foundationVerifyDoctorSessionToken_(doctorSessionA);
+  record('Stage17: a real DoctorSession token verifies successfully and resolves the correct doctor_id',
+    doctorSessionVerified.valid === true && doctorSessionVerified.doctorId === doctorIdA);
+  var doctorTtlSeconds = (Date.parse(doctorSessionVerified.payload.expires_at) - Date.parse(doctorSessionVerified.payload.issued_at)) / 1000;
+  record('Stage17: DoctorSession\'s own TTL mirrors Patient Session\'s exact 3600-second default (docs/50 §14)',
+    doctorTtlSeconds === 3600);
+  record('Stage17: a real stored/issued DoctorSession payload conforms to doctor-session.schema.json',
+    validate(doctorSessionSchema, doctorSessionVerified.payload).valid === true);
+
+  // ---- Security review §1: the signing secret is the identical, shared FOUNDATION_SESSION_SIGNING_SECRET ----
+  var sharedSecret = h.scriptProperties['FOUNDATION_SESSION_SIGNING_SECRET'];
+  var manualPayload = ctx.foundationBuildDoctorSessionPayload_(doctorIdA, Date.now(), 3600);
+  var manualPayloadSegment = ctx.foundationBase64UrlEncodeString_(JSON.stringify(manualPayload));
+  var manualSignature = ctx.foundationSignSessionPayloadSegment_(manualPayloadSegment, sharedSecret);
+  var manualToken = manualPayloadSegment + '.' + manualSignature;
+  var manualVerified = ctx.foundationVerifyDoctorSessionToken_(manualToken);
+  record('Stage17: a token hand-signed with the exact shared FOUNDATION_SESSION_SIGNING_SECRET verifies successfully — proving the same secret Patient Session uses is the one DoctorSession actually reads',
+    manualVerified.valid === true && manualVerified.doctorId === doctorIdA);
+
+  // ---- Security review §2: no cross-identity-type authorization confusion ----
+  var patientForCrossCheck = ctx.foundationCreatePatient_({
+    full_name: 'Stage17 Patient', email: 'stage17-patient@example.com', condition_slug: 'mcas', created_by: 'staff-1'
+  });
+  var patientIdForCrossCheck = patientForCrossCheck.data.patient_id;
+  var patientSessionForCrossCheck = ctx.foundationIssueSessionToken_(patientIdForCrossCheck);
+
+  var doctorTokenAsPatient = ctx.foundationVerifySessionToken_(doctorSessionA);
+  record('Stage17: a real DoctorSession token is REJECTED by the patient-side foundationVerifySessionToken_() — invalid_payload_shape, never a false-positive patient_id',
+    doctorTokenAsPatient.valid === false && doctorTokenAsPatient.reason === 'invalid_payload_shape');
+
+  var patientTokenAsDoctor = ctx.foundationVerifyDoctorSessionToken_(patientSessionForCrossCheck);
+  record('Stage17: a real Patient Session token is REJECTED by foundationVerifyDoctorSessionToken_() — invalid_payload_shape, never a false-positive doctor_id',
+    patientTokenAsDoctor.valid === false && patientTokenAsDoctor.reason === 'invalid_payload_shape');
+
+  var doctorTokenAtPatientGuard = ctx.withFoundationAuth_(doctorSessionA, function (patientId) { return { data: patientId }; });
+  record('Stage17: withFoundationAuth_() (patient guard) rejects a real DoctorSession token with FOUNDATION_UNAUTHORIZED, never calling the protected handler',
+    doctorTokenAtPatientGuard.status === 'error' && doctorTokenAtPatientGuard.error.code === 'FOUNDATION_UNAUTHORIZED');
+
+  var patientTokenAtDoctorGuard = ctx.withFoundationDoctorAuth_(patientSessionForCrossCheck, function (doctorId) { return { data: doctorId }; });
+  record('Stage17: withFoundationDoctorAuth_() (doctor guard) rejects a real Patient Session token with FOUNDATION_UNAUTHORIZED, never calling the protected handler',
+    patientTokenAtDoctorGuard.status === 'error' && patientTokenAtDoctorGuard.error.code === 'FOUNDATION_UNAUTHORIZED');
+
+  // ---- DoctorLoginTokens: issuance, consumption, single-use, expiry ----
+  var doctorLoginToken1 = ctx.foundationCreateDoctorLoginToken_(doctorIdA);
+  record('Stage17: foundationCreateDoctorLoginToken_() succeeds and returns a raw token', doctorLoginToken1.status === 'ok' && typeof doctorLoginToken1.data.token === 'string');
+  record('Stage17: a real stored DoctorLoginTokens row conforms to doctor-login-token.schema.json',
+    (function () {
+      var raw = h.spreadsheet.getSheetByName('DoctorLoginTokens')._debug();
+      var cols = raw.header;
+      var row0 = raw.rows[0];
+      var obj = {};
+      cols.forEach(function (c, i) { obj[c] = row0[i]; });
+      return validate(doctorLoginTokenSchema, obj).valid === true;
+    })());
+  record('Stage17: DoctorLoginTokens is a sheet distinct from LoginTokens — no cross-lookup possible',
+    h.spreadsheet.getSheetByName('DoctorLoginTokens') !== h.spreadsheet.getSheetByName('LoginTokens'));
+
+  var consumeDoctor1 = ctx.foundationConsumeDoctorLoginToken_(doctorLoginToken1.data.token);
+  record('Stage17: foundationConsumeDoctorLoginToken_() succeeds against a real, unused, unexpired token and resolves the correct doctor_id',
+    consumeDoctor1.status === 'ok' && consumeDoctor1.data.doctor_id === doctorIdA);
+  var reuseDoctorToken = ctx.foundationConsumeDoctorLoginToken_(doctorLoginToken1.data.token);
+  record('Stage17: reusing an already-consumed doctor login token is rejected — single-use enforced',
+    reuseDoctorToken.status === 'error' && reuseDoctorToken.error.code === 'FOUNDATION_DOCTOR_LOGIN_TOKEN_INVALID');
+  var unknownDoctorToken = ctx.foundationConsumeDoctorLoginToken_('not-a-real-doctor-login-token');
+  record('Stage17: an unknown doctor login token is rejected with the same generic FOUNDATION_DOCTOR_LOGIN_TOKEN_INVALID code',
+    unknownDoctorToken.status === 'error' && unknownDoctorToken.error.code === 'FOUNDATION_DOCTOR_LOGIN_TOKEN_INVALID');
+  var missingDoctorToken = ctx.foundationConsumeDoctorLoginToken_('');
+  record('Stage17: a missing doctor login token is rejected with the same generic code', missingDoctorToken.status === 'error' && missingDoctorToken.error.code === 'FOUNDATION_DOCTOR_LOGIN_TOKEN_INVALID');
+
+  // A patient login token (a different sheet) must never be consumable as a doctor login token.
+  var patientLoginToken = ctx.foundationCreateLoginToken_(patientIdForCrossCheck);
+  var patientTokenAsDoctorLoginToken = ctx.foundationConsumeDoctorLoginToken_(patientLoginToken.data.token);
+  record('Stage17: a real, valid PATIENT login token is rejected when presented as a doctor login token — sheet isolation, not just naming convention',
+    patientTokenAsDoctorLoginToken.status === 'error' && patientTokenAsDoctorLoginToken.error.code === 'FOUNDATION_DOCTOR_LOGIN_TOKEN_INVALID');
+
+  // ---- DoctorLoginFlow: request-link anti-enumeration + rate limiting ----
+  var requestMatched = ctx.foundationHandleRequestDoctorLoginLink_({ email: 'stage17-doctor-a@example.com' });
+  var requestUnmatched = ctx.foundationHandleRequestDoctorLoginLink_({ email: 'stage17-nobody@example.com' });
+  record('Stage17: request_doctor_login_link returns the identical generic response for a matched vs. unmatched email — anti-enumeration',
+    requestMatched.status === 'ok' && requestUnmatched.status === 'ok'
+    && JSON.stringify(requestMatched.data) === JSON.stringify(requestUnmatched.data));
+  record('Stage17: a matched request-link actually sent an email via the mocked MailApp',
+    h.mailLog.some(function (m) { return m.to === 'stage17-doctor-a@example.com' && /doctor login link/.test(m.subject); }));
+
+  var invalidEmailRequest = ctx.foundationHandleRequestDoctorLoginLink_({ email: 'not-an-email' });
+  record('Stage17: request_doctor_login_link rejects a syntactically invalid email with FOUNDATION_INVALID_INPUT',
+    invalidEmailRequest.status === 'error' && invalidEmailRequest.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  // ---- DoctorLoginFlow: consume-link issues a real DoctorSession ----
+  var freshDoctorToken = ctx.foundationCreateDoctorLoginToken_(doctorIdB);
+  var consumeLinkResult = ctx.foundationHandleConsumeDoctorLoginLink_({ token: freshDoctorToken.data.token });
+  record('Stage17: consume_doctor_login_link succeeds and issues a real, verifiable DoctorSession token',
+    consumeLinkResult.status === 'ok' && consumeLinkResult.data.doctor_id === doctorIdB
+    && ctx.foundationVerifyDoctorSessionToken_(consumeLinkResult.data.session_token).valid === true);
+  var consumeLinkBad = ctx.foundationHandleConsumeDoctorLoginLink_({ token: 'not-a-real-token' });
+  record('Stage17: consume_doctor_login_link rejects an invalid token with the generic FOUNDATION_DOCTOR_LOGIN_TOKEN_INVALID code',
+    consumeLinkBad.status === 'error' && consumeLinkBad.error.code === 'FOUNDATION_DOCTOR_LOGIN_TOKEN_INVALID');
+
+  // ---- HTTP dispatch (FoundationRouter.gs) ----
+  var requestHttp = JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'request_doctor_login_link', email: 'stage17-doctor-a@example.com' })._text);
+  record('Stage17: request_doctor_login_link (real HTTP dispatch) succeeds with the generic response', requestHttp.status === 'ok');
+
+  var freshDoctorTokenHttp = ctx.foundationCreateDoctorLoginToken_(doctorIdA);
+  var consumeHttp = JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'consume_doctor_login_link', token: freshDoctorTokenHttp.data.token })._text);
+  record('Stage17: consume_doctor_login_link (real HTTP dispatch) succeeds and returns a real session_token', consumeHttp.status === 'ok' && typeof consumeHttp.data.session_token === 'string');
+
+  var getDoctorProfileHttp = JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'get_doctor_profile', session_token: consumeHttp.data.session_token })._text);
+  record('Stage17: get_doctor_profile (real HTTP dispatch) resolves the caller\'s own Doctor record from a valid DoctorSession',
+    getDoctorProfileHttp.status === 'ok' && getDoctorProfileHttp.data.doctor_id === doctorIdA);
+
+  var getDoctorProfileUnauthed = JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'get_doctor_profile', session_token: 'not-a-real-session-token' })._text);
+  record('Stage17: get_doctor_profile rejects an invalid session_token with FOUNDATION_UNAUTHORIZED, never leaking any data',
+    getDoctorProfileUnauthed.status === 'error' && getDoctorProfileUnauthed.error.code === 'FOUNDATION_UNAUTHORIZED' && getDoctorProfileUnauthed.data === null);
+
+  var getDoctorProfileWithPatientSessionHttp = JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'get_doctor_profile', session_token: patientSessionForCrossCheck })._text);
+  record('Stage17: get_doctor_profile over real HTTP dispatch rejects a real Patient Session token with FOUNDATION_UNAUTHORIZED — cross-identity-type confusion prevented end to end',
+    getDoctorProfileWithPatientSessionHttp.status === 'error' && getDoctorProfileWithPatientSessionHttp.error.code === 'FOUNDATION_UNAUTHORIZED');
+
+  var getProfileWithDoctorSessionHttp = JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'get_profile', session_token: doctorSessionA })._text);
+  record('Stage17: get_profile (patient route) over real HTTP dispatch rejects a real DoctorSession token with FOUNDATION_UNAUTHORIZED — cross-identity-type confusion prevented end to end, symmetrically',
+    getProfileWithDoctorSessionHttp.status === 'error' && getProfileWithDoctorSessionHttp.error.code === 'FOUNDATION_UNAUTHORIZED');
+
+  // ---- Cross-doctor isolation ----
+  var doctorSessionB = ctx.foundationIssueDoctorSessionToken_(doctorIdB);
+  var profileA = JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'get_doctor_profile', session_token: doctorSessionA })._text);
+  var profileB = JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'get_doctor_profile', session_token: doctorSessionB })._text);
+  record('Stage17: doctor A\'s session resolves doctor A\'s own record, never doctor B\'s', profileA.data.doctor_id === doctorIdA);
+  record('Stage17: doctor B\'s session resolves doctor B\'s own record, never doctor A\'s — cross-doctor isolation', profileB.data.doctor_id === doctorIdB);
+
+  // ---- Audit log — every doctor-scoped event keeps AuditLog's patient_id column empty ----
+  record('Stage17: every doctor_created AuditLog row has an empty patient_id column (no natural patient — doctor-session.md security review §8)',
+    auditRowsOf(h, 'doctor_created').length >= 1 && auditRowsOf(h, 'doctor_created').every(function (row) { return row[2] === ''; }));
+  record('Stage17: every successful doctor login token issuance wrote its own doctor_login_token_issued AuditLog row',
+    auditRowsOf(h, 'doctor_login_token_issued').length >= 1);
+  record('Stage17: every successful doctor login token consumption wrote its own doctor_login_token_consumed AuditLog row',
+    auditRowsOf(h, 'doctor_login_token_consumed').length >= 1);
+  record('Stage17: every rejected doctor login token wrote its own doctor_login_token_rejected AuditLog row',
+    auditRowsOf(h, 'doctor_login_token_rejected').length >= 1);
+  record('Stage17: every rejected DoctorSession verification wrote its own doctor_session_rejected AuditLog row',
+    auditRowsOf(h, 'doctor_session_rejected').length >= 1);
 })();
 
 function auditRowsOf(h, eventType) {

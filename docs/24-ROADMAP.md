@@ -597,8 +597,10 @@ Requires the full ADR-001/ADR-004/ADR-005 AI-supervision pattern before
 any implementation begins.
 
 # Phase 3 — WHIMS Patient Intelligence Platform (formerly "WiseOS")
-Status: **Architecture freeze complete (Version 1.0, 2026-07-16). Not yet
-implemented — no batch authorized to begin.**
+Status: **Architecture freeze complete (Version 1.0, 2026-07-16). Implementation
+underway: Batch WPI-1 (Doctor Identity & Session) shipped 2026-07-16, explicitly
+approved and scoped to WPI-1 only. No later batch (WPI-2 onward) is authorized to
+begin.**
 
 Renamed from "WiseOS" per this architecture-freeze pass (docs/49 §2) — no scope
 change from the rename itself. **Reordered ahead of Phase 2C (Health Milestones) and
@@ -634,16 +636,45 @@ unscoped placeholder, mirroring PXP-9's own precedent exactly**) → WPI-11 (Hol
 **reserved, unscoped placeholder; no existing document defines this item's purpose at
 all**) → WPI-12 (Closeout).
 
-**No WPI batch is authorized to begin by any of the above documents.** Each requires
-its own separate, explicit approval, per docs/53's per-batch gate — the same
-discipline every Phase 2B batch already passed through. Two documentation-only
+**No WPI batch beyond WPI-1 is authorized to begin by any of the above documents.**
+Each requires its own separate, explicit approval, per docs/53's per-batch gate — the
+same discipline every Phase 2B batch already passed through. Two documentation-only
 closures identified by docs/51's readiness review were resolved within this same
 version (docs/52 §1.1/Part 5): the "WiseOS" cross-reference in docs/33 §1.4, and an
 explicit disclosure of the patient-roster derivation's limitation at
 multi-doctor-per-specialty scale (docs/50 §7.4). The Sheets-at-production-scale
-question (docs/49 §7) and a dedicated Doctor Session security review (docs/50 §14)
-remain open gates before WPI-7/WPI-9 and WPI-1 respectively — named, not resolved, by
+question (docs/49 §7) remains an open gate before WPI-7/WPI-9 — named, not resolved, by
 this architecture-freeze pass.
+
+**Batch WPI-1 (Doctor Identity & Session, docs/50 §5, ADR-017)** — Pillar 1, the
+platform's first doctor-facing infrastructure batch — has now shipped, preceded by a
+dedicated `DoctorSession` security review (`shared/schemas/doctor-session.md`) per
+docs/50 §14/docs/51/docs/52's own explicit, non-deferrable pre-ship gate (a deliberate
+correction to Phase 2A's own equivalent review only happening at PA-7 closeout, after
+Session had already shipped). `DoctorIdentity`/`Doctor`/`DoctorSession`/
+`DoctorLoginToken` (`shared/schemas/doctor-identity.schema.json`,
+`doctor-session.schema.json`, `doctor-login-token.schema.json`;
+`apps-script/DoctorIdentity.gs`, `DoctorSession.gs`, `DoctorLoginTokens.gs`,
+`DoctorEmail.gs`, `DoctorLoginFlow.gs`, `DoctorRouteGuard.gs`) mirror Patient Identity/
+Session/LoginTokens structurally, permanently separate per ADR-017 — staff/
+administrative provisioning only (`createFoundationDoctor()`, no public
+self-registration), the same passwordless magic-link mechanism ADR-003 already
+establishes for patients. `DoctorSession` reuses `FoundationSession.gs`'s signing
+secret and HMAC primitive unchanged — zero lines touched in that frozen file, the same
+"additive wrapper" pattern `TrustedDevice.gs`'s Long-Lived Session already proved out at
+Batch PXP-8. Cross-identity-type authorization confusion (a Doctor Session authorizing a
+patient route, or vice versa) is structurally prevented by disjoint payload shapes, not
+merely asserted — proven directly by `validation/phase-2a-foundation/conformance.js`'s
+new Stage 17 (37 new checks, 461/461 total passing). Three new, additive
+`FoundationRouter.gs` dispatch cases (`request_doctor_login_link`,
+`consume_doctor_login_link`, `get_doctor_profile`) register the flow — `get_doctor_profile`
+is the doctor-side proof point mirroring `get_profile`'s own role at Batch IA-2. **Zero
+patient-facing surface, zero doctor-facing frontend page** (the Doctor Dashboard is
+WPI-4's scope, not WPI-1's) — every doctor-owned Phase 2B entity's schema is
+unchanged; only a future, separately-approved batch migrates any of their write paths
+onto a real `doctor_id`. Zero modification to any frozen Foundation/Identity &
+Access/Patient Access/PXP-1..11 file. **No batch beyond WPI-1 is authorized by this
+approval.**
 
 # Guiding Principle
 Every roadmap item should support the North Star:

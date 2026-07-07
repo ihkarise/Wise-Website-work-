@@ -8,6 +8,98 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-16 — Phase 3 Batch WPI-1: Doctor Identity & Session
+
+Implements Batch WPI-1 (docs/50-PHASE-3-TECHNICAL-PLAN.md §5/§19, ADR-017), the
+platform's first doctor-facing infrastructure batch, per docs/53-PHASE-3-
+IMPLEMENTATION-RULES.md's per-batch gate. **Explicitly scoped to WPI-1 only — no later
+batch (WPI-2 onward) is authorized by this change.**
+
+Preceded by a dedicated `DoctorSession` security review
+(`shared/schemas/doctor-session.md`), performed before any code was written, per
+docs/50 §14/docs/51 Part 5/docs/52 Part 5's explicit, non-deferrable pre-ship gate — a
+deliberate correction to Phase 2A's own equivalent magic-link/session review only
+happening at PA-7 closeout, after Session had already shipped.
+
+### Added (schemas)
+- **`shared/schemas/doctor-identity.schema.json`** (+ `.md`) — the `DoctorIdentity`/
+  `Doctor` record shape, structurally parallel to Patient Identity/Patient (ADR-002)
+  and never merged with either (ADR-017).
+- **`shared/schemas/doctor-session.schema.json`** (+ `.md`, including the dedicated
+  security review) — the `DoctorSession` payload shape, reusing `session.schema.json`'s
+  exact wire format.
+- **`shared/schemas/doctor-login-token.schema.json`** (+ `.md`) — the `DoctorLoginToken`
+  record shape, mirroring `login-token.schema.json`, stored in its own
+  `DoctorLoginTokens` sheet, never `LoginTokens`.
+
+### Added (Apps Script)
+- **`apps-script/DoctorIdentity.gs`** — validate/create/get a `Doctor` record;
+  `createFoundationDoctor()`, a manually-run editor function (staff/administrative
+  provisioning only, no public self-registration, mirroring `createFoundationPatient()`
+  exactly).
+- **`apps-script/DoctorSession.gs`** — issues and verifies `DoctorSession` tokens,
+  reusing `FoundationSession.gs`'s signing secret and HMAC primitive **unchanged, zero
+  lines touched in that frozen file** — the same additive-wrapper pattern
+  `TrustedDevice.gs`'s Long-Lived Session already proved out at Batch PXP-8.
+- **`apps-script/DoctorLoginTokens.gs`** — single-use, hashed, expiring doctor login
+  tokens, reusing `FoundationLoginTokens.gs`'s already-generic
+  `foundationGenerateRawLoginToken_()`/`foundationHashLoginToken_()` directly, unchanged.
+- **`apps-script/DoctorEmail.gs`** — doctor login-link email delivery, mirroring
+  `FoundationEmail.gs`.
+- **`apps-script/DoctorLoginFlow.gs`** — request/consume orchestration, reusing
+  `FoundationRateLimit.gs`'s already-generic `foundationCheckAndIncrementRateLimit_()`
+  directly, unchanged.
+- **`apps-script/DoctorRouteGuard.gs`** — `withFoundationDoctorAuth_()`, gating a
+  handler behind a verified `DoctorSession`, mirroring `FoundationRouteGuard.gs`.
+
+### Changed
+- **`apps-script/FoundationRouter.gs`** — three new, additive dispatch cases:
+  `request_doctor_login_link`, `consume_doctor_login_link`, `get_doctor_profile`. Zero
+  existing case changed. `get_doctor_profile` is the doctor-side proof point mirroring
+  `get_profile`'s own role at Batch IA-2.
+
+### Security
+- **No cross-identity-type authorization confusion.** A Doctor Session can never
+  authorize a patient-scoped route, and a Patient Session can never authorize a
+  doctor-scoped route — enforced mechanically by disjoint, non-overlapping payload
+  shapes (`doctor_id` vs. `patient_id`), not by convention. Proven directly, not just
+  argued, by 37 new conformance checks (Stage 17), including hand-signing a token with
+  the exact shared signing secret and confirming both guards independently reject the
+  other identity type's real, validly-signed token.
+- Patient Session and Doctor Session share one signing secret
+  (`FOUNDATION_SESSION_SIGNING_SECRET`) — a disclosed, accepted blast-radius trade-off
+  (avoids a second Script Property secret-management surface), not a gap in the
+  authorization boundary itself, which does not depend on secret separation. Full
+  analysis: `shared/schemas/doctor-session.md`.
+
+### Validation
+- Static Analysis (`validation/static-analysis/analyze.js`) — PASS, 0 findings (50
+  files scanned).
+- Conformance (`validation/phase-2a-foundation/conformance.js`) — 461/461 passing (new
+  Stage 17, 37 checks).
+- Phase 1.5 Regression (`validation/phase-1-5/validate.js`) — 42/42 passing, unchanged.
+- All 10 existing browser-test suites — unaffected (WPI-1 ships no frontend page),
+  re-verified passing.
+
+### Documentation
+- `docs/33-DOMAIN-MODEL.md` — §1.4/§7.1 and the Summary Table: Doctor/DoctorIdentity/
+  DoctorSession/DoctorLoginToken promoted from Designed to Implemented. Every other
+  Phase 3/WHIMS entity (Specialty, Doctor Module Registry, Appointment, Notification,
+  Inventory, PillFill Order, Analytics) remains exactly as Designed — untouched by this
+  batch.
+- `docs/24-ROADMAP.md` — Phase 3 status updated; WPI-1 entry added.
+- `shared/README.md` — new schema-catalog paragraph for this batch's three additions.
+
+### What this batch does not do
+No patient-facing surface, no doctor-facing frontend page (the Doctor Dashboard is
+WPI-4's scope). No existing doctor-owned Phase 2B entity's schema or write path
+changes — `DoctorAssignedCondition`, `CarePlan`, `DoctorInstruction`, and
+`CheckInTemplateAssignment` all keep their existing manually-run editor functions
+unchanged; migrating any of them onto a real `doctor_id` is a future, separately-
+approved batch's decision. No role-based permission logic — `Doctor.role` is stored and
+returned only. Zero modification to any frozen Foundation/Identity & Access/Patient
+Access/PXP-1..11 file.
+
 ## 2026-07-16 — Phase 3 Architecture Freeze: WHIMS Patient Intelligence Platform
 
 Documentation-only architecture-freeze pass, per explicit instruction to begin Phase 3

@@ -140,6 +140,16 @@ returning a row — see that schema's own `.md` for the full disclosure). Long-L
 Session, the other named mechanism this batch ships, has no schema of its own — per
 docs/33-DOMAIN-MODEL.md §6.6, it is "not a stored entity of its own, a parameterization
 of the existing Session mechanism" (`schemas/session.schema.json`, unchanged).
+Phase 3/WHIMS Batch WPI-1 added `schemas/doctor-identity.schema.json` (the
+`DoctorIdentity`/`Doctor` record shape — Pillar 1, ADR-017, ADR-002's own pattern
+applied to a second, permanently distinct identity space, alongside its first
+implementation, `apps-script/DoctorIdentity.gs`), `schemas/doctor-session.schema.json`
+(the `DoctorSession` payload shape — reuses `session.schema.json`'s exact wire format
+and `apps-script/FoundationSession.gs`'s unmodified signing primitives; see its own
+`.md` for the dedicated pre-ship security review docs/50 §14 required), and
+`schemas/doctor-login-token.schema.json` (the `DoctorLoginToken` record shape — mirrors
+`login-token.schema.json` exactly, stored in its own `DoctorLoginTokens` sheet, never
+`LoginTokens`).
 
 ---
 

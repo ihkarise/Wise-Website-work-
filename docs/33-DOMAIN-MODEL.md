@@ -194,8 +194,25 @@ promoted from Conceptual to Designed.** "Phase 3 (WiseOS)" above is renamed "Pha
 rename itself. `DoctorIdentity`/`Doctor` (docs/50 §5) formalize this section's own
 proposed attributes almost exactly (`doctor_id`, `full_name`, `role`, `email`, plus a
 new `specialty_slug`), structurally parallel to Patient Identity/Patient (ADR-002) and
-**never merged with either** (ADR-017). See §7.1 below for the full shape. Not yet
-implemented — see docs/50 §19's `WPI-1` batch.
+**never merged with either** (ADR-017). See §7.1 below for the full shape.
+
+**Status update (2026-07-16, Batch WPI-1): promoted from Designed to Implemented.**
+`DoctorIdentity`/`Doctor`/`DoctorSession`/`DoctorLoginToken` have shipped
+(`shared/schemas/doctor-identity.schema.json`, `doctor-session.schema.json`,
+`doctor-login-token.schema.json`; `apps-script/DoctorIdentity.gs`, `DoctorSession.gs`,
+`DoctorLoginTokens.gs`, `DoctorEmail.gs`, `DoctorLoginFlow.gs`, `DoctorRouteGuard.gs`) —
+the platform's first doctor-facing infrastructure, staff/administrative-provisioned
+only (no public self-registration), authenticated via the same passwordless magic-link
+mechanism ADR-003 already establishes for patients. `DoctorSession` reuses
+`FoundationSession.gs`'s signing secret and HMAC primitive unchanged — zero lines
+touched in that frozen file — while remaining structurally impossible to confuse with a
+Patient `Session` (disjoint payload shapes, proven directly by
+`validation/phase-2a-foundation/conformance.js`'s Stage 17, not just asserted; full
+security analysis in `shared/schemas/doctor-session.md`). Zero role-based permission
+logic is implemented — `role` is stored and returned only. No doctor-facing frontend
+page ships in this batch (`FoundationRouter.gs` gains three new, additive dispatch
+cases: `request_doctor_login_link`, `consume_doctor_login_link`, `get_doctor_profile`).
+See §7.1 below for the full shape.
 
 ---
 
@@ -1152,7 +1169,7 @@ labeled test-only fixture pushed directly into the test harness's own registry a
 
 ---
 
-# 7. Phase 3 — WHIMS Patient Intelligence Platform Entities — *Designed, not yet implemented (docs/49/50/51/52, ADR-017–020)*
+# 7. Phase 3 — WHIMS Patient Intelligence Platform Entities — *Mostly Designed, Batch WPI-1 Implemented (docs/49/50/51/52, ADR-017–020)*
 
 Net-new entities named by Phase 3's architecture-freeze pass (docs/49/50, 2026-07-16).
 Doctor (§1.4), Appointment (§4.1), and Notification (§4.2) were already conceptual and
@@ -1160,14 +1177,19 @@ are promoted in place above rather than restated here. Full field-level detail l
 docs/50 — this section records only each entity's purpose and relationships, at the
 same fidelity the rest of this document uses.
 
-## 7.1 Doctor Identity, Doctor, Doctor Session, Doctor Login Token — *Designed*
+## 7.1 Doctor Identity, Doctor, Doctor Session, Doctor Login Token — *Implemented (Batch WPI-1)*
 Structurally parallel to Patient Identity/Patient/Session/LoginTokens (§1.1–1.3),
 **never merged with any of them** (ADR-017). `DoctorSession` reuses
 `FoundationSession.gs`'s existing signing primitives without modifying that frozen
 file — the same pattern `TrustedDevice.gs`'s Long-Lived Session already proved out.
-**Relationships:** Every doctor-owned Phase 2B entity's `created_by`/`prescribed_by`/
-`resolved_by` field gains a real `doctor_id` to reference once this ships, alongside
-(not replacing) today's free-text values. **Full detail:** docs/50 §5.
+Cross-identity-type authorization confusion is structurally prevented, not just
+asserted — proven directly by conformance Stage 17 (see `shared/schemas/
+doctor-session.md`'s dedicated security review). **Relationships:** Every doctor-owned
+Phase 2B entity's `created_by`/`prescribed_by`/`resolved_by` field gains a real
+`doctor_id` to reference once each is individually migrated onto it (a future batch,
+not WPI-1) — alongside, not replacing, today's free-text values. **Full detail:**
+docs/50 §5; shipped shape: `shared/schemas/doctor-identity.schema.json`,
+`doctor-session.schema.json`, `doctor-login-token.schema.json`.
 
 ## 7.2 Specialty — *Designed*
 A config-level list of specialty descriptors (`specialty_slug`, `display_name`,
@@ -1232,7 +1254,7 @@ exactly (§6, this document's Phase 2B section).
 | Patient | Implemented | 2A (Foundation F3) |
 | Patient Identity | Implemented | 2A (Foundation F3) |
 | Session | Implemented | 2A (Foundation F4) |
-| Doctor / Doctor Identity / Doctor Session | **Designed** | 3/WHIMS (docs/50 §5, ADR-017, batch WPI-1 — not yet built) |
+| Doctor / Doctor Identity / Doctor Session / Doctor Login Token | **Implemented** | 3/WHIMS (docs/50 §5, ADR-017, batch WPI-1 — shipped, staff/administrative-provisioned only, DoctorSession reuses FoundationSession.gs's unmodified signing secret/HMAC primitive, cross-identity-type confusion structurally prevented and directly proven by conformance Stage 17) |
 | Consultation | Conceptual | Unassigned |
 | Consultation Summary | Implemented | Phase 1.5 |
 | Doctor Instruction | **Implemented** | 2B (docs/44 §12, batch PXP-7 — shipped, doctor/staff-owned, aggregated by Care Plan via its stable care_plan_id) |

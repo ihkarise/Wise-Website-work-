@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wisehomeopathy.com/shared/schemas/doctor-login-token.schema.json",
+  "title": "Doctor Login Token",
+  "version": "1.0.0",
+  "description": "The canonical shape of a DoctorLoginTokens record — docs/33-DOMAIN-MODEL.md §7.1, docs/50-PHASE-3-TECHNICAL-PLAN.md §5.4, ADR-017. The single-use artifact that resolves a doctor's registered email to a doctor_id and, once consumed, a Doctor Session — structurally identical in mechanism to login-token.schema.json, stored in its own DoctorLoginTokens sheet, never LoginTokens. Only the token's hash is ever part of this shape — the raw token itself is never stored, never part of this schema, and exists only transiently in memory between generation and delivery. See doctor-login-token.md for the hashing rationale (shared, unmodified, with login-token.schema.json's own) and sheet-isolation note.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["token_hash", "doctor_id", "issued_at", "expires_at", "used_at"],
+  "properties": {
+    "token_hash": {
+      "type": "string",
+      "minLength": 32,
+      "description": "SHA-256 hex digest (64 hex characters) of the raw, single-use doctor login token. The raw token is never stored anywhere, including here — this field exists specifically so a stolen datastore export can never be used to authenticate (ADR-010). Computed by the same, unmodified foundationHashLoginToken_() login-token.schema.json's own token_hash field uses."
+    },
+    "doctor_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The Doctor Identity this token, once consumed, resolves to (docs/33 §7.1, ADR-017). Set once at issuance, never modified. Never patient_id — a permanently distinct value space."
+    },
+    "issued_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "The instant this token was generated. Set once, never modified."
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "The instant this token becomes permanently invalid, regardless of use. No renewal — a caller presenting an expired token must request a new one, mirroring login-token.schema.json's own rule."
+    },
+    "used_at": {
+      "type": "string",
+      "description": "Empty string until this single-use token is consumed exactly once; a non-empty value is the ISO 8601 instant it was consumed. Deliberately NOT format:\"date-time\"-constrained at the schema level — an empty string is the documented, intentional \"not yet used\" sentinel, the same convention login-token.schema.json's own used_at field already establishes. See doctor-login-token.md."
+    }
+  }
+}

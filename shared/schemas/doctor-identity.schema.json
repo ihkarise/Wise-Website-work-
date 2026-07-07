@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wisehomeopathy.com/shared/schemas/doctor-identity.schema.json",
+  "title": "Doctor Identity",
+  "version": "1.0.0",
+  "description": "The canonical shape of a Doctor record — docs/33-DOMAIN-MODEL.md §1.4/§7.1 (Doctor Identity, Doctor), docs/50-PHASE-3-TECHNICAL-PLAN.md §5.1/§5.2, ADR-017. Doctor Identity (the permanent, minimal core — doctor_id, created_at) and Doctor (the attached profile — full_name, role, email, specialty_slug, status) are two conceptually distinct entities, structurally parallel to Patient Identity and Patient (docs/33 §1.1/§1.2, ADR-002), combined into one stored record for the same reason patient-identity.schema.json combines its own pair — see doctor-identity.md. Never merged into, aliased with, or derived from patient-identity.schema.json (ADR-017) — a structurally distinct identity space, even though both reuse the same underlying session-signing primitives.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["doctor_id", "full_name", "role", "email", "specialty_slug", "status", "created_at", "created_by"],
+  "properties": {
+    "doctor_id": {
+      "type": "string",
+      "description": "The permanent identity core (docs/33 §7.1, ADR-017). A UUID, generated once at creation, never reused or changed. Every doctor-owned record that migrates onto a real identity references this value, never email or any other field on this object. Structurally distinct from patient_id — never the same value space, never cross-referenced."
+    },
+    "full_name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Profile field (docs/50 §5.2). Mutable — may change without affecting doctor_id or any record that references it."
+    },
+    "role": {
+      "type": "string",
+      "enum": ["physician", "staff"],
+      "description": "Profile field (docs/33 §1.4's own originally-proposed attribute, docs/50 §5.2). Named for future role-scoped permissions (ADR-017 Future Considerations) — no role-differentiated permission logic is implemented by this schema or WPI-1; every Doctor record, regardless of role, is treated identically by DoctorSession/DoctorRouteGuard.gs today."
+    },
+    "email": {
+      "type": "string",
+      "format": "email",
+      "description": "Profile field, and — mirroring ADR-003's reused passwordless philosophy for Patient Identity — the current authentication-lookup mechanism attached to this identity. Mutable. A future authentication method would attach to doctor_id the same way, per ADR-017; this field is never itself treated as the identity."
+    },
+    "specialty_slug": {
+      "type": "string",
+      "description": "Optional profile field, reserved by docs/50 §5.2/§6.3 for the Specialty Registry (ADR-018, batch WPI-2 — not yet built). Empty-string sentinel when not supplied (mirroring trusted-device.schema.json's own device_label convention) — an empty value means the doctor is scoped to the implicit default specialty, matching today's actual single-specialty (homeopathy) behavior exactly, the same 'absent means today's behavior, unchanged' rule ADR-018 establishes for every other registry's specialty_scope field. Not validated against a real Specialty Registry entry yet, since none exists until WPI-2 ships — the same documented simplification patient-identity.schema.json's own condition_slug field already accepted at Foundation batch F3 (see doctor-identity.md)."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["active", "inactive"],
+      "description": "Profile field. Set to \"active\" at creation. No \"recovered\" state — that value belongs to Patient's own clinical lifecycle (docs/23), not Doctor's, which has no analogous concept."
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Permanent — set once at creation, never modified afterward."
+    },
+    "created_by": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Permanent — the staff/administrative identifier who provisioned this record, an audit provenance field, never modified afterward. No public self-registration exists for Doctor Identity, mirroring Patient Identity's own unconditional rule (ADR-002, docs/09) exactly — every Doctor row is staff/administrative-provisioned."
+    }
+  }
+}
