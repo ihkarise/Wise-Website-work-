@@ -92,6 +92,14 @@
  * `DoctorInstruction.gs` in the FILES list — no new mock needed, since both
  * only reuse SpreadsheetApp/Utilities/Logger primitives already mocked
  * above.
+ *
+ * Extended in Phase 2B batch PXP-8 with `TrustedDevice.gs` in the FILES
+ * list — no new mock needed, since it only reuses SpreadsheetApp/Utilities/
+ * Logger primitives already mocked above (including a real production
+ * exercise of `PropertiesService`'s `FOUNDATION_SESSION_SIGNING_SECRET`
+ * for its own Long-Lived Session issuance, the same secret
+ * `FoundationSession.gs` already reads — proving both mechanisms verify
+ * against the identical signing secret without any new mock).
  */
 
 var fs = require('fs');
@@ -128,6 +136,7 @@ var FILES = [
   'CalculatorResult.gs',
   'CarePlan.gs',
   'DoctorInstruction.gs',
+  'TrustedDevice.gs',
   'FoundationRouter.gs'
 ];
 

@@ -974,6 +974,23 @@ explicit constraint per ADR-015, not merely a current-state description.
 alongside — never replacing — Session/LoginToken (§1.2/§1.3). **Full detail:** docs/44
 §5, ADR-015 (governing), ADR-014 and ADR-011 (both superseded, retained by reference).
 
+**`TrustedDevice` and Long-Lived Session — Implemented (Batch PXP-8, docs/44 §5/§22).**
+`shared/schemas/trusted-device.schema.json` + `apps-script/TrustedDevice.gs` ship the
+first Phase 2B entity that is *patient*-owned rather than doctor/staff-owned (every
+write is a real, session-authenticated Web App route — `mark_device_trusted`,
+`revoke_trusted_device` — with no manually-run editor counterpart at all, unlike every
+prior PXP-1..7 entity). Long-Lived Session resolves docs/44 §5.5's implementation-time
+question as an **additive wrapper**: `TrustedDevice.gs`'s
+`foundationIssueLongLivedSessionToken_()` reuses `FoundationSession.gs`'s own
+unmodified signing primitives with a longer, local TTL constant — zero lines changed
+in the frozen `FoundationSession.gs`, `FoundationRouteGuard.gs`, or
+`session.schema.json`. `consume_trusted_device` (the presented device token is itself
+the credential) both rotates the device token and issues a fresh Long-Lived Session in
+one action — this is also this design's "session renewal" mechanic, with no separate
+renew action. **PIN (`PatientCredential`) remains explicitly out of scope for this
+batch** — docs/45 Part 5's dedicated-security-review gate is still open, unchanged by
+this batch.
+
 ## 6.7 Template Registry — *Implemented (Batch PXP-5), generalizes Check-In Template (§6.5)*
 **Purpose:** A config-level registry of template descriptors (mirroring Module
 Registry §6.3 and Calculator Registry §6.4) from which any patient-facing form or
@@ -1072,9 +1089,9 @@ labeled test-only fixture pushed directly into the test harness's own registry a
 | Template Registry | **Implemented** | 2B (docs/44 §11/§11.5, ADR-016, batch PXP-5 — shipped, seeded with one template). Generalizes Check-In Template into a registry pattern; six future categories named, unscoped, unclaimed by any batch. |
 | Check-In Template / Check-In Response | **Implemented** | 2B (docs/44 §11/§10, batch PXP-5 — shipped, shipped alongside Symptom Log, never replacing it). Template assignment settled: doctor-driven, patient never configures, enforced server-side via the disclosed additive `CheckInTemplateAssignment` entity. Now the Template Registry's first concrete category (§6.7). |
 | Check-In Template Assignment (disclosed, additive gap-fill) | **Implemented** | 2B (docs/44 §10.2, batch PXP-5 — shipped). Fills a gap docs/44 §10.2 settles but names no persisted shape for; an exact structural mirror of Doctor Assigned Condition (§6.2). |
-| Trusted Device | Designed, not yet implemented | 2B (docs/44 §5, ADR-015, batch PXP-8) |
-| Long-Lived Session | Designed, not yet implemented (new in Version 3.0) | 2B (docs/44 §5, ADR-015, batch PXP-8) — the extended access window issued when a Trusted Device is presented; not a stored entity of its own, a parameterization of the existing Session mechanism |
-| Patient Credential (optional, convenience-only) | Designed, not yet implemented | 2B (docs/44 §5, ADR-015 governing (ADR-011/ADR-014 superseded), batch PXP-8 — PIN sub-batch requires dedicated security review first, docs/45 Part 3) |
+| Trusted Device | **Implemented** | 2B (docs/44 §5, ADR-015, batch PXP-8 — shipped, patient-owned, no manually-run editor counterpart) |
+| Long-Lived Session | **Implemented** | 2B (docs/44 §5, ADR-015, batch PXP-8 — shipped as an additive wrapper around `FoundationSession.gs`'s own unmodified primitives; the extended access window issued when a Trusted Device is presented; not a stored entity of its own, a parameterization of the existing Session mechanism) |
+| Patient Credential (optional, convenience-only) | Designed, not yet implemented | 2B (docs/44 §5, ADR-015 governing (ADR-011/ADR-014 superseded) — PIN sub-batch remains explicitly out of scope for PXP-8, still requires its own dedicated security review first, docs/45 Part 3/Part 5) |
 
 Every "Unassigned" row above is carried into docs/34-ARCHITECTURE-CONSISTENCY-REVIEW.md
 as a reported gap, not silently resolved by assigning it a phase here.

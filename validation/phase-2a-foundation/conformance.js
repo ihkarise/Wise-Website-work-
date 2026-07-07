@@ -172,6 +172,30 @@
  * isolation on every new route, mirroring every earlier stage's own
  * discipline.
  *
+ * Extended in Phase 2B batch PXP-8 with Stage 16, covering TrustedDevice.gs
+ * against the new shared/schemas/trusted-device.schema.json, plus the four
+ * new FoundationRouter.gs dispatch cases (mark_device_trusted,
+ * consume_trusted_device, get_trusted_devices, revoke_trusted_device) end
+ * to end — Persistent Authentication (ADR-015). This stage's
+ * highest-priority checks are: a Long-Lived Session token issued by
+ * foundationConsumeTrustedDevice_() verifies successfully through
+ * FoundationSession.gs's own real, completely unmodified
+ * foundationVerifySessionToken_() (proving docs/44 §5.5's additive-wrapper
+ * decision is real, not just designed) and carries a materially longer
+ * expires_at than a magic-link-issued session's own unchanged 3600-second
+ * TTL, proven side by side in the same check; the device token rotates on
+ * every successful consume (the pre-rotation raw token is rejected on a
+ * second attempt); revoked and expired devices are both rejected with the
+ * same generic FOUNDATION_TRUSTED_DEVICE_INVALID code, never
+ * distinguishing which (mirroring FoundationLoginTokens.gs's own
+ * "rejection is deliberately generic" discipline); device_token_hash never
+ * appears in get_trusted_devices' response (the disclosed data-minimization
+ * choice, shared/schemas/trusted-device.md); revoke_trusted_device rejects
+ * an unknown or another patient's device_id with the same generic
+ * FOUNDATION_NOT_FOUND get_timeline_entry's own cross-patient check already
+ * uses; and cross-patient isolation on every new route, mirroring every
+ * earlier stage's own discipline.
+ *
  * Run with: node conformance.js  (no dependencies beyond Node's
  * standard library).
  */
@@ -201,6 +225,7 @@ var checkInResponseSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'sc
 var calculatorResultSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/calculator-result.schema.json'), 'utf8'));
 var carePlanSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/care-plan.schema.json'), 'utf8'));
 var doctorInstructionSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/doctor-instruction.schema.json'), 'utf8'));
+var trustedDeviceSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/trusted-device.schema.json'), 'utf8'));
 
 var results = [];
 function record(name, pass, detail) {
@@ -2259,6 +2284,161 @@ var ctx = loadProject(h.sandbox);
     auditRowsOf(h, 'doctor_instruction_created').length === 2);
   record('Stage15: the successful status transition wrote its own doctor_instruction_completed AuditLog row',
     auditRowsOf(h, 'doctor_instruction_completed').length === 1);
+})();
+
+// ============================================================
+// Stage 16 (PXP-8) — TrustedDevice.gs (Trusted Device + Long-Lived
+// Session) -> shared/schemas/trusted-device.schema.json
+// ============================================================
+(function stage16_trustedDeviceAndLongLivedSession() {
+  var patientA = ctx.foundationCreatePatient_({
+    full_name: 'Stage16 Patient A', email: 'stage16-a@example.com',
+    condition_slug: 'mcas', created_by: 'staff-1'
+  });
+  var patientB = ctx.foundationCreatePatient_({
+    full_name: 'Stage16 Patient B', email: 'stage16-b@example.com',
+    condition_slug: 'eczema', created_by: 'staff-1'
+  });
+  record('Stage16: setup — two independent patients exist', patientA.status === 'ok' && patientB.status === 'ok');
+  var patientIdA = patientA.data.patient_id;
+  var patientIdB = patientB.data.patient_id;
+
+  // ---- Baseline: a magic-link-issued session's own TTL is unchanged ----
+  var baselineSession = ctx.foundationIssueSessionToken_(patientIdA);
+  var baselineVerified = ctx.foundationVerifySessionToken_(baselineSession);
+  record('Stage16: a magic-link-issued session still verifies with the real, unmodified foundationVerifySessionToken_()',
+    baselineVerified.valid === true);
+  var baselineTtlSeconds = (Date.parse(baselineVerified.payload.expires_at) - Date.parse(baselineVerified.payload.issued_at)) / 1000;
+  record('Stage16: a magic-link-issued session\'s own TTL is exactly the unchanged 3600-second default — FoundationSession.gs was not touched',
+    baselineTtlSeconds === 3600);
+
+  // ---- foundationCreateTrustedDevice_() ----
+  var device1 = ctx.foundationCreateTrustedDevice_(patientIdA, 'My iPhone');
+  record('Stage16: foundationCreateTrustedDevice_() succeeds on valid input', device1.status === 'ok');
+  record('Stage16: the created device returns a raw device_token, a device_id, and an expires_at',
+    typeof device1.data.device_token === 'string' && device1.data.device_token.length > 0
+    && typeof device1.data.device_id === 'string' && device1.data.device_id.length > 0
+    && typeof device1.data.expires_at === 'string');
+  record('Stage16: the response never includes a device_token_hash field', !('device_token_hash' in device1.data));
+
+  var badLabel = ctx.foundationCreateTrustedDevice_(patientIdA, 'x'.repeat(61));
+  record('Stage16: foundationCreateTrustedDevice_() rejects a device_label over 60 characters with FOUNDATION_INVALID_INPUT',
+    badLabel.status === 'error' && badLabel.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var storedDevices = ctx.foundationGetPatientTrustedDevices_(patientIdA);
+  record('Stage16: a real stored TrustedDevice row (redacted view) conforms to trusted-device.schema.json',
+    (function () {
+      var raw = h.spreadsheet.getSheetByName('TrustedDevices')._debug();
+      var cols = raw.header;
+      var row0 = raw.rows[0];
+      var obj = {};
+      cols.forEach(function (c, i) { obj[c] = row0[i]; });
+      return validate(trustedDeviceSchema, obj).valid === true;
+    })());
+  record('Stage16: get_trusted_devices\' redacted view never includes device_token_hash',
+    storedDevices.status === 'ok' && !('device_token_hash' in storedDevices.data[0]));
+
+  // ---- foundationConsumeTrustedDevice_() — the happy path ----
+  var consumed1 = ctx.foundationConsumeTrustedDevice_(device1.data.device_token);
+  record('Stage16: foundationConsumeTrustedDevice_() succeeds against a real, unrevoked, unexpired device token', consumed1.status === 'ok');
+  record('Stage16: a successful consume resolves the correct patient_id', consumed1.data.patient_id === patientIdA);
+  record('Stage16: a successful consume returns a rotated (different) raw device_token',
+    consumed1.data.device_token !== device1.data.device_token);
+
+  var longLivedVerified = ctx.foundationVerifySessionToken_(consumed1.data.session_token);
+  record('Stage16: the issued Long-Lived Session token verifies successfully through the real, unmodified foundationVerifySessionToken_()',
+    longLivedVerified.valid === true && longLivedVerified.patientId === patientIdA);
+  var longLivedTtlSeconds = (Date.parse(longLivedVerified.payload.expires_at) - Date.parse(longLivedVerified.payload.issued_at)) / 1000;
+  record('Stage16: the Long-Lived Session\'s own TTL (14 days) is materially longer than a magic-link session\'s 3600-second default',
+    longLivedTtlSeconds === 60 * 60 * 24 * 14 && longLivedTtlSeconds > baselineTtlSeconds);
+
+  // ---- Rotation: the pre-rotation raw token is rejected on a second attempt ----
+  var reuseOldToken = ctx.foundationConsumeTrustedDevice_(device1.data.device_token);
+  record('Stage16: presenting the same (now-rotated-away) raw device token a second time is rejected — rotation is real, not cosmetic',
+    reuseOldToken.status === 'error' && reuseOldToken.error.code === 'FOUNDATION_TRUSTED_DEVICE_INVALID');
+
+  // ---- The rotated token itself still works ----
+  var consumeRotated = ctx.foundationConsumeTrustedDevice_(consumed1.data.device_token);
+  record('Stage16: the newly-rotated raw device token successfully consumes on its own next use', consumeRotated.status === 'ok');
+
+  // ---- Unknown / malformed tokens ----
+  var unknownToken = ctx.foundationConsumeTrustedDevice_('not-a-real-device-token');
+  record('Stage16: an unknown device token is rejected with the generic FOUNDATION_TRUSTED_DEVICE_INVALID code',
+    unknownToken.status === 'error' && unknownToken.error.code === 'FOUNDATION_TRUSTED_DEVICE_INVALID');
+  var missingToken = ctx.foundationConsumeTrustedDevice_('');
+  record('Stage16: a missing device token is rejected with the same generic code, never a distinguishable one',
+    missingToken.status === 'error' && missingToken.error.code === 'FOUNDATION_TRUSTED_DEVICE_INVALID');
+
+  // ---- foundationRevokeTrustedDevice_() ----
+  var device2 = ctx.foundationCreateTrustedDevice_(patientIdA, 'Work laptop');
+  var revokeResult = ctx.foundationRevokeTrustedDevice_(patientIdA, device2.data.device_id);
+  record('Stage16: foundationRevokeTrustedDevice_() succeeds on the caller\'s own, unrevoked device', revokeResult.status === 'ok');
+
+  var reuseRevokedToken = ctx.foundationConsumeTrustedDevice_(device2.data.device_token);
+  record('Stage16: a revoked device\'s token is rejected with the same generic FOUNDATION_TRUSTED_DEVICE_INVALID code, never distinguishing "revoked" from "expired" or "unknown"',
+    reuseRevokedToken.status === 'error' && reuseRevokedToken.error.code === 'FOUNDATION_TRUSTED_DEVICE_INVALID');
+
+  var revokeAgain = ctx.foundationRevokeTrustedDevice_(patientIdA, device2.data.device_id);
+  record('Stage16: revoking an already-revoked device is rejected — a one-way, exactly-once transition',
+    revokeAgain.status === 'error' && revokeAgain.error.code === 'FOUNDATION_NOT_FOUND');
+
+  var device3 = ctx.foundationCreateTrustedDevice_(patientIdA, '');
+  var crossPatientRevoke = ctx.foundationRevokeTrustedDevice_(patientIdB, device3.data.device_id);
+  record('Stage16: patient B cannot revoke patient A\'s device — rejected with the same generic FOUNDATION_NOT_FOUND, never leaking that the device exists',
+    crossPatientRevoke.status === 'error' && crossPatientRevoke.error.code === 'FOUNDATION_NOT_FOUND');
+
+  var unknownRevoke = ctx.foundationRevokeTrustedDevice_(patientIdA, 'not-a-real-device-id');
+  record('Stage16: revoking an unknown device_id is rejected with the same generic FOUNDATION_NOT_FOUND',
+    unknownRevoke.status === 'error' && unknownRevoke.error.code === 'FOUNDATION_NOT_FOUND');
+
+  // ---- Cross-patient isolation on the list route ----
+  var devicesA = ctx.foundationGetPatientTrustedDevices_(patientIdA);
+  var devicesB = ctx.foundationGetPatientTrustedDevices_(patientIdB);
+  record('Stage16: patient A\'s device list contains only patient A\'s own devices, never patient B\'s',
+    devicesA.status === 'ok' && devicesA.data.every(function (d) { return d.patient_id === patientIdA; }));
+  record('Stage16: patient B\'s device list is empty — cross-patient isolation', devicesB.status === 'ok' && devicesB.data.length === 0);
+
+  // ---- HTTP dispatch (FoundationRouter.gs) ----
+  var device4 = ctx.foundationCreateTrustedDevice_(patientIdA, 'HTTP test device');
+  var sessionForA = ctx.foundationIssueSessionToken_(patientIdA);
+
+  var markTrustedHttp = JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'mark_device_trusted', session_token: sessionForA, device_label: 'HTTP-dispatch device' })._text);
+  record('Stage16: mark_device_trusted (real HTTP dispatch) succeeds and derives patient_id only from the verified session',
+    markTrustedHttp.status === 'ok' && typeof markTrustedHttp.data.device_token === 'string');
+
+  var unauthedMarkTrustedHttp = JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'mark_device_trusted', session_token: 'not-a-real-session-token' })._text);
+  record('Stage16: mark_device_trusted rejects an invalid session_token with FOUNDATION_UNAUTHORIZED, never leaking any data',
+    unauthedMarkTrustedHttp.status === 'error' && unauthedMarkTrustedHttp.error.code === 'FOUNDATION_UNAUTHORIZED');
+
+  var consumeHttp = JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'consume_trusted_device', device_token: device4.data.device_token })._text);
+  record('Stage16: consume_trusted_device (real HTTP dispatch) succeeds with no session_token at all — the device token is itself the credential',
+    consumeHttp.status === 'ok' && typeof consumeHttp.data.session_token === 'string');
+
+  var getDevicesHttp = JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'get_trusted_devices', session_token: sessionForA })._text);
+  record('Stage16: get_trusted_devices (real HTTP dispatch) resolves the caller\'s own devices from a valid session', getDevicesHttp.status === 'ok');
+  var getDevicesHttpB = JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'get_trusted_devices', session_token: ctx.foundationIssueSessionToken_(patientIdB) })._text);
+  record('Stage16: get_trusted_devices over real HTTP dispatch returns only patient B\'s own devices, never patient A\'s — cross-patient isolation',
+    getDevicesHttpB.status === 'ok' && getDevicesHttpB.data.every(function (d) { return d.patient_id === patientIdB; }));
+  var unauthedGetDevicesHttp = JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'get_trusted_devices', session_token: 'not-a-real-session-token' })._text);
+  record('Stage16: get_trusted_devices rejects an invalid session_token with FOUNDATION_UNAUTHORIZED, never leaking any data',
+    unauthedGetDevicesHttp.status === 'error' && unauthedGetDevicesHttp.error.code === 'FOUNDATION_UNAUTHORIZED');
+
+  var device5 = ctx.foundationCreateTrustedDevice_(patientIdA, 'To be revoked over HTTP');
+  var revokeHttp = JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'revoke_trusted_device', session_token: sessionForA, device_id: device5.data.device_id })._text);
+  record('Stage16: revoke_trusted_device (real HTTP dispatch) succeeds and derives patient_id only from the verified session', revokeHttp.status === 'ok');
+  var unauthedRevokeHttp = JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'revoke_trusted_device', session_token: 'not-a-real-session-token', device_id: device5.data.device_id })._text);
+  record('Stage16: revoke_trusted_device rejects an invalid session_token with FOUNDATION_UNAUTHORIZED, never leaking any data',
+    unauthedRevokeHttp.status === 'error' && unauthedRevokeHttp.error.code === 'FOUNDATION_UNAUTHORIZED');
+
+  // ---- Audit log ----
+  record('Stage16: every successful device creation wrote its own trusted_device_created AuditLog row',
+    auditRowsOf(h, 'trusted_device_created').length >= 1);
+  record('Stage16: every successful consume wrote its own trusted_device_consumed AND long_lived_session_issued AuditLog row',
+    auditRowsOf(h, 'trusted_device_consumed').length >= 1 && auditRowsOf(h, 'long_lived_session_issued').length >= 1);
+  record('Stage16: every rejected consume wrote its own trusted_device_rejected AuditLog row',
+    auditRowsOf(h, 'trusted_device_rejected').length >= 1);
+  record('Stage16: every successful revoke wrote its own trusted_device_revoked AuditLog row',
+    auditRowsOf(h, 'trusted_device_revoked').length >= 1);
 })();
 
 function auditRowsOf(h, eventType) {

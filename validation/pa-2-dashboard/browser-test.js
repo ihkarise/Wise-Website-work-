@@ -394,9 +394,16 @@ async function main() {
       // Updated for Batch PXP-1's one disclosed addition to this header
       // (docs/44 §17, shared/schemas/patient-profile.md): the "My Profile"
       // link is now the first interactive control after the skip link,
-      // ahead of the sign-out button.
+      // ahead of the sign-out button. Updated again for Batch PXP-8's own
+      // disclosed addition (shared/schemas/trusted-device.md's "No Module
+      // Registry entry" section): the "Manage Devices" link now sits
+      // between "My Profile" and the sign-out button — a mechanical,
+      // disclosed consequence of this batch's one new nav link, the same
+      // category of test-infrastructure update PXP-5's own Stage 12
+      // module-count fix already established (docs/47 §4).
       await page.keyboard.press('Tab'); // skip link
       await page.keyboard.press('Tab'); // My Profile link (Batch PXP-1)
+      await page.keyboard.press('Tab'); // Manage Devices link (Batch PXP-8)
       await page.keyboard.press('Tab'); // sign-out button
       const focusedIsSignOut = await page.evaluate(() => document.activeElement.id === 'signOutBtn');
       check('Dashboard: keyboard Tab reaches the sign-out control', focusedIsSignOut);

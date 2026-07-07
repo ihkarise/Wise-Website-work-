@@ -831,3 +831,62 @@ and states the answer chosen. Full detail: `shared/schemas/care-plan.schema.json
 its companion `.md`'s own "Disclosed, deliberate scope decision" section,
 `apps-script/CarePlan.gs`'s own header comment, and docs/33 §3.4's Batch PXP-7 status
 update.
+
+# 25. Implementation-Time Amendment — Batch PXP-8 (2026-07-14)
+
+Per docs/47-PHASE-2B-IMPLEMENTATION-RULES.md §12's explicit provision (the same
+provision §23/§24 above already invoked), this section records the implementation-time
+decisions PXP-8 made, additively, without altering a single word of this document's own
+frozen Version 4.0 body text above.
+
+**§5.5's open question, resolved.** This document's §5.5 explicitly left "whether Long-
+Lived Session touches the frozen `FoundationSession.gs`" as "an implementation-time
+decision for the batch that builds this." PXP-8 chooses the additive wrapper: a new
+`apps-script/TrustedDevice.gs` calls `FoundationSession.gs`'s own already-existing,
+unmodified pure helpers (`foundationBuildSessionPayload_`,
+`foundationBase64UrlEncodeString_`, `foundationSignSessionPayloadSegment_`,
+`foundationGetSessionSigningSecret_`, `FOUNDATION_SESSION_TOKEN_SEPARATOR_`) with a
+different, longer, local TTL constant (`FOUNDATION_LONG_LIVED_SESSION_TTL_SECONDS_`, 14
+days) in place of `FOUNDATION_CONFIG.SESSION_TTL_SECONDS`. **Zero lines changed in
+`FoundationSession.gs`, `FoundationRouteGuard.gs`, or `session.schema.json`** — verified
+directly in `validation/phase-2a-foundation/conformance.js`'s new Stage 16, which proves
+a magic-link-issued session still carries exactly its unchanged 3600-second TTL side by
+side with a Long-Lived Session's own materially longer one, both verified through the
+identical, unmodified `foundationVerifySessionToken_()`.
+
+**PIN stays out of scope, per this document's own §22 row and docs/45 Part 5.** §22's
+PXP-8 row lists "optional `PatientCredential` (PIN)" among this batch's deliverables,
+but names its own dedicated security review as a precondition, independent of Trusted
+Device/Long-Lived Session's approval. docs/45 Part 5 confirms that gate is still open.
+This batch's shipped scope is Trusted Device + Long-Lived Session only — a disclosed
+scope narrowing, the same category of decision docs/24-ROADMAP.md's own PXP-6 entry
+already made for its "backend infrastructure only" boundary, not a silent omission.
+
+**Frozen-file footprint minimized by design, not by accident.** Making Trusted Device
+genuinely usable requires *some* patient-facing surface to create a device
+(`verify.html`) and *some* point where a returning patient's browser attempts silent
+recovery before asking for a fresh magic link. Rather than touching
+`my-health-journey/dashboard.js` (the dashboard's own front door) and every page that
+uses `my-health-journey/session-guard.js`, this batch makes `login.html` — the one
+redirect target every session-guarded page's existing "missing/rejected session" path
+already lands on — the single silent-recovery point. Concretely touched, each
+disclosed in its own header comment: `login.html` (silent recovery gate),
+`verify.html` (opt-in, unchecked-by-default "Keep me signed in on this device"
+checkbox), and `my-health-journey/index.html` (one new "Manage Devices" nav link,
+mirroring PXP-1's own "My Profile" link exception). **`my-health-journey/dashboard.js`
+and `my-health-journey/session-guard.js` are both completely untouched** (`git diff
+--stat` empty on both) — a real, disclosed engineering tradeoff (one extra redirect
+hop through `login.html` for a patient who deep-links to a sub-page with an
+already-expired session, in exchange for a materially smaller frozen-file footprint),
+not an oversight.
+
+**Disclosed, honest limitation: revocation stops renewal, not an already-issued
+session.** ADR-015 §Decision 4 describes revoking a Trusted Device as invalidating "the
+long-lived access it was granting." Taken literally as *immediate* invalidation, this
+would require `FoundationSession.gs`'s stateless verification to consult a revocation
+list on every request — which the §5.5 decision above deliberately does not do.
+Revoking a device does immediately and permanently stop it from being exchanged for a
+new Long-Lived Session again; it does not retroactively kill a Long-Lived Session token
+already issued and currently held client-side, which simply expires naturally within
+`FOUNDATION_LONG_LIVED_SESSION_TTL_SECONDS_` (14 days) regardless. Full reasoning:
+`shared/schemas/trusted-device.md`'s own "Disclosed limitation" section.

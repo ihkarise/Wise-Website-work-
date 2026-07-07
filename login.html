@@ -26,6 +26,17 @@
       <span class="txt">Wise Homeopathy</span>
     </div>
 
+    <!-- Batch PXP-8 (docs/44 §5/§22, ADR-015): a skeleton state shown only
+         for the instant it takes to check for a locally-stored trusted
+         device — see this page's own script for why this never blocks or
+         delays a patient with no such device (the overwhelming majority,
+         until they opt in on verify.html). -->
+    <div id="checkingDeviceState">
+      <div class="skeleton" style="width:60%"></div>
+      <div class="skeleton" style="width:40%"></div>
+    </div>
+
+    <div id="loginFormState" hidden>
     <h1 class="serif">Patient Login</h1>
     <p class="sub">Enter the email address on your patient record and we'll send you a secure sign-in link. No password needed.</p>
 
@@ -41,9 +52,13 @@
     </div>
 
     <p class="foot">Not yet a patient? <a href="contact.html">Book a consultation</a> to get started, or <a href="index.html">return to the homepage</a>.</p>
+    </div>
   </main>
 </div>
 
+<!-- Batch PXP-8's own disclosed, additive exception: device-trust.js is a
+     new, non-frozen file (see its own header comment). -->
+<script src="my-health-journey/device-trust.js"></script>
 <script>
 (function () {
   // Same Apps Script Web App deployment as internal/consultation-summary.html —
@@ -52,6 +67,8 @@
   // to FoundationRouter.gs by their foundation_action field.
   var WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwrAx9jPnji2U-ngBpYTtV2p_SJnnFrYa7fKYo589zeVfRrwuz3N5aIS0xeiQeuFvMhIQ/exec';
 
+  var checkingDeviceState = document.getElementById('checkingDeviceState');
+  var loginFormState = document.getElementById('loginFormState');
   var form = document.getElementById('loginForm');
   var submitBtn = document.getElementById('submitBtn');
   var emailField = document.getElementById('email');
@@ -62,17 +79,47 @@
     statusBox.textContent = message;
   }
 
-  // A session-guarded page (e.g. the dashboard) redirects here with
-  // ?reason=expired when a previously-valid session is rejected server-side
-  // (FOUNDATION_UNAUTHORIZED covers expired, tampered, and unknown tokens
-  // alike — docs/29 §3's anti-enumeration-style generic rejection, applied
-  // here to session validity instead of login). The message is deliberately
-  // generic for the same reason, not specific to which of those occurred.
-  if (new URLSearchParams(window.location.search).get('reason') === 'expired') {
-    if (window.history && window.history.replaceState) {
-      window.history.replaceState({}, document.title, window.location.pathname);
+  // Batch PXP-8 (docs/44 §5/§22, ADR-015): this page is every session-
+  // guarded page's own redirect target on a missing/rejected session
+  // (my-health-journey/dashboard.js, my-health-journey/session-guard.js),
+  // so it is this batch's one, single silent-recovery point — reveals the
+  // login form only after a locally-stored trusted device token (if any)
+  // has been tried and failed, rather than touching every page that might
+  // redirect here. A patient with no trusted device (the overwhelming
+  // majority until they opt in on verify.html) sees this resolve
+  // immediately, since WiseDeviceTrust.attemptTrustedDeviceLogin() returns
+  // right away with no network call when no device token is stored.
+  function showLoginForm() {
+    checkingDeviceState.hidden = true;
+    loginFormState.hidden = false;
+
+    // A session-guarded page redirects here with ?reason=expired when a
+    // previously-valid session is rejected server-side (FOUNDATION_UNAUTHORIZED
+    // covers expired, tampered, and unknown tokens alike — docs/29 §3's
+    // anti-enumeration-style generic rejection, applied here to session
+    // validity instead of login). Shown only once silent trusted-device
+    // recovery has already been tried and failed above — a successful
+    // recovery redirects straight back to the dashboard and this message
+    // never displays at all. The message itself is deliberately generic
+    // for the same reason, not specific to which rejection occurred.
+    if (new URLSearchParams(window.location.search).get('reason') === 'expired') {
+      if (window.history && window.history.replaceState) {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+      showStatus('warn', 'For your privacy, your secure session has ended. Please sign in again.');
     }
-    showStatus('warn', 'For your privacy, your secure session has ended. Please sign in again.');
+  }
+
+  if (WEB_APP_URL.indexOf('REPLACE_WITH') === 0 || !window.WiseDeviceTrust) {
+    showLoginForm();
+  } else {
+    window.WiseDeviceTrust.attemptTrustedDeviceLogin(WEB_APP_URL).then(function (sessionToken) {
+      if (sessionToken) {
+        window.location.href = 'my-health-journey/';
+      } else {
+        showLoginForm();
+      }
+    });
   }
 
   form.addEventListener('submit', function (event) {

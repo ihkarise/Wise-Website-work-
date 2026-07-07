@@ -45,6 +45,19 @@
            user's behalf). -->
       <div id="readyState" hidden>
         <p class="sub" style="margin-bottom:18px">Click below to finish signing in to your Wise Homeopathy account.</p>
+        <!-- Batch PXP-8 (docs/44 §5/§22, ADR-015): opt-in Trusted Device
+             creation — unchecked by default, since Magic Link alone remains
+             the platform's complete, unconditional default (docs/44 §5.2,
+             passwordless-by-default reaffirmed permanently). Checking this
+             never blocks or delays sign-in itself; marking the device
+             trusted happens afterward, silently (see this page's own
+             script). -->
+        <div class="field" style="text-align:left">
+          <label style="display:flex;align-items:center;gap:8px;font-weight:400">
+            <input type="checkbox" id="trustDeviceCheckbox" style="width:auto">
+            Keep me signed in on this device
+          </label>
+        </div>
         <button class="submit" type="button" id="continueBtn">Continue to sign in</button>
         <div class="status" id="statusBox" role="status" aria-live="polite"></div>
       </div>
@@ -73,6 +86,9 @@
   </main>
 </div>
 
+<!-- Batch PXP-8's own disclosed, additive exception: device-trust.js is a
+     new, non-frozen file (see its own header comment). -->
+<script src="my-health-journey/device-trust.js"></script>
 <script>
 (function () {
   // Same Apps Script Web App deployment login.html uses — Foundation and
@@ -89,6 +105,7 @@
   var continueBtn = document.getElementById('continueBtn');
   var statusBox = document.getElementById('statusBox');
   var errorMessage = document.getElementById('errorMessage');
+  var trustDeviceCheckbox = document.getElementById('trustDeviceCheckbox');
 
   function showState(name) {
     Object.keys(states).forEach(function (key) {
@@ -143,6 +160,15 @@
           // — every future authenticated call derives it server-side
           // from this same token (ADR-002).
           window.sessionStorage.setItem('wise_session_token', data.data.session_token);
+          // Batch PXP-8: marking the device trusted is a separate,
+          // best-effort step after sign-in itself has already succeeded —
+          // its own failure (network, or any unexpected server error)
+          // never reverses or blocks the sign-in the patient just
+          // completed (my-health-journey/device-trust.js's own header
+          // comment). Unchecked by default (docs/44 §5.2).
+          if (trustDeviceCheckbox && trustDeviceCheckbox.checked && window.WiseDeviceTrust) {
+            window.WiseDeviceTrust.markDeviceTrusted(WEB_APP_URL, data.data.session_token, '');
+          }
           showState('success');
         } else {
           errorMessage.textContent = (data.error && data.error.message) || 'This login link is invalid or has expired.';
