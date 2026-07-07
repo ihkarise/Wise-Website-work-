@@ -8,6 +8,80 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-16 — Phase 3 Architecture Freeze: WHIMS Patient Intelligence Platform
+
+Documentation-only architecture-freeze pass, per explicit instruction to begin Phase 3
+planning ahead of Phase 2C/2D. No `apps-script/*.gs` file, no
+`shared/schemas/*.schema.json` file, no `shared/constants/*.json` registry file, and no
+patient-facing or doctor-facing page was touched — no implementation of any kind.
+Phase 2B remains closed and frozen except for genuine bug fixes
+(docs/48-PHASE-2B-CLOSEOUT.md, `v2.1.0-phase2b`); nothing in that freeze is reopened.
+
+Renamed Phase 3 from "WiseOS" to **WHIMS Patient Intelligence Platform** (docs/49 §2)
+— no scope change from the rename itself. Reordered Phase 3 ahead of Phase 2C (Health
+Milestones) and Phase 2D (Digital Twin & AI Summaries) on dependency grounds, the same
+test Batch PXP-10 already passed against PXP-9 — both phases remain fully open,
+unscoped, and unaffected by this reordering.
+
+### Added (documentation)
+- **`docs/49-PHASE-3-ARCHITECTURE-REVIEW.md`** (new) — strategic review: scope
+  decision to reorder ahead of 2C/2D, the WiseOS → WHIMS rename, the vision, and four
+  core pillars (Doctor Identity & Access, Doctor-Facing Registry-Driven Capabilities,
+  Specialty-Scoped Extensibility, Reserved AI/Advanced Extension Points).
+- **`docs/50-PHASE-3-TECHNICAL-PLAN.md`** (new) — entity-level design for Doctor
+  Identity/Session, the Specialty Registry, the Doctor Module Registry and Doctor
+  Dashboard, Appointment, Notification, Inventory, PillFill Integration, and Analytics;
+  a security model; and the twelve-batch (`WPI-1`–`WPI-12`) implementation sequence.
+- **`docs/51-PHASE-3-ARCHITECTURE-READINESS-REVIEW.md`** (new) — critique of every
+  proposal in docs/49/50, a conflicts check against every existing Accepted ADR (none
+  found), five ranked risks (Sheets-at-scale named top risk), and a final verdict.
+- **`docs/52-PHASE-3-REPOSITORY-CONSISTENCY-REVIEW.md`** (new) — duplication and
+  contradiction check against the full existing document set; closes two
+  documentation-only findings docs/51 raised (below); carries forward all other
+  existing, non-blocking roadmap gaps unchanged.
+- **`docs/53-PHASE-3-IMPLEMENTATION-RULES.md`** (new) — the permanent per-batch
+  governance standard every future `WPI-` batch must follow, mirroring
+  docs/47-PHASE-2B-IMPLEMENTATION-RULES.md's own role for Phase 2B.
+- **`adr/ADR-017-doctor-identity-independent-entity.md`** (new) — Doctor Identity is a
+  first-class entity, structurally parallel to Patient Identity, never merged with it.
+- **`adr/ADR-018-specialty-scoped-registries.md`** (new) — every registry gains an
+  optional `specialty_scope` field; complements ADR-012/013/016, amends none of them.
+- **`adr/ADR-019-ai-extension-points-reserved-platform-wide.md`** (new) — elevates
+  docs/47 §2's Phase-2B-scoped "AI extension points only" rule to a permanent,
+  platform-wide principle; reaffirms and generalizes ADR-001/004/005/013, amends none.
+- **`adr/ADR-020-doctor-dashboard-registry-driven.md`** (new) — the Doctor Dashboard is
+  driven by a new, parallel Doctor Module Registry, extending ADR-012's principle
+  without amending it.
+
+### Changed (documentation)
+- **`docs/31-ADR-INDEX.md`** bumped to Version 1.5 — ADR-017 through ADR-020 added to
+  the index and the Grouped-by-Concern section.
+- **`docs/33-DOMAIN-MODEL.md`** bumped to Version 1.13 — Doctor (§1.4), Appointment
+  (§4.1), and Notification (§4.2) promoted from *Conceptual (gap)* to *Designed*; new
+  §7 added for Phase 3/WHIMS entities (Doctor Identity/Session, Specialty, Doctor
+  Module Registry/State, Inventory Item/Transaction, PillFill Order, Analytics); the
+  Summary Table updated accordingly. No entity Phase 2A or Phase 2B already shipped had
+  its schema, status, or meaning changed.
+- **`docs/24-ROADMAP.md`** bumped to Version 1.13 — Phase 3 entry renamed to "WHIMS
+  Patient Intelligence Platform," reordered ahead of Phase 2C/2D with the reasoning
+  recorded inline, and given its full twelve-batch (`WPI-1`–`WPI-12`) sequence.
+
+### Repository consistency review (docs/52)
+Two documentation-only findings from docs/51's readiness review, both closed within
+this same version: the "WiseOS" cross-reference in docs/33 §1.4 (updated to name both
+the current and prior name); and docs/50 §7.4's patient-roster-derivation limitation at
+multi-doctor-per-specialty scale (made explicit rather than only gestured at). No
+contradiction was found against any existing Accepted ADR or docs/30 principle. Two
+gates remain open, named but not resolved by this pass: a dedicated Doctor Session
+security review (required before `WPI-1`), and a Sheets-at-production-scale review
+(required before `WPI-7`/`WPI-9`).
+
+### Not authorized by this pass
+No `WPI-` batch is authorized to begin implementation by any document listed above.
+Each requires its own separate, explicit approval, per docs/53's per-batch gate — the
+same discipline every Phase 2B batch already passed through. Phase 2C and Phase 2D
+remain open, separately approvable, unscoped by this pass.
+
 ## 2026-07-15 — Phase 2B Batch PXP-11: Closeout
 
 Phase 2B's own closeout batch (docs/44 §22, docs/47 §13/§15) — the final named slot
