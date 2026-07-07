@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wisehomeopathy.com/shared/schemas/check-in-template-assignment.schema.json",
+  "title": "Check-In Template Assignment",
+  "version": "1.0.0",
+  "description": "The canonical shape of a CheckInTemplateAssignment record — a disclosed, additive entity filling the gap docs/44-PHASE-2B-TECHNICAL-PLAN.md §10.2 settles ('a doctor explicitly assigns which template(s) apply to a patient') but does not itself name a persisted shape for. Batch PXP-5 (docs/44 §22), governed by docs/47-PHASE-2B-IMPLEMENTATION-RULES.md. An exact structural mirror of doctor-assigned-condition.schema.json's own already-approved shape. Many-per-patient, append-mostly: a row is created 'active' and may transition to 'resolved' exactly once, never reverted, never deleted. Doctor/staff-authored only: every write is a doctor/staff action, enforced server-side; the patient never assigns, edits, or resolves their own template assignment (docs/44 §4.3/§10.2). See check-in-template-assignment.md for the full disclosure of why this entity exists and how apps-script/CheckInTemplateAssignment.gs's foundationGetCurrentCheckInTemplateForPatient_() resolves an assignment into the template a patient's Check-in card actually renders.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["assignment_id", "patient_id", "template_id", "assigned_by", "assigned_at", "status", "resolved_at", "resolved_by"],
+  "properties": {
+    "assignment_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Server-generated UUID (generateFoundationId_()), this row's own identity — never doctor/staff-supplied."
+    },
+    "patient_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The Patient Identity this assignment belongs to (docs/33 §1.2, ADR-002). Many CheckInTemplateAssignment rows may share the same patient_id (many-per-patient, append-mostly). Doctor/staff-supplied at write time — there is no patient session at assignment time."
+    },
+    "template_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "One of shared/constants/template-registry.json's canonical template_id values (validated against apps-script/TemplateRegistry.gs's foundationGetRegisteredTemplateIds_() allowlist, the same convention doctor-assigned-condition.schema.json's condition_slug allowlist already established). Doctor/staff-supplied at write time — never patient-selected. Deliberately not paired with a specific version here: an assignment names which template a patient uses, not which version — foundationGetCurrentCheckInTemplateForPatient_() always resolves to that template_id's latest active Template Registry version (docs/44 §11.4), never a version pinned at assignment time."
+    },
+    "assigned_by": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The doctor/staff identifier who created this assignment (a free-text string, the same provenance convention doctor-assigned-condition.schema.json's assigned_by already uses — no real Doctor identity entity exists yet, docs/33 §1.4). Never patient-supplied."
+    },
+    "assigned_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Server-set (foundationNowIso_()) at creation. Never doctor/staff-supplied directly, never patient-supplied."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["active", "resolved"],
+      "description": "Every assignment starts 'active' and may transition to 'resolved' exactly once — a one-way, never-reversed, never-reverted transition, identical to doctor-assigned-condition.schema.json's own status field."
+    },
+    "resolved_at": {
+      "type": "string",
+      "description": "Empty-string sentinel until resolved (never null), then server-set at the moment of resolution. Mirrors doctor-assigned-condition.schema.json's own resolved_at exactly."
+    },
+    "resolved_by": {
+      "type": "string",
+      "description": "Empty-string sentinel until resolved (never null), then the doctor/staff identifier who resolved this assignment. Never patient-supplied."
+    }
+  }
+}

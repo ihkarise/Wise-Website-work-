@@ -1,5 +1,5 @@
 # 33 - Domain Model
-## Version 1.8 — 2026-07-11
+## Version 1.9 — 2026-07-12
 
 > Defines every major business entity in the Wise Platform: what it means, what it
 > holds, how it relates to everything else, how it comes into being and ends, who is
@@ -688,6 +688,12 @@ disclosed frozen-file exception (`my-health-journey/dashboard.js`, the exact
 "authorized migration" case ADR-012 (amended) commits to), the removal of the three
 pre-PXP-4 hardcoded "future" placeholder cards, and the new dedicated PXP-4 browser-
 test suite.
+**Updated 2026-07-12** for Batch PXP-5 (implementation): §6.5 (Check-In Template and
+Check-In Response) and §6.7 (Template Registry) promoted from *Designed* to
+**Implemented** — see those subsections' own status updates for the shipped shape,
+the new `daily_checkin` Module Registry entry, and the one disclosed, additive
+gap-fill entity (`CheckInTemplateAssignment`) this batch adds to make docs/44 §10.2's
+"a doctor explicitly assigns" requirement actually enforceable.
 
 ## 6.1 Patient Profile — *Implemented (Batch PXP-1)*
 **Purpose:** Patient-editable structured contact/personal data (phone, date of birth,
@@ -829,7 +835,7 @@ by hardcoding a disease-specific branch inside shared Calculator Framework code*
 governed by Patient Module State (§6.3), enabled only by explicit doctor action.
 **Full detail:** docs/44 §8.
 
-## 6.5 Check-In Template and Check-In Response
+## 6.5 Check-In Template and Check-In Response — *Implemented (Batch PXP-5)*
 **Purpose:** A doctor/staff-authored, versioned question set (`CheckInTemplate`) and a
 patient's recorded answers against one (`CheckInResponse`) — the mechanism behind
 "Personalized Daily Check-ins," a consumer of Pillars 1 and 2, designed as the eventual
@@ -844,6 +850,39 @@ response permanently interpretable even after the template is later edited). **F
 detail:** docs/44 §11/§10, including the now-concrete JSON storage versioning/
 migration/validation policy (docs/44 §11.4) that resolves what docs/45 Version 2.0
 tracked as this pass's highest open risk.
+
+**Status update (this change):** Implemented.
+`apps-script/TemplateRegistry.gs`/`shared/constants/template-registry.json` seed the
+Template Registry's first concrete category with one template,
+`daily_wellness_checkin` v1 (four questions). `apps-script/CheckInResponse.gs`/
+`shared/schemas/check-in-response.schema.json` back `submit_checkin_response`/
+`get_checkin_responses` (`FoundationRouter.gs`) — the platform's first entity
+implementing docs/44 §11.4's JSON storage policy in full: `answers` is a flat object,
+validated field-by-field against the referenced `(template_id, template_version)`'s
+own question list, size-bounded, and serialized with deterministic key order.
+`my-health-journey/dashboard.js` gains a `daily_checkin` module registered the same
+way every module since PXP-4 is (one `MODULE_REGISTRY` entry, one registered loader),
+rendering a dynamic form generated from the caller's own current template's question
+metadata — the dashboard's first form not hardcoded to a fixed field set.
+`my-health-journey/checkins/` is the new full-history page, mirroring
+`my-health-journey/symptoms/`'s existing pattern. Shipped alongside, never replacing,
+Symptom Log (§3.2) — `SymptomLogs` and its own routes are completely untouched
+(docs/44 §10.1).
+
+**Disclosed, additive gap-fill (this change):** docs/44 §10.2 settles that "a doctor
+explicitly assigns which template(s) apply" to a patient, but names no persisted shape
+for that assignment anywhere in docs/44 §17 or this document. `CheckInTemplateAssignment`
+(`shared/schemas/check-in-template-assignment.schema.json`,
+`apps-script/CheckInTemplateAssignment.gs`) fills this gap — an exact structural mirror
+of the already-approved Doctor Assigned Condition (§6.2) pattern: many-per-patient,
+append-mostly, doctor/staff-only (`assignFoundationCheckInTemplate()`/
+`resolveFoundationCheckInTemplateAssignment()`, manually-run editor functions, no real
+Doctor identity/session yet, §1.4), no Web App write route. `CheckInResponse.gs`'s
+write path enforces this assignment directly — a patient can only submit against a
+`template_id` they currently hold an active assignment for, never merely one that
+exists in the registry, making docs/44 §10.2's rule an enforced boundary rather than an
+advisory one. This is a gap-fill within PXP-5's own named scope, not a new
+architectural decision, new registry, or new ADR.
 
 ## 6.6 Persistent Authentication — Magic Link, Trusted Device, Long-Lived Session, Optional PIN
 **Purpose:** Four cooperating, named mechanisms for patient login, governed by
@@ -865,7 +904,7 @@ explicit constraint per ADR-015, not merely a current-state description.
 alongside — never replacing — Session/LoginToken (§1.2/§1.3). **Full detail:** docs/44
 §5, ADR-015 (governing), ADR-014 and ADR-011 (both superseded, retained by reference).
 
-## 6.7 Template Registry — *New in Version 4.0, generalizes Check-In Template (§6.5)*
+## 6.7 Template Registry — *Implemented (Batch PXP-5), generalizes Check-In Template (§6.5)*
 **Purpose:** A config-level registry of template descriptors (mirroring Module
 Registry §6.3 and Calculator Registry §6.4) from which any patient-facing form or
 questionnaire is generated, never hardcoded per form. Governed by **new ADR-016**,
@@ -886,6 +925,14 @@ today, and any eventual use remains gated by the full ADR-001/004/005 pattern.
 **Relationships:** `CheckInTemplate`/`CheckInResponse` (§6.5) are this registry's first
 instantiated category; any future category would follow the same relationship shape.
 **Full detail:** docs/44 §11/§11.5, ADR-016.
+
+**Status update (this change):** Implemented, seeded with exactly one template
+(§6.5's own status update). `template_category` (fixed to `"daily_checkin"` for every
+row in this batch) is a disclosed, additive field beyond docs/44 §11.2's literal field
+list — the concrete mechanism §11.5 requires ("support, for every category, without a
+code change") but does not itself name a field for; see
+`shared/constants/template-registry.md`'s own disclosure. The six future categories
+named above remain unseeded, unscoped, and unclaimed by this batch.
 
 ---
 
@@ -914,8 +961,9 @@ instantiated category; any future category would follow the same relationship sh
 | Patient Profile | **Implemented** | 2B (docs/44 §17, batch PXP-1 — shipped, the platform's first upsert-style entity) |
 | Doctor Assigned Condition | **Implemented — Pillar 1** | 2B (docs/44 §6, batch PXP-2 — shipped, doctor/staff-owned; renamed from "Condition Assignment"; Option B (additive) settled and approved) |
 | Module Registry / Patient Module State | **Implemented (backend scaffold + frontend consumer) — Pillar 2** | 2B (docs/44 §7, batch PXP-3 backend — shipped; docs/44 §7.3/§13, batch PXP-4 Dashboard Registry frontend consumer — shipped; the patient dashboard now renders every card from `PatientModuleState` × Module Registry, no hardcoded module knowledge in the render path) |
-| Template Registry | Designed, not yet implemented (new in Version 4.0) | 2B (docs/44 §11/§11.5, ADR-016, batch PXP-5 for its first category). Generalizes Check-In Template into a registry pattern; six future categories named, unscoped, unclaimed by any batch. |
-| Check-In Template / Check-In Response | Designed, not yet implemented | 2B (docs/44 §11/§10, batch PXP-5). Template assignment settled: doctor-driven, patient never configures. Now the Template Registry's first concrete category (§6.7). |
+| Template Registry | **Implemented** | 2B (docs/44 §11/§11.5, ADR-016, batch PXP-5 — shipped, seeded with one template). Generalizes Check-In Template into a registry pattern; six future categories named, unscoped, unclaimed by any batch. |
+| Check-In Template / Check-In Response | **Implemented** | 2B (docs/44 §11/§10, batch PXP-5 — shipped, shipped alongside Symptom Log, never replacing it). Template assignment settled: doctor-driven, patient never configures, enforced server-side via the disclosed additive `CheckInTemplateAssignment` entity. Now the Template Registry's first concrete category (§6.7). |
+| Check-In Template Assignment (disclosed, additive gap-fill) | **Implemented** | 2B (docs/44 §10.2, batch PXP-5 — shipped). Fills a gap docs/44 §10.2 settles but names no persisted shape for; an exact structural mirror of Doctor Assigned Condition (§6.2). |
 | Trusted Device | Designed, not yet implemented | 2B (docs/44 §5, ADR-015, batch PXP-8) |
 | Long-Lived Session | Designed, not yet implemented (new in Version 3.0) | 2B (docs/44 §5, ADR-015, batch PXP-8) — the extended access window issued when a Trusted Device is presented; not a stored entity of its own, a parameterization of the existing Session mechanism |
 | Patient Credential (optional, convenience-only) | Designed, not yet implemented | 2B (docs/44 §5, ADR-015 governing (ADR-011/ADR-014 superseded), batch PXP-8 — PIN sub-batch requires dedicated security review first, docs/45 Part 3) |

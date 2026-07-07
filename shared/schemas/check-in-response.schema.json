@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wisehomeopathy.com/shared/schemas/check-in-response.schema.json",
+  "title": "Check-In Response",
+  "version": "1.0.0",
+  "description": "The canonical shape of a CheckInResponse record — docs/44-PHASE-2B-TECHNICAL-PLAN.md §10.3/§11.4's Daily Check-in design, batch PXP-5 (docs/44 §22), governed by docs/47-PHASE-2B-IMPLEMENTATION-RULES.md. The designed successor to symptom-log.schema.json, shipped alongside it, never replacing it in this batch (docs/44 §10.1). `answers` is this schema's one disclosed exception to ADR-006's flat-column convention: stored as a JSON-encoded string in the underlying Sheet cell (docs/44 §11.4), but this schema — the entity's real, contractual shape (shared/README.md's 'Contract vs. implementation-only detail') — describes it as a real object, since apps-script/CheckInResponse.gs's own foundationCheckInRowToApiShape_() always parses it back before returning a record to any caller. Create and list only: no update, no delete, no per-entry get-by-id, the same lifecycle symptom-log.schema.json already establishes. Both template_id and template_version are stored together, permanently pinning the exact question set that produced this row's answers even after the template is later edited into a newer version (docs/44 §11.4).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["record_id", "patient_id", "template_id", "template_version", "logged_at", "answers", "condition_slug"],
+  "properties": {
+    "record_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Server-generated UUID (generateFoundationId_()), this row's own identity — never patient-supplied."
+    },
+    "patient_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The Patient Identity this response belongs to (docs/33 §1.2, ADR-002). Always session-derived — never client-supplied."
+    },
+    "template_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The CheckInTemplate this response answers, per shared/constants/template-registry.json. Paired with template_version below — pinning both, not just this field, is what keeps this row permanently interpretable even after the template is later edited (docs/44 §11.4)."
+    },
+    "template_version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The exact, immutable Template Registry version this response was recorded against (docs/44 §11.2/§11.4). Never re-resolved to a later version after the fact — an existing row is never rewritten to match a newer template version."
+    },
+    "logged_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Server-set (foundationNowIso_()) at creation. Never patient-editable."
+    },
+    "answers": {
+      "type": "object",
+      "description": "A flat object of {field_key: value} pairs, one per question the referenced (template_id, template_version) declares that the patient actually answered (docs/44 §11.4: no nested objects or arrays in version 1 of this policy). Keys are written in the template's own question-list order at write time (apps-script/CheckInResponse.gs's foundationBuildDeterministicCheckInAnswers_()) so re-serializing identical answers never produces a spurious byte-level diff. Stored as a JSON-encoded string in the underlying Sheet cell — an implementation-only detail, not part of this contract (shared/README.md); every function returning a record to a caller parses it back into this real object shape first."
+    },
+    "condition_slug": {
+      "type": "string",
+      "description": "Optional metadata only, for reporting/filtering — never an authorization or assignment mechanism (docs/44 §10.3: assignment authority is the doctor's own CheckInTemplateAssignment action, not this field). Empty-string sentinel when not provided, mirroring symptom-log.schema.json's own condition_slug convention exactly."
+    }
+  }
+}

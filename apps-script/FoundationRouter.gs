@@ -79,6 +79,33 @@
  *     route. No dashboard rendering change ships in this batch — this route
  *     has no UI consumer yet; migrating dashboard.js onto this registry is
  *     the Dashboard Registry batch (PXP-4), not this one.
+ *   - get_checkin_template — Batch PXP-5 addition (docs/44 §10/§11/§22,
+ *     ADR-016, docs/47), the Daily Check-in Engine's own read route.
+ *     patient_id is session-derived exactly like every route above. Resolves
+ *     the caller's current CheckInTemplateAssignment (CheckInTemplateAssignment.gs)
+ *     to that template_id's latest active Template Registry version
+ *     (TemplateRegistry.gs) — returns `data: null` (not an error) when the
+ *     caller has no active assignment yet, the same "not yet configured is
+ *     not an error" discipline get_patient_profile's lazy-creation default
+ *     already established.
+ *   - submit_checkin_response — Batch PXP-5 addition, the platform's third
+ *     patient-writable route (after log_symptom, upload_report). patient_id
+ *     is session-derived exactly like log_symptom's; every other field
+ *     (template_id, template_version, answers, condition_slug) comes from
+ *     the request body and is validated by foundationCreateCheckInResponse_()
+ *     itself, including the server-side check that the caller currently
+ *     holds an active assignment naming the submitted template_id (docs/44
+ *     §10.2's enforcement boundary) before any answer-shape validation runs.
+ *   - get_checkin_responses — Batch PXP-5 addition, returns the caller's own
+ *     Check-In Response entries, sorted and capped for the full-history/
+ *     dashboard-preview display, mirroring get_symptom_logs exactly.
+ *     patient_id is always session-derived, never client-supplied. There is
+ *     no assign/resolve-template-assignment route reachable over HTTP —
+ *     CheckInTemplateAssignment writes are doctor/staff-only and, since no
+ *     real Doctor identity/session exists yet, remain manually-run Apps
+ *     Script editor functions (CheckInTemplateAssignment.gs's
+ *     assignFoundationCheckInTemplate()/resolveFoundationCheckInTemplateAssignment()),
+ *     mirroring every earlier doctor/staff-only entity's precedent exactly.
  *
  * A disclosed, additive exception, same category as Code.gs's own
  * one-line dispatch shim (IA-2): this file was previously listed among
@@ -104,7 +131,8 @@
  * Depends on FoundationContracts.gs, FoundationLoginFlow.gs,
  * FoundationRouteGuard.gs, PatientIdentity.gs, FoundationConsultationHistory.gs,
  * FoundationSymptomLog.gs, FoundationReports.gs, FoundationPatientProfile.gs,
- * DoctorAssignedCondition.gs, ModuleRegistry.gs, PatientModuleState.gs.
+ * DoctorAssignedCondition.gs, ModuleRegistry.gs, PatientModuleState.gs,
+ * TemplateRegistry.gs, CheckInTemplateAssignment.gs, CheckInResponse.gs.
  */
 
 /**
@@ -282,6 +310,54 @@ function foundationHandleGetPatientModuleStates_(input) {
 }
 
 /**
+ * Batch PXP-5: returns the caller's current Check-in template — their
+ * active CheckInTemplateAssignment resolved to that template_id's latest
+ * active Template Registry version, or `data: null` if no active
+ * assignment exists yet (not an error — a patient's doctor simply hasn't
+ * assigned one yet). patient_id is always session-derived, never
+ * client-supplied.
+ */
+function foundationHandleGetCheckInTemplate_(input) {
+  return withFoundationAuth_(input && input.session_token, function (patientId) {
+    return foundationGetCurrentCheckInTemplateForPatient_(patientId);
+  });
+}
+
+/**
+ * Batch PXP-5: creates a new Check-In Response entry for the caller.
+ * patient_id is always session-derived, never client-supplied — the same
+ * authorization primitive log_symptom/upload_report already use. Every
+ * other field (template_id, template_version, answers, condition_slug)
+ * comes from the request body and is validated by
+ * foundationCreateCheckInResponse_() itself, including the check that the
+ * caller currently holds an active assignment naming the submitted
+ * template_id (docs/44 §10.2).
+ */
+function foundationHandleSubmitCheckInResponse_(input) {
+  return withFoundationAuth_(input && input.session_token, function (patientId) {
+    return foundationCreateCheckInResponse_({
+      patient_id: patientId,
+      template_id: input && input.template_id,
+      template_version: input && input.template_version,
+      answers: input && input.answers,
+      condition_slug: input && input.condition_slug
+    });
+  });
+}
+
+/**
+ * Batch PXP-5: returns the caller's own Check-In Response entries, sorted
+ * and capped for the full-history/dashboard-preview display, mirroring
+ * get_symptom_logs exactly. patient_id is always session-derived, never
+ * client-supplied.
+ */
+function foundationHandleGetCheckInResponses_(input) {
+  return withFoundationAuth_(input && input.session_token, function (patientId) {
+    return foundationGetPatientCheckInResponses_(patientId);
+  });
+}
+
+/**
  * Serializes a response-envelope-shaped value to the wire. Apps Script
  * Web Apps cannot set a real HTTP status code (every response transports
  * as HTTP 200 regardless — the same platform fact Code.gs's own
@@ -343,6 +419,15 @@ function handleFoundationRequest_(input) {
       break;
     case 'get_patient_module_states':
       envelope = foundationHandleGetPatientModuleStates_(input);
+      break;
+    case 'get_checkin_template':
+      envelope = foundationHandleGetCheckInTemplate_(input);
+      break;
+    case 'submit_checkin_response':
+      envelope = foundationHandleSubmitCheckInResponse_(input);
+      break;
+    case 'get_checkin_responses':
+      envelope = foundationHandleGetCheckInResponses_(input);
       break;
     default:
       envelope = buildFoundationErrorEnvelope_('FOUNDATION_UNKNOWN_ACTION', 'Unknown request.');

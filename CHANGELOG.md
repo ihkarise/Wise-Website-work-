@@ -8,6 +8,78 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-12 — Phase 2B Batch PXP-5: Daily Check-in Engine
+
+The Daily Check-in Engine (docs/44 §10/§11/§22, ADR-016, docs/47) — a consumer of
+Pillars 1 and 2, shipped alongside (never replacing) Symptom Tracker (docs/44 §10.1).
+Introduces the Template Registry's first concrete category (`CheckInTemplate`) and
+`CheckInResponse`, the platform's first entity using docs/44 §11.4's JSON-storage
+policy. Explicitly approved per docs/47's per-batch gate. Zero modification to any
+frozen Foundation/Identity & Access/Patient Access/PXP-1..4 file. `Patient`,
+`SymptomLogs`, and every existing dispatch case's request/response contract are
+completely unaffected.
+
+**One disclosed, additive gap-fill:** docs/44 §10.2 settles that "a doctor explicitly
+assigns which template(s) apply" to a patient, but neither docs/44 §17 nor docs/33 §6.5
+names a persisted shape for that assignment. `CheckInTemplateAssignment` — an exact
+structural mirror of the already-approved `DoctorAssignedCondition` pattern — fills
+this gap; see `shared/schemas/check-in-template-assignment.md` for the full disclosure.
+
+### Added
+- **`apps-script/TemplateRegistry.gs`** + **`shared/constants/template-registry.json`**
+  (+ `.md`) — Phase 2B's fourth registry (ADR-016), a static, versioned list of
+  `CheckInTemplate` descriptors. Seeded with one template, `daily_wellness_checkin` v1
+  (four questions: overall feeling, symptom severity, medication adherence, optional
+  notes). `template_category` is a disclosed, additive field beyond docs/44 §11.2's
+  literal list, generalizing the registry per §11.5's own requirement.
+- **`apps-script/CheckInTemplateAssignment.gs`** + **`shared/schemas/
+  check-in-template-assignment.schema.json`** (+ `.md`) — the disclosed gap-fill entity
+  above. Doctor/staff-only (`assignFoundationCheckInTemplate()`/
+  `resolveFoundationCheckInTemplateAssignment()`, manually-run editor functions, no
+  real Doctor identity/session yet, docs/33 §1.4). No Web App write route, mirroring
+  every earlier doctor/staff-only entity's precedent.
+- **`apps-script/CheckInResponse.gs`** + **`shared/schemas/check-in-response.schema.json`**
+  (+ `.md`) — the platform's second patient-writable, create-and-list-only entity.
+  Implements docs/44 §11.4's JSON storage policy in full: `answers` is a flat object,
+  validated field-by-field against the referenced template version's own question list,
+  size-bounded, and serialized with deterministic key order. The write path enforces
+  docs/44 §10.2's boundary directly — a patient can only submit against a template_id
+  they currently hold an active assignment for, never merely one that exists in the
+  registry.
+- **`shared/constants/module-registry.json`**/**`apps-script/ModuleRegistry.gs`** — one
+  new, additive entry, `daily_checkin` (`data_source: get_checkin_responses`). The three
+  PXP-3 rows are untouched.
+- **`apps-script/FoundationRouter.gs`** — three new, additive dispatch cases:
+  `get_checkin_template` (resolves the caller's active assignment to its latest active
+  Template Registry version, `data: null`, not an error, when unassigned),
+  `submit_checkin_response` (the platform's third patient-writable route), and
+  `get_checkin_responses`.
+- **`my-health-journey/dashboard.js`** — a new Daily Check-in card, registered the same
+  way every module since PXP-4 is: one `MODULE_REGISTRY` entry, one registered loader.
+  Its form is the first on this dashboard rendered dynamically from server-provided
+  question metadata rather than fixed markup — a number question becomes a number
+  input with the template's own `min`/`max`, a boolean question becomes a Yes/No
+  select, a string question becomes a textarea.
+- **`my-health-journey/checkins/`** — a new full-history page (`index.html` +
+  `checkins.js`) mirroring `my-health-journey/symptoms/`'s existing pattern, rendering
+  every past response's answers generically (humanized `field_key`s) rather than
+  assuming a fixed field set.
+- **`validation/pxp-5-checkin-engine/`** — new Playwright browser-test suite (25
+  checks) covering the dynamic form, the unassigned-patient state, submission,
+  the recent-response summary, and the full-history page.
+- **`validation/phase-2a-foundation/conformance.js`** — Stage 13 (28 new checks, 291
+  total in the suite), covering `TemplateRegistry.gs`, `CheckInTemplateAssignment.gs`,
+  and `CheckInResponse.gs` against their schemas plus the three new dispatch cases end
+  to end, including docs/44 §10.2's assignment-enforcement boundary and cross-patient
+  isolation.
+
+### Changed
+- **`validation/phase-2a-foundation/conformance.js`** — Stage 12's own module-registry-
+  derived count assertions updated from `3` to `4`, a mechanical, disclosed consequence
+  of `ModuleRegistry.gs`'s own designed, additive growth now that this batch registers
+  a fourth module. PXP-3's actual shipped rows/logic are untouched — only this test
+  file's hardcoded expectation of how many rows exist today.
+
 ## 2026-07-11 — Phase 2B Batch PXP-4: Dashboard Registry
 
 Phase 2B's Pillar 2 frontend consumer (docs/44 §7.3/§13, ADR-012 (amended), docs/47 §3)

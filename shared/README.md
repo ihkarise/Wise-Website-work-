@@ -106,6 +106,16 @@ concern, alongside its first implementation, `apps-script/ModuleRegistry.gs`) an
 `schemas/patient-module-state.schema.json` (the `PatientModuleState` record shape —
 Pillar 2's per-patient *enablement* concern, doctor/staff-owned, fail-closed by
 absence, alongside its first implementation, `apps-script/PatientModuleState.gs`).
+Phase 2B Batch PXP-5 added `constants/template-registry.json` (the Template
+Registry's static, versioned list of `CheckInTemplate` descriptors — the fourth
+registry, ADR-016, alongside its first implementation,
+`apps-script/TemplateRegistry.gs`), `schemas/check-in-response.schema.json` (the
+`CheckInResponse` record shape — the platform's first entity implementing docs/44
+§11.4's JSON-storage policy, alongside its first implementation,
+`apps-script/CheckInResponse.gs`), and `schemas/
+check-in-template-assignment.schema.json` (`CheckInTemplateAssignment` — a disclosed,
+additive entity filling a gap docs/44 §10.2 settles but names no persisted shape for;
+see that schema's own `.md` for the full disclosure).
 
 ---
 

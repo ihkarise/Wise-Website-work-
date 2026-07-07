@@ -3,7 +3,7 @@
   "$id": "https://wisehomeopathy.com/shared/constants/module-registry.json",
   "title": "Module Registry",
   "version": "1.0.0",
-  "description": "The canonical, static list of Module Registry descriptors — Phase 2B Batch PXP-3 (docs/44-PHASE-2B-TECHNICAL-PLAN.md §7.1/§17/§22, ADR-012 (amended), docs/47-PHASE-2B-IMPLEMENTATION-RULES.md). Defines which patient-facing capabilities exist on the platform at all (availability) — per-patient enablement is a separate, Sheet-backed concern (shared/schemas/patient-module-state.schema.json). Seeded, in this batch, with only the three already-implemented Phase 2A capabilities (docs/45 Part 1.3's future Dashboard Registry migration target, PXP-4) — a new module belonging to a not-yet-built capability (Daily Check-ins, Calculators, Personal Care Plan) is added as its own registry entry by the batch that actually designs and builds it (docs/47 §4), never pre-declared by an earlier batch guessing its data_source/shape. See module-registry.md for the field-by-field explanation, which fields are reserved/inert extension points, and which fields this batch actually consumes. apps-script/ModuleRegistry.gs hand-ports this list into its own Foundation-prefixed array, the same convention condition-slugs.json's consumers already use.",
+  "description": "The canonical, static list of Module Registry descriptors — Phase 2B Batch PXP-3 (docs/44-PHASE-2B-TECHNICAL-PLAN.md §7.1/§17/§22, ADR-012 (amended), docs/47-PHASE-2B-IMPLEMENTATION-RULES.md). Defines which patient-facing capabilities exist on the platform at all (availability) — per-patient enablement is a separate, Sheet-backed concern (shared/schemas/patient-module-state.schema.json). Seeded, in Batch PXP-3, with only the three already-implemented Phase 2A capabilities — a new module belonging to a not-yet-built capability is added as its own registry entry by the batch that actually designs and builds it (docs/47 §4), never pre-declared by an earlier batch guessing its data_source/shape. Batch PXP-5 adds the fourth entry below ('daily_checkin', docs/44 §10/§11/§22) — exactly this growth pattern; Calculators and Personal Care Plan remain deliberately not pre-declared for their own future batches. See module-registry.md for the field-by-field explanation, which fields are reserved/inert extension points, and which fields this batch actually consumes. apps-script/ModuleRegistry.gs hand-ports this list into its own Foundation-prefixed array, the same convention condition-slugs.json's consumers already use.",
   "modules": [
     {
       "module_id": "timeline",
@@ -64,6 +64,27 @@
       "supports_export": true,
       "supports_badges": false,
       "supports_reminders": false,
+      "supports_ai": false,
+      "supports_doctor_notes": false,
+      "supports_patient_input": true
+    },
+    {
+      "module_id": "daily_checkin",
+      "title": "Daily Check-in",
+      "description": "A short, doctor-assigned daily check-in on how you are feeling today.",
+      "icon": "checkin",
+      "display_order": 15,
+      "visibility": "patient",
+      "permissions": [],
+      "data_source": "get_checkin_responses",
+      "empty_state": "nodata",
+      "rendering_type": "card",
+      "future_ai_capable": false,
+      "supports_notifications": false,
+      "supports_history": true,
+      "supports_export": false,
+      "supports_badges": false,
+      "supports_reminders": true,
       "supports_ai": false,
       "supports_doctor_notes": false,
       "supports_patient_input": true

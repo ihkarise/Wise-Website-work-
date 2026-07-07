@@ -15,13 +15,14 @@
  * cross-file static-analysis collision) — update both places by hand if the
  * canonical list ever changes, per shared/README.md's rule.
  *
- * Seeded, in this batch, with only the three already-implemented Phase 2A
+ * Seeded, in Batch PXP-3, with only the three already-implemented Phase 2A
  * capabilities (Timeline, Symptom Tracker, Reports) — see
- * shared/constants/module-registry.md for why Daily Check-ins, Calculators,
- * and Personal Care Plan are deliberately not pre-declared here. No
- * dashboard rendering change ships in this batch — my-health-journey/
- * dashboard.js is untouched; migrating its rendering onto this registry is
- * the Dashboard Registry batch (PXP-4), not this one.
+ * shared/constants/module-registry.md for why Calculators and Personal Care
+ * Plan remain deliberately not pre-declared here. Batch PXP-5 adds the
+ * fourth entry below (`daily_checkin`) — exactly the "a new module ... is
+ * added by registering a new registry entry, by the batch that actually
+ * builds it" growth docs/47 §4 and this file's own original header comment
+ * already anticipated; the three PXP-3 rows above are untouched.
  *
  * Every `supports_*`/`future_ai_capable` field below is a reserved,
  * presently-inert extension point, consumed by zero code in this batch —
@@ -95,6 +96,35 @@ var FOUNDATION_MODULE_REGISTRY_ = [
     supports_export: true,
     supports_badges: false,
     supports_reminders: false,
+    supports_ai: false,
+    supports_doctor_notes: false,
+    supports_patient_input: true
+  },
+  {
+    // Batch PXP-5 (docs/44 §10/§11/§22) — the Daily Check-in Engine's own
+    // registration. data_source mirrors symptom_tracker's own convention:
+    // the module's "preview" call is its response-history list
+    // (get_checkin_responses); the card's own form additionally calls
+    // get_checkin_template (to know what to render) and
+    // submit_checkin_response (to write) directly, the same way Symptom
+    // Tracker's card calls log_symptom beyond its own get_symptom_logs
+    // data_source.
+    module_id: 'daily_checkin',
+    title: 'Daily Check-in',
+    description: 'A short, doctor-assigned daily check-in on how you are feeling today.',
+    icon: 'checkin',
+    display_order: 15,
+    visibility: 'patient',
+    permissions: [],
+    data_source: 'get_checkin_responses',
+    empty_state: 'nodata',
+    rendering_type: 'card',
+    future_ai_capable: false,
+    supports_notifications: false,
+    supports_history: true,
+    supports_export: false,
+    supports_badges: false,
+    supports_reminders: true,
     supports_ai: false,
     supports_doctor_notes: false,
     supports_patient_input: true

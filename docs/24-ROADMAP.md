@@ -177,8 +177,8 @@ Status: **Architecture-freeze finalized (Version 4.0, 2026-07-09).
 Implementation underway: Batch PXP-1 (Patient Profile) shipped 2026-07-09;
 Batch PXP-2 (Doctor-Assigned Conditions) shipped 2026-07-09; Batch PXP-3
 (Module Registry) shipped 2026-07-10; Batch PXP-4 (Dashboard Registry)
-shipped 2026-07-11, approved as this phase's fourth batch per docs/47's
-per-batch gate.**
+shipped 2026-07-11; Batch PXP-5 (Daily Check-in Engine) shipped 2026-07-12,
+approved as this phase's fifth batch per docs/47's per-batch gate.**
 This entry originally named only
 "Personal Care Plan" (per docs/32 Part 2's recommendation), then "Personal
 Care Plan, Module Engine & Personalized Check-ins" after the first
@@ -322,6 +322,38 @@ modification to any other frozen file (`my-health-journey/index.html`,
 every `.gs` file, every `shared/schemas/*.schema.json`, every
 `shared/constants/*.json` — all untouched).
 
+**Batch PXP-5 (Daily Check-in Engine, docs/44 §10/§11/§22, ADR-016)** — a consumer
+of Pillars 1 and 2 — has now shipped: the Template Registry's first concrete
+category, `CheckInTemplate` (`shared/constants/template-registry.json`,
+`apps-script/TemplateRegistry.gs`, seeded with one template,
+`daily_wellness_checkin` v1), and `CheckInResponse`
+(`shared/schemas/check-in-response.schema.json`,
+`apps-script/CheckInResponse.gs`) — the platform's first entity implementing
+docs/44 §11.4's JSON storage policy in full (flat-object answers, validated
+against the referenced template version's own question list, size-bounded,
+deterministically serialized). Shipped alongside, never replacing, Symptom
+Tracker (docs/44 §10.1) — `SymptomLogs` and its own routes are completely
+untouched. One disclosed, additive gap-fill: docs/44 §10.2 settles that "a
+doctor explicitly assigns which template(s) apply" but names no persisted
+shape for that assignment anywhere in docs/44 §17 or docs/33 §6.5;
+`CheckInTemplateAssignment` (`shared/schemas/
+check-in-template-assignment.schema.json`,
+`apps-script/CheckInTemplateAssignment.gs`) fills it — an exact structural
+mirror of the already-twice-approved `DoctorAssignedCondition` pattern
+(doctor/staff-only, manually-run editor functions, no Web App write route),
+not a new pattern or a new ADR. Three new, additive `FoundationRouter.gs`
+dispatch cases (`get_checkin_template`, `submit_checkin_response`,
+`get_checkin_responses`) and one new, additive Module Registry entry
+(`daily_checkin`) register the capability through PXP-3/PXP-4's existing
+mechanisms — no registry redesign. The "My Health Journey" dashboard gains
+one new card, generated dynamically from the caller's own current template's
+question metadata (the first dashboard form not hardcoded to a fixed field
+set), plus a new full-history page (`/my-health-journey/checkins/`). Zero
+modification to any frozen Foundation/Identity & Access/Patient Access/
+PXP-1..4 file — one disclosed, mechanical test-infrastructure update
+(`validation/phase-2a-foundation/conformance.js`'s Stage 12 module-count
+assertions, `3`→`4`, since the Module Registry is designed to grow).
+
 See docs/44-PHASE-2B-TECHNICAL-PLAN.md (Version 4.0) for the full design,
 docs/45-PHASE-2B-ARCHITECTURE-READINESS-REVIEW.md (Version 4.0) for the
 critique of every proposal, docs/46-PHASE-2B-REPOSITORY-CONSISTENCY-
@@ -334,9 +366,10 @@ documentation/git rules, and the mandatory three-phase batch workflow)
 every batch from PXP-1 onward must follow.
 
 **Implementation has begun with Batch PXP-1 (Patient Profile), Batch PXP-2
-(Doctor-Assigned Conditions), Batch PXP-3 (Module Registry), and Batch
-PXP-4 (Dashboard Registry), all explicitly approved and shipped; no other
-batch is authorized by any of the above documents.** docs/44 §22
+(Doctor-Assigned Conditions), Batch PXP-3 (Module Registry), Batch PXP-4
+(Dashboard Registry), and Batch PXP-5 (Daily Check-in Engine), all
+explicitly approved and shipped; no other batch is authorized by any of the
+above documents.** docs/44 §22
 sequences **infrastructure before features**:
 Patient Profile → Doctor-Assigned Conditions → Module Registry → Dashboard
 Registry → Daily Check-in Engine → Calculator Registry → Personal Care
