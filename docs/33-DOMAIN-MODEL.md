@@ -1,5 +1,5 @@
 # 33 - Domain Model
-## Version 1.9 — 2026-07-12
+## Version 1.10 — 2026-07-13
 
 > Defines every major business entity in the Wise Platform: what it means, what it
 > holds, how it relates to everything else, how it comes into being and ends, who is
@@ -648,7 +648,21 @@ doctor-authored computation pattern exposed through its own **Calculator Registr
 `CalculatorDefinition` and `CalculatorResult` attributes are formalized in docs/44
 §8.2, matching this section's own conceptual shape. **The Public (no-login) variant
 remains unclaimed** — docs/44 §2.2 explicitly excludes it; docs/46 Part 3 carries this
-forward as a still-open gap. Not yet implemented — see docs/44 §22's `PXP-6` batch.
+forward as a still-open gap.
+
+**Status update (2026-07-13, Batch PXP-6):** **Implemented — backend only.** See §6.8
+for the shipped shape. `CalculatorRegistry.gs`/`calculator-registry.json` and
+`CalculatorResult.gs`/`calculator-result.schema.json` back the generic, pluggable
+registry-and-result mechanism; `submit_calculator_result`/`get_calculator_results`
+(`FoundationRouter.gs`) are the platform's fourth patient-writable route pair. **The
+registry ships with zero registered calculators** — a deliberate, disclosed scope
+decision (`calculator-registry.md`'s "Ships empty" section): this batch's own scope is
+the mechanism only, not a concrete `CalculatorDefinition`. No Module Registry entry, no
+dashboard card, no patient-facing UI — a disclosed, explicit narrowing from docs/44
+§22's own PXP-6 row (which names "Patient Calculator UI" as part of this batch),
+mirroring the Module Registry (PXP-3, backend) / Dashboard Registry (PXP-4, frontend)
+split precedent exactly. The Public (no-login) variant remains unclaimed, unchanged by
+this batch.
 
 ---
 
@@ -694,6 +708,10 @@ Check-In Response) and §6.7 (Template Registry) promoted from *Designed* to
 the new `daily_checkin` Module Registry entry, and the one disclosed, additive
 gap-fill entity (`CheckInTemplateAssignment`) this batch adds to make docs/44 §10.2's
 "a doctor explicitly assigns" requirement actually enforceable.
+**Updated 2026-07-13** for Batch PXP-6 (implementation): §5.3 (Calculator) and new
+§6.8 (Calculator Registry and Calculator Result) promoted to **Implemented — backend
+only** — see those subsections' own status updates for the shipped shape and the
+disclosed "ships empty, no UI in this batch" scope decision.
 
 ## 6.1 Patient Profile — *Implemented (Batch PXP-1)*
 **Purpose:** Patient-editable structured contact/personal data (phone, date of birth,
@@ -934,6 +952,44 @@ code change") but does not itself name a field for; see
 `shared/constants/template-registry.md`'s own disclosure. The six future categories
 named above remain unseeded, unscoped, and unclaimed by this batch.
 
+## 6.8 Calculator Registry and Calculator Result — *Pillar 3, Implemented — backend only (Batch PXP-6)*
+**Purpose:** A registry of available, deterministic, doctor/staff-authored calculators
+(Calculator Registry, mirroring Module Registry §6.3 and Template Registry §6.7)
+referencing versioned input-field definitions (`CalculatorDefinition`, embedded
+directly in each registry entry, the same convention `CheckInTemplate`'s `questions`
+already established rather than a separate file) and a patient's computed results
+against one (`CalculatorResult`) — see §5.3 above for this entity's own promotion.
+**A new calculator is added by registering a new registry entry — never by hardcoding
+a disease-specific branch inside shared Calculator Framework code** (docs/44 §8.3).
+**Relationships:** `CalculatorResult` belongs to one Patient; visibility would be
+governed by Patient Module State (§6.3), once a future batch wires a calculator into
+the Module Registry — no separate assignment entity exists for this pillar, unlike
+Check-In Template (§6.5). **Full detail:** docs/44 §8, ADR-013.
+
+**Status update (this change):** Implemented — backend only.
+`apps-script/CalculatorRegistry.gs`/`shared/constants/calculator-registry.json` define
+the registry mechanism, **seeded with zero calculators** — a deliberate, disclosed
+scope decision (`calculator-registry.md`'s "Ships empty" section): this batch's own
+scope is the generic registry-and-result mechanism only, not a concrete
+`CalculatorDefinition` (disease-specific or otherwise). `apps-script/CalculatorResult.gs`/
+`shared/schemas/calculator-result.schema.json` back `submit_calculator_result`/
+`get_calculator_results` (`FoundationRouter.gs`) — the platform's second entity
+implementing docs/44 §11.4's JSON storage policy in full (`check-in-response.schema.json`'s
+own `.md` had already named this as its anticipated "second use"): `input_snapshot` is
+a flat object, validated field-by-field against the referenced
+`(calculator_slug, definition_version)`'s own `input_fields`, size-bounded, and
+serialized with deterministic key order. `result_value` is never computed by this
+generic layer — ADR-013's formula logic is a future batch's responsibility once a real
+calculator is authored; this batch only validates and stores whatever value the caller
+supplies. **No Module Registry entry, no dashboard card, no patient-facing UI in this
+batch** — a disclosed, explicit scope narrowing from docs/44 §22's own PXP-6 row
+(which names "Patient Calculator UI" as part of this batch), mirroring the Module
+Registry (PXP-3 backend) / Dashboard Registry (PXP-4 frontend) split precedent exactly.
+Conformance tests prove the generic mechanism end to end via a synthetic, clearly-
+labeled test-only fixture pushed directly into the test harness's own registry array
+(never committed to `calculator-registry.json` itself) — see
+`validation/phase-2a-foundation/conformance.js`'s Stage 14 for detail.
+
 ---
 
 # Summary Table
@@ -957,7 +1013,7 @@ named above remain unseeded, unscoped, and unclaimed by this batch.
 | Notification | Conceptual (gap) | Unassigned |
 | Knowledge Article | Conceptual | Unassigned |
 | Knowledge Engine | Conceptual (system) | Unassigned |
-| Calculator | Designed, not yet implemented — Patient variant only — **Pillar 3** | 2B (docs/44 §8, batch PXP-6, Calculator Registry). Public variant still unassigned — roadmap gap carried forward (docs/46 Part 3). |
+| Calculator | **Implemented — backend only — Pillar 3** | 2B (docs/44 §8, batch PXP-6, Calculator Registry — shipped, registry seeded empty, no UI; see §6.8). Public variant still unassigned — roadmap gap carried forward (docs/46 Part 3). |
 | Patient Profile | **Implemented** | 2B (docs/44 §17, batch PXP-1 — shipped, the platform's first upsert-style entity) |
 | Doctor Assigned Condition | **Implemented — Pillar 1** | 2B (docs/44 §6, batch PXP-2 — shipped, doctor/staff-owned; renamed from "Condition Assignment"; Option B (additive) settled and approved) |
 | Module Registry / Patient Module State | **Implemented (backend scaffold + frontend consumer) — Pillar 2** | 2B (docs/44 §7, batch PXP-3 backend — shipped; docs/44 §7.3/§13, batch PXP-4 Dashboard Registry frontend consumer — shipped; the patient dashboard now renders every card from `PatientModuleState` × Module Registry, no hardcoded module knowledge in the render path) |

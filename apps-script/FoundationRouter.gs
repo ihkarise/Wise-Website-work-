@@ -106,6 +106,24 @@
  *     Script editor functions (CheckInTemplateAssignment.gs's
  *     assignFoundationCheckInTemplate()/resolveFoundationCheckInTemplateAssignment()),
  *     mirroring every earlier doctor/staff-only entity's precedent exactly.
+ *   - submit_calculator_result / get_calculator_results — Batch PXP-6
+ *     additions (docs/44 §8/§22, ADR-013, docs/47), Phase 2B's Pillar 3.
+ *     patient_id is always session-derived, never client-supplied — the
+ *     same authorization primitive submit_checkin_response/
+ *     get_checkin_responses already use. submit_calculator_result's every
+ *     other field (calculator_slug, definition_version, input_snapshot,
+ *     result_value) comes from the request body and is validated by
+ *     foundationCreateCalculatorResult_() itself, including the check that
+ *     the referenced (calculator_slug, definition_version) is a real
+ *     Calculator Registry entry — always false today, since
+ *     CalculatorRegistry.gs ships with zero registered calculators in this
+ *     batch (see that file's own header comment); this batch ships the
+ *     generic registry-and-result mechanism only, with no Module Registry
+ *     entry and no dashboard/UI consumer (a disclosed, explicit scope
+ *     narrowing from docs/44 §22's own PXP-6 row, mirroring the Module
+ *     Registry (PXP-3, backend) / Dashboard Registry (PXP-4, frontend)
+ *     split precedent — see docs/24-ROADMAP.md's PXP-6 entry for the full
+ *     disclosure).
  *
  * A disclosed, additive exception, same category as Code.gs's own
  * one-line dispatch shim (IA-2): this file was previously listed among
@@ -132,7 +150,8 @@
  * FoundationRouteGuard.gs, PatientIdentity.gs, FoundationConsultationHistory.gs,
  * FoundationSymptomLog.gs, FoundationReports.gs, FoundationPatientProfile.gs,
  * DoctorAssignedCondition.gs, ModuleRegistry.gs, PatientModuleState.gs,
- * TemplateRegistry.gs, CheckInTemplateAssignment.gs, CheckInResponse.gs.
+ * TemplateRegistry.gs, CheckInTemplateAssignment.gs, CheckInResponse.gs,
+ * CalculatorRegistry.gs, CalculatorResult.gs.
  */
 
 /**
@@ -358,6 +377,40 @@ function foundationHandleGetCheckInResponses_(input) {
 }
 
 /**
+ * Batch PXP-6: creates a new Calculator Result entry for the caller.
+ * patient_id is always session-derived, never client-supplied — the same
+ * authorization primitive submit_checkin_response already uses. Every
+ * other field (calculator_slug, definition_version, input_snapshot,
+ * result_value) comes from the request body and is validated by
+ * foundationCreateCalculatorResult_() itself, including the check that the
+ * referenced (calculator_slug, definition_version) is a real Calculator
+ * Registry entry.
+ */
+function foundationHandleSubmitCalculatorResult_(input) {
+  return withFoundationAuth_(input && input.session_token, function (patientId) {
+    return foundationCreateCalculatorResult_({
+      patient_id: patientId,
+      calculator_slug: input && input.calculator_slug,
+      definition_version: input && input.definition_version,
+      input_snapshot: input && input.input_snapshot,
+      result_value: input && input.result_value
+    });
+  });
+}
+
+/**
+ * Batch PXP-6: returns the caller's own Calculator Result entries, sorted
+ * and capped for a future full-history/dashboard-preview display, mirroring
+ * get_checkin_responses exactly. patient_id is always session-derived,
+ * never client-supplied.
+ */
+function foundationHandleGetCalculatorResults_(input) {
+  return withFoundationAuth_(input && input.session_token, function (patientId) {
+    return foundationGetPatientCalculatorResults_(patientId);
+  });
+}
+
+/**
  * Serializes a response-envelope-shaped value to the wire. Apps Script
  * Web Apps cannot set a real HTTP status code (every response transports
  * as HTTP 200 regardless — the same platform fact Code.gs's own
@@ -428,6 +481,12 @@ function handleFoundationRequest_(input) {
       break;
     case 'get_checkin_responses':
       envelope = foundationHandleGetCheckInResponses_(input);
+      break;
+    case 'submit_calculator_result':
+      envelope = foundationHandleSubmitCalculatorResult_(input);
+      break;
+    case 'get_calculator_results':
+      envelope = foundationHandleGetCalculatorResults_(input);
       break;
     default:
       envelope = buildFoundationErrorEnvelope_('FOUNDATION_UNKNOWN_ACTION', 'Unknown request.');
