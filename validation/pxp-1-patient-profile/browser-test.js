@@ -91,6 +91,29 @@ async function mockFoundation(page, { patientProfile = DEFAULT_PATIENT_PROFILE, 
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(PROFILE_ENVELOPE) });
       return;
     }
+    // Batch PXP-4 (Dashboard Registry): the dashboard now issues a
+    // get_patient_module_states call alongside get_profile. All three
+    // seeded registry modules are enabled here so Test #7's dashboard
+    // "My Profile" link navigation still finds a rendered dashboard.
+    if (action === 'get_patient_module_states') {
+      await route.fulfill({
+        status: 200, contentType: 'application/json',
+        body: JSON.stringify({ status: 'ok', data: [
+          { state_key: 'p1::timeline',        patient_id: 'p1', module_id: 'timeline',        enabled: true, enabled_by: 'staff-1', enabled_at: '2026-07-01T00:00:00.000Z' },
+          { state_key: 'p1::symptom_tracker', patient_id: 'p1', module_id: 'symptom_tracker', enabled: true, enabled_by: 'staff-1', enabled_at: '2026-07-01T00:00:00.000Z' },
+          { state_key: 'p1::reports',         patient_id: 'p1', module_id: 'reports',         enabled: true, enabled_by: 'staff-1', enabled_at: '2026-07-01T00:00:00.000Z' }
+        ] })
+      });
+      return;
+    }
+    // get_timeline / get_symptom_logs / get_reports are the dashboard's
+    // per-card loaders (dashboard.js) — Test #7 above renders the
+    // dashboard shell to verify the "My Profile" link, so an empty
+    // realistic response for each keeps that render clean.
+    if (action === 'get_timeline' || action === 'get_symptom_logs' || action === 'get_reports') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'ok', data: [] }) });
+      return;
+    }
     if (action === 'get_patient_profile') {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'ok', data: patientProfile }) });
       return;

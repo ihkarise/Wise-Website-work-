@@ -8,6 +8,101 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-11 — Phase 2B Batch PXP-4: Dashboard Registry
+
+Phase 2B's Pillar 2 frontend consumer (docs/44 §7.3/§13, ADR-012 (amended), docs/47 §3)
+— the "My Health Journey" dashboard becomes a registry-driven consumer of PXP-3's
+Module Registry plus `PatientModuleState`. Every card that renders on the dashboard now
+corresponds to a registry entry the patient is enabled for; there is no hardcoded
+knowledge of any specific module in `dashboard.js`'s render path. Explicitly approved
+per docs/47's per-batch gate. Zero backend change (no new Apps Script route, no new
+schema, no `.gs` file added or edited — the batch is entirely a frontend consumer of
+PXP-3's already-shipped `get_patient_module_states` route). Zero change to Phase 1.5,
+Foundation, Identity & Access, or any PXP-1/PXP-2/PXP-3 file.
+
+### Changed
+- **`my-health-journey/dashboard.js`** — the batch's one explicitly disclosed
+  frozen-file exception (docs/47 §6: this file is Phase 2A-frozen except for genuine
+  bug fixes, and PXP-4 is not a bug fix; it is the exact "authorized migration" case
+  ADR-012 (amended) commits to and docs/44 §7.3 requires). Rewrites `renderDashboard()`
+  from six hardcoded `cardHtml(id, title, bodyHtml)` calls into a zero-line-per-card
+  loop over the enabled entries returned by a new `filterEnabledModules()` helper. The
+  main flow now issues `get_profile` and `get_patient_module_states` in parallel
+  (`Promise.all`); either non-`ok` envelope collapses to `/login.html?reason=expired`,
+  the same fail-closed treatment `get_profile` alone got before this batch. A new
+  loader-dispatcher (`MODULE_LOADERS`) maps each registry `data_source` string to its
+  registered loader function; `renderDashboard()` never learns any specific
+  `module_id`. The three pre-PXP-4 hardcoded "future" cards (Care Plan, Messages,
+  Digital Twin) no longer render on any patient's dashboard, since none are in the
+  Module Registry — docs/44 §13.2/docs/47 §4: a not-yet-built module is not
+  pre-declared by an earlier batch guessing its shape, so it does not render at all
+  until its own batch adds it (at which point it will re-appear via the registry, not
+  a hardcoded `emptyStateHtml('future', …)` call in `dashboard.js`). The `future`
+  empty-state formatter itself is retained on `window.WiseDashboard` for a future
+  consumer, the same "built, verified, awaiting a future consumer" discipline
+  `phase2a` has followed since PA-5. The Symptom Tracker card's DOM id fragment
+  changes from the pre-PXP-4 literal `symptoms` to its registry `module_id`
+  `symptom_tracker` — the sole source of every DOM id is now the registry, not any
+  hardcoded string in this file. Per-card loader signatures gain an explicit
+  `moduleId` parameter for the same reason. `my-health-journey/index.html` is
+  **unchanged** — the `#dashGrid` container is already generic.
+
+### Added
+- **In-file frontend Module Registry hand-port** — a five-field-per-entry subset
+  (`module_id`, `title`, `display_order`, `empty_state`, `data_source`) of
+  `shared/constants/module-registry.json` v1.0.0, inlined at the top of
+  `dashboard.js`, following the same hand-port convention `CONDITION_OPTIONS`,
+  `REPORT_MAX_UPLOAD_BYTES`, and `apps-script/ModuleRegistry.gs`'s
+  `FOUNDATION_MODULE_REGISTRY_` already use for their own consumers (a browser has no
+  ES-module/build-step to read the canonical JSON at runtime, so a static hand-port is
+  the same discipline every other shared/ constant already follows in this file).
+  Reserved/inert fields (`supports_*`, `future_ai_capable`, `icon`, `visibility`,
+  `permissions`, `rendering_type`) stay in the canonical JSON only — the module-
+  registry.md "Which fields does PXP-3 code actually consume?" note continues to
+  hold. Update all three ports by hand if the canonical list ever changes.
+- **`validation/pxp-4-dashboard-registry/`** (new suite) — 23 browser-driven checks
+  covering PXP-4's new surface only: dashboard-level empty state (zero enabled
+  modules), per-patient enablement filtering (subset of modules), `display_order`-
+  driven card ordering regardless of response order, exact `foundation_action`-call
+  budget during boot, unregistered `data_source` fail-soft (skeleton + `console.warn`,
+  no crash, sibling cards unaffected), `filterEnabledModules` pure-function ordering
+  and fail-closed skipping of unknown module_ids, and a rejected
+  `get_patient_module_states` collapsing to `/login.html?reason=expired`. Companion
+  `README.md` documents scope, running, and what the suite does not prove — the
+  same discipline every PA-* /pxp-* README already follows.
+- **Existing browser suites updated (behavior-preserving)** —
+  `validation/pa-2-dashboard/`, `pa-3-timeline/`, `pa-4-symptom-tracker/`,
+  `pa-5-reports/`, and `pxp-1-patient-profile/` each add a
+  `get_patient_module_states` response to their `page.route` mock (seeded with all
+  three seeded registry modules enabled, mirroring pre-PXP-4 behavior). `pa-2-
+  dashboard/` also updates its "renders all six expected cards" assertion to
+  "renders exactly three registry-driven cards" (Timeline / Symptom Tracker /
+  Reports, in `display_order`), and its future-badge assertion from `futureCount ===
+  3` to `futureCount === 0`, and its `card-symptoms-*` selectors to
+  `card-symptom_tracker-*` — the docs/45 Part 1.3 / docs/46 Part 4 #3 mandatory PXP-4
+  regression obligation. `pa-4-symptom-tracker/` renames its two `card-symptoms-body`
+  selectors to `card-symptom_tracker-body` for the same reason. Every pre-PXP-4
+  behavior check in every suite still passes unchanged.
+
+### Changed (documentation)
+- `docs/33-DOMAIN-MODEL.md` bumped to Version 1.8 — Module Registry and Patient Module
+  State (§6.3) promoted from "Implemented (backend scaffold)" to **Implemented (backend
+  scaffold + frontend consumer)**; disclosure that the patient dashboard is now the
+  registry's first live consumer.
+- `docs/24-ROADMAP.md` bumped to Version 1.9 — Phase 2B status updated: Batch PXP-4
+  shipped; batch paragraph added mirroring PXP-1/PXP-2/PXP-3's structure.
+
+### Verified
+- Static Analysis: PASS, 0 findings (36 `.gs` files scanned; no `.gs` file was added
+  or edited by this batch).
+- Conformance: 236/236 (Stage 12 unchanged — PXP-3's backend is untouched).
+- Phase 1.5 Regression: 42/42.
+- Browser test suites: **191/191 across seven suites** — `pa-2-dashboard` 32/32,
+  `pa-3-timeline` 29/29, `pa-4-symptom-tracker` 28/28, `pa-5-reports` 32/32,
+  `pa-6-public-nav` 22/22, `pxp-1-patient-profile` 25/25, `pxp-4-dashboard-registry`
+  **23/23** (new). The 168 pre-PXP-4 checks all still pass; the +23 delta is the
+  dedicated PXP-4 suite.
+
 ## 2026-07-10 — Phase 2B Batch PXP-3: Module Registry
 
 Phase 2B's Pillar 2 backend (docs/44 §4.1/§7/§22) — the platform's only mechanism for

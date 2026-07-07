@@ -34,6 +34,25 @@
  * is validation/pa-5-reports/browser-test.js's own coverage, not
  * duplicated here.
  *
+ * Updated again in Batch PXP-4 (Dashboard Registry, docs/44 §7.3/§13,
+ * ADR-012 (amended), docs/47 §3): the dashboard is now a registry-driven
+ * consumer of PXP-3's PatientModuleState + Module Registry. Every card
+ * now corresponds to a registry entry the patient is enabled for; there
+ * are no hardcoded "future" cards. mockFoundation() therefore also
+ * routes get_patient_module_states, seeded with all three seeded registry
+ * modules enabled for the "renders all cards" test. Assertions updated
+ * from "renders all six expected cards" (Timeline / Symptom Tracker /
+ * Reports plus the three now-removed hardcoded placeholders Care Plan /
+ * Messages / Digital Twin) to "renders exactly three registry-driven
+ * cards"; futureCount drops from 3 to 0 (docs/47 §4: a not-yet-built
+ * module is not pre-declared in the registry by an earlier batch guessing
+ * its shape, so it does not render at all until its own batch adds it).
+ * The Symptom Tracker card's DOM id fragment is now its registry
+ * module_id ("symptom_tracker"), not the pre-PXP-4 literal "symptoms".
+ * The dedicated PXP-4 suite validation/pxp-4-dashboard-registry/
+ * browser-test.js covers the registry-driven surface directly (empty
+ * dashboard, ordering, missing loader) — not duplicated here.
+ *
  * Run: node validation/pa-2-dashboard/browser-test.js
  */
 
@@ -86,18 +105,34 @@ const FAKE_TOKEN = 'fake-session-token-for-tests';
 // get_timeline call (dashboard.js's loadTimelinePreview()); Batch PA-4 adds
 // the same kind of separate call for the Symptom Tracker card
 // (loadSymptomPreview()/get_symptom_logs); Batch PA-5 adds one more for the
-// Reports card (loadReportsPreview()/get_reports) — this mock routes by the
-// parsed request's foundation_action so each gets a realistic, empty-data
-// response (rendering the real "No data yet" Empty State) rather than being
-// silently mismatched against whatever envelope a given test passed in for
-// get_profile. log_symptom/upload_report are not needed by this suite's own
-// tests — the Symptom Tracker's and Reports' own write-affordance behavior
-// is validation/pa-4-symptom-tracker/'s and validation/pa-5-reports/'s own
-// coverage, respectively.
-async function mockGetProfile(page, envelope) {
+// Reports card (loadReportsPreview()/get_reports); Batch PXP-4 makes the
+// whole dashboard registry-driven and adds one more call for the merged
+// PatientModuleState rows (get_patient_module_states, PXP-3). This mock
+// routes by the parsed request's foundation_action so each gets a
+// realistic response rather than being silently mismatched against
+// whatever envelope a given test passed in for get_profile.
+// log_symptom/upload_report are not needed by this suite's own tests —
+// the Symptom Tracker's and Reports' own write-affordance behavior is
+// validation/pa-4-symptom-tracker/'s and validation/pa-5-reports/'s own
+// coverage, respectively. The default moduleStates seeded here (all three
+// seeded registry modules enabled) mirrors the pre-PXP-4 behavior every
+// existing dashboard test relied on — a test that needs a different
+// enablement mix can pass its own list.
+const ALL_MODULES_ENABLED = [
+  { state_key: 'p1::timeline',        patient_id: 'p1', module_id: 'timeline',        enabled: true, enabled_by: 'staff-1', enabled_at: '2026-07-01T00:00:00.000Z' },
+  { state_key: 'p1::symptom_tracker', patient_id: 'p1', module_id: 'symptom_tracker', enabled: true, enabled_by: 'staff-1', enabled_at: '2026-07-01T00:00:00.000Z' },
+  { state_key: 'p1::reports',         patient_id: 'p1', module_id: 'reports',         enabled: true, enabled_by: 'staff-1', enabled_at: '2026-07-01T00:00:00.000Z' }
+];
+
+async function mockGetProfile(page, envelope, moduleStates) {
+  const states = moduleStates || ALL_MODULES_ENABLED;
   await page.route('**/macros/s/**/exec', async (route) => {
     let action = null;
     try { action = JSON.parse(route.request().postData()).foundation_action; } catch (e) { /* not JSON — fall through */ }
+    if (action === 'get_patient_module_states') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'ok', data: states }) });
+      return;
+    }
     if (action === 'get_timeline') {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'ok', data: [] }) });
       return;
@@ -154,7 +189,7 @@ async function main() {
       await context.close();
     }
 
-    // ---- 2. Valid session -> dashboard renders greeting + 6 empty-state cards ----
+    // ---- 2. Valid session -> dashboard renders greeting + three registry-driven cards ----
     {
       const context = await browser.newContext();
       await blockExternalFonts(context);
@@ -166,11 +201,12 @@ async function main() {
       await withSessionToken(page, baseUrl, FAKE_TOKEN);
       await page.goto(`${baseUrl}/my-health-journey/`);
       await page.waitForSelector('#greeting:not(:has(.skeleton))');
-      // Batch PA-3: the Timeline card now resolves via its own, separate
+      // Batch PA-3: the Timeline card resolves via its own, separate
       // get_timeline call (dashboard.js's loadTimelinePreview()); Batch PA-4:
       // the Symptom Tracker card similarly resolves via get_symptom_logs
-      // (loadSymptomPreview()) — wait for both cards' own async work to
-      // settle before asserting on badge counts.
+      // (loadSymptomPreview()). Batch PXP-4: the DOM id fragment for the
+      // Symptom Tracker card is now its registry module_id
+      // ("symptom_tracker"), not the pre-PXP-4 literal "symptoms".
       await page.waitForSelector('#card-timeline-body:not(:has(.skeleton))');
       await page.waitForSelector('#sxSummary .badge-nodata');
       await page.waitForSelector('#reportsList .badge-nodata');
@@ -178,22 +214,28 @@ async function main() {
       const greetingText = await page.textContent('#greeting');
       check('Dashboard: greeting shows the real patient name from get_profile', greetingText.indexOf('Asha Menon') !== -1);
 
+      // Batch PXP-4: exactly three cards now — one per seeded registry
+      // module, ordered by display_order (Timeline 10, Symptom Tracker 20,
+      // Reports 30). Care Plan / Messages / Digital Twin are not in the
+      // Module Registry (docs/47 §4: a not-yet-built module is not
+      // pre-declared by an earlier batch) so they no longer render.
       const cardTitles = await page.$$eval('.dash-card h2', (els) => els.map((e) => e.textContent));
-      check('Dashboard: renders all six expected cards', cardTitles.length === 6 &&
-        ['Timeline', 'Symptom Tracker', 'Reports', 'Care Plan', 'Messages', 'Digital Twin'].every((t) => cardTitles.includes(t)));
+      check('Dashboard: renders exactly three registry-driven cards for a fully enabled patient (Timeline / Symptom Tracker / Reports)',
+        cardTitles.length === 3 &&
+        cardTitles[0] === 'Timeline' && cardTitles[1] === 'Symptom Tracker' && cardTitles[2] === 'Reports');
 
       const phase2aCount = await page.$$eval('.badge-phase2a', (els) => els.length);
       const futureCount = await page.$$eval('.badge-future', (els) => els.length);
       const nodataCount = await page.$$eval('.badge-nodata', (els) => els.length);
       check('Dashboard: zero "Coming later in Phase 2A" placeholders remain — Reports (PA-5) was the last one (Timeline PA-3, Symptom Tracker PA-4 were wired earlier)', phase2aCount === 0);
-      check('Dashboard: Care Plan/Messages/Digital Twin use the "Planned for a future version" badge', futureCount === 3);
+      check('Dashboard: zero "Planned for a future version" placeholders remain — PXP-4 removed the three hardcoded future cards (Care Plan/Messages/Digital Twin); a future module will re-appear via its own registry entry, not a hardcoded call in dashboard.js', futureCount === 0);
       check('Dashboard: Timeline, Symptom Tracker, and Reports cards each render their own real "No data yet" badge for a patient with zero rows (PA-3/PA-4/PA-5)',
         nodataCount === 3);
       const timelineBadgeParent = await page.$eval('#card-timeline-body', (el) => el.querySelector('.badge-nodata') !== null);
       check('Dashboard: the Timeline card carries its own "No data yet" badge', timelineBadgeParent);
-      const symptomsBadgeParent = await page.$eval('#card-symptoms-body', (el) => el.querySelector('.badge-nodata') !== null);
-      check('Dashboard: the Symptom Tracker card carries its own "No data yet" badge (PA-4)', symptomsBadgeParent);
-      const symptomFormPresent = await page.$eval('#card-symptoms-body', (el) => el.querySelector('#symptomForm') !== null);
+      const symptomsBadgeParent = await page.$eval('#card-symptom_tracker-body', (el) => el.querySelector('.badge-nodata') !== null);
+      check('Dashboard: the Symptom Tracker card (now keyed by registry module_id "symptom_tracker") carries its own "No data yet" badge (PA-4/PXP-4)', symptomsBadgeParent);
+      const symptomFormPresent = await page.$eval('#card-symptom_tracker-body', (el) => el.querySelector('#symptomForm') !== null);
       check('Dashboard: the Symptom Tracker card still shows its quick-log form alongside the empty summary (docs/41 §2: write affordance is the card\'s primary content)', symptomFormPresent);
       const reportsBadgeParent = await page.$eval('#card-reports-body', (el) => el.querySelector('.badge-nodata') !== null);
       check('Dashboard: the Reports card carries its own "No data yet" badge (PA-5)', reportsBadgeParent);
@@ -202,9 +244,6 @@ async function main() {
       const reportFileLabelFor = await page.getAttribute('#card-reports-body label', 'for');
       check('Dashboard: the Reports upload field has a real, associated <label for>', reportFileLabelFor === 'reportFile');
 
-      const futureText = await page.$eval('.badge-future', (el) => el.textContent);
-      check('Dashboard: future-version badge copy matches the approved wording', futureText === 'Planned for a future version');
-
       // Direct function check too (not just the real render above) — the
       // 'nodata' variant now has a real card consumer (Timeline, PA-3), but
       // this still confirms the underlying formatter is correct in
@@ -212,6 +251,14 @@ async function main() {
       const nodataHtml = await page.evaluate(() => window.WiseDashboard.emptyStateHtml('nodata', 'test message'));
       check('Dashboard: the "No data yet" empty-state formatter itself is correct',
         nodataHtml.indexOf('badge-nodata') !== -1 && nodataHtml.indexOf('No entries yet') !== -1 && nodataHtml.indexOf('test message') !== -1);
+      // The pre-PXP-4 'future' variant remains built and verified as a
+      // pure formatter (still exported on window.WiseDashboard) even
+      // though PXP-4 removed the last live card consumer — the same
+      // "built, verified, awaiting a future consumer" discipline
+      // 'phase2a' has followed since Batch PA-5.
+      const futureHtml = await page.evaluate(() => window.WiseDashboard.emptyStateHtml('future', 'planned copy'));
+      check('Dashboard: the "future" empty-state formatter still renders the approved wording ("Planned for a future version") for a future consumer to reuse',
+        futureHtml.indexOf('badge-future') !== -1 && futureHtml.indexOf('Planned for a future version') !== -1 && futureHtml.indexOf('planned copy') !== -1);
 
       const ariaBusy = await page.getAttribute('#dashGrid', 'aria-busy');
       check('Dashboard: grid aria-busy flips to false once loaded', ariaBusy === 'false');
@@ -335,7 +382,7 @@ async function main() {
       const h1Count = await page.$$eval('h1', (els) => els.length);
       check('Dashboard: exactly one h1 on the page', h1Count === 1);
       const h2Count = await page.$$eval('h2', (els) => els.length);
-      check('Dashboard: exactly one h2 per card (six total)', h2Count === 6);
+      check('Dashboard: exactly one h2 per card (three total — one per enabled registry module, per PXP-4)', h2Count === 3);
 
       const skipHref = await page.getAttribute('a.skip', 'href');
       check('Dashboard: skip-to-content link targets #main', skipHref === '#main');
