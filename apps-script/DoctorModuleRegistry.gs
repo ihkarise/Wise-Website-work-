@@ -1,8 +1,9 @@
 /**
  * Doctor Module Registry — Batch WPI-3 (docs/50-PHASE-3-TECHNICAL-PLAN.md
  * §7.1/§19, ADR-020, docs/53-PHASE-3-IMPLEMENTATION-RULES.md governs this
- * and every later WPI batch). Implements
- * shared/constants/doctor-module-registry.json version 1.0.0. Phase
+ * and every later WPI batch) shipped this registry empty; Batch WPI-4
+ * (docs/50 §7.3/§7.4/§19) adds this version's one entry. Implements
+ * shared/constants/doctor-module-registry.json version 1.1.0. Phase
  * 3/WHIMS's Pillar 2 (docs/49 §4) — the platform's only mechanism for
  * naming which doctor-facing capability exists at all, mirroring
  * ModuleRegistry.gs's/CalculatorRegistry.gs's own "availability, not
@@ -20,12 +21,13 @@
  * already established — update both places by hand if the canonical list
  * ever changes, per shared/README.md's rule.
  *
- * Deliberately seeded empty in this batch — see
- * shared/constants/doctor-module-registry.md's "Ships empty" section for
- * the full, disclosed reasoning: this batch's own scope is the generic
- * registry-and-state mechanism only; no concrete doctor-facing capability
- * is authored or registered here. A future capability is added as its own
- * registry entry by whichever later, separately-approved WPI batch
+ * Batch WPI-4 registers this registry's first real, doctor-facing
+ * capability: 'patient_roster' (docs/50 §7.4), backed by
+ * DoctorPatientRoster.gs's new get_doctor_patient_roster route. Every
+ * other illustrative capability docs/50 §7.1 names (condition assignment,
+ * care-plan authoring, module/calculator/template enablement, inventory,
+ * PillFill orders, analytics) remains unregistered — each is added as its
+ * own registry entry by whichever later, separately-approved WPI batch
  * actually designs and builds it (docs/53 §4's "a new registry entry,
  * never new architecture") — the same disclosed precedent
  * CalculatorRegistry.gs already established for its own batch.
@@ -35,7 +37,15 @@
  * play for their own consumers.
  */
 
-var FOUNDATION_DOCTOR_MODULE_REGISTRY_ = [];
+var FOUNDATION_DOCTOR_MODULE_REGISTRY_ = [
+  {
+    capability_key: 'patient_roster',
+    display_name: 'Patient Roster',
+    display_order: 10,
+    data_source: 'get_doctor_patient_roster',
+    future_ai_capable: false
+  }
+];
 
 /**
  * Returns the full, static Doctor Module Registry list. Pure, no Apps

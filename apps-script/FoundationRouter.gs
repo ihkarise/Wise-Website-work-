@@ -183,9 +183,15 @@
  *     write is a staff/administrative action via DoctorModuleState.gs's
  *     manually-run setFoundationDoctorModuleState() (see that file's own
  *     header comment). doctor_id is derived only from a verified
- *     DoctorSession, never from client-supplied input. Returns an empty
- *     list today — the Doctor Module Registry ships empty in this batch
- *     (DoctorModuleRegistry.gs's own header comment).
+ *     DoctorSession, never from client-supplied input.
+ *
+ *   - get_doctor_patient_roster — Batch WPI-4 addition (docs/50-PHASE-3-
+ *     TECHNICAL-PLAN.md §7.4/§19), the Doctor Dashboard's one shipped
+ *     capability (DoctorPatientRoster.gs, registered as
+ *     shared/constants/doctor-module-registry.json's `patient_roster`
+ *     entry). Read-only, derived — no new stored entity, no write route.
+ *     doctor_id is derived only from a verified DoctorSession, mirroring
+ *     get_doctor_module_states exactly.
  *
  * A disclosed, additive exception, same category as Code.gs's own
  * one-line dispatch shim (IA-2): this file was previously listed among
@@ -216,7 +222,7 @@
  * CalculatorRegistry.gs, CalculatorResult.gs, CarePlan.gs, DoctorInstruction.gs,
  * TrustedDevice.gs, DoctorIdentity.gs, DoctorSession.gs, DoctorLoginTokens.gs,
  * DoctorEmail.gs, DoctorLoginFlow.gs, DoctorRouteGuard.gs,
- * DoctorModuleRegistry.gs, DoctorModuleState.gs.
+ * DoctorModuleRegistry.gs, DoctorModuleState.gs, DoctorPatientRoster.gs.
  */
 
 /**
@@ -600,6 +606,19 @@ function foundationHandleGetDoctorModuleStates_(input) {
 }
 
 /**
+ * Batch WPI-4: returns the caller's own derived patient roster
+ * (DoctorPatientRoster.gs) — the Doctor Dashboard's one shipped capability
+ * this batch registers (`patient_roster`, doctor-module-registry.json).
+ * doctor_id is always DoctorSession-derived, never client-supplied.
+ * Read-only — no write route exists for this derived view (docs/50 §7.4).
+ */
+function foundationHandleGetDoctorPatientRoster_(input) {
+  return withFoundationDoctorAuth_(input && input.session_token, function (doctorId) {
+    return foundationGetDoctorPatientRoster_(doctorId);
+  });
+}
+
+/**
  * Serializes a response-envelope-shaped value to the wire. Apps Script
  * Web Apps cannot set a real HTTP status code (every response transports
  * as HTTP 200 regardless — the same platform fact Code.gs's own
@@ -706,6 +725,9 @@ function handleFoundationRequest_(input) {
       break;
     case 'get_doctor_module_states':
       envelope = foundationHandleGetDoctorModuleStates_(input);
+      break;
+    case 'get_doctor_patient_roster':
+      envelope = foundationHandleGetDoctorPatientRoster_(input);
       break;
     default:
       envelope = buildFoundationErrorEnvelope_('FOUNDATION_UNKNOWN_ACTION', 'Unknown request.');

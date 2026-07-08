@@ -2754,19 +2754,28 @@ var ctx = loadProject(h.sandbox);
   var doctorIdA = doctorA.data.doctor_id;
   var doctorIdB = doctorB.data.doctor_id;
 
-  // ---- Doctor Module Registry — a static, pure config list, deliberately seeded empty ----
+  // ---- Doctor Module Registry — a static, pure config list ----
+  // Updated at Batch WPI-4 (docs/50 §7.3/§7.4/§19): this registry no
+  // longer ships empty — WPI-4 registers its first real entry,
+  // `patient_roster` (see Stage20). These three assertions are mechanical,
+  // disclosed updates to Stage19's own factual count, mirroring Batch
+  // PXP-5's own precedent of updating an earlier stage's stale
+  // module-count assertion when a later batch changes registered state
+  // (module-registry.md's "Batch PXP-10 removal" section) — Stage19's own
+  // remaining assertions (validation rejections, cross-doctor isolation,
+  // cross-identity-type rejection) are untouched, still WPI-3's own scope.
   var registry = ctx.foundationGetDoctorModuleRegistry_();
-  record('Stage19: foundationGetDoctorModuleRegistry_() ships empty — no doctor-facing capability registered yet (docs/50 §7.1, disclosed "ships empty" precedent)',
-    registry.length === 0);
+  record('Stage19: foundationGetDoctorModuleRegistry_() now has one entry (patient_roster, added at Batch WPI-4 — see Stage20)',
+    registry.length === 1);
   record('Stage19: the hand-ported FOUNDATION_DOCTOR_MODULE_REGISTRY_ matches shared/constants/doctor-module-registry.json exactly',
     JSON.stringify(registry) === JSON.stringify(doctorModuleRegistryConstant.capabilities));
-  record('Stage19: foundationGetRegisteredDoctorCapabilityKeys_() returns an empty allowlist — every capability_key write is fail-closed-by-absence today',
-    ctx.foundationGetRegisteredDoctorCapabilityKeys_().length === 0);
+  record('Stage19: foundationGetRegisteredDoctorCapabilityKeys_() returns exactly one allowlisted capability_key (patient_roster) as of Batch WPI-4',
+    ctx.foundationGetRegisteredDoctorCapabilityKeys_().length === 1 && ctx.foundationGetRegisteredDoctorCapabilityKeys_()[0] === 'patient_roster');
 
-  // ---- foundationGetDoctorModuleStates_() against an empty registry ----
+  // ---- foundationGetDoctorModuleStates_() synthesizes one fail-closed entry per registered capability ----
   var defaultStatesA = ctx.foundationGetDoctorModuleStates_(doctorIdA);
-  record('Stage19: foundationGetDoctorModuleStates_() succeeds even with zero persisted rows and zero registered capabilities',
-    defaultStatesA.status === 'ok' && defaultStatesA.data.length === 0);
+  record('Stage19: foundationGetDoctorModuleStates_() succeeds with zero persisted rows, synthesizing one fail-closed (enabled: false) entry for the one registered capability',
+    defaultStatesA.status === 'ok' && defaultStatesA.data.length === 1 && defaultStatesA.data[0].enabled === false);
 
   // ---- Validation rejections ----
   var missingDoctorId = ctx.foundationSetDoctorModuleState_({ capability_key: 'inventory', enabled: true, enabled_by: 'staff-1' });
@@ -2774,7 +2783,7 @@ var ctx = loadProject(h.sandbox);
     missingDoctorId.status === 'error' && missingDoctorId.error.code === 'FOUNDATION_INVALID_INPUT');
 
   var badCapabilityKey = ctx.foundationSetDoctorModuleState_({ doctor_id: doctorIdA, capability_key: 'inventory', enabled: true, enabled_by: 'staff-1' });
-  record('Stage19: foundationSetDoctorModuleState_() rejects every capability_key — the registry ships empty, so none can ever resolve (fail-closed-by-absence, mirrors CalculatorResult.gs against an empty Calculator Registry)',
+  record('Stage19: foundationSetDoctorModuleState_() rejects an unregistered capability_key — \'inventory\' is not one of the registry\'s (now one) real entries (fail-closed-by-absence, mirrors CalculatorResult.gs against an empty Calculator Registry)',
     badCapabilityKey.status === 'error' && badCapabilityKey.error.code === 'FOUNDATION_INVALID_INPUT');
 
   var nonBooleanEnabled = ctx.foundationSetDoctorModuleState_({ doctor_id: doctorIdA, capability_key: 'inventory', enabled: 'yes', enabled_by: 'staff-1' });
@@ -2799,8 +2808,8 @@ var ctx = loadProject(h.sandbox);
   var doctorSessionA = ctx.foundationIssueDoctorSessionToken_(doctorIdA);
   var getStatesHttp = ctx.handleFoundationRequest_({ foundation_action: 'get_doctor_module_states', session_token: doctorSessionA });
   var getStatesBody = JSON.parse(getStatesHttp._text);
-  record('Stage19: get_doctor_module_states (real HTTP dispatch) resolves the caller\'s own, empty capability-state list from a valid DoctorSession',
-    getStatesBody.status === 'ok' && getStatesBody.data.length === 0);
+  record('Stage19: get_doctor_module_states (real HTTP dispatch) resolves the caller\'s own, fail-closed-by-default capability-state list from a valid DoctorSession',
+    getStatesBody.status === 'ok' && getStatesBody.data.length === 1 && getStatesBody.data[0].enabled === false);
 
   var getStatesUnauthed = JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'get_doctor_module_states', session_token: 'not-a-real-session-token' })._text);
   record('Stage19: get_doctor_module_states rejects an invalid session_token with FOUNDATION_UNAUTHORIZED, never leaking any data',
@@ -2818,8 +2827,8 @@ var ctx = loadProject(h.sandbox);
   // ---- Cross-doctor isolation ----
   var doctorSessionB = ctx.foundationIssueDoctorSessionToken_(doctorIdB);
   var getStatesB = JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'get_doctor_module_states', session_token: doctorSessionB })._text);
-  record('Stage19: doctor B\'s own capability-state list resolves independently of doctor A\'s session — cross-doctor isolation, even though both are empty today',
-    getStatesB.status === 'ok' && getStatesB.data.length === 0);
+  record('Stage19: doctor B\'s own capability-state list resolves independently of doctor A\'s session — cross-doctor isolation, even though both are fail-closed-disabled today',
+    getStatesB.status === 'ok' && getStatesB.data.length === 1 && getStatesB.data[0].enabled === false);
 
   // ---- Zero-lines-touched proof (docs/50 §3): every existing registry/entity this batch does not touch is unchanged ----
   record('Stage19: Module Registry is untouched by this batch — still the same four modules Stage 12 already proved',
@@ -2828,6 +2837,118 @@ var ctx = loadProject(h.sandbox);
     ctx.FOUNDATION_CALCULATOR_REGISTRY_.length === 0);
   record('Stage19: Specialty Registry is untouched by this batch — still the one seeded homeopathy entry, per Stage 18',
     ctx.foundationGetSpecialtyRegistry_().length === 1 && ctx.foundationGetSpecialtyRegistry_()[0].specialty_slug === 'homeopathy');
+})();
+
+// ============================================================
+// Stage 20 — Phase 3/WHIMS Batch WPI-4: Doctor Dashboard (frontend
+// consumer) — docs/50-PHASE-3-TECHNICAL-PLAN.md §7.3/§7.4/§19, ADR-020.
+// Covers this batch's two backend additions: the Doctor Module Registry's
+// first real entry (patient_roster, docs/50 §7.1) and
+// DoctorPatientRoster.gs's derived-roster mechanism (docs/50 §7.4) end to
+// end through FoundationRouter.gs's new get_doctor_patient_roster route.
+// The Doctor Dashboard frontend itself (doctor-dashboard/dashboard.js) is
+// covered by validation/wpi-4-doctor-dashboard/browser-test.js, mirroring
+// the PXP-4/pxp-4-dashboard-registry split precedent exactly.
+// ============================================================
+(function stage20_doctorDashboardPatientRoster() {
+  var doctorHomeo = ctx.foundationCreateDoctor_({
+    full_name: 'Stage20 Doctor Homeopathy', role: 'physician', email: 'stage20-doctor-homeo@example.com',
+    specialty_slug: 'homeopathy', created_by: 'conformance-harness'
+  });
+  var doctorNoSpecialty = ctx.foundationCreateDoctor_({
+    full_name: 'Stage20 Doctor No Specialty', role: 'physician', email: 'stage20-doctor-nospec@example.com',
+    created_by: 'conformance-harness'
+  });
+  record('Stage20: setup — two independent doctors exist (one with an explicit specialty_slug, one with none)',
+    doctorHomeo.status === 'ok' && doctorNoSpecialty.status === 'ok');
+  var doctorHomeoId = doctorHomeo.data.doctor_id;
+  var doctorNoSpecialtyId = doctorNoSpecialty.data.doctor_id;
+
+  // ---- Doctor Module Registry now carries this batch's one real entry ----
+  record('Stage20: shared/constants/doctor-module-registry.json now carries exactly one entry, patient_roster, data_source get_doctor_patient_roster',
+    doctorModuleRegistryConstant.capabilities.length === 1 &&
+    doctorModuleRegistryConstant.capabilities[0].capability_key === 'patient_roster' &&
+    doctorModuleRegistryConstant.capabilities[0].data_source === 'get_doctor_patient_roster');
+
+  // ---- Fixture: three patients — Alice (one active assignment), Bob
+  // (only a resolved assignment, no active one — must be excluded), Carol
+  // (two distinct active assignments — must appear exactly once) ----
+  var patientAlice = ctx.foundationCreatePatient_({
+    full_name: 'Alice Roster', email: 'stage20-alice@example.com', condition_slug: 'mcas', created_by: 'staff-1'
+  });
+  var patientBob = ctx.foundationCreatePatient_({
+    full_name: 'Bob Roster', email: 'stage20-bob@example.com', condition_slug: 'eczema', created_by: 'staff-1'
+  });
+  var patientCarol = ctx.foundationCreatePatient_({
+    full_name: 'Carol Roster', email: 'stage20-carol@example.com', condition_slug: 'mcas', created_by: 'staff-1'
+  });
+  record('Stage20: setup — three real patients exist',
+    patientAlice.status === 'ok' && patientBob.status === 'ok' && patientCarol.status === 'ok');
+
+  // Alice: one active assignment (mcas -> homeopathy, per condition-specialty-map.json).
+  ctx.foundationAssignCondition_({ patient_id: patientAlice.data.patient_id, condition_slug: 'mcas', assigned_by: 'staff-1' });
+  // Bob: one assignment, immediately resolved — zero active assignments remain.
+  var bobResolved = ctx.foundationAssignCondition_({ patient_id: patientBob.data.patient_id, condition_slug: 'eczema', assigned_by: 'staff-1' });
+  ctx.foundationResolveCondition_({ assignment_id: bobResolved.data.assignment_id, resolved_by: 'staff-1' });
+  // Carol: two distinct active assignments, both mapping to homeopathy — must appear exactly once in the roster.
+  ctx.foundationAssignCondition_({ patient_id: patientCarol.data.patient_id, condition_slug: 'mcas', assigned_by: 'staff-1' });
+  ctx.foundationAssignCondition_({ patient_id: patientCarol.data.patient_id, condition_slug: 'allergic-rhinitis', assigned_by: 'staff-1' });
+
+  // ---- foundationGetDoctorPatientRoster_() — pure derivation, direct call ----
+  var rosterHomeo = ctx.foundationGetDoctorPatientRoster_(doctorHomeoId);
+  record('Stage20: foundationGetDoctorPatientRoster_() succeeds for a doctor with an explicit specialty_slug',
+    rosterHomeo.status === 'ok');
+  var rosterPatientIds = rosterHomeo.data.map(function (e) { return e.patient_id; });
+  record('Stage20: the roster includes Alice and Carol (active, homeopathy-mapped conditions) and excludes Bob (only a resolved assignment, zero active ones)',
+    rosterPatientIds.indexOf(patientAlice.data.patient_id) !== -1 &&
+    rosterPatientIds.indexOf(patientCarol.data.patient_id) !== -1 &&
+    rosterPatientIds.indexOf(patientBob.data.patient_id) === -1);
+  // The roster is platform-wide (docs/50 §7.4 — no per-doctor scoping
+  // beyond specialty), so earlier stages' own homeopathy-mapped active
+  // assignments (e.g. Stage11's "Stage11 Patient A"/"...B") also
+  // legitimately appear here — this asserts Alice/Carol's own relative
+  // order, not the roster's total membership or length.
+  var aliceIndex = rosterHomeo.data.map(function (e) { return e.patient_id; }).indexOf(patientAlice.data.patient_id);
+  var carolIndex = rosterHomeo.data.map(function (e) { return e.patient_id; }).indexOf(patientCarol.data.patient_id);
+  record('Stage20: the roster is sorted by full_name — "Alice Roster" sorts before "Carol Roster"',
+    aliceIndex !== -1 && carolIndex !== -1 && aliceIndex < carolIndex);
+  var carolEntry = rosterHomeo.data.filter(function (e) { return e.patient_id === patientCarol.data.patient_id; })[0];
+  record('Stage20: a patient with two distinct active, matching condition assignments appears exactly once, with both condition_slugs listed',
+    rosterHomeo.data.filter(function (e) { return e.patient_id === patientCarol.data.patient_id; }).length === 1 &&
+    carolEntry.condition_slugs.indexOf('mcas') !== -1 && carolEntry.condition_slugs.indexOf('allergic-rhinitis') !== -1);
+
+  // ---- Doctor with no specialty_slug set resolves to the implicit default (docs/50 §6.3) ----
+  var rosterNoSpecialty = ctx.foundationGetDoctorPatientRoster_(doctorNoSpecialtyId);
+  record('Stage20: a doctor with no specialty_slug set is scoped to the implicit default specialty (homeopathy) — same roster membership rule as an explicit homeopathy doctor',
+    rosterNoSpecialty.status === 'ok' &&
+    rosterNoSpecialty.data.map(function (e) { return e.patient_id; }).indexOf(patientAlice.data.patient_id) !== -1);
+
+  // ---- Unknown doctor_id — a defensive, not-expected-in-practice path (doctor_id is always DoctorSession-derived) ----
+  var rosterUnknownDoctor = ctx.foundationGetDoctorPatientRoster_('does-not-exist-doctor-id');
+  record('Stage20: foundationGetDoctorPatientRoster_() returns FOUNDATION_NOT_FOUND for an unknown doctor_id',
+    rosterUnknownDoctor.status === 'error' && rosterUnknownDoctor.error.code === 'FOUNDATION_NOT_FOUND');
+
+  // ---- FoundationRouter.gs — the one new, read-only dispatch case, end to end ----
+  var doctorSessionHomeo = ctx.foundationIssueDoctorSessionToken_(doctorHomeoId);
+  var rosterHttp = JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'get_doctor_patient_roster', session_token: doctorSessionHomeo })._text);
+  record('Stage20: get_doctor_patient_roster (real HTTP dispatch) resolves the caller\'s own roster from a valid DoctorSession',
+    rosterHttp.status === 'ok' && rosterHttp.data.map(function (e) { return e.patient_id; }).indexOf(patientAlice.data.patient_id) !== -1);
+
+  var rosterUnauthed = JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'get_doctor_patient_roster', session_token: 'not-a-real-session-token' })._text);
+  record('Stage20: get_doctor_patient_roster rejects an invalid session_token with FOUNDATION_UNAUTHORIZED, never leaking any data',
+    rosterUnauthed.status === 'error' && rosterUnauthed.error.code === 'FOUNDATION_UNAUTHORIZED' && rosterUnauthed.data === null);
+
+  // ---- Cross-identity-type authorization confusion — a real Patient Session must never authorize this doctor-scoped route ----
+  var patientSessionForCrossCheck = ctx.foundationIssueSessionToken_(patientAlice.data.patient_id);
+  var rosterWithPatientSession = JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'get_doctor_patient_roster', session_token: patientSessionForCrossCheck })._text);
+  record('Stage20: get_doctor_patient_roster rejects a real Patient Session token with FOUNDATION_UNAUTHORIZED — cross-identity-type confusion prevented end to end, mirroring Stage 17/Stage19\'s own proof',
+    rosterWithPatientSession.status === 'error' && rosterWithPatientSession.error.code === 'FOUNDATION_UNAUTHORIZED');
+
+  // ---- Zero-lines-touched proof (docs/50 §3): existing entities this batch does not touch are unchanged ----
+  record('Stage20: DoctorAssignedCondition.gs/its schema are untouched by this batch — read only, via the existing foundationDsQuery_ primitive',
+    ctx.foundationGetPatientConditionAssignments_(patientAlice.data.patient_id).status === 'ok');
+  record('Stage20: Module Registry is untouched by this batch — still the same four modules Stage 12 already proved',
+    ctx.foundationGetModuleRegistry_().length === 4);
 })();
 
 function auditRowsOf(h, eventType) {

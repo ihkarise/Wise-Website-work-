@@ -8,6 +8,86 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-16 — Phase 3 Batch WPI-4: Doctor Dashboard (frontend consumer)
+
+Implements Batch WPI-4 (docs/50-PHASE-3-TECHNICAL-PLAN.md §7.3/§7.4/§19, ADR-020),
+Phase 3/WHIMS's Pillar 2 frontend consumer half, dependent on WPI-3, per
+docs/53-PHASE-3-IMPLEMENTATION-RULES.md's per-batch gate. **Explicitly scoped to
+WPI-4 only — no later batch (WPI-5 onward) is authorized by this change.**
+
+### Added (constants)
+- **`shared/constants/doctor-module-registry.json`** bumped 1.0.0 → 1.1.0 (+ `.md`
+  updated) — this registry's first real entry, `patient_roster` (`display_order: 10`,
+  `data_source: get_doctor_patient_roster`).
+
+### Added (Apps Script)
+- **`apps-script/DoctorModuleRegistry.gs`** — same one entry hand-ported.
+- **`apps-script/DoctorPatientRoster.gs`** (new) — `foundationGetDoctorPatientRoster_()`,
+  a derived, read-only view (no new stored entity, docs/50 §7.4): every distinct
+  patient with at least one active `DoctorAssignedCondition` whose `condition_slug`
+  maps (via WPI-2's Condition-to-Specialty Map) to the calling doctor's own
+  `specialty_slug` (or the implicit default specialty, if none is set).
+
+### Changed
+- **`apps-script/FoundationRouter.gs`** — one new, additive dispatch case:
+  `get_doctor_patient_roster`. Zero existing case changed. Read-only — `doctor_id` is
+  derived only from a verified `DoctorSession`, never client-supplied.
+
+### Added (frontend)
+- **`doctor-dashboard/index.html` + `doctor-dashboard/dashboard.js`** (new) — the
+  platform's first authenticated, doctor-facing page: a registry-driven consumer of
+  the Doctor Module Registry plus `DoctorModuleState`, structurally parallel to
+  `my-health-journey/dashboard.js`'s own post-PXP-4 discipline. Every card corresponds
+  to a registry entry the doctor is enabled for; `renderDashboard()` has no hardcoded
+  knowledge of any specific `capability_key`. Ships with one card, Patient Roster.
+- **`doctor-login.html` + `doctor-verify.html`** (new, root, `noindex`) — a disclosed,
+  additive prerequisite beyond docs/50 §19's literal WPI-4 wording: reaching an
+  authenticated Doctor Dashboard requires a doctor-facing login flow, and no earlier
+  batch built one (WPI-1 shipped only the backend routes, explicitly "zero
+  doctor-facing frontend page"). Mirrors `login.html`/`verify.html` exactly, minus the
+  Trusted Device mechanism (no doctor-side equivalent exists). Uses a distinct
+  `sessionStorage` key (`wise_doctor_session_token`) from the patient flow's
+  `wise_session_token` — the two identity spaces' sessions are never interchangeable,
+  including client-side (ADR-017).
+
+### What this batch deliberately does not do
+- **Does not enable `patient_roster` for any doctor.** `DoctorModuleState` enablement
+  remains staff/administrative-only (WPI-3's `setFoundationDoctorModuleState()`,
+  unchanged) — a doctor sees the card only once staff explicitly enables it, the same
+  fail-closed-by-absence default every other enablement mechanism already uses.
+- **Does not register any other doctor-facing capability.** `condition_assignment`,
+  `care_plan_authoring`, `module_state_management`, `inventory`, `pillfill_orders`,
+  and `analytics` remain docs/50 §7.1's own illustrative examples only.
+- **Does not solve the multi-doctor-per-specialty roster limitation.** Disclosed,
+  unchanged from docs/50 §7.4/docs/51 Part 1.6 — at real multi-doctor-per-specialty
+  scale, every doctor in a specialty currently sees every patient in that specialty.
+- No patient-facing surface. `my-health-journey/` is completely untouched. Zero
+  modification to any frozen Foundation/Identity & Access/Patient
+  Access/PXP-1..11/WPI-1..3 file.
+
+### Validation
+- Static Analysis (`validation/static-analysis/analyze.js`) — PASS, 0 findings (54
+  files scanned).
+- Conformance (`validation/phase-2a-foundation/conformance.js`) — 509/509 passing (new
+  Stage 20, 14 checks: roster derivation across active/resolved/multi-condition
+  fixtures, the implicit-default-specialty rule, the full `get_doctor_patient_roster`
+  HTTP dispatch round trip, a direct cross-identity-type rejection proof, and an
+  unknown-`doctor_id` defensive check; Stage 19's own registry-count assertions
+  mechanically updated to reflect the registry's new one-entry reality).
+- Phase 1.5 Regression (`validation/phase-1-5/validate.js`) — 42/42 passing, unchanged.
+- All 10 existing browser-test suites — unaffected (zero patient-facing change),
+  re-verified passing (270 checks total, 0 failures).
+- New browser-test suite `validation/wpi-4-doctor-dashboard/` — 21/21 passing:
+  redirect-when-unauthenticated, empty-dashboard state, roster card render/empty
+  states, loader-dispatch counts, fail-closed session handling, sign-out, keyboard
+  focus, and pure-function unit checks.
+
+### Documentation
+- `docs/33-DOMAIN-MODEL.md` — §7.3 and the Summary Table: Doctor Module Registry and
+  Doctor Module State promoted to Implemented (backend + frontend consumer).
+- `docs/24-ROADMAP.md` — Phase 3 status updated; WPI-4 entry added.
+- `shared/README.md` — new paragraph for this batch's registry version bump.
+
 ## 2026-07-16 — Phase 3 Batch WPI-3: Doctor Module Registry (backend)
 
 Implements Batch WPI-3 (docs/50-PHASE-3-TECHNICAL-PLAN.md §7.1/§7.2/§19, ADR-020),

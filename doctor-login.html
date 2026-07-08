@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Doctor Login | Wise Homeopathy</title>
+<meta name="description" content="Sign in to your Wise Homeopathy doctor account with a secure, passwordless login link sent to your email.">
+<meta name="robots" content="noindex,nofollow">
+<link rel="canonical" href="https://www.wisehomeopathy.com/doctor-login.html">
+<link rel="icon" href="assets/favicon.ico">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/site.css">
+<style>
+/* Page-specific layout only — shared tokens/components come from
+   assets/site.css (docs/29 §13 Batch 5C extraction), the same reuse
+   login.html already makes for the patient-facing equivalent of this
+   page. */
+.wrap{max-width:480px;min-height:100vh;display:flex;flex-direction:column;justify-content:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <main>
+    <div class="brand" aria-hidden="false">
+      <img src="assets/logo.svg" alt="Wise Homeopathy Multispeciality Center" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';this.nextElementSibling.nextElementSibling.style.display='block'">
+      <span class="mark" aria-hidden="true">W</span>
+      <span class="txt">Wise Homeopathy</span>
+    </div>
+
+    <h1 class="serif">Doctor Login</h1>
+    <p class="sub">Enter the email address on your doctor account and we'll send you a secure sign-in link. No password needed.</p>
+
+    <div class="card">
+      <form id="loginForm" novalidate>
+        <div class="field">
+          <label for="email">Email address</label>
+          <input id="email" name="email" type="email" required autocomplete="email" placeholder="you@example.com">
+        </div>
+        <button class="submit" type="submit" id="submitBtn">Send login link</button>
+        <div class="status" id="statusBox" role="status" aria-live="polite"></div>
+      </form>
+    </div>
+
+    <p class="foot"><a href="index.html">Return to the homepage</a></p>
+  </main>
+</div>
+
+<script>
+(function () {
+  // Same Apps Script Web App deployment login.html/verify.html use —
+  // Foundation and Phase 1.5 share one project/one doPost (docs/29 §14
+  // Decision 1); FoundationRouter.gs's request_doctor_login_link/
+  // consume_doctor_login_link (Batch WPI-1, docs/50 §5) are this page's
+  // own two actions, a second, independent identity space reusing the
+  // exact same passwordless mechanism ADR-003 already establishes for
+  // patients (ADR-017).
+  var WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwrAx9jPnji2U-ngBpYTtV2p_SJnnFrYa7fKYo589zeVfRrwuz3N5aIS0xeiQeuFvMhIQ/exec';
+
+  var form = document.getElementById('loginForm');
+  var submitBtn = document.getElementById('submitBtn');
+  var emailField = document.getElementById('email');
+  var statusBox = document.getElementById('statusBox');
+
+  function showStatus(kind, message) {
+    statusBox.className = 'status ' + kind;
+    statusBox.textContent = message;
+  }
+
+  // A doctor-facing page's own version of every patient session-guarded
+  // page's redirect-here-on-expiry pattern (my-health-journey/session-guard.js's
+  // goToLogin()) — doctor-dashboard/dashboard.js redirects here with
+  // ?reason=expired on a rejected DoctorSession.
+  if (new URLSearchParams(window.location.search).get('reason') === 'expired') {
+    if (window.history && window.history.replaceState) {
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+    showStatus('warn', 'For your privacy, your secure session has ended. Please sign in again.');
+  }
+
+  form.addEventListener('submit', function (event) {
+    event.preventDefault();
+
+    if (WEB_APP_URL.indexOf('REPLACE_WITH') === 0) {
+      showStatus('err', 'This form is not yet connected to a deployed Apps Script Web App. See apps-script/README.md.');
+      return;
+    }
+
+    if (!form.checkValidity()) {
+      form.reportValidity();
+      return;
+    }
+
+    submitBtn.disabled = true;
+    showStatus('loading', 'Sending…');
+
+    fetch(WEB_APP_URL, {
+      method: 'POST',
+      // text/plain avoids a CORS preflight; the Apps Script doPost still
+      // parses the body as JSON regardless of Content-Type (docs/29 §3).
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        foundation_action: 'request_doctor_login_link',
+        email: emailField.value
+      })
+    })
+      .then(function (response) { return response.json(); })
+      .then(function (data) {
+        // Every Foundation response is a response-envelope
+        // (shared/contracts/response-envelope.schema.json): branch on
+        // data.status ('ok'/'error'), never on an HTTP status code —
+        // Apps Script Web Apps always transport as HTTP 200 regardless.
+        if (data.status === 'ok') {
+          // The server's own message is already the anti-enumeration-safe
+          // generic copy (docs/29 §3, reused for the doctor flow at
+          // Batch WPI-1) — displayed verbatim, not re-worded.
+          showStatus('ok', data.data.message);
+          form.reset();
+        } else {
+          showStatus('err', (data.error && data.error.message) || 'Something went wrong. Please try again.');
+        }
+        submitBtn.disabled = false;
+      })
+      .catch(function () {
+        showStatus('err', 'Could not reach the login service. Check your internet connection and try again.');
+        submitBtn.disabled = false;
+      });
+  });
+})();
+</script>
+</body>
+</html>
