@@ -98,7 +98,11 @@ var MANUAL_DROPDOWN_WRAPPERS = [
   'setFoundationDoctorModuleState', // DoctorModuleState.gs — WPI-3's manually-run staff/administrative enable/disable tool
   'createFoundationAppointment', // Appointment.gs — WPI-5's manually-run staff booking-intake tool
   'confirmFoundationAppointment', // Appointment.gs — WPI-5's manually-run doctor/staff confirmation tool
-  'updateFoundationAppointmentStatus' // Appointment.gs — WPI-5's manually-run doctor/staff status-transition tool
+  'updateFoundationAppointmentStatus', // Appointment.gs — WPI-5's manually-run doctor/staff status-transition tool
+  'createFoundationInventoryItem', // InventoryItem.gs — WPI-7's manually-run doctor/staff item-creation tool
+  'retireFoundationInventoryItem', // InventoryItem.gs — WPI-7's manually-run doctor/staff retirement tool
+  'updateFoundationInventoryItemThreshold', // InventoryItem.gs — WPI-7's manually-run doctor/staff threshold-update tool
+  'recordFoundationInventoryTransaction' // InventoryTransaction.gs — WPI-7's manually-run doctor/staff transaction-recording tool
 ];
 
 // Underscore-suffixed pure accessor functions, correctly unused *within

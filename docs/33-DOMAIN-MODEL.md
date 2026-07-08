@@ -1,5 +1,5 @@
 # 33 - Domain Model
-## Version 1.18 — 2026-07-16
+## Version 1.19 — 2026-07-16
 
 > Defines every major business entity in the Wise Platform: what it means, what it
 > holds, how it relates to everything else, how it comes into being and ends, who is
@@ -160,7 +160,14 @@ not need to change even if *how* it's obtained does.
 
 ---
 
-## 1.4 Doctor — *Conceptual (gap)*
+## 1.4 Doctor — *Implemented (Batch WPI-1)*
+
+> **Header corrected (Batch WPI-7's own repository consistency review, §14).**
+> This section's header still read *Conceptual (gap)* even though the body below
+> already records this entity's promotion first to *Designed* and then, at Batch
+> WPI-1, to *Implemented* — the same category of stale-header drift docs/48 §5
+> already corrected once for docs/33 itself. No entity's shape, schema, or shipped
+> behavior changes; only this heading's own currency.
 
 **Purpose:** The clinician or authorized staff member responsible for a Consultation,
 a Doctor Instruction, or a review/approval action. Currently named informally
@@ -592,7 +599,14 @@ higher AI-safety requirements.
 
 # 4. Scheduling & Communication
 
-## 4.1 Appointment — *Conceptual (gap)*
+## 4.1 Appointment — *Implemented (Batch WPI-5)*
+
+> **Header corrected (Batch WPI-7's own repository consistency review, §14).**
+> This section's header still read *Conceptual (gap)* even though the body below
+> already records this entity's promotion first to *Designed* and then, at Batch
+> WPI-5, to *Implemented* — the same category of stale-header drift docs/48 §5
+> already corrected once for docs/33 itself. No entity's shape, schema, or shipped
+> behavior changes; only this heading's own currency.
 
 **Purpose:** The scheduled or requested clinical encounter — the entity that should sit
 between a public booking-form submission and a Consultation actually happening. Does
@@ -655,7 +669,14 @@ disclosed-decision detail.
 
 ---
 
-## 4.2 Notification — *Conceptual (gap)*
+## 4.2 Notification — *Implemented (Batch WPI-6)*
+
+> **Header corrected (Batch WPI-7's own repository consistency review, §14).**
+> This section's header still read *Conceptual (gap)* even though the body below
+> already records this entity's promotion first to *Designed* and then, at Batch
+> WPI-6, to *Implemented* — the same category of stale-header drift docs/48 §5
+> already corrected once for docs/33 itself. No entity's shape, schema, or shipped
+> behavior changes; only this heading's own currency.
 
 **Purpose:** Any message the platform sends to a person — currently implemented
 entirely ad hoc, once per feature, rather than as a shared entity. Phase 1.5's
@@ -1215,13 +1236,27 @@ labeled test-only fixture pushed directly into the test harness's own registry a
 
 ---
 
-# 7. Phase 3 — WHIMS Patient Intelligence Platform Entities — *Mostly Designed, Batches WPI-1/WPI-2/WPI-3/WPI-4/WPI-5 Implemented (docs/49/50/51/52, ADR-017–020)*
+# 7. Phase 3 — WHIMS Patient Intelligence Platform Entities — *Mostly Designed, Batches WPI-1/WPI-2/WPI-3/WPI-4/WPI-5/WPI-6/WPI-7 Implemented (docs/49/50/51/52, ADR-017–020)*
 
 Net-new entities named by Phase 3's architecture-freeze pass (docs/49/50, 2026-07-16).
 Doctor (§1.4), Appointment (§4.1), and Notification (§4.2) were already conceptual and
 are promoted in place above rather than restated here. Full field-level detail lives in
 docs/50 — this section records only each entity's purpose and relationships, at the
 same fidelity the rest of this document uses.
+
+**Updated 2026-07-16** for Batch WPI-7 (implementation): §7.4 (Inventory Item and
+Inventory Transaction) promoted from *Designed* to **Implemented** — see that
+subsection's own status update for the shipped shape, the platform's first
+`LockService` use (docs/54 §7/§18/§19), and the Doctor Module Registry's third real
+entry, `inventory`. This same change also corrects three stale section headers left
+over from earlier batches — §1.4 (Doctor), §4.1 (Appointment), and §4.2 (Notification)
+each still read *Conceptual (gap)* in their own header even though each entity's own
+body text already recorded its later promotion to *Designed* and then *Implemented*
+(Batches WPI-1, WPI-5, and WPI-6 respectively) — found during this batch's own
+repository consistency review (docs/53 §14). No entity's shape, schema, or shipped
+behavior changed by any of these three header corrections, the same "keep history,
+correct the stale current-status framing" rule docs/48 §5 already applied once to this
+same document.
 
 ## 7.1 Doctor Identity, Doctor, Doctor Session, Doctor Login Token — *Implemented (Batch WPI-1)*
 Structurally parallel to Patient Identity/Patient/Session/LoginTokens (§1.1–1.3),
@@ -1304,13 +1339,49 @@ already left open for Appointment's own intake mechanism, disclosed here rather 
 silently assumed. Zero modification to any frozen Foundation/Identity & Access/Patient
 Access/PXP-1..11/WPI-1..3 file — `my-health-journey/` is completely untouched.
 
-## 7.4 Inventory Item and Inventory Transaction — *Designed*
+## 7.4 Inventory Item and Inventory Transaction — *Implemented (Batch WPI-7)*
 `InventoryItem` (stock-keeping record) plus an append-only `InventoryTransaction`
 ledger — mirroring Care Plan's (§3.4) own append-only-versioning discipline rather
 than mutating a running total in place. `quantity_on_hand` is a derived/cached value,
 never the sole source of truth. **Relationships:** A `dispense` transaction is created
 when a PillFill Order (§7.5) is fulfilled; crossing `reorder_threshold` produces an
 `inventory_low_stock` Notification (§4.2). **Full detail:** docs/50 §10.
+
+**Status update (2026-07-16, Batch WPI-7): Implemented.** Gated on
+docs/54-SHEETS-PRODUCTION-SCALE-REVIEW.md closing the Sheets-at-production-scale
+pre-condition docs/49 §7/docs/51 Part 3 item 1 named specifically for this batch.
+`apps-script/InventoryItem.gs`/`shared/schemas/inventory-item.schema.json` and
+`apps-script/InventoryTransaction.gs`/`shared/schemas/
+inventory-transaction.schema.json` ship exactly as docs/50 §10 designed:
+`quantity_on_hand` is never accepted from a create/update request (always `0` at
+creation) and is recomputed in full from the ledger's own `change_qty` rows every time
+a transaction is recorded — never a cached-value-plus-delta update — the same
+recovery-strategy discipline docs/54 §13 names. **The platform's first use of
+`LockService`** (docs/54 §7/§18/§19's required mitigation) wraps
+`foundationRecordInventoryTransaction_()`'s entire append-then-recompute-then-cache-
+write sequence; a contended lock returns a new, expected `FOUNDATION_LOCK_UNAVAILABLE`
+envelope and performs no write at all, never a silent, unsynchronized race — additive
+only, zero change to `FoundationDataStore.gs` or any other frozen file.
+`InventoryTransaction.gs` is strictly append-only, with no `updateById`/patch call
+anywhere in its own implementation targeting its own ledger sheet (docs/54 §19).
+Doctor/staff-owned, never patient-facing — every write (create, retire,
+threshold-update, and every stock-movement transaction) is a manually-run Apps Script
+editor function, mirroring `Appointment.gs`'s/`CarePlan.gs`'s precedent exactly, a
+deliberate continuation (not a departure) of every prior WPI batch's "doctor/staff-owned
+entity writes stay manually-run" discipline even though a real `DoctorSession` already
+exists. The one doctor-facing surface this batch adds is a read-only route
+(`get_inventory_items`), doctor_id always `DoctorSession`-derived, returning the
+caller's own specialty-scoped, active `InventoryItem` list enriched with a computed
+`low_stock` boolean — registered as the Doctor Module Registry's third real entry,
+`inventory` (`shared/constants/doctor-module-registry.json` version 1.2.0 → 1.3.0,
+`display_order: 30`), rendering one new, read-only Doctor Dashboard card. Crossing
+`reorder_threshold` records an `inventory_low_stock` Notification via `Notification.gs`'s
+own existing, unmodified mechanism (WPI-6) — a new call site adopting an
+already-designed extension point, zero lines changed in `Notification.gs` itself;
+`doctor_id` is set to the transaction's own `created_by`, and no real email transport is
+built for this alert in this batch (a disclosed, minimal choice, `shared/schemas/
+inventory-transaction.md`'s own "Low-stock Notification" section). Zero modification to
+any frozen Foundation/Identity & Access/Patient Access/PXP-1..11/WPI-1..6 file.
 
 ## 7.5 PillFill Order — *Designed*
 Connects a `medicine`-type Doctor Instruction (§2.3's own "Prescription is a
@@ -1357,10 +1428,10 @@ exactly (§6, this document's Phase 2B section).
 | Care Plan | **Implemented** | 2B (docs/44 §12, batch PXP-7 — shipped, one evolving plan per patient, append-only versioned, Timeline Event emission deliberately deferred — see §3.4's own status update) |
 | Digital Twin | Conceptual (view) | Recommended 2D — future consumer of Timeline, Reports, Check-ins, Care Plans, Calculators (docs/44 §16), not tightly coupled to Phase 2B |
 | Appointment | **Implemented** | 3/WHIMS (docs/50 §8, batch WPI-5 — shipped, staff/doctor-facing only, nullable patient_id/doctor_id, server-derived specialty_slug, one-way requested→confirmed→completed/cancelled lifecycle, one read-only `get_doctor_appointments` route, Doctor Module Registry's second real entry `appointments`) |
-| Notification | **Designed** | 3/WHIMS (docs/50 §9, batch WPI-6 — not yet built) |
+| Notification | **Implemented** | 3/WHIMS (docs/50 §9, batch WPI-6 — shipped, a shared record of what was sent, never a new delivery pipeline; nullable patient_id/doctor_id, disclosed additive recipient_email fallback; system-generated only, zero FoundationRouter.gs dispatch case) |
 | Specialty | **Implemented** | 3/WHIMS (docs/50 §6, ADR-018, batch WPI-2 — shipped, seeded with one specialty (homeopathy), plus the additive Condition-to-Specialty Map; no populated `specialty_scope` entry added to Module/Calculator/Template Registry, none needs one yet, docs/53 §4) |
-| Doctor Module Registry / Doctor Module State | **Implemented (backend + frontend consumer)** | 3/WHIMS (docs/50 §7, ADR-020, batch WPI-3 backend — shipped, registry ships empty, fail-closed `DoctorModuleState`, one read-only `get_doctor_module_states` route; batch WPI-4 — shipped, registry-driven Doctor Dashboard, first real entry `patient_roster`, docs/50 §7.4; batch WPI-5 — shipped, second real entry `appointments`, docs/50 §8) |
-| Inventory Item / Inventory Transaction | **Designed** | 3/WHIMS (docs/50 §10, batch WPI-7 — not yet built) |
+| Doctor Module Registry / Doctor Module State | **Implemented (backend + frontend consumer)** | 3/WHIMS (docs/50 §7, ADR-020, batch WPI-3 backend — shipped, registry ships empty, fail-closed `DoctorModuleState`, one read-only `get_doctor_module_states` route; batch WPI-4 — shipped, registry-driven Doctor Dashboard, first real entry `patient_roster`, docs/50 §7.4; batch WPI-5 — shipped, second real entry `appointments`, docs/50 §8; batch WPI-7 — shipped, third real entry `inventory`, docs/50 §10) |
+| Inventory Item / Inventory Transaction | **Implemented** | 3/WHIMS (docs/50 §10, batch WPI-7 — shipped, quantity_on_hand derived/recomputed from an append-only ledger, the platform's first LockService use per docs/54 §7/§19, Doctor Module Registry's third real entry `inventory`) |
 | PillFill Order | **Designed** | 3/WHIMS (docs/50 §11, batch WPI-8 — not yet built) |
 | Analytics | Conceptual (view) | 3/WHIMS (docs/50 §12, batch WPI-9 — never a base table, non-AI aggregation only) |
 | Knowledge Article | Conceptual | Unassigned |

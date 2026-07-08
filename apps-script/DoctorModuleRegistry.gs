@@ -25,14 +25,16 @@
  * capability: 'patient_roster' (docs/50 §7.4), backed by
  * DoctorPatientRoster.gs's get_doctor_patient_roster route. Batch WPI-5
  * (docs/50 §8) adds this version's second entry, 'appointments', backed by
- * Appointment.gs's new get_doctor_appointments route. Every other
- * illustrative capability docs/50 §7.1 names (condition assignment,
- * care-plan authoring, module/calculator/template enablement, inventory,
- * PillFill orders, analytics) remains unregistered — each is added as its
- * own registry entry by whichever later, separately-approved WPI batch
- * actually designs and builds it (docs/53 §4's "a new registry entry,
- * never new architecture") — the same disclosed precedent
- * CalculatorRegistry.gs already established for its own batch.
+ * Appointment.gs's new get_doctor_appointments route. Batch WPI-7 (docs/50
+ * §10) adds this version's third entry, 'inventory', backed by
+ * InventoryItem.gs's new get_inventory_items route. Every other illustrative
+ * capability docs/50 §7.1 names (condition assignment, care-plan authoring,
+ * module/calculator/template enablement, PillFill orders, analytics)
+ * remains unregistered — each is added as its own registry entry by
+ * whichever later, separately-approved WPI batch actually designs and
+ * builds it (docs/53 §4's "a new registry entry, never new architecture")
+ * — the same disclosed precedent CalculatorRegistry.gs already established
+ * for its own batch.
  *
  * No dependency on any other file — leaf-level config, the same role
  * ModuleRegistry.gs/CalculatorRegistry.gs/SpecialtyRegistry.gs already
@@ -52,6 +54,13 @@ var FOUNDATION_DOCTOR_MODULE_REGISTRY_ = [
     display_name: 'Appointments',
     display_order: 20,
     data_source: 'get_doctor_appointments',
+    future_ai_capable: false
+  },
+  {
+    capability_key: 'inventory',
+    display_name: 'Inventory',
+    display_order: 30,
+    data_source: 'get_inventory_items',
     future_ai_capable: false
   }
 ];

@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wisehomeopathy.com/shared/schemas/inventory-transaction.schema.json",
+  "title": "InventoryTransaction",
+  "version": "1.0.0",
+  "description": "The canonical shape of an InventoryTransaction record — docs/50-PHASE-3-TECHNICAL-PLAN.md §10's design, Phase 3/WHIMS Batch WPI-7 (docs/50 §19), governed by docs/53-PHASE-3-IMPLEMENTATION-RULES.md. An append-only stock-movement ledger row — mirroring care-plan.schema.json's own append-only-versioning discipline rather than mutating a running total in place (docs/50 §10, docs/54 §2.4). Every row is immutable once written: there is no update/patch operation anywhere in apps-script/InventoryTransaction.gs's own implementation, per docs/53 §3/docs/54 §19's 'InventoryTransaction remains append-only with no updateById/patch call anywhere in its own implementation' requirement. Recording a row recomputes and caches inventory-item.schema.json's own `quantity_on_hand`, wrapped in `LockService` (docs/54 §7/§19). See inventory-transaction.md for the full disclosure.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["transaction_id", "inventory_item_id", "change_qty", "reason", "reference_id", "created_by", "created_at"],
+  "properties": {
+    "transaction_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "This row's own identity column (UUID), server-generated. Never staff-supplied."
+    },
+    "inventory_item_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The InventoryItem (inventory-item.schema.json) this transaction belongs to. Must reference a real, currently-'active' InventoryItem — validated server-side before this row is ever written."
+    },
+    "change_qty": {
+      "type": "integer",
+      "description": "The signed quantity change this transaction represents (docs/50 §10) — positive for a restock, negative for a dispense, either sign for a manual adjustment. Never zero (a zero change is not a real stock movement). Staff/doctor-supplied, validated."
+    },
+    "reason": {
+      "type": "string",
+      "enum": ["restock", "dispense", "adjustment"],
+      "description": "Why this stock movement happened (docs/50 §10). 'dispense' is also the reason a future PillFill Order (WPI-8) fulfillment would create, via `reference_id`."
+    },
+    "reference_id": {
+      "type": "string",
+      "description": "Optional pointer to the entity that caused this transaction — e.g. a future `PillFillOrder.order_id` (docs/50 §10/§11, WPI-8, not yet built) for a `dispense` row. Empty-string sentinel when this transaction has no such reference (every `restock`/`adjustment` row in this batch, and every `dispense` row until WPI-8 ships)."
+    },
+    "created_by": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The Doctor (doctor-identity.schema.json) who recorded this transaction (docs/50 §10's own 'created_by (doctor_id)'). Must reference a real Doctor — validated server-side. Never patient-supplied; there is no patient-facing write path for this entity (docs/50 §14)."
+    },
+    "created_at": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Server-set at creation (foundationNowIso_()), ISO 8601 UTC date-time. Never staff-supplied."
+    }
+  }
+}

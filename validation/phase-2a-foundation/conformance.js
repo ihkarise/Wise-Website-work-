@@ -271,6 +271,8 @@ var doctorModuleStateSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, '
 var doctorModuleRegistryConstant = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'constants/doctor-module-registry.json'), 'utf8'));
 var appointmentSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/appointment.schema.json'), 'utf8'));
 var notificationSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/notification.schema.json'), 'utf8'));
+var inventoryItemSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/inventory-item.schema.json'), 'utf8'));
+var inventoryTransactionSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/inventory-transaction.schema.json'), 'utf8'));
 
 var results = [];
 function record(name, pass, detail) {
@@ -2761,54 +2763,62 @@ var ctx = loadProject(h.sandbox);
   // longer ships empty — WPI-4 registered its first real entry,
   // `patient_roster` (see Stage20). Updated again at Batch WPI-5 (docs/50
   // §8/§19): a second real entry, `appointments`, is registered (see
-  // Stage21). These assertions are mechanical, disclosed updates to
-  // Stage19's own factual count, mirroring Batch PXP-5's own precedent of
-  // updating an earlier stage's stale module-count assertion when a later
-  // batch changes registered state (module-registry.md's "Batch PXP-10
-  // removal" section) — Stage19's own remaining assertions (validation
-  // rejections, cross-doctor isolation, cross-identity-type rejection) are
-  // untouched, still WPI-3's own scope.
+  // Stage21). Updated again at Batch WPI-7 (docs/50 §10/§19): a third real
+  // entry, `inventory`, is registered (see Stage23). These assertions are
+  // mechanical, disclosed updates to Stage19's own factual count, mirroring
+  // Batch PXP-5's own precedent of updating an earlier stage's stale
+  // module-count assertion when a later batch changes registered state
+  // (module-registry.md's "Batch PXP-10 removal" section) — Stage19's own
+  // remaining assertions (validation rejections, cross-doctor isolation,
+  // cross-identity-type rejection) are untouched, still WPI-3's own scope.
   var registry = ctx.foundationGetDoctorModuleRegistry_();
-  record('Stage19: foundationGetDoctorModuleRegistry_() now has two entries (patient_roster added at Batch WPI-4, appointments added at Batch WPI-5 — see Stage20/Stage21)',
-    registry.length === 2);
+  record('Stage19: foundationGetDoctorModuleRegistry_() now has three entries (patient_roster added at Batch WPI-4, appointments added at Batch WPI-5, inventory added at Batch WPI-7 — see Stage20/Stage21/Stage23)',
+    registry.length === 3);
   record('Stage19: the hand-ported FOUNDATION_DOCTOR_MODULE_REGISTRY_ matches shared/constants/doctor-module-registry.json exactly',
     JSON.stringify(registry) === JSON.stringify(doctorModuleRegistryConstant.capabilities));
-  record('Stage19: foundationGetRegisteredDoctorCapabilityKeys_() returns exactly two allowlisted capability_keys (patient_roster, appointments) as of Batch WPI-5',
-    ctx.foundationGetRegisteredDoctorCapabilityKeys_().length === 2 &&
+  record('Stage19: foundationGetRegisteredDoctorCapabilityKeys_() returns exactly three allowlisted capability_keys (patient_roster, appointments, inventory) as of Batch WPI-7',
+    ctx.foundationGetRegisteredDoctorCapabilityKeys_().length === 3 &&
     ctx.foundationGetRegisteredDoctorCapabilityKeys_().indexOf('patient_roster') !== -1 &&
-    ctx.foundationGetRegisteredDoctorCapabilityKeys_().indexOf('appointments') !== -1);
+    ctx.foundationGetRegisteredDoctorCapabilityKeys_().indexOf('appointments') !== -1 &&
+    ctx.foundationGetRegisteredDoctorCapabilityKeys_().indexOf('inventory') !== -1);
 
   // ---- foundationGetDoctorModuleStates_() synthesizes one fail-closed entry per registered capability ----
-  // Updated at Batch WPI-5 (docs/50 §8/§19): now two registered capabilities
-  // (patient_roster, appointments), so two synthesized entries — a
-  // mechanical, disclosed update to this assertion's own stale count.
+  // Updated at Batch WPI-7 (docs/50 §10/§19): now three registered
+  // capabilities (patient_roster, appointments, inventory), so three
+  // synthesized entries — a mechanical, disclosed update to this
+  // assertion's own stale count. This stage's own fixture capability_key
+  // ('condition_assignment', below) was updated in the same change from a
+  // prior placeholder value ('inventory') that this batch's own Doctor
+  // Module Registry addition promoted from illustrative-only to a real,
+  // registered entry — 'condition_assignment' remains a genuinely
+  // unregistered docs/50 §7.1 illustrative example.
   var defaultStatesA = ctx.foundationGetDoctorModuleStates_(doctorIdA);
-  record('Stage19: foundationGetDoctorModuleStates_() succeeds with zero persisted rows, synthesizing one fail-closed (enabled: false) entry per registered capability (now two, as of Batch WPI-5)',
-    defaultStatesA.status === 'ok' && defaultStatesA.data.length === 2 && defaultStatesA.data.every(function (row) { return row.enabled === false; }));
+  record('Stage19: foundationGetDoctorModuleStates_() succeeds with zero persisted rows, synthesizing one fail-closed (enabled: false) entry per registered capability (now three, as of Batch WPI-7)',
+    defaultStatesA.status === 'ok' && defaultStatesA.data.length === 3 && defaultStatesA.data.every(function (row) { return row.enabled === false; }));
 
   // ---- Validation rejections ----
-  var missingDoctorId = ctx.foundationSetDoctorModuleState_({ capability_key: 'inventory', enabled: true, enabled_by: 'staff-1' });
+  var missingDoctorId = ctx.foundationSetDoctorModuleState_({ capability_key: 'condition_assignment', enabled: true, enabled_by: 'staff-1' });
   record('Stage19: foundationSetDoctorModuleState_() rejects a missing doctor_id with FOUNDATION_INVALID_INPUT',
     missingDoctorId.status === 'error' && missingDoctorId.error.code === 'FOUNDATION_INVALID_INPUT');
 
-  var badCapabilityKey = ctx.foundationSetDoctorModuleState_({ doctor_id: doctorIdA, capability_key: 'inventory', enabled: true, enabled_by: 'staff-1' });
-  record('Stage19: foundationSetDoctorModuleState_() rejects an unregistered capability_key — \'inventory\' is not one of the registry\'s (now one) real entries (fail-closed-by-absence, mirrors CalculatorResult.gs against an empty Calculator Registry)',
+  var badCapabilityKey = ctx.foundationSetDoctorModuleState_({ doctor_id: doctorIdA, capability_key: 'condition_assignment', enabled: true, enabled_by: 'staff-1' });
+  record('Stage19: foundationSetDoctorModuleState_() rejects an unregistered capability_key — \'condition_assignment\' is not one of the registry\'s real entries (fail-closed-by-absence, mirrors CalculatorResult.gs against an empty Calculator Registry)',
     badCapabilityKey.status === 'error' && badCapabilityKey.error.code === 'FOUNDATION_INVALID_INPUT');
 
-  var nonBooleanEnabled = ctx.foundationSetDoctorModuleState_({ doctor_id: doctorIdA, capability_key: 'inventory', enabled: 'yes', enabled_by: 'staff-1' });
+  var nonBooleanEnabled = ctx.foundationSetDoctorModuleState_({ doctor_id: doctorIdA, capability_key: 'condition_assignment', enabled: 'yes', enabled_by: 'staff-1' });
   record('Stage19: foundationSetDoctorModuleState_() rejects a non-boolean enabled value',
     nonBooleanEnabled.status === 'error' && nonBooleanEnabled.error.code === 'FOUNDATION_INVALID_INPUT');
 
-  var missingEnabledBy = ctx.foundationSetDoctorModuleState_({ doctor_id: doctorIdA, capability_key: 'inventory', enabled: true });
+  var missingEnabledBy = ctx.foundationSetDoctorModuleState_({ doctor_id: doctorIdA, capability_key: 'condition_assignment', enabled: true });
   record('Stage19: foundationSetDoctorModuleState_() rejects a missing enabled_by (staff/administrative identifier) with FOUNDATION_INVALID_INPUT',
     missingEnabledBy.status === 'error' && missingEnabledBy.error.code === 'FOUNDATION_INVALID_INPUT');
 
   // ---- state_key derivation is real and correct even though no write can ever succeed today ----
   record('Stage19: foundationBuildDoctorModuleStateKey_() derives doctor_id + \'::\' + capability_key, mirroring PatientModuleState\'s own state_key convention',
-    ctx.foundationBuildDoctorModuleStateKey_(doctorIdA, 'inventory') === doctorIdA + '::inventory');
+    ctx.foundationBuildDoctorModuleStateKey_(doctorIdA, 'condition_assignment') === doctorIdA + '::condition_assignment');
 
   // ---- A real DoctorModuleState record shape, built directly (bypassing the fail-closed registry gate), still conforms to the schema ----
-  var manualRecord = ctx.foundationBuildDoctorModuleStateRecord_({ doctor_id: doctorIdA, capability_key: 'inventory', enabled: true, enabled_by: 'staff-1' }, '2026-07-16T00:00:00.000Z');
+  var manualRecord = ctx.foundationBuildDoctorModuleStateRecord_({ doctor_id: doctorIdA, capability_key: 'condition_assignment', enabled: true, enabled_by: 'staff-1' }, '2026-07-16T00:00:00.000Z');
   var manualRecordResult = validate(doctorModuleStateSchema, manualRecord);
   record('Stage19: a DoctorModuleState record built by foundationBuildDoctorModuleStateRecord_() conforms to doctor-module-state.schema.json',
     manualRecordResult.valid === true, manualRecordResult.errors.join('; '));
@@ -2818,7 +2828,7 @@ var ctx = loadProject(h.sandbox);
   var getStatesHttp = ctx.handleFoundationRequest_({ foundation_action: 'get_doctor_module_states', session_token: doctorSessionA });
   var getStatesBody = JSON.parse(getStatesHttp._text);
   record('Stage19: get_doctor_module_states (real HTTP dispatch) resolves the caller\'s own, fail-closed-by-default capability-state list from a valid DoctorSession',
-    getStatesBody.status === 'ok' && getStatesBody.data.length === 2 && getStatesBody.data.every(function (row) { return row.enabled === false; }));
+    getStatesBody.status === 'ok' && getStatesBody.data.length === 3 && getStatesBody.data.every(function (row) { return row.enabled === false; }));
 
   var getStatesUnauthed = JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'get_doctor_module_states', session_token: 'not-a-real-session-token' })._text);
   record('Stage19: get_doctor_module_states rejects an invalid session_token with FOUNDATION_UNAUTHORIZED, never leaking any data',
@@ -2837,7 +2847,7 @@ var ctx = loadProject(h.sandbox);
   var doctorSessionB = ctx.foundationIssueDoctorSessionToken_(doctorIdB);
   var getStatesB = JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'get_doctor_module_states', session_token: doctorSessionB })._text);
   record('Stage19: doctor B\'s own capability-state list resolves independently of doctor A\'s session — cross-doctor isolation, even though both are fail-closed-disabled today',
-    getStatesB.status === 'ok' && getStatesB.data.length === 2 && getStatesB.data.every(function (row) { return row.enabled === false; }));
+    getStatesB.status === 'ok' && getStatesB.data.length === 3 && getStatesB.data.every(function (row) { return row.enabled === false; }));
 
   // ---- Zero-lines-touched proof (docs/50 §3): every existing registry/entity this batch does not touch is unchanged ----
   record('Stage19: Module Registry is untouched by this batch — still the same four modules Stage 12 already proved',
@@ -2875,12 +2885,14 @@ var ctx = loadProject(h.sandbox);
 
   // ---- Doctor Module Registry carries this batch's own entry, patient_roster ----
   // Updated at Batch WPI-5 (docs/50 §8/§19): the registry now carries a
-  // second entry, `appointments` (see Stage21) — a mechanical, disclosed
-  // update to this stage's own stale total-count assertion; this stage's
-  // own patient_roster-specific assertions (still this entry's own first,
-  // unchanged position) are untouched, still WPI-4's own scope.
+  // second entry, `appointments` (see Stage21). Updated again at Batch WPI-7
+  // (docs/50 §10/§19): a third entry, `inventory` (see Stage23) — a
+  // mechanical, disclosed update to this stage's own stale total-count
+  // assertion each time; this stage's own patient_roster-specific assertions
+  // (still this entry's own first, unchanged position) are untouched, still
+  // WPI-4's own scope.
   record('Stage20: shared/constants/doctor-module-registry.json carries patient_roster as its first entry, data_source get_doctor_patient_roster',
-    doctorModuleRegistryConstant.capabilities.length === 2 &&
+    doctorModuleRegistryConstant.capabilities.length === 3 &&
     doctorModuleRegistryConstant.capabilities[0].capability_key === 'patient_roster' &&
     doctorModuleRegistryConstant.capabilities[0].data_source === 'get_doctor_patient_roster');
 
@@ -2995,8 +3007,12 @@ var ctx = loadProject(h.sandbox);
   record('Stage21: setup — a real patient exists', patientDawn.status === 'ok');
 
   // ---- Doctor Module Registry now carries this batch's second entry ----
+  // Updated at Batch WPI-7 (docs/50 §10/§19): the registry now carries a
+  // third entry, `inventory` (see Stage23) — a mechanical, disclosed update
+  // to this stage's own stale total-count assertion, mirroring the same
+  // update Stage20 already received at this batch's own hands.
   record('Stage21: shared/constants/doctor-module-registry.json now carries appointments as its second entry, data_source get_doctor_appointments',
-    doctorModuleRegistryConstant.capabilities.length === 2 &&
+    doctorModuleRegistryConstant.capabilities.length === 3 &&
     doctorModuleRegistryConstant.capabilities[1].capability_key === 'appointments' &&
     doctorModuleRegistryConstant.capabilities[1].data_source === 'get_doctor_appointments');
 
@@ -3274,8 +3290,261 @@ var ctx = loadProject(h.sandbox);
     ctx.foundationGetDoctorAppointments_(doctorNotif.data.doctor_id).status === 'ok');
   record('Stage22: Specialty Registry is untouched by this batch — still the one seeded homeopathy entry, per Stage 18',
     ctx.foundationGetSpecialtyRegistry_().length === 1 && ctx.foundationGetSpecialtyRegistry_()[0].specialty_slug === 'homeopathy');
-  record('Stage22: shared/constants/doctor-module-registry.json is untouched by this batch — still exactly two entries, per Stage 21',
-    doctorModuleRegistryConstant.capabilities.length === 2);
+  // Updated at Batch WPI-7 (docs/50 §10/§19): the registry now carries a
+  // third entry, `inventory` (see Stage23) — a mechanical, disclosed update
+  // to this stage's own stale total-count assertion; WPI-6 (Notification)
+  // itself still added zero registry entries of its own, unchanged.
+  record('Stage22: shared/constants/doctor-module-registry.json was untouched by Batch WPI-6 itself — still exactly two entries as of Stage 21, a third (inventory) added only by the later Batch WPI-7 (Stage23)',
+    doctorModuleRegistryConstant.capabilities.length === 3);
+})();
+
+// ============================================================
+// Stage 23 — Phase 3/WHIMS Batch WPI-7: Inventory
+// docs/50-PHASE-3-TECHNICAL-PLAN.md §10/§19, docs/54-SHEETS-PRODUCTION-SCALE-
+// REVIEW.md §7/§18/§19, shared/schemas/inventory-item.schema.json,
+// shared/schemas/inventory-transaction.schema.json,
+// apps-script/InventoryItem.gs, apps-script/InventoryTransaction.gs. This
+// stage's highest-priority checks are: quantity_on_hand is never
+// client-settable and is always correctly recomputed from the full
+// InventoryTransaction ledger; the ledger itself is strictly append-only;
+// LockService actually gates the read-modify-write sequence (a genuine,
+// external-contention test, not just an inspection of the source); crossing
+// reorder_threshold actually produces an inventory_low_stock Notification
+// (Notification.gs's own existing, unmodified mechanism); the Doctor
+// Dashboard's specialty-scoping discipline applies to InventoryItem
+// visibility exactly as it already does for the patient roster/
+// appointments; and every new record conforms to its own shared/ schema.
+// ============================================================
+(function stage23_inventory() {
+  var doctorHomeo = ctx.foundationCreateDoctor_({
+    full_name: 'Stage23 Doctor Homeopathy', role: 'physician', email: 'stage23-doctor-homeo@example.com',
+    specialty_slug: 'homeopathy', created_by: 'conformance-harness'
+  });
+  var doctorNoSpecialty = ctx.foundationCreateDoctor_({
+    full_name: 'Stage23 Doctor No Specialty', role: 'physician', email: 'stage23-doctor-nospec@example.com',
+    created_by: 'conformance-harness'
+  });
+  record('Stage23: setup — two independent doctors exist (one with an explicit specialty_slug, one with none)',
+    doctorHomeo.status === 'ok' && doctorNoSpecialty.status === 'ok');
+  var doctorHomeoId = doctorHomeo.data.doctor_id;
+  var doctorNoSpecialtyId = doctorNoSpecialty.data.doctor_id;
+
+  // ---- Doctor Module Registry carries this batch's third entry ----
+  record('Stage23: shared/constants/doctor-module-registry.json now carries inventory as its third entry, data_source get_inventory_items',
+    doctorModuleRegistryConstant.capabilities.length === 3 &&
+    doctorModuleRegistryConstant.capabilities[2].capability_key === 'inventory' &&
+    doctorModuleRegistryConstant.capabilities[2].data_source === 'get_inventory_items');
+  record('Stage23: the hand-ported FOUNDATION_DOCTOR_MODULE_REGISTRY_ matches shared/constants/doctor-module-registry.json exactly, including this batch\'s addition',
+    JSON.stringify(ctx.foundationGetDoctorModuleRegistry_()) === JSON.stringify(doctorModuleRegistryConstant.capabilities));
+
+  // ---- InventoryItem — validation rejections ----
+  var missingName = ctx.foundationCreateInventoryItem_({ sku: 'SKU-1', unit: 'tablets', reorder_threshold: 5, created_by: 'staff-1' });
+  record('Stage23: foundationCreateInventoryItem_() rejects a missing name',
+    missingName.status === 'error' && missingName.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var missingSku = ctx.foundationCreateInventoryItem_({ name: 'Arnica 30C', unit: 'tablets', reorder_threshold: 5, created_by: 'staff-1' });
+  record('Stage23: foundationCreateInventoryItem_() rejects a missing sku',
+    missingSku.status === 'error' && missingSku.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var badThreshold = ctx.foundationCreateInventoryItem_({ name: 'Arnica 30C', sku: 'SKU-1', unit: 'tablets', reorder_threshold: -1, created_by: 'staff-1' });
+  record('Stage23: foundationCreateInventoryItem_() rejects a negative reorder_threshold',
+    badThreshold.status === 'error' && badThreshold.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var nonIntegerThreshold = ctx.foundationCreateInventoryItem_({ name: 'Arnica 30C', sku: 'SKU-1', unit: 'tablets', reorder_threshold: 2.5, created_by: 'staff-1' });
+  record('Stage23: foundationCreateInventoryItem_() rejects a non-integer reorder_threshold',
+    nonIntegerThreshold.status === 'error' && nonIntegerThreshold.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var badSpecialty = ctx.foundationCreateInventoryItem_({
+    name: 'Arnica 30C', sku: 'SKU-1', unit: 'tablets', reorder_threshold: 5, specialty_scope: 'not-a-real-specialty', created_by: 'staff-1'
+  });
+  record('Stage23: foundationCreateInventoryItem_() rejects a specialty_scope that does not reference a real Specialty Registry entry',
+    badSpecialty.status === 'error' && badSpecialty.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  // ---- InventoryItem — successful creation, quantity_on_hand always 0 ----
+  var arnica = ctx.foundationCreateInventoryItem_({
+    name: 'Arnica 30C', sku: 'SKU-ARNICA-30C', unit: 'tablets', reorder_threshold: 10, created_by: doctorHomeoId
+  });
+  record('Stage23: foundationCreateInventoryItem_() succeeds, always at quantity_on_hand 0 and status active, regardless of any caller-supplied value',
+    arnica.status === 'ok' && arnica.data.quantity_on_hand === 0 && arnica.data.status === 'active' && arnica.data.specialty_scope === '');
+  var arnicaValidation = validate(inventoryItemSchema, arnica.data);
+  record('Stage23: a newly-created InventoryItem record conforms to inventory-item.schema.json',
+    arnicaValidation.valid === true, arnicaValidation.errors.join('; '));
+  var arnicaId = arnica.data.inventory_item_id;
+
+  var quantityIgnored = ctx.foundationCreateInventoryItem_({
+    name: 'Ignored Quantity Test', sku: 'SKU-IGNORE', unit: 'ml', reorder_threshold: 5, quantity_on_hand: 999, created_by: doctorHomeoId
+  });
+  record('Stage23: a caller-supplied quantity_on_hand at creation is silently ignored — always 0',
+    quantityIgnored.status === 'ok' && quantityIgnored.data.quantity_on_hand === 0);
+
+  record('Stage23: foundationGetInventoryItemById_() returns FOUNDATION_NOT_FOUND for an unknown inventory_item_id',
+    ctx.foundationGetInventoryItemById_('does-not-exist-item-id').error.code === 'FOUNDATION_NOT_FOUND');
+
+  // ---- InventoryTransaction — validation rejections ----
+  var badItemRef = ctx.foundationRecordInventoryTransaction_({
+    inventory_item_id: 'does-not-exist-item-id', change_qty: 10, reason: 'restock', created_by: doctorHomeoId
+  });
+  record('Stage23: foundationRecordInventoryTransaction_() rejects an inventory_item_id that does not reference a real, active item',
+    badItemRef.status === 'error' && badItemRef.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var zeroChange = ctx.foundationRecordInventoryTransaction_({
+    inventory_item_id: arnicaId, change_qty: 0, reason: 'adjustment', created_by: doctorHomeoId
+  });
+  record('Stage23: foundationRecordInventoryTransaction_() rejects a zero change_qty',
+    zeroChange.status === 'error' && zeroChange.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var badReason = ctx.foundationRecordInventoryTransaction_({
+    inventory_item_id: arnicaId, change_qty: 10, reason: 'not_a_real_reason', created_by: doctorHomeoId
+  });
+  record('Stage23: foundationRecordInventoryTransaction_() rejects a reason value outside the reserved enum',
+    badReason.status === 'error' && badReason.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var badDoctorRef = ctx.foundationRecordInventoryTransaction_({
+    inventory_item_id: arnicaId, change_qty: 10, reason: 'restock', created_by: 'does-not-exist-doctor-id'
+  });
+  record('Stage23: foundationRecordInventoryTransaction_() rejects a created_by that does not reference a real Doctor',
+    badDoctorRef.status === 'error' && badDoctorRef.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  // ---- InventoryTransaction — real restock, quantity_on_hand recomputed from the ledger ----
+  var restock1 = ctx.foundationRecordInventoryTransaction_({
+    inventory_item_id: arnicaId, change_qty: 50, reason: 'restock', created_by: doctorHomeoId
+  });
+  record('Stage23: foundationRecordInventoryTransaction_() succeeds for a real restock',
+    restock1.status === 'ok' && restock1.data.change_qty === 50 && restock1.data.reason === 'restock');
+  var restock1Validation = validate(inventoryTransactionSchema, restock1.data);
+  record('Stage23: a newly-recorded InventoryTransaction record conforms to inventory-transaction.schema.json',
+    restock1Validation.valid === true, restock1Validation.errors.join('; '));
+
+  var afterRestock1 = ctx.foundationGetInventoryItemById_(arnicaId);
+  record('Stage23: quantity_on_hand is recomputed to 50 after the first restock (0 + 50)',
+    afterRestock1.status === 'ok' && afterRestock1.data.quantity_on_hand === 50);
+
+  var dispense1 = ctx.foundationRecordInventoryTransaction_({
+    inventory_item_id: arnicaId, change_qty: -20, reason: 'dispense', created_by: doctorHomeoId
+  });
+  record('Stage23: foundationRecordInventoryTransaction_() succeeds for a real dispense (negative change_qty)',
+    dispense1.status === 'ok' && dispense1.data.change_qty === -20 && dispense1.data.reason === 'dispense');
+
+  var afterDispense1 = ctx.foundationGetInventoryItemById_(arnicaId);
+  record('Stage23: quantity_on_hand is recomputed to 30 after the dispense (50 - 20) — recomputed from the full ledger, never a cached delta',
+    afterDispense1.status === 'ok' && afterDispense1.data.quantity_on_hand === 30);
+
+  // ---- Strictly append-only: no update/patch call anywhere targets the ledger itself ----
+  var ledgerSheetSource = fs.readFileSync(path.join(harness.APPS_SCRIPT_DIR, 'InventoryTransaction.gs'), 'utf8');
+  record('Stage23: InventoryTransaction.gs never calls foundationDsUpdateById_ against its own ledger sheet — strictly append-only (docs/54 §19)',
+    ledgerSheetSource.indexOf('foundationDsUpdateById_(FOUNDATION_INVENTORY_TRANSACTIONS_SHEET_') === -1);
+
+  // ---- Low-stock Notification: crossing reorder_threshold produces one ----
+  var lowStockItem = ctx.foundationCreateInventoryItem_({
+    name: 'Low Stock Remedy', sku: 'SKU-LOWSTOCK', unit: 'bottles', reorder_threshold: 5, created_by: doctorHomeoId
+  });
+  ctx.foundationRecordInventoryTransaction_({ inventory_item_id: lowStockItem.data.inventory_item_id, change_qty: 10, reason: 'restock', created_by: doctorHomeoId });
+  var beforeLowStockNotifs = ctx.foundationGetNotificationsForDoctor_(doctorHomeoId);
+  var beforeCount = beforeLowStockNotifs.data.length;
+  var crossingTransaction = ctx.foundationRecordInventoryTransaction_({ inventory_item_id: lowStockItem.data.inventory_item_id, change_qty: -6, reason: 'dispense', created_by: doctorHomeoId });
+  record('Stage23: recording a transaction that leaves quantity_on_hand (4) at or below reorder_threshold (5) succeeds',
+    crossingTransaction.status === 'ok');
+  var afterLowStockNotifs = ctx.foundationGetNotificationsForDoctor_(doctorHomeoId);
+  record('Stage23: crossing reorder_threshold records exactly one new inventory_low_stock Notification for the acting doctor (Notification.gs\'s own existing, unmodified mechanism)',
+    afterLowStockNotifs.data.length === beforeCount + 1 &&
+    afterLowStockNotifs.data[0].type === 'inventory_low_stock' && afterLowStockNotifs.data[0].status === 'sent' &&
+    afterLowStockNotifs.data[0].doctor_id === doctorHomeoId);
+
+  var wellStockedTransaction = ctx.foundationRecordInventoryTransaction_({ inventory_item_id: arnicaId, change_qty: 5, reason: 'restock', created_by: doctorHomeoId });
+  var afterWellStockedNotifs = ctx.foundationGetNotificationsForDoctor_(doctorHomeoId);
+  record('Stage23: a transaction that leaves quantity_on_hand safely above reorder_threshold records no new Notification',
+    wellStockedTransaction.status === 'ok' && afterWellStockedNotifs.data.length === afterLowStockNotifs.data.length);
+
+  // ---- LockService — a genuine, external-contention test (docs/54 §8/§19's required concurrent-write scenario) ----
+  var quantityBeforeContention = ctx.foundationGetInventoryItemById_(arnicaId).data.quantity_on_hand;
+  var externalLock = ctx.LockService.getScriptLock();
+  record('Stage23: setup — the lock can be acquired externally, simulating another execution already holding it',
+    externalLock.tryLock(0) === true);
+  var contendedResult = ctx.foundationRecordInventoryTransaction_({
+    inventory_item_id: arnicaId, change_qty: 1, reason: 'adjustment', created_by: doctorHomeoId
+  });
+  record('Stage23: foundationRecordInventoryTransaction_() returns FOUNDATION_LOCK_UNAVAILABLE (not a raw exception, not a silent unsynchronized write) when the lock is already held elsewhere',
+    contendedResult.status === 'error' && contendedResult.error.code === 'FOUNDATION_LOCK_UNAVAILABLE');
+  var quantityDuringContention = ctx.foundationGetInventoryItemById_(arnicaId).data.quantity_on_hand;
+  record('Stage23: no write happened at all while the lock was contended — quantity_on_hand is unchanged',
+    quantityDuringContention === quantityBeforeContention);
+  externalLock.releaseLock();
+  var afterLockReleased = ctx.foundationRecordInventoryTransaction_({
+    inventory_item_id: arnicaId, change_qty: 1, reason: 'adjustment', created_by: doctorHomeoId
+  });
+  record('Stage23: once the lock is released, the same transaction succeeds normally',
+    afterLockReleased.status === 'ok');
+
+  // ---- Retire and threshold-update — plain field patches, no lock required ----
+  var retired = ctx.foundationRetireInventoryItem_(lowStockItem.data.inventory_item_id);
+  record('Stage23: foundationRetireInventoryItem_() transitions an active item to retired',
+    retired.status === 'ok' && retired.data.status === 'retired');
+  var retireAgain = ctx.foundationRetireInventoryItem_(lowStockItem.data.inventory_item_id);
+  record('Stage23: foundationRetireInventoryItem_() rejects retiring an already-retired item — one-way, never reverted',
+    retireAgain.status === 'error' && retireAgain.error.code === 'FOUNDATION_INVALID_INPUT');
+  var transactionAgainstRetired = ctx.foundationRecordInventoryTransaction_({
+    inventory_item_id: lowStockItem.data.inventory_item_id, change_qty: 1, reason: 'restock', created_by: doctorHomeoId
+  });
+  record('Stage23: foundationRecordInventoryTransaction_() rejects a transaction against a retired item',
+    transactionAgainstRetired.status === 'error' && transactionAgainstRetired.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var thresholdUpdated = ctx.foundationUpdateInventoryItemThreshold_(arnicaId, 25);
+  record('Stage23: foundationUpdateInventoryItemThreshold_() updates reorder_threshold without touching quantity_on_hand',
+    thresholdUpdated.status === 'ok' && thresholdUpdated.data.reorder_threshold === 25);
+  var badThresholdUpdate = ctx.foundationUpdateInventoryItemThreshold_(arnicaId, -5);
+  record('Stage23: foundationUpdateInventoryItemThreshold_() rejects a negative threshold',
+    badThresholdUpdate.status === 'error' && badThresholdUpdate.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  // ---- Doctor Dashboard view — specialty scoping and retired-item exclusion ----
+  var homeoView = ctx.foundationGetInventoryItemsForDoctor_(doctorHomeoId);
+  record('Stage23: foundationGetInventoryItemsForDoctor_() excludes the now-retired item',
+    homeoView.status === 'ok' && homeoView.data.map(function (e) { return e.inventory_item_id; }).indexOf(lowStockItem.data.inventory_item_id) === -1);
+  record('Stage23: foundationGetInventoryItemsForDoctor_() includes the active, unscoped item, enriched with a computed low_stock boolean',
+    homeoView.data.filter(function (e) { return e.inventory_item_id === arnicaId; })[0].low_stock === false);
+
+  var noSpecialtyView = ctx.foundationGetInventoryItemsForDoctor_(doctorNoSpecialtyId);
+  record('Stage23: a doctor with no specialty_slug set is scoped to the implicit default specialty (homeopathy) — sees the same unscoped item',
+    noSpecialtyView.status === 'ok' && noSpecialtyView.data.map(function (e) { return e.inventory_item_id; }).indexOf(arnicaId) !== -1);
+
+  // A directly-inserted fixture row (bypassing the validated create path,
+  // which has no second specialty to reference yet at this platform's
+  // actual current scale, docs/50 §6.1) proves the specialty_scope filter
+  // itself excludes a non-matching specialty, not just passes-through an
+  // always-unscoped item.
+  ctx.foundationDsInsert_('InventoryItems', ['inventory_item_id', 'name', 'sku', 'unit', 'quantity_on_hand', 'reorder_threshold', 'specialty_scope', 'status', 'created_by', 'created_at'], {
+    inventory_item_id: 'stage23-other-specialty-item', name: 'Other Specialty Item', sku: 'SKU-OTHER', unit: 'units',
+    quantity_on_hand: 0, reorder_threshold: 0, specialty_scope: 'nutrition', status: 'active', created_by: doctorHomeoId, created_at: ctx.foundationNowIso_()
+  });
+  var homeoViewAfterFixture = ctx.foundationGetInventoryItemsForDoctor_(doctorHomeoId);
+  record('Stage23: a homeopathy-specialty doctor never sees an item explicitly scoped to a different specialty',
+    homeoViewAfterFixture.data.map(function (e) { return e.inventory_item_id; }).indexOf('stage23-other-specialty-item') === -1);
+
+  // ---- FoundationRouter.gs — the one new, read-only dispatch case, end to end ----
+  var doctorSessionHomeo = ctx.foundationIssueDoctorSessionToken_(doctorHomeoId);
+  var inventoryHttp = JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'get_inventory_items', session_token: doctorSessionHomeo })._text);
+  record('Stage23: get_inventory_items (real HTTP dispatch) resolves the caller\'s own specialty-scoped inventory from a valid DoctorSession',
+    inventoryHttp.status === 'ok' && inventoryHttp.data.map(function (e) { return e.inventory_item_id; }).indexOf(arnicaId) !== -1);
+
+  var inventoryUnauthed = JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'get_inventory_items', session_token: 'not-a-real-session-token' })._text);
+  record('Stage23: get_inventory_items rejects an invalid session_token with FOUNDATION_UNAUTHORIZED, never leaking any data',
+    inventoryUnauthed.status === 'error' && inventoryUnauthed.error.code === 'FOUNDATION_UNAUTHORIZED' && inventoryUnauthed.data === null);
+
+  // ---- Cross-identity-type authorization confusion — a real Patient Session must never authorize this doctor-scoped route ----
+  var patientForCrossCheck = ctx.foundationCreatePatient_({
+    full_name: 'Stage23 Patient', email: 'stage23-patient@example.com', condition_slug: 'mcas', created_by: 'staff-1'
+  });
+  var patientSessionForCrossCheck = ctx.foundationIssueSessionToken_(patientForCrossCheck.data.patient_id);
+  var inventoryWithPatientSession = JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'get_inventory_items', session_token: patientSessionForCrossCheck })._text);
+  record('Stage23: get_inventory_items rejects a real Patient Session token with FOUNDATION_UNAUTHORIZED — cross-identity-type confusion prevented end to end, mirroring Stage 17/19/20/21\'s own proof',
+    inventoryWithPatientSession.status === 'error' && inventoryWithPatientSession.error.code === 'FOUNDATION_UNAUTHORIZED');
+
+  // ---- Zero-lines-touched proof (docs/50 §3): existing entities this batch does not touch are unchanged ----
+  record('Stage23: Notification.gs/its schema are untouched by this batch — this batch is a new call site, not a modification, to foundationRecordNotification_()',
+    ctx.foundationGetNotificationsForDoctor_(doctorHomeoId).status === 'ok');
+  record('Stage23: Appointment.gs is untouched by this batch — read only, via the existing foundationDsQuery_ primitive',
+    ctx.foundationGetDoctorAppointments_(doctorHomeoId).status === 'ok');
+  record('Stage23: Specialty Registry is untouched by this batch — still the one seeded homeopathy entry',
+    ctx.foundationGetSpecialtyRegistry_().length === 1 && ctx.foundationGetSpecialtyRegistry_()[0].specialty_slug === 'homeopathy');
 })();
 
 function auditRowsOf(h, eventType) {
