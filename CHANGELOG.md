@@ -8,6 +8,120 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-16 — Phase 3 Batch WPI-8: PillFill Integration
+
+Implements Batch WPI-8 (docs/50-PHASE-3-TECHNICAL-PLAN.md §11/§19), a consumer of
+Inventory (WPI-7, already shipped) and the already-shipped `DoctorInstruction` (PXP-7),
+per docs/53-PHASE-3-IMPLEMENTATION-RULES.md's per-batch gate. **Explicitly scoped to
+WPI-8 only — no later batch (WPI-9 onward) is authorized by this change.**
+
+### Added (schema)
+- **`shared/schemas/pillfill-order.schema.json`** (new, version 1.0.0, + `.md`) — the
+  `PillFillOrder` record shape (docs/50 §11): connects a `medicine`-type Doctor
+  Instruction to fulfillment; `status`
+  (`requested`/`in_progress`/`fulfilled`/`shipped`/`delivered`/`cancelled`) one-way;
+  disclosed additive `created_by` provenance field mirroring
+  `appointment.schema.json`'s/`inventory-item.schema.json`'s own precedent.
+
+### Added (Apps Script)
+- **`apps-script/PillFillOrder.gs`** (new) — `foundationCreatePillFillOrder_()`
+  (rejects a `doctor_instruction_id` that is not a real, `medicine`-type
+  `DoctorInstruction` belonging to the same `patient_id`, or an `inventory_item_id`
+  that does not reference a real, active `InventoryItem`), the dedicated
+  `foundationFulfillPillFillOrder_()` (the one operation with side effects — see
+  below), the generic `foundationUpdatePillFillOrderStatus_()` (`'fulfilled'` is never
+  a reachable target here), and `foundationGetPillFillOrdersForDoctor_()`
+  (specialty-scoped via the referenced `InventoryItem`, enriched with the linked
+  patient's `full_name` and the item's own `name`/`sku`). Every write is a manually-run
+  Apps Script editor function
+  (`createFoundationPillFillOrder()`/`fulfillFoundationPillFillOrder()`/
+  `updateFoundationPillFillOrderStatus()`), mirroring `Appointment.gs`'s/
+  `InventoryItem.gs`'s precedent exactly — a deliberate continuation of every prior WPI
+  batch's "doctor/staff-owned entity writes stay manually-run" discipline, not a
+  departure, even though a real `DoctorSession` already exists.
+- **`foundationFulfillPillFillOrder_()`** reuses `InventoryTransaction.gs`'s existing,
+  unmodified `foundationRecordInventoryTransaction_()` (reason `dispense`,
+  `change_qty` exactly `-quantity`, `reference_id` the order's own `order_id`) — **the
+  platform's first real, non-manual trigger for that function's `LockService` critical
+  section** (docs/54 §7/§17's own "the concrete trigger for this becoming real, not
+  just theoretical") — and `Notification.gs`'s existing, unmodified
+  `foundationRecordNotification_()` (type `pillfill_order_status`, `patient_id` set to
+  the order's own `patient_id`). If the InventoryTransaction call fails for any reason,
+  including a contended lock (`FOUNDATION_LOCK_UNAVAILABLE`), the order's own status is
+  never touched — no partial fulfillment. Once fulfilled, an order can no longer be
+  cancelled — a disclosed boundary, docs/50 §11 designs no reversal mechanism.
+
+### Added (router, registry, dashboard)
+- **`apps-script/FoundationRouter.gs`** — one new, additive, read-only dispatch case,
+  `get_pillfill_orders`, deriving `doctor_id` exclusively from the verified
+  `DoctorSession`, mirroring `get_inventory_items` exactly. No create/fulfill/
+  status-update route exists over HTTP.
+- **`shared/constants/doctor-module-registry.json`** (1.3.0 → 1.4.0) and
+  **`apps-script/DoctorModuleRegistry.gs`** — this registry's fourth real entry,
+  `pillfill_orders` (`display_order: 40`, `data_source: get_pillfill_orders`).
+- **`doctor-dashboard/dashboard.js`** — one new, read-only PillFill Orders card,
+  structurally parallel to the Patient Roster/Appointments/Inventory cards (docs/50
+  §7.3's registry-driven discipline unchanged — `renderDashboard()`/`dispatchLoaders()`
+  themselves gained no new logic, only a new registry entry and a new loader).
+
+### Added (validation)
+- **`validation/phase-2a-foundation/harness.js`** — `PillFillOrder.gs` added to the
+  loaded `FILES` list; no new mock needed (reuses `InventoryTransaction.gs`'s own
+  already-mocked `LockService` critical section and `Notification.gs`'s own
+  already-mocked primitives).
+- **`validation/phase-2a-foundation/conformance.js`** — new Stage 24 (43 checks):
+  validation rejections (including the `medicine`-type/same-`patient_id` reference
+  checks), the dedicated fulfill operation's real `InventoryTransaction` dispense and
+  `pillfill_order_status` Notification, a genuine external-contention `LockService`
+  test proving no partial fulfillment (mirroring Stage 23's own discipline), the
+  `'fulfilled'`-is-never-a-generic-target proof, the full one-way lifecycle
+  (`requested → in_progress → fulfilled → shipped → delivered`, and the
+  `requested`/`in_progress → cancelled` branches), specialty-scoping via the joined
+  `InventoryItem` (including a direct-insert fixture proving a non-matching
+  `specialty_scope` is actually excluded), the new HTTP dispatch case end to end, and
+  cross-identity-type rejection.
+- **`validation/wpi-8-pillfill/browser-test.js`** (new, 14 checks) — the PillFill
+  Orders card's own render/empty/status-label states and loader-dispatch
+  participation, mirroring `validation/wpi-7-inventory/browser-test.js`'s split-suite
+  discipline exactly.
+- **`validation/static-analysis/analyze.js`** — the three new manually-run wrapper
+  function names added to the existing allowlist.
+
+### Fixed (disclosed, mechanical — not a defect, a factual-count update)
+- **Four pre-existing conformance assertions** (`validation/phase-2a-foundation/
+  conformance.js` Stage19/Stage20/Stage21/Stage23) and **three matching count
+  assertions** (`validation/wpi-4-doctor-dashboard/browser-test.js`/
+  `validation/wpi-5-appointment/browser-test.js`/`validation/wpi-7-inventory/
+  browser-test.js`) hard-coded the Doctor Module Registry's total entry count at three
+  — mechanically, disclosedly updated to four, mirroring the exact precedent Batch
+  WPI-7 already set for these same assertions.
+
+### What this batch deliberately does not do
+- **No PillFillOrder write route.** Every write remains a manually-run Apps Script
+  editor function — no authenticated Web App write path for create, fulfill, or any
+  status transition, per this batch's own disclosed continuation of every prior WPI
+  batch's precedent.
+- **No external PillFill vendor API, webhook, or integration contract.** docs/50 §11's
+  own explicit restraint — this batch is the platform's own internal
+  order-and-fulfillment record only.
+- **No patient-facing order-status view.** A plausible future extension (docs/50 §11),
+  not this batch's scope.
+- **No stock-sufficiency check.** Neither creation nor fulfillment validates `quantity`
+  against current `quantity_on_hand` — `InventoryTransaction.gs`'s own `change_qty`
+  validation already permits any non-zero signed integer regardless of the resulting
+  balance, and this batch does not invent a gate `InventoryTransaction.gs` itself does
+  not enforce.
+- **No Analytics (WPI-9) or any later batch.**
+- **No modification to any frozen Foundation/Identity & Access/Patient
+  Access/PXP-1..11/WPI-1..7 file.**
+
+### Validation
+- Static Analysis: 0 findings.
+- Conformance: 655/655 checks passed (43 new in Stage 24).
+- Phase 1.5 Regression: 45/45 checks passed, untouched.
+- Browser suites: all 14 suites green, 310/310 checks passed (14 new in
+  `validation/wpi-8-pillfill/`).
+
 ## 2026-07-16 — Phase 3 Batch WPI-7: Inventory
 
 Implements Batch WPI-7 (docs/50-PHASE-3-TECHNICAL-PLAN.md §10/§19), a consumer of

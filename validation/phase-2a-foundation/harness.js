@@ -149,6 +149,15 @@
  * documented contract, and is what lets `conformance.js`'s Stage 23 hold the
  * lock externally to prove `foundationRecordInventoryTransaction_()`'s own
  * contention-handling path for real, not just assert it by inspection).
+ *
+ * Extended in Phase 3/WHIMS batch WPI-8 with `PillFillOrder.gs` in the FILES
+ * list — no new mock needed, since it only reuses already-mocked
+ * primitives (`foundationDsQuery_`/`foundationDsInsert_`/
+ * `foundationDsUpdateById_`) plus `InventoryTransaction.gs`'s own already-
+ * mocked `LockService` critical section and `Notification.gs`'s own
+ * already-mocked primitives (the same "additive entity, zero new
+ * infrastructure" pattern `Notification.gs` already proved out at Batch
+ * WPI-6).
  */
 
 var fs = require('fs');
@@ -200,6 +209,7 @@ var FILES = [
   'Notification.gs',
   'InventoryItem.gs',
   'InventoryTransaction.gs',
+  'PillFillOrder.gs',
   'FoundationRouter.gs'
 ];
 

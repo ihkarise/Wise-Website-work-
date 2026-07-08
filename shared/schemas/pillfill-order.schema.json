@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wisehomeopathy.com/shared/schemas/pillfill-order.schema.json",
+  "title": "PillFillOrder",
+  "version": "1.0.0",
+  "description": "The canonical shape of a PillFillOrder record — docs/50-PHASE-3-TECHNICAL-PLAN.md §11's design, Phase 3/WHIMS Batch WPI-8 (docs/50 §19), governed by docs/53-PHASE-3-IMPLEMENTATION-RULES.md. Connects a `medicine`-type Doctor Instruction (doctor-instruction.schema.json, docs/33 §2.3's 'Prescription is a medicine-type Doctor Instruction' mapping) to fulfillment. Doctor/staff-owned, not patient-owned (docs/50 §11's 'Ownership: Doctor/staff-created and -updated'). Fulfillment draws down one InventoryItem (inventory-item.schema.json) via a real InventoryTransaction (reason 'dispense', reusing InventoryTransaction.gs's own LockService-protected recompute, docs/54 §7/§19) and produces a pillfill_order_status Notification (notification.schema.json) — reusing both existing mechanisms rather than inventing parallel ones. No external PillFill vendor API, webhook, or integration contract is designed by this entity — it is the platform's own internal order-and-fulfillment record only (docs/50 §11). See pillfill-order.md for the full lifecycle, the disclosed `created_by` provenance field, and the validation rules.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["order_id", "patient_id", "doctor_instruction_id", "inventory_item_id", "quantity", "status", "created_by", "created_at", "fulfilled_at"],
+  "properties": {
+    "order_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "This row's own identity column (UUID), server-generated. Never staff-supplied."
+    },
+    "patient_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The Patient Identity this order belongs to (docs/33 §1.2, ADR-002). Must reference a real Patient Identity, and must match the referenced doctor_instruction_id's own patient_id (docs/50 §11's 'Belongs to one Doctor Instruction and one Patient Identity' — both references must agree). Staff/doctor-supplied at creation; never patient-supplied (no patient-facing write path exists for this entity)."
+    },
+    "doctor_instruction_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The specific medicine-type Doctor Instruction (doctor-instruction.schema.json) this order fulfills (docs/50 §11, docs/33 §2.3's 'Prescription is a medicine-type Doctor Instruction' mapping). Must reference a real, existing DoctorInstruction row whose instruction_type is 'medicine' and whose own patient_id matches this order's patient_id. Staff/doctor-supplied at creation, immutable thereafter."
+    },
+    "inventory_item_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The InventoryItem (inventory-item.schema.json) this order draws down on fulfillment. Must reference a real, currently-'active' InventoryItem. Staff/doctor-supplied at creation, immutable thereafter."
+    },
+    "quantity": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The quantity of inventory_item_id this order requests, in that item's own unit (inventory-item.schema.json's `unit`). Staff/doctor-supplied at creation, immutable thereafter. On fulfillment, an InventoryTransaction of exactly `-quantity` (reason 'dispense') is recorded against inventory_item_id."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["requested", "in_progress", "fulfilled", "shipped", "delivered", "cancelled"],
+      "description": "This order's current lifecycle state (docs/50 §11). Always 'requested' at creation. Transitions one-way, never reverted: 'requested' -> 'in_progress' or 'cancelled'; 'in_progress' -> 'fulfilled' (via the dedicated fulfill operation, which also draws down Inventory and produces a Notification) or 'cancelled'; 'fulfilled' -> 'shipped'; 'shipped' -> 'delivered'. Once fulfilled, an order can no longer be cancelled — stock has already been dispensed and this batch designs no reversal mechanism (docs/50 §11 names none)."
+    },
+    "created_by": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The doctor/staff identifier who created this order (a disclosed, additive provenance field beyond docs/50 §11's literal attribute list — the same category of implementation-time field-level decision appointment.schema.json's own created_by and inventory-item.schema.json's own created_by already made). Never patient-supplied."
+    },
+    "created_at": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Server-set at creation (foundationNowIso_()), ISO 8601 UTC date-time. Never staff-supplied."
+    },
+    "fulfilled_at": {
+      "type": "string",
+      "description": "Server-set at the moment the dedicated fulfill operation succeeds (foundationNowIso_()), ISO 8601 UTC date-time. Empty-string sentinel until then, mirroring appointment.schema.json's scheduled_at convention. Never staff-supplied directly."
+    }
+  }
+}

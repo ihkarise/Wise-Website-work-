@@ -1,6 +1,6 @@
 # Doctor Module Registry
 
-Explains `doctor-module-registry.json` (version `1.3.0`, the authoritative definition —
+Explains `doctor-module-registry.json` (version `1.4.0`, the authoritative definition —
 this file explains, it does not define, per `shared/README.md`'s format rule).
 
 ## Scope: Batch WPI-3 (docs/50-PHASE-3-TECHNICAL-PLAN.md §7.1/§19/§22, ADR-020)
@@ -49,13 +49,19 @@ the doctor's specialty-scoped `InventoryItem` stock-level view (docs/50 §10), b
 a new, real, authenticated route, `InventoryItem.gs`'s `get_inventory_items`
 (`FoundationRouter.gs`).
 
+**Batch WPI-8 (docs/50 §11/§19)** adds this registry's fourth real entry:
+`pillfill_orders` — the doctor's specialty-scoped `PillFillOrder` view (docs/50 §11,
+specialty derived via each order's own referenced `InventoryItem`, since `PillFillOrder`
+carries no `specialty_slug` of its own), backed by a new, real, authenticated route,
+`PillFillOrder.gs`'s `get_pillfill_orders` (`FoundationRouter.gs`).
+
 Every other illustrative capability named below (condition assignment, care-plan
-authoring, module/calculator/template enablement, PillFill orders, analytics) remains
-unregistered — each becomes real by a later, separately-approved WPI batch adding its
-own registry entry here (docs/53 §4's "a new registry entry is added by the batch that
-actually builds it"), the same "prove the mechanism, let a later batch supply the first
-real instance" posture `calculator-registry.json`'s own header comment already used for
-its own not-yet-built calculators.
+authoring, module/calculator/template enablement, analytics) remains unregistered —
+each becomes real by a later, separately-approved WPI batch adding its own registry
+entry here (docs/53 §4's "a new registry entry is added by the batch that actually
+builds it"), the same "prove the mechanism, let a later batch supply the first real
+instance" posture `calculator-registry.json`'s own header comment already used for its
+own not-yet-built calculators.
 
 ## Doctor Module Registry vs. Module Registry — two registries, one job, two audiences
 
@@ -73,25 +79,25 @@ illustrative examples named by docs/50 §7.1 include `patient_roster`,
 `condition_assignment`, `care_plan_authoring`, `module_state_management`, `inventory`,
 `pillfill_orders`, `analytics`; illustrative only, not a batch commitment, mirroring
 docs/50 §7.1's own "not a batch commitment" framing — `patient_roster`, `appointments`,
-and `inventory` are the three promoted from illustrative to real, by Batches WPI-4,
-WPI-5, and WPI-7 respectively), `display_name`, `display_order` (integer, mirrors
-`module-registry.json`'s own field), `data_source` (loader key — the doctor-facing
-route a Doctor Dashboard card calls, mirroring `module-registry.json`'s own field),
-`specialty_scope` (optional — absent means visible regardless of specialty, present
-means visible only to a doctor associated with that specialty, ADR-018 §6.2; absent on
-all three real entries so far, since only one specialty exists today, docs/50 §6.1),
-`future_ai_capable` (reserved, presently inert — mirrors `module-registry.json`'s and
-`calculator-registry.json`'s own AI-readiness reservation, ADR-019).
+`inventory`, and `pillfill_orders` are the four promoted from illustrative to real, by
+Batches WPI-4, WPI-5, WPI-7, and WPI-8 respectively), `display_name`, `display_order`
+(integer, mirrors `module-registry.json`'s own field), `data_source` (loader key — the
+doctor-facing route a Doctor Dashboard card calls, mirroring `module-registry.json`'s
+own field), `specialty_scope` (optional — absent means visible regardless of specialty,
+present means visible only to a doctor associated with that specialty, ADR-018 §6.2;
+absent on all four real entries so far, since only one specialty exists today, docs/50
+§6.1), `future_ai_capable` (reserved, presently inert — mirrors `module-registry.json`'s
+and `calculator-registry.json`'s own AI-readiness reservation, ADR-019).
 
-## Doctor Dashboard consumer (Batches WPI-4, WPI-5, WPI-7)
+## Doctor Dashboard consumer (Batches WPI-4, WPI-5, WPI-7, WPI-8)
 
 `doctor-dashboard/dashboard.js` is the registry-driven consumer Batch WPI-4 added —
 structurally parallel to `my-health-journey/dashboard.js`'s own post-PXP-4 discipline
 (docs/50 §7.3): every card corresponds to a registry entry here the doctor is enabled
 for (`DoctorModuleState`, per-doctor, staff-set — see doctor-module-state.md), with no
 hardcoded per-capability rendering logic. `patient_roster` (WPI-4), `appointments`
-(WPI-5), and `inventory` (WPI-7) are this registry's three cards so far; adding a
-future capability means (i) add its registry entry here and to
+(WPI-5), `inventory` (WPI-7), and `pillfill_orders` (WPI-8) are this registry's four
+cards so far; adding a future capability means (i) add its registry entry here and to
 `DoctorModuleRegistry.gs`, (ii) register its loader in `doctor-dashboard/dashboard.js`
 — nothing else in the render path changes, mirroring the exact
 Module-Registry-backend (PXP-3) / Dashboard-Registry-frontend (PXP-4) split precedent
@@ -99,8 +105,9 @@ already proven on the patient side.
 
 ## Versioning
 
-Version `1.3.0` (bumped from `1.0.0` → `1.1.0` at Batch WPI-4 to add `patient_roster`;
+Version `1.4.0` (bumped from `1.0.0` → `1.1.0` at Batch WPI-4 to add `patient_roster`;
 → `1.2.0` at Batch WPI-5 to add `appointments`; → `1.3.0` at Batch WPI-7 to add
-`inventory`). Adding a new capability (a new `capability_key` row) requires a new
-version here first, then a subsequent update to `apps-script/DoctorModuleRegistry.gs`'s
-hand-ported copy — never the reverse, per `shared/README.md`.
+`inventory`; → `1.4.0` at Batch WPI-8 to add `pillfill_orders`). Adding a new capability
+(a new `capability_key` row) requires a new version here first, then a subsequent
+update to `apps-script/DoctorModuleRegistry.gs`'s hand-ported copy — never the reverse,
+per `shared/README.md`.

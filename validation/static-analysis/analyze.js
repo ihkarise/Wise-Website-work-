@@ -102,7 +102,10 @@ var MANUAL_DROPDOWN_WRAPPERS = [
   'createFoundationInventoryItem', // InventoryItem.gs — WPI-7's manually-run doctor/staff item-creation tool
   'retireFoundationInventoryItem', // InventoryItem.gs — WPI-7's manually-run doctor/staff retirement tool
   'updateFoundationInventoryItemThreshold', // InventoryItem.gs — WPI-7's manually-run doctor/staff threshold-update tool
-  'recordFoundationInventoryTransaction' // InventoryTransaction.gs — WPI-7's manually-run doctor/staff transaction-recording tool
+  'recordFoundationInventoryTransaction', // InventoryTransaction.gs — WPI-7's manually-run doctor/staff transaction-recording tool
+  'createFoundationPillFillOrder', // PillFillOrder.gs — WPI-8's manually-run doctor/staff order-creation tool
+  'fulfillFoundationPillFillOrder', // PillFillOrder.gs — WPI-8's manually-run doctor/staff fulfillment tool
+  'updateFoundationPillFillOrderStatus' // PillFillOrder.gs — WPI-8's manually-run doctor/staff status-transition tool
 ];
 
 // Underscore-suffixed pure accessor functions, correctly unused *within

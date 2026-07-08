@@ -1,5 +1,5 @@
 # 24 - Wise Product Roadmap
-## Version 1.17 — 2026-07-16
+## Version 1.18 — 2026-07-16
 
 # Phase 1 — Public Website
 Status: In Progress
@@ -602,9 +602,10 @@ underway: Batch WPI-1 (Doctor Identity & Session) shipped 2026-07-16, Batch WPI-
 (Specialty Registry) shipped 2026-07-16, Batch WPI-3 (Doctor Module Registry,
 backend) shipped 2026-07-16, Batch WPI-4 (Doctor Dashboard, frontend consumer)
 shipped 2026-07-16, Batch WPI-5 (Appointment) shipped 2026-07-16, Batch WPI-6
-(Notification, unification) shipped 2026-07-16, and Batch WPI-7 (Inventory) shipped
-2026-07-16, each explicitly approved and scoped to its own batch only. No later batch
-(WPI-8 onward) is authorized to begin.**
+(Notification, unification) shipped 2026-07-16, Batch WPI-7 (Inventory) shipped
+2026-07-16, and Batch WPI-8 (PillFill Integration) shipped 2026-07-16, each explicitly
+approved and scoped to its own batch only. No later batch (WPI-9 onward) is authorized
+to begin.**
 
 Renamed from "WiseOS" per this architecture-freeze pass (docs/49 §2) — no scope
 change from the rename itself. **Reordered ahead of Phase 2C (Health Milestones) and
@@ -642,7 +643,7 @@ unscoped placeholder, mirroring PXP-9's own precedent exactly**) → WPI-11 (Hol
 **reserved, unscoped placeholder; no existing document defines this item's purpose at
 all**) → WPI-12 (Closeout).
 
-**No WPI batch beyond WPI-7 is authorized to begin by any of the above documents.**
+**No WPI batch beyond WPI-8 is authorized to begin by any of the above documents.**
 Each requires its own separate, explicit approval, per docs/53's per-batch gate — the
 same discipline every Phase 2B batch already passed through. Two documentation-only
 closures identified by docs/51's readiness review were resolved within this same
@@ -900,6 +901,45 @@ updated since Batch WPI-4 despite Batch WPI-5's own real JSON/`.gs` change — n
 shape, schema, or shipped behavior changed by any of these corrections. Zero
 modification to any frozen Foundation/Identity & Access/Patient
 Access/PXP-1..11/WPI-1..6 file. **No batch beyond WPI-7 is authorized by this
+approval.**
+
+**Batch WPI-8 (PillFill Integration, docs/50 §11/§19)** — a consumer of Inventory
+(draws down `InventoryItem` on fulfillment) and the already-shipped `DoctorInstruction`
+(PXP-7), with WPI-7 as its one dependency, already shipped — has also now shipped:
+`PillFillOrder` (`shared/schemas/pillfill-order.schema.json`,
+`apps-script/PillFillOrder.gs`) connects a `medicine`-type Doctor Instruction (docs/33
+§2.3's "Prescription is a `medicine`-type Doctor Instruction" mapping) to fulfillment,
+ships exactly as docs/50 §11 designed, plus one disclosed, additive `created_by`
+provenance field mirroring `appointment.schema.json`'s/`inventory-item.schema.json`'s
+own precedent. Doctor/staff-owned, never patient-facing — every write (order creation,
+the dedicated fulfill operation, and every other status transition) remains a
+manually-run Apps Script editor function, mirroring `Appointment.gs`'s/
+`InventoryItem.gs`'s precedent exactly, the same "doctor/staff-owned entity writes stay
+manually-run" discipline every prior WPI batch has continued even though a real
+`DoctorSession` already exists. **The one operation with side effects,**
+`foundationFulfillPillFillOrder_()`, reuses `InventoryTransaction.gs`'s existing,
+unmodified `foundationRecordInventoryTransaction_()` (reason `dispense`) — the platform's
+first real, non-manual trigger for that function's `LockService` critical section
+(docs/54 §7/§17's own "the concrete trigger for this becoming real, not just
+theoretical") — and `Notification.gs`'s existing, unmodified
+`foundationRecordNotification_()` (type `pillfill_order_status`), reusing both
+mechanisms rather than inventing parallel ones; if the InventoryTransaction call fails
+for any reason, including a contended lock, the order's own status is never touched, no
+partial fulfillment. Once fulfilled, an order can no longer be cancelled — a disclosed
+boundary, docs/50 §11 designs no reversal mechanism. `PillFillOrder` carries no
+`specialty_slug` of its own; one new, additive, read-only `FoundationRouter.gs` dispatch
+case (`get_pillfill_orders`) returns the caller's own PillFill Orders, specialty-scoped
+by joining each order to its own referenced `InventoryItem` — the same
+specialty-derivation discipline `InventoryItem.gs`'s own view already established. The
+Doctor Dashboard's Doctor Module Registry gains its fourth real entry,
+`pillfill_orders` (`shared/constants/doctor-module-registry.json` version 1.3.0 →
+1.4.0, `display_order: 40`) — the Doctor Dashboard (`doctor-dashboard/dashboard.js`)
+renders one new, read-only card, structurally parallel to the Patient
+Roster/Appointments/Inventory cards, no write affordance. No external PillFill vendor
+API, webhook, or integration contract is designed or built — this batch is the
+platform's own internal order-and-fulfillment record only (docs/50 §11's own explicit
+restraint). Zero modification to any frozen Foundation/Identity & Access/Patient
+Access/PXP-1..11/WPI-1..7 file. **No batch beyond WPI-8 is authorized by this
 approval.**
 
 # Guiding Principle

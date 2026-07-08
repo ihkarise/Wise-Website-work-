@@ -228,6 +228,25 @@
  *     computed low_stock boolean — the same specialty-scoping discipline
  *     the patient roster/appointments views already establish.
  *
+ *   - get_pillfill_orders — Batch WPI-8 addition (docs/50-PHASE-3-
+ *     TECHNICAL-PLAN.md §11/§19), the Doctor Dashboard's fourth capability
+ *     (PillFillOrder.gs, registered as shared/constants/
+ *     doctor-module-registry.json's `pillfill_orders` entry). Read-only —
+ *     every PillFillOrder write (create, fulfill, and every other status
+ *     transition) is doctor/staff-only and remains a manually-run Apps
+ *     Script editor function (PillFillOrder.gs's
+ *     createFoundationPillFillOrder()/fulfillFoundationPillFillOrder()/
+ *     updateFoundationPillFillOrderStatus()), mirroring every earlier
+ *     doctor/staff-only entity's precedent exactly — there is no create/
+ *     fulfill/status-update route reachable over HTTP. doctor_id is
+ *     derived only from a verified DoctorSession, mirroring
+ *     get_inventory_items exactly. Returns the doctor's specialty-scoped
+ *     PillFillOrder list (PillFillOrder.gs's
+ *     foundationGetPillFillOrdersForDoctor_()), specialty derived via each
+ *     order's own referenced InventoryItem (this entity carries no
+ *     specialty_slug of its own) — the same specialty-scoping discipline
+ *     the patient roster/appointments/inventory views already establish.
+ *
  * A disclosed, additive exception, same category as Code.gs's own
  * one-line dispatch shim (IA-2): this file was previously listed among
  * Identity & Access's six files "frozen except for bug fixes"
@@ -686,6 +705,21 @@ function foundationHandleGetInventoryItems_(input) {
 }
 
 /**
+ * Batch WPI-8: returns the caller's own specialty-scoped PillFillOrder list
+ * (PillFillOrder.gs) — the Doctor Dashboard's fourth capability this batch
+ * registers (`pillfill_orders`, doctor-module-registry.json). doctor_id is
+ * always DoctorSession-derived, never client-supplied. Read-only — every
+ * PillFillOrder write is doctor/staff-only via a manually-run Apps Script
+ * editor function (PillFillOrder.gs's own header comment); no write route
+ * exists here.
+ */
+function foundationHandleGetPillFillOrders_(input) {
+  return withFoundationDoctorAuth_(input && input.session_token, function (doctorId) {
+    return foundationGetPillFillOrdersForDoctor_(doctorId);
+  });
+}
+
+/**
  * Serializes a response-envelope-shaped value to the wire. Apps Script
  * Web Apps cannot set a real HTTP status code (every response transports
  * as HTTP 200 regardless — the same platform fact Code.gs's own
@@ -801,6 +835,9 @@ function handleFoundationRequest_(input) {
       break;
     case 'get_inventory_items':
       envelope = foundationHandleGetInventoryItems_(input);
+      break;
+    case 'get_pillfill_orders':
+      envelope = foundationHandleGetPillFillOrders_(input);
       break;
     default:
       envelope = buildFoundationErrorEnvelope_('FOUNDATION_UNKNOWN_ACTION', 'Unknown request.');
