@@ -72,7 +72,7 @@ authorized by this change.**
   proof that Module Registry/Calculator Registry are unchanged by this batch.
 - Phase 1.5 Regression (`validation/phase-1-5/validate.js`) — 42/42 passing, unchanged.
 - All 10 existing browser-test suites — unaffected (WPI-2 ships no frontend page),
-  re-verified passing (229 checks, 0 failures).
+  re-verified passing (249 checks, 0 failures).
 
 ### Documentation
 - `docs/33-DOMAIN-MODEL.md` — §7.2 and the Summary Table: Specialty promoted from
