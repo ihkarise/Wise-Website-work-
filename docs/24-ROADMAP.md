@@ -620,9 +620,11 @@ Architecture: docs/49-PHASE-3-ARCHITECTURE-REVIEW.md (vision, scope decision, fo
 pillars), docs/50-PHASE-3-TECHNICAL-PLAN.md (entity-level design),
 docs/51-PHASE-3-ARCHITECTURE-READINESS-REVIEW.md (critique), docs/52-PHASE-3-
 REPOSITORY-CONSISTENCY-REVIEW.md (consistency check), docs/53-PHASE-3-IMPLEMENTATION-
-RULES.md (permanent per-batch governance standard), and four new ADRs: ADR-017
-(Doctor Identity), ADR-018 (Specialty-Scoped Registries), ADR-019 (AI/Advanced
-Extension Points Reserved Platform-Wide), ADR-020 (Doctor Dashboard Registry-Driven).
+RULES.md (permanent per-batch governance standard), docs/54-SHEETS-PRODUCTION-SCALE-
+REVIEW.md (the dedicated capacity review closing the WPI-7/WPI-9 Sheets-at-scale gate),
+and four new ADRs: ADR-017 (Doctor Identity), ADR-018 (Specialty-Scoped Registries),
+ADR-019 (AI/Advanced Extension Points Reserved Platform-Wide), ADR-020 (Doctor
+Dashboard Registry-Driven).
 
 **Four pillars** (docs/49 §4): Doctor Identity & Access, Doctor-Facing
 Registry-Driven Capabilities, Specialty-Scoped Extensibility, and Reserved AI/Advanced
@@ -646,8 +648,13 @@ closures identified by docs/51's readiness review were resolved within this same
 version (docs/52 §1.1/Part 5): the "WiseOS" cross-reference in docs/33 §1.4, and an
 explicit disclosure of the patient-roster derivation's limitation at
 multi-doctor-per-specialty scale (docs/50 §7.4). The Sheets-at-production-scale
-question (docs/49 §7) remains an open gate before WPI-7/WPI-9 — named, not resolved, by
-this architecture-freeze pass.
+question (docs/49 §7), named as a gate before WPI-7/WPI-9 specifically (docs/51 Part 3
+item 1/Part 5, docs/52), is now **closed by docs/54-SHEETS-PRODUCTION-SCALE-REVIEW.md
+(2026-07-08)** — Green zone at clinic launch and Year 1, Yellow-adjacent (not Red)
+through Year 5 projections, conditional on WPI-7 shipping docs/54 §19's required
+`LockService` mitigation for `InventoryItem.quantity_on_hand`. **This closes the named
+pre-condition only — it does not itself authorize WPI-7 (or WPI-9) to begin; each still
+requires its own separate, explicit approval per docs/53 §13, unchanged.**
 
 **Batch WPI-1 (Doctor Identity & Session, docs/50 §5, ADR-017)** — Pillar 1, the
 platform's first doctor-facing infrastructure batch — has now shipped, preceded by a
