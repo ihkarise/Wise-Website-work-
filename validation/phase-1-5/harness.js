@@ -29,6 +29,24 @@
  * other direction). This lets validate.js prove the dispatch shim itself
  * — that it delegates correctly and *before* any Phase 1.5 logic runs —
  * without pulling any Foundation-family source into this harness at all.
+ *
+ * Extended in Phase 3/WHIMS Batch WPI-6 (docs/50-PHASE-3-TECHNICAL-PLAN.md
+ * Section 9, shared/schemas/notification.md) with the small set of
+ * Foundation-family files apps-script/Send.gs's own new, disclosed call to
+ * foundationRecordNotification_() now requires at load time
+ * (FoundationConfig.gs, FoundationContracts.gs, FoundationErrorHandling.gs,
+ * FoundationUtils.gs, FoundationDataStore.gs, Notification.gs) - the one
+ * genuine exception to this file's own "stays scoped to Phase 1.5's files"
+ * discipline stated above, forced by WPI-6's own cross-domain design
+ * (docs/50 Section 9: "each existing sender writes a Notification row in
+ * addition to its own existing behavior"), not a silent scope drift.
+ * SpreadsheetApp gains an openById() mock (FoundationDataStore.gs's own
+ * Patient-domain spreadsheet accessor), backed by a small, generic fake
+ * spreadsheet/sheet pair mirroring validation/phase-2a-foundation/
+ * harness.js's own makeFakeSpreadsheet()/makeFakeSheet() exactly - entirely
+ * separate in-memory state from Phase 1.5's own
+ * Phase1.5_ConsultationSummaries fake sheet above, the same real-world
+ * separation FoundationConfig.gs's PATIENT_SPREADSHEET_ID already keeps.
  */
 
 const fs = require('fs');
@@ -38,7 +56,13 @@ const vm = require('vm');
 const APPS_SCRIPT_DIR = path.resolve(__dirname, '../../apps-script');
 const FILES = [
   'Config.gs', 'Schema.gs', 'Validation.gs', 'Auth.gs', 'Utils.gs', 'Logger.gs',
-  'Sheets.gs', 'Ai.gs', 'Send.gs', 'Email.gs', 'Review.gs', 'Retention.gs',
+  'Sheets.gs', 'Ai.gs',
+  // Batch WPI-6 (docs/50 Section 9): the minimal Foundation-family set
+  // Send.gs's own new, disclosed foundationRecordNotification_() call
+  // requires at load time — see this file's own header comment.
+  'FoundationConfig.gs', 'FoundationContracts.gs', 'FoundationErrorHandling.gs',
+  'FoundationUtils.gs', 'FoundationDataStore.gs', 'Notification.gs',
+  'Send.gs', 'Email.gs', 'Review.gs', 'Retention.gs',
   'Code.gs', 'Tests.gs'
 ];
 
@@ -73,10 +97,52 @@ function makeFakeSheet() {
   };
 }
 
+// ---------- Fake in-memory Foundation-domain spreadsheet (Batch WPI-6) ----------
+// A small, generic sheet/spreadsheet pair for FoundationDataStore.gs's own
+// Patient-domain spreadsheet (SpreadsheetApp.openById()) - entirely
+// separate in-memory state from makeFakeSheet() above, mirroring
+// validation/phase-2a-foundation/harness.js's own makeFakeSheet()/
+// makeFakeSpreadsheet() exactly.
+function makeFakeFoundationSheet() {
+  let header = null;
+  const rows = [];
+  return {
+    getLastColumn: () => (header ? header.length : 0),
+    getLastRow: () => rows.length + 1,
+    getRange: (r, c, numRows, numCols) => ({
+      getValues: () => {
+        if (r === 1 && numRows === 1) return [header];
+        const out = [];
+        for (let i = 0; i < numRows; i++) {
+          const rowIdx = r - 2 + i;
+          out.push(rows[rowIdx] ? rows[rowIdx].slice(c - 1, c - 1 + numCols) : []);
+        }
+        return out;
+      },
+      setValue: (v) => { rows[r - 2][c - 1] = v; }
+    }),
+    appendRow: (rowArray) => {
+      if (!header) { header = rowArray.slice(); return; }
+      rows.push(rowArray.slice());
+    },
+    _debug: () => ({ header, rows })
+  };
+}
+
+function makeFakeFoundationSpreadsheet() {
+  const sheetsByName = {};
+  return {
+    getSheetByName: (name) => sheetsByName[name] || null,
+    insertSheet: (name) => { const s = makeFakeFoundationSheet(); sheetsByName[name] = s; return s; },
+    _sheetsByName: sheetsByName
+  };
+}
+
 // ---------- Build the mocked global environment ----------
 function buildSandbox(opts) {
   opts = opts || {};
   const sheet = makeFakeSheet();
+  const foundationSpreadsheet = makeFakeFoundationSpreadsheet();
   const scriptProperties = Object.assign({}, opts.scriptProperties || {});
   const executionLog = [];
   const mailLog = [];
@@ -94,6 +160,9 @@ function buildSandbox(opts) {
         insertSheet: () => sheet
       }),
       getActiveSheet: () => sheet,
+      // Batch WPI-6: FoundationDataStore.gs's own Patient-domain spreadsheet
+      // accessor, entirely separate in-memory state from `sheet` above.
+      openById: () => foundationSpreadsheet,
       getUi: () => ({
         createMenu: () => ({
           addItem: function () { return this; },
@@ -155,7 +224,7 @@ function buildSandbox(opts) {
     Object, JSON, Date, Array, String, Number, RegExp, Math, Error, isNaN
   };
   sandbox.global = sandbox;
-  return { sandbox, sheet, scriptProperties, executionLog, mailLog, triggers,
+  return { sandbox, sheet, foundationSpreadsheet, scriptProperties, executionLog, mailLog, triggers,
     setUrlFetchImpl: (fn) => { urlFetchImpl = fn; },
     setMailImpl: (fn) => { mailImpl = fn; },
     setSessionEmail: (email) => { sessionEmail = email; },

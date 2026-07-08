@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wisehomeopathy.com/shared/schemas/notification.schema.json",
+  "title": "Notification",
+  "version": "1.0.0",
+  "description": "The canonical shape of a Notification record — docs/50-PHASE-3-TECHNICAL-PLAN.md §9's design, Phase 3/WHIMS Batch WPI-6 (docs/50 §19), governed by docs/53-PHASE-3-IMPLEMENTATION-RULES.md. A shared *record* of what was sent, never a new delivery pipeline (docs/50 §9's own words) — every existing sender keeps its own transport code and additionally writes a Notification row. patient_id and doctor_id are both nullable (empty-string sentinel), mirroring appointment.schema.json's own convention: exactly one of patient_id, doctor_id, or recipient_email is non-empty per row, never more than one identity field. System-generated only (docs/50 §9's 'Ownership: System-generated only, mirroring Session's own ownership model') — no human ever authors or edits a row directly. See notification.md for the full disclosure, including the recipient_email fallback field this batch adds for Phase 1.5's visit-summary flow, which predates Patient Identity and has no patient_id to reference.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["notification_id", "patient_id", "doctor_id", "recipient_email", "channel", "type", "status", "sent_at"],
+  "properties": {
+    "notification_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "This row's own identity column (UUID), server-generated. Never staff-supplied, never patient-supplied, never doctor-supplied."
+    },
+    "patient_id": {
+      "type": "string",
+      "description": "The Patient Identity this notification concerns (docs/33 §1.2, ADR-002), if this notification is patient-scoped. Empty-string sentinel otherwise, mirroring appointment.schema.json's own nullable convention. Never both this and doctor_id non-empty on the same row."
+    },
+    "doctor_id": {
+      "type": "string",
+      "description": "The Doctor this notification concerns (docs/33 §1.4, ADR-017), if this notification is doctor-scoped. Empty-string sentinel otherwise. Never both this and patient_id non-empty on the same row."
+    },
+    "recipient_email": {
+      "type": "string",
+      "description": "A disclosed, additive fallback field beyond docs/50 §9's literal attribute list — necessary for Phase 1.5's visit-summary flow, which predates Patient Identity entirely and has only a recipient_email, never a patient_id (apps-script/Schema.gs's own ConsultationSummary row shape). Empty-string sentinel when patient_id or doctor_id is already populated. Never all three of patient_id, doctor_id, and recipient_email empty on the same row — every Notification has some subject reference."
+    },
+    "channel": {
+      "type": "string",
+      "enum": ["email"],
+      "description": "The delivery channel used. Only 'email' exists today (docs/50 §9's 'email today; extensible') — a future in-app or SMS channel would add a value here, never branch on a hardcoded channel name elsewhere in framework code."
+    },
+    "type": {
+      "type": "string",
+      "enum": ["login_link", "visit_summary", "appointment_reminder", "inventory_low_stock", "pillfill_order_status"],
+      "description": "Which flow produced this notification (docs/50 §9). 'login_link' covers both the patient (apps-script/FoundationLoginFlow.gs) and doctor (apps-script/DoctorLoginFlow.gs) magic-link flows — the populated patient_id/doctor_id field disambiguates which. 'visit_summary' is Phase 1.5's existing email (apps-script/Send.gs). 'appointment_reminder', 'inventory_low_stock', and 'pillfill_order_status' are reserved for future WPI-7/WPI-8 flows that do not exist yet — named here so this schema does not need a breaking change when each is built, never populated by this batch's own code."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["sent", "failed", "read"],
+      "description": "This notification's outcome. 'sent'/'failed' reflect the underlying transport's own real result, set at write time by whichever sender produced this row. 'read' is reserved for a future in-app channel (docs/50 §9 names it in the enum) — no code in this batch ever sets it, since only the 'email' channel exists today."
+    },
+    "sent_at": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Server-set at write time (foundationNowIso_()), ISO 8601 UTC date-time — when the underlying send was attempted, regardless of whether it succeeded. Never staff-supplied, never patient-supplied, never doctor-supplied."
+    }
+  }
+}

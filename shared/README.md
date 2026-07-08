@@ -185,6 +185,18 @@ a Consultation, closing docs/20 §3's "THE GAP" for the first time; nullable
 (1.1.0 → 1.2.0) to add this registry's second real entry, `appointments`, backed by a
 new, real, authenticated data_source route (`get_doctor_appointments`). No other
 `shared/` file changed in this batch.
+Phase 3/WHIMS Batch WPI-6 added `schemas/notification.schema.json` (the `Notification`
+record shape — docs/50 §9, a shared record of what was sent, never a new delivery
+pipeline; nullable `patient_id`/`doctor_id` mirroring `appointment.schema.json`'s own
+convention, plus a disclosed, additive `recipient_email` fallback field for Phase 1.5's
+visit-summary flow, which predates Patient Identity entirely, alongside its first
+implementation, `apps-script/Notification.gs`). Three existing sender flows
+(`apps-script/FoundationLoginFlow.gs`, `apps-script/DoctorLoginFlow.gs`, and Phase
+1.5's `apps-script/Send.gs`) each gain one additional, disclosed statement recording
+their own already-completed send attempt as a Notification row — no sender's own gate,
+transport, or return value changes. System-generated only, mirroring
+`schemas/session.schema.json`'s own ownership model — zero `FoundationRouter.gs`
+dispatch case ships in this batch. No other `shared/` file changed in this batch.
 
 ---
 

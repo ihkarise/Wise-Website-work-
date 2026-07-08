@@ -8,6 +8,84 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-16 — Phase 3 Batch WPI-6: Notification (unification)
+
+Implements Batch WPI-6 (docs/50-PHASE-3-TECHNICAL-PLAN.md §9/§19), a consumer with no
+structural dependency on any prior WPI batch, per
+docs/53-PHASE-3-IMPLEMENTATION-RULES.md's per-batch gate. **Explicitly scoped to
+WPI-6 only — no later batch (WPI-7 onward) is authorized by this change.**
+
+### Added (schema)
+- **`shared/schemas/notification.schema.json`** (new, version 1.0.0, + `.md`) — the
+  `Notification` record shape (docs/50 §9): nullable `patient_id`/`doctor_id`
+  (empty-string sentinel, never both non-empty on the same row), a disclosed, additive
+  `recipient_email` fallback field for Phase 1.5's visit-summary flow (which predates
+  Patient Identity entirely), a closed `channel`/`type`/`status` enum set, and a
+  server-set `sent_at`.
+
+### Added (Apps Script)
+- **`apps-script/Notification.gs`** (new) — `foundationRecordNotification_()`
+  (system-generated only — no manually-run editor function, mirroring `Session`'s own
+  ownership model) plus two internal-only read helpers,
+  `foundationGetNotificationsForPatient_()`/`foundationGetNotificationsForDoctor_()`,
+  neither reachable over HTTP in this batch.
+
+### Changed (disclosed, additive touch to three existing sender files)
+- **`apps-script/FoundationLoginFlow.gs`** (`foundationHandleRequestLoginLink_`) — one
+  additional statement recording the patient login-link send's real result as a
+  Notification row. Gate, transport, and return value unchanged.
+- **`apps-script/DoctorLoginFlow.gs`** (`foundationHandleRequestDoctorLoginLink_`) —
+  mirrors the above exactly, `doctor_id` in place of `patient_id`.
+- **`apps-script/Send.gs`** (`attemptSend_`) — Phase 1.5's own file, gaining its
+  first-ever dependency on a Foundation-family function (reachable only because both
+  domains share one Apps Script project, docs/29 §14 Decision 1). Records the
+  visit-summary send's real result with `recipient_email` as the subject reference
+  (no `patient_id` exists in Phase 1.5's `ConsultationSummary` row). Gate, transport,
+  and return value unchanged.
+
+### What this batch deliberately does not do
+- **No `FoundationRouter.gs` dispatch case.** Zero patient- or doctor-facing route in
+  this batch — mirrors `Session`'s "no get-my-session route either" precedent, a
+  disclosed departure from `CalculatorResult`'s "backend only, but still routed" one.
+- **No retrofit of Inventory/PillFill flows.** Neither exists yet (WPI-7/WPI-8); each
+  adopts this same mechanism when its own batch builds it.
+- No modification to any frozen Foundation/Identity & Access/Patient
+  Access/PXP-1..11/WPI-1..5 file beyond the three disclosed sender-file exceptions
+  above.
+
+### Validation
+- Static Analysis (`validation/static-analysis/analyze.js`) — PASS, 0 findings (56
+  files scanned; the two new internal-only read helpers added to the
+  `INFRASTRUCTURE_AHEAD_OF_CONSUMER` allowlist, disclosed as zero-route-by-design, not
+  an oversight).
+- Conformance (`validation/phase-2a-foundation/conformance.js`) — 568/568 passing (new
+  Stage 22, 23 checks: exactly-one-subject-reference validation rejections, schema
+  conformance for patient-scoped/doctor-scoped/recipient-email-only records,
+  cross-patient and cross-doctor isolation on both read helpers, real end-to-end
+  integration through the unmodified `FoundationLoginFlow.gs`/`DoctorLoginFlow.gs`,
+  the anti-enumeration proof that an unmatched login-link request writes no row at
+  all, and a zero-lines-touched proof against Appointment/Specialty Registry/Doctor
+  Module Registry).
+- Phase 1.5 Regression (`validation/phase-1-5/validate.js`) — 45/45 passing (3 new
+  checks: a successful visit-summary send records a matching Notification row, a
+  failed send records one with `status: failed`, and a gate-blocked attempt records
+  none at all). `validation/phase-1-5/harness.js` extended with the minimal
+  Foundation-family file set `Send.gs`'s own new call requires at load time, plus a
+  `SpreadsheetApp.openById()` mock backed by an entirely separate in-memory fake
+  spreadsheet from Phase 1.5's own — the one disclosed exception to this harness's
+  previously-stated "stays scoped to Phase 1.5's files" discipline, forced by this
+  batch's cross-domain design, not a silent scope drift.
+- All 12 existing browser-test suites — unaffected (zero UI/frontend change in this
+  batch), re-verified passing (283 checks total, 0 failures).
+
+### Documentation
+- `docs/33-DOMAIN-MODEL.md` — §4.2 (Notification) status update appended, promoted to
+  Implemented; version bumped 1.17 → 1.18.
+- `docs/24-ROADMAP.md` — Phase 3 status updated; WPI-6 entry added; authorization gate
+  advanced to WPI-7.
+- `shared/README.md` — new paragraph for this batch's schema addition and the three
+  disclosed sender-file touches.
+
 ## 2026-07-16 — Phase 3 Batch WPI-5: Appointment
 
 Implements Batch WPI-5 (docs/50-PHASE-3-TECHNICAL-PLAN.md §8/§19), a consumer of

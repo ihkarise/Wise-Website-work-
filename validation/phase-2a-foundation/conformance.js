@@ -270,6 +270,7 @@ var conditionSpecialtyMapConstant = JSON.parse(fs.readFileSync(path.join(SHARED_
 var doctorModuleStateSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/doctor-module-state.schema.json'), 'utf8'));
 var doctorModuleRegistryConstant = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'constants/doctor-module-registry.json'), 'utf8'));
 var appointmentSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/appointment.schema.json'), 'utf8'));
+var notificationSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/notification.schema.json'), 'utf8'));
 
 var results = [];
 function record(name, pass, detail) {
@@ -3133,6 +3134,148 @@ var ctx = loadProject(h.sandbox);
     ctx.foundationGetPatientConditionAssignments_(patientDawn.data.patient_id).status === 'ok');
   record('Stage21: Specialty Registry is untouched by this batch — still the one seeded homeopathy entry, per Stage 18',
     ctx.foundationGetSpecialtyRegistry_().length === 1 && ctx.foundationGetSpecialtyRegistry_()[0].specialty_slug === 'homeopathy');
+})();
+
+// ============================================================
+// Stage 22 — Phase 3/WHIMS Batch WPI-6: Notification (unification)
+// docs/50-PHASE-3-TECHNICAL-PLAN.md §9/§19, shared/schemas/
+// notification.schema.json, apps-script/Notification.gs, plus this batch's
+// disclosed, additive touch to three existing sender flows
+// (FoundationLoginFlow.gs, DoctorLoginFlow.gs — both exercised here end to
+// end; apps-script/Send.gs's own equivalent integration is
+// validation/phase-1-5/validate.js's Stage4, since Send.gs is a Phase 1.5
+// file this harness deliberately does not load). This stage's
+// highest-priority checks are: exactly-one-subject-reference validation
+// (never both patient_id and doctor_id, never all three of patient_id/
+// doctor_id/recipient_email empty); every real sender flow above actually
+// writes a Notification row with the transport's own real status, not a
+// hardcoded 'sent'; an unmatched login-link request (docs/29 §3's
+// anti-enumeration case) writes no row at all; and every new record
+// conforms to notification.schema.json.
+// ============================================================
+(function stage22_notification() {
+  var patientNotif = ctx.foundationCreatePatient_({
+    full_name: 'Stage22 Patient', email: 'stage22-patient@example.com', condition_slug: 'mcas', created_by: 'staff-1'
+  });
+  record('Stage22: setup — a real patient exists', patientNotif.status === 'ok');
+  var otherPatientNotif = ctx.foundationCreatePatient_({
+    full_name: 'Stage22 Other Patient', email: 'stage22-other-patient@example.com', condition_slug: 'mcas', created_by: 'staff-1'
+  });
+
+  var doctorNotif = ctx.foundationCreateDoctor_({
+    full_name: 'Stage22 Doctor', role: 'physician', email: 'stage22-doctor@example.com',
+    specialty_slug: 'homeopathy', created_by: 'conformance-harness'
+  });
+  record('Stage22: setup — a real doctor exists', doctorNotif.status === 'ok');
+  var otherDoctorNotif = ctx.foundationCreateDoctor_({
+    full_name: 'Stage22 Other Doctor', role: 'physician', email: 'stage22-other-doctor@example.com',
+    specialty_slug: 'homeopathy', created_by: 'conformance-harness'
+  });
+
+  // ---- Validation rejections ----
+  var missingChannel = ctx.foundationRecordNotification_({ patient_id: patientNotif.data.patient_id, type: 'login_link', status: 'sent' });
+  record('Stage22: foundationRecordNotification_() rejects a missing/invalid channel',
+    missingChannel.status === 'error' && missingChannel.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var badType = ctx.foundationRecordNotification_({ patient_id: patientNotif.data.patient_id, channel: 'email', type: 'not_a_real_type', status: 'sent' });
+  record('Stage22: foundationRecordNotification_() rejects a type value outside the reserved enum',
+    badType.status === 'error' && badType.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var badStatus = ctx.foundationRecordNotification_({ patient_id: patientNotif.data.patient_id, channel: 'email', type: 'login_link', status: 'read' });
+  record('Stage22: foundationRecordNotification_() rejects status "read" — reserved for a future in-app channel, never writable by this batch\'s own code',
+    badStatus.status === 'error' && badStatus.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var bothIdentities = ctx.foundationRecordNotification_({
+    patient_id: patientNotif.data.patient_id, doctor_id: doctorNotif.data.doctor_id, channel: 'email', type: 'login_link', status: 'sent'
+  });
+  record('Stage22: foundationRecordNotification_() rejects patient_id and doctor_id both non-empty on the same row',
+    bothIdentities.status === 'error' && bothIdentities.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var noSubjectAtAll = ctx.foundationRecordNotification_({ channel: 'email', type: 'visit_summary', status: 'sent' });
+  record('Stage22: foundationRecordNotification_() rejects a row with none of patient_id, doctor_id, or recipient_email set',
+    noSubjectAtAll.status === 'error' && noSubjectAtAll.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  // ---- Successful creation — patient-scoped ----
+  var patientScoped = ctx.foundationRecordNotification_({
+    patient_id: patientNotif.data.patient_id, channel: 'email', type: 'login_link', status: 'sent'
+  });
+  record('Stage22: foundationRecordNotification_() succeeds for a patient-scoped row',
+    patientScoped.status === 'ok' && patientScoped.data.patient_id === patientNotif.data.patient_id &&
+    patientScoped.data.doctor_id === '' && patientScoped.data.recipient_email === '');
+  var patientScopedValidation = validate(notificationSchema, patientScoped.data);
+  record('Stage22: a patient-scoped Notification record conforms to notification.schema.json',
+    patientScopedValidation.valid === true, patientScopedValidation.errors.join('; '));
+
+  // ---- Successful creation — doctor-scoped, status failed ----
+  var doctorScoped = ctx.foundationRecordNotification_({
+    doctor_id: doctorNotif.data.doctor_id, channel: 'email', type: 'login_link', status: 'failed'
+  });
+  record('Stage22: foundationRecordNotification_() succeeds for a doctor-scoped row with status failed',
+    doctorScoped.status === 'ok' && doctorScoped.data.doctor_id === doctorNotif.data.doctor_id &&
+    doctorScoped.data.patient_id === '' && doctorScoped.data.status === 'failed');
+  var doctorScopedValidation = validate(notificationSchema, doctorScoped.data);
+  record('Stage22: a doctor-scoped Notification record conforms to notification.schema.json',
+    doctorScopedValidation.valid === true, doctorScopedValidation.errors.join('; '));
+
+  // ---- Successful creation — recipient_email only (Phase 1.5's visit-summary flow, no Patient Identity to reference) ----
+  var emailOnlyScoped = ctx.foundationRecordNotification_({
+    recipient_email: 'legacy-recipient@example.com', channel: 'email', type: 'visit_summary', status: 'sent'
+  });
+  record('Stage22: foundationRecordNotification_() succeeds with only recipient_email set — Phase 1.5\'s visit-summary flow predates Patient Identity',
+    emailOnlyScoped.status === 'ok' && emailOnlyScoped.data.patient_id === '' && emailOnlyScoped.data.doctor_id === '' &&
+    emailOnlyScoped.data.recipient_email === 'legacy-recipient@example.com');
+  var emailOnlyValidation = validate(notificationSchema, emailOnlyScoped.data);
+  record('Stage22: a recipient_email-only Notification record conforms to notification.schema.json',
+    emailOnlyValidation.valid === true, emailOnlyValidation.errors.join('; '));
+
+  // ---- foundationGetNotificationsForPatient_()/foundationGetNotificationsForDoctor_() — cross-subject isolation ----
+  var patientNotifications = ctx.foundationGetNotificationsForPatient_(patientNotif.data.patient_id);
+  record('Stage22: foundationGetNotificationsForPatient_() returns exactly this patient\'s own row, never another\'s',
+    patientNotifications.status === 'ok' && patientNotifications.data.length === 1 &&
+    patientNotifications.data[0].notification_id === patientScoped.data.notification_id);
+
+  var otherPatientNotifications = ctx.foundationGetNotificationsForPatient_(otherPatientNotif.data.patient_id);
+  record('Stage22: foundationGetNotificationsForPatient_() returns an empty list for a patient with no Notification rows — cross-patient isolation',
+    otherPatientNotifications.status === 'ok' && otherPatientNotifications.data.length === 0);
+
+  var doctorNotifications = ctx.foundationGetNotificationsForDoctor_(doctorNotif.data.doctor_id);
+  record('Stage22: foundationGetNotificationsForDoctor_() returns exactly this doctor\'s own row, never another\'s',
+    doctorNotifications.status === 'ok' && doctorNotifications.data.length === 1 &&
+    doctorNotifications.data[0].notification_id === doctorScoped.data.notification_id);
+
+  var otherDoctorNotifications = ctx.foundationGetNotificationsForDoctor_(otherDoctorNotif.data.doctor_id);
+  record('Stage22: foundationGetNotificationsForDoctor_() returns an empty list for a doctor with no Notification rows — cross-doctor isolation',
+    otherDoctorNotifications.status === 'ok' && otherDoctorNotifications.data.length === 0);
+
+  // ---- Real sender-flow integration, end to end — apps-script/FoundationLoginFlow.gs ----
+  h.mailLog.length = 0; // isolate this request's email from anything an earlier stage sent
+  ctx.foundationHandleRequestLoginLink_({ email: patientNotif.data.email });
+  var afterPatientLogin = ctx.foundationGetNotificationsForPatient_(patientNotif.data.patient_id);
+  record('Stage22: foundationHandleRequestLoginLink_() (real, unmodified FoundationLoginFlow.gs) records a Notification row for a matched patient — type login_link, status sent',
+    afterPatientLogin.status === 'ok' && afterPatientLogin.data.length === 2 &&
+    afterPatientLogin.data[0].type === 'login_link' && afterPatientLogin.data[0].status === 'sent' && h.mailLog.length === 1);
+
+  h.mailLog.length = 0;
+  ctx.foundationHandleRequestLoginLink_({ email: 'stage22-no-such-patient@example.com' });
+  var afterUnmatchedLogin = ctx.foundationGetNotificationsForPatient_(otherPatientNotif.data.patient_id);
+  record('Stage22: foundationHandleRequestLoginLink_() with an unmatched email records no Notification row at all — docs/29 §3\'s anti-enumeration discipline unaffected',
+    afterUnmatchedLogin.status === 'ok' && afterUnmatchedLogin.data.length === 0 && h.mailLog.length === 0);
+
+  // ---- Real sender-flow integration, end to end — apps-script/DoctorLoginFlow.gs ----
+  h.mailLog.length = 0;
+  ctx.foundationHandleRequestDoctorLoginLink_({ email: doctorNotif.data.email });
+  var afterDoctorLogin = ctx.foundationGetNotificationsForDoctor_(doctorNotif.data.doctor_id);
+  record('Stage22: foundationHandleRequestDoctorLoginLink_() (real, unmodified DoctorLoginFlow.gs) records a Notification row for a matched doctor — type login_link, status sent, mirroring the patient flow exactly',
+    afterDoctorLogin.status === 'ok' && afterDoctorLogin.data.length === 2 &&
+    afterDoctorLogin.data[0].type === 'login_link' && afterDoctorLogin.data[0].status === 'sent' && h.mailLog.length === 1);
+
+  // ---- Zero-lines-touched proof (docs/50 §3): existing entities this batch does not touch are unchanged ----
+  record('Stage22: Appointment.gs/its schema are untouched by this batch — read only, via the existing foundationDsQuery_ primitive',
+    ctx.foundationGetDoctorAppointments_(doctorNotif.data.doctor_id).status === 'ok');
+  record('Stage22: Specialty Registry is untouched by this batch — still the one seeded homeopathy entry, per Stage 18',
+    ctx.foundationGetSpecialtyRegistry_().length === 1 && ctx.foundationGetSpecialtyRegistry_()[0].specialty_slug === 'homeopathy');
+  record('Stage22: shared/constants/doctor-module-registry.json is untouched by this batch — still exactly two entries, per Stage 21',
+    doctorModuleRegistryConstant.capabilities.length === 2);
 })();
 
 function auditRowsOf(h, eventType) {

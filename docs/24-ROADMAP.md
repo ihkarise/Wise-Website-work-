@@ -601,9 +601,9 @@ Status: **Architecture freeze complete (Version 1.0, 2026-07-16). Implementation
 underway: Batch WPI-1 (Doctor Identity & Session) shipped 2026-07-16, Batch WPI-2
 (Specialty Registry) shipped 2026-07-16, Batch WPI-3 (Doctor Module Registry,
 backend) shipped 2026-07-16, Batch WPI-4 (Doctor Dashboard, frontend consumer)
-shipped 2026-07-16, and Batch WPI-5 (Appointment) shipped 2026-07-16, each explicitly
-approved and scoped to its own batch only. No later batch (WPI-6 onward) is
-authorized to begin.**
+shipped 2026-07-16, Batch WPI-5 (Appointment) shipped 2026-07-16, and Batch WPI-6
+(Notification, unification) shipped 2026-07-16, each explicitly approved and scoped
+to its own batch only. No later batch (WPI-7 onward) is authorized to begin.**
 
 Renamed from "WiseOS" per this architecture-freeze pass (docs/49 §2) — no scope
 change from the rename itself. **Reordered ahead of Phase 2C (Health Milestones) and
@@ -639,7 +639,7 @@ unscoped placeholder, mirroring PXP-9's own precedent exactly**) → WPI-11 (Hol
 **reserved, unscoped placeholder; no existing document defines this item's purpose at
 all**) → WPI-12 (Closeout).
 
-**No WPI batch beyond WPI-5 is authorized to begin by any of the above documents.**
+**No WPI batch beyond WPI-6 is authorized to begin by any of the above documents.**
 Each requires its own separate, explicit approval, per docs/53's per-batch gate — the
 same discipline every Phase 2B batch already passed through. Two documentation-only
 closures identified by docs/51's readiness review were resolved within this same
@@ -797,6 +797,53 @@ one new, read-only card, structurally parallel to the Patient Roster card, no wr
 affordance. Zero modification to any frozen Foundation/Identity & Access/Patient
 Access/PXP-1..11/WPI-1..4 file. **No batch beyond WPI-5 is authorized by this
 approval.**
+
+**Batch WPI-6 (Notification, unification, docs/50 §9/§19)** — a consumer with no
+structural dependency on any prior WPI batch, sequenced after WPI-5 purely so
+Appointment's own future reminder flow can adopt it from day one — has also now
+shipped: `Notification` (`shared/schemas/notification.schema.json`,
+`apps-script/Notification.gs`) promotes docs/33 §4.2 from *Designed* to
+*Implemented*, exactly as docs/50 §9 scoped it — **a shared record of what was sent,
+never a new delivery pipeline.** Every existing sender keeps its own transport code,
+gate logic, and return values completely unchanged; each gains exactly one additional,
+disclosed statement recording its own already-completed send attempt as a
+Notification row. Three currently-real sender flows are unified in this batch:
+`apps-script/FoundationLoginFlow.gs`'s patient login-link email, `apps-script/
+DoctorLoginFlow.gs`'s doctor login-link email (WPI-1), and Phase 1.5's
+`apps-script/Send.gs` visit-summary email — the two future flows docs/50 §9 also
+names (Inventory low-stock, PillFill order-status) do not exist yet and adopt the
+same mechanism when WPI-7/WPI-8 build them. **`patient_id`/`doctor_id` are both
+nullable (empty-string sentinel), mirroring `Appointment`'s own convention — never
+both non-empty on the same row.** A disclosed, additive `recipient_email` fallback
+field (beyond docs/50 §9's literal attribute list) covers Phase 1.5's visit-summary
+flow, which predates Patient Identity entirely and has no `patient_id` of any kind to
+reference — the same category of implementation-time field-level decision
+`Appointment.gs`'s `created_by` already made. **Ownership: system-generated only,
+mirroring Session's own ownership model (docs/50 §9's own words)** — no manually-run
+editor function, and **zero `FoundationRouter.gs` dispatch case ships in this
+batch** (a deliberate, disclosed scope decision: this entity mirrors `Session`'s
+"no get-my-session route either" precedent, not `CalculatorResult`'s "backend only,
+but still routed" one). Two internal-only read helpers
+(`foundationGetNotificationsForPatient_`/`foundationGetNotificationsForDoctor_`)
+satisfy docs/53 §5's create/read requirement and are exercised directly by the
+conformance harness's new Stage 22 — neither is reachable over HTTP yet, the same
+"read primitive exists, no route wraps it yet" shape `foundationDsQuery_()` itself
+had before Batch IA-2. **Disclosed, additive touch to three existing sender
+files** (`FoundationLoginFlow.gs`, `DoctorLoginFlow.gs`, both otherwise
+frozen; `Send.gs`, Phase 1.5's own file, gaining its first-ever dependency on a
+Foundation-family function, reachable only because both domains share one Apps
+Script project per docs/29 §14 Decision 1) — the same "authorized migration when the
+batch's own architecture literally requires it" precedent `PXP-4`/`WPI-4` already
+established for a frozen file, here applied across three files instead of one, since
+docs/51 Part 3 item 5 named this exact "modest, but real" cross-cutting scope as
+sound and expected for this batch. `validation/phase-1-5/harness.js`/`validate.js`
+(Phase 1.5's own, previously Foundation-independent test tooling) and `validation/
+phase-2a-foundation/harness.js`/`conformance.js` are both extended accordingly — the
+former's own stated "stays scoped to Phase 1.5's files" discipline gains its one
+disclosed exception, forced by this batch's cross-domain design, not a silent scope
+drift. Zero modification to any frozen Foundation/Identity & Access/Patient
+Access/PXP-1..11/WPI-1..5 file beyond the three disclosed sender-file exceptions
+above. **No batch beyond WPI-6 is authorized by this approval.**
 
 # Guiding Principle
 Every roadmap item should support the North Star:

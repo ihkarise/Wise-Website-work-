@@ -1,5 +1,5 @@
 # 33 - Domain Model
-## Version 1.17 — 2026-07-16
+## Version 1.18 — 2026-07-16
 
 > Defines every major business entity in the Wise Platform: what it means, what it
 > holds, how it relates to everything else, how it comes into being and ends, who is
@@ -690,6 +690,27 @@ already named here. docs/50 §9 scopes Notification as a shared *record* of what
 sent, not a new delivery pipeline — every existing sender keeps its own transport code
 and additionally writes a Notification row. Not yet implemented — see docs/50 §19's
 `WPI-6` batch.
+
+**Status update (2026-07-16, Batch WPI-6): promoted from Designed to Implemented.**
+`Notification` has shipped (`shared/schemas/notification.schema.json`,
+`apps-script/Notification.gs`) — a shared record of what was sent, never a new
+delivery pipeline, exactly as docs/50 §9 scoped it. `patient_id`/`doctor_id` are both
+nullable (empty-string sentinel), mirroring `Appointment`'s own convention — never
+both non-empty on the same row; a disclosed, additive `recipient_email` fallback field
+covers Phase 1.5's visit-summary flow, which predates Patient Identity and has no
+`patient_id` to reference. Three currently-real sender flows are unified:
+`FoundationLoginFlow.gs`'s patient login-link email, `DoctorLoginFlow.gs`'s doctor
+login-link email, and Phase 1.5's `Send.gs` visit-summary email — each gains exactly
+one additional, disclosed statement recording its own already-completed send attempt,
+with no change to its own gate, transport, or return value. **Ownership:
+system-generated only, mirroring Session's own ownership model** — no manually-run
+editor function, and zero `FoundationRouter.gs` dispatch case ships in this batch (a
+disclosed scope decision distinguishing this entity from `CalculatorResult`'s "backend
+only, but still routed" precedent). Two internal-only read helpers
+(`foundationGetNotificationsForPatient_`/`foundationGetNotificationsForDoctor_`)
+satisfy docs/53 §5's create/read requirement, exercised directly by the conformance
+harness's Stage 22 — neither is reachable over HTTP yet. Full detail:
+`shared/schemas/notification.md`.
 
 ---
 

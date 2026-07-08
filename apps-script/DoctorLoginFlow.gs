@@ -63,6 +63,16 @@ function foundationHandleRequestDoctorLoginLink_(input) {
     } else {
       foundationLogAuditEvent_('doctor_login_link_requested', '', '', 'doctor_id=' + doctor.doctor_id + ' reason=email_sent');
     }
+    // Disclosed, additive touch — Batch WPI-6 (docs/50 §9, shared/schemas/
+    // notification.md): mirrors FoundationLoginFlow.gs's own new call
+    // exactly, doctor_id in place of patient_id. Never changes this
+    // function's own gate, transport, or return value.
+    foundationRecordNotification_({
+      doctor_id: doctor.doctor_id,
+      channel: 'email',
+      type: 'login_link',
+      status: emailResult.ok ? 'sent' : 'failed'
+    });
     return genericMessage;
   });
 }

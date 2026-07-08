@@ -129,6 +129,12 @@
  * the FILES list — a derived, read-only view over already-mocked
  * primitives (`foundationDsQuery_`, `FoundationDataStore.gs`), no new mock
  * needed.
+ *
+ * Extended in Phase 3/WHIMS batch WPI-6 with `Notification.gs` in the FILES
+ * list — no new mock needed, since it only reuses SpreadsheetApp/Utilities/
+ * Logger primitives already mocked above (the same "additive entity, zero
+ * new infrastructure" pattern `Appointment.gs` already proved out at Batch
+ * WPI-5).
  */
 
 var fs = require('fs');
@@ -177,6 +183,7 @@ var FILES = [
   'DoctorModuleState.gs',
   'DoctorPatientRoster.gs',
   'Appointment.gs',
+  'Notification.gs',
   'FoundationRouter.gs'
 ];
 
