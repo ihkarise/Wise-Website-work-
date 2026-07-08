@@ -80,6 +80,10 @@ deprecates any ADR.
   built against ADR-011, then ADR-014, both now superseded by ADR-015.
 - `docs/50-PHASE-3-TECHNICAL-PLAN.md` (Version 1.0) is the first implementation plan
   built against ADR-017/018/019/020 — see it for how each is applied.
+- `docs/54-SHEETS-PRODUCTION-SCALE-REVIEW.md` fulfills ADR-006's own "Future
+  Considerations" ask (a concrete migration trigger, defined once it became a
+  near-term planning concern at Batch WPI-7/WPI-9) — a dedicated capacity review, not
+  an amendment; ADR-006 itself remains Accepted and unchanged.
 
 ---
 

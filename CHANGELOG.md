@@ -8,6 +8,57 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-08 — Phase 3: Google Sheets Production Scale / Capacity Review (WPI-7/WPI-9 gate)
+
+Documentation-only. Produces `docs/54-SHEETS-PRODUCTION-SCALE-REVIEW.md`, the dedicated
+technical/capacity review docs/49 §7, docs/51 Part 3 item 1/Part 5, and docs/52 name as
+a required gate before Batch WPI-7 (Inventory) and Batch WPI-9 (Analytics) specifically
+— **not** WPI-7 implementation itself, and does not authorize WPI-7 or any other batch
+to begin. Fulfills ADR-006's own deferred "Future Considerations" ask for a concrete
+migration trigger.
+
+### Added (documentation)
+- **`docs/54-SHEETS-PRODUCTION-SCALE-REVIEW.md`** (new) — reviews
+  `FoundationDataStore.gs`'s actual current mechanics (full-table-scan
+  `query`/`getById`, O(rows) `updateById`, zero `LockService` usage anywhere in the
+  repo, confirmed by direct grep), estimates WPI-7/WPI-9's real Inventory-ledger and
+  Analytics-aggregation workload against Google's published Sheets/Apps Script
+  platform limits, and closes with numeric Green/Yellow/Red operational thresholds and
+  concrete migration triggers. **Verdict:** Green zone at clinic launch and through
+  Year 1; Yellow-adjacent (not Red) through Year 5 projections; conditional on WPI-7
+  shipping the review's one required mitigation — wrapping every read-modify-write
+  sequence on `InventoryItem.quantity_on_hand` (or any other cached/derived field) in
+  `LockService`, the platform's first use of that primitive, additive only.
+
+### Changed (documentation)
+- **`docs/24-ROADMAP.md`** — Phase 3 section: the previously-open
+  Sheets-at-production-scale gate is now recorded as closed by docs/54, with the
+  explicit caveat that this closes only the named pre-condition, not WPI-7/WPI-9's own
+  separate approval gate (docs/53 §13, unchanged). Added docs/54 to the Phase 3
+  architecture document list.
+- **`docs/31-ADR-INDEX.md`** — added a "Relationship to Other Documents" cross-reference
+  noting docs/54 fulfills ADR-006's own deferred migration-trigger ask. ADR-006 itself
+  is **not** amended or superseded — remains Accepted, unchanged.
+
+### What this batch deliberately does not do
+- **No WPI-7 (Inventory) implementation.** No new schema, Apps Script module, frontend
+  change, validation suite, router dispatch case, or registry entry — this is the
+  prerequisite review only, per docs/53 Phase C's "explain before writing code"
+  discipline applied to an infrastructure decision.
+- **No migration off Google Sheets.** docs/49 §7's own framing, restated by docs/54:
+  this review decides whether WPI-7/WPI-9 may proceed on Sheets as designed, under
+  what conditions — it does not decide to migrate.
+- **No modification to any frozen file.** Zero `apps-script/*.gs`,
+  `shared/schemas/*.schema.json`, or `shared/constants/*.json` file touched.
+
+### Validation
+- Documentation-only change; no code path exists to run Static Analysis, Conformance,
+  Regression, or a browser suite against. Repository consistency verified by direct
+  read of every cited source document (docs/49 §7, docs/50 §10/§17.1, docs/51 Part 3
+  item 1/Part 5, docs/52, ADR-006, `FoundationDataStore.gs`, `CarePlan.gs`,
+  `Notification.gs`) and a repo-wide grep confirming zero `LockService` usage exists
+  today.
+
 ## 2026-07-16 — Phase 3 Batch WPI-6: Notification (unification)
 
 Implements Batch WPI-6 (docs/50-PHASE-3-TECHNICAL-PLAN.md §9/§19), a consumer with no
