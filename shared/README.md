@@ -212,6 +212,21 @@ envelope and performs no write at all. Bumped `constants/doctor-module-registry.
 (1.2.0 → 1.3.0) to add this registry's third real entry, `inventory`, backed by a new,
 real, authenticated data_source route (`get_inventory_items`) — the Doctor Dashboard's
 third card. No other `shared/` file changed in this batch.
+Phase 3/WHIMS Batch WPI-8 added `schemas/pillfill-order.schema.json` (the
+`PillFillOrder` record shape — docs/50 §11, connects a `medicine`-type Doctor
+Instruction to fulfillment; a disclosed, additive `created_by` provenance field
+mirroring `appointment.schema.json`'s/`inventory-item.schema.json`'s own precedent,
+alongside its first implementation, `apps-script/PillFillOrder.gs`). The dedicated
+fulfill operation reuses `apps-script/InventoryTransaction.gs`'s existing, unmodified
+`foundationRecordInventoryTransaction_()` (reason `dispense`) — the platform's first
+real, non-manual trigger for that function's `LockService` critical section — and
+`apps-script/Notification.gs`'s existing, unmodified `foundationRecordNotification_()`
+(type `pillfill_order_status`); if the InventoryTransaction call fails for any reason,
+including a contended lock, the order's own status is never touched. Bumped
+`constants/doctor-module-registry.json` (1.3.0 → 1.4.0) to add this registry's fourth
+real entry, `pillfill_orders`, backed by a new, real, authenticated data_source route
+(`get_pillfill_orders`) — the Doctor Dashboard's fourth card. No other `shared/` file
+changed in this batch.
 
 ---
 

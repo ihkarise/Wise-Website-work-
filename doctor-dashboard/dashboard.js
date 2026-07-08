@@ -33,7 +33,7 @@
   });
 
   // Hand-ported from shared/constants/doctor-module-registry.json (version
-  // 1.3.0 as of Batch WPI-7) — the same "port a shared/ definition into a
+  // 1.4.0 as of Batch WPI-8) — the same "port a shared/ definition into a
   // consuming file" convention my-health-journey/dashboard.js's own
   // MODULE_REGISTRY already uses (a browser has no ES-module/build-step to
   // read the canonical JSON at runtime). Only the fields this dashboard
@@ -50,7 +50,8 @@
   var DOCTOR_MODULE_REGISTRY = [
     { capability_key: 'patient_roster', display_name: 'Patient Roster', display_order: 10, empty_state: 'nodata', data_source: 'get_doctor_patient_roster' },
     { capability_key: 'appointments', display_name: 'Appointments', display_order: 20, empty_state: 'nodata', data_source: 'get_doctor_appointments' },
-    { capability_key: 'inventory', display_name: 'Inventory', display_order: 30, empty_state: 'nodata', data_source: 'get_inventory_items' }
+    { capability_key: 'inventory', display_name: 'Inventory', display_order: 30, empty_state: 'nodata', data_source: 'get_inventory_items' },
+    { capability_key: 'pillfill_orders', display_name: 'PillFill Orders', display_order: 40, empty_state: 'nodata', data_source: 'get_pillfill_orders' }
   ];
 
   function getCapabilityDescriptor(capabilityKey) {
@@ -223,13 +224,69 @@
       });
   }
 
+  // Human-readable labels for PillFillOrder's own status enum (docs/50
+  // §11) — display only, never fed back into a write (this card has no
+  // write affordance, mirroring the Appointments/Inventory cards' own
+  // "derived, read-only view" discipline exactly).
+  var PILLFILL_ORDER_STATUS_LABELS_ = {
+    requested: 'Requested',
+    in_progress: 'In Progress',
+    fulfilled: 'Fulfilled',
+    shipped: 'Shipped',
+    delivered: 'Delivered',
+    cancelled: 'Cancelled'
+  };
+
+  // The PillFill Orders card's body (docs/50 §11) — a bare, read-only list
+  // of each order's linked patient, inventory item, quantity, and status —
+  // no write affordance, mirroring the Patient Roster/Appointments/
+  // Inventory cards' own "derived, read-only view" discipline exactly
+  // (every PillFillOrder write remains a manually-run Apps Script editor
+  // function, PillFillOrder.gs's own header comment).
+  function pillFillOrdersHtml(entries) {
+    if (!entries.length) {
+      return emptyStateHtml('nodata', 'No PillFill orders exist for your specialty yet.');
+    }
+    var items = entries.map(function (entry) {
+      var who = entry.patient_full_name ? escapeHtmlForDisplay(entry.patient_full_name) : 'Not yet linked to a patient record';
+      var statusLabel = PILLFILL_ORDER_STATUS_LABELS_[entry.status] || escapeHtmlForDisplay(entry.status);
+      var itemLine = escapeHtmlForDisplay(entry.inventory_item_name) + ' (' + escapeHtmlForDisplay(entry.inventory_item_sku) + ') &middot; qty ' + escapeHtmlForDisplay(entry.quantity);
+      return '<li>' +
+        '<div class="roster-name">' + who + '</div>' +
+        '<div class="roster-conditions">' + itemLine + ' &middot; ' + statusLabel + '</div>' +
+        '</li>';
+    }).join('');
+    return '<ul class="roster-list">' + items + '</ul>';
+  }
+
+  function loadPillFillOrdersPreview(sessionToken, capabilityKey) {
+    var body = document.getElementById('card-' + capabilityKey + '-body');
+    fetch(WEB_APP_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ foundation_action: 'get_pillfill_orders', session_token: sessionToken })
+    })
+      .then(function (response) { return response.json(); })
+      .then(function (data) {
+        if (data.status === 'ok' && Array.isArray(data.data)) {
+          body.innerHTML = pillFillOrdersHtml(data.data);
+        } else {
+          body.innerHTML = '<p class="empty-text">Could not load your PillFill orders. Check your connection and reload the page.</p>';
+        }
+      })
+      .catch(function () {
+        body.innerHTML = '<p class="empty-text">Could not load your PillFill orders. Check your connection and reload the page.</p>';
+      });
+  }
+
   // Loader-dispatcher registry — one entry per registry data_source, the
   // same discipline my-health-journey/dashboard.js's own MODULE_LOADERS
   // already establishes.
   var CAPABILITY_LOADERS = {
     'get_doctor_patient_roster': loadPatientRosterPreview,
     'get_doctor_appointments': loadAppointmentsPreview,
-    'get_inventory_items': loadInventoryPreview
+    'get_inventory_items': loadInventoryPreview,
+    'get_pillfill_orders': loadPillFillOrdersPreview
   };
 
   // Merges the per-doctor state rows from get_doctor_module_states with
@@ -355,6 +412,7 @@
     dashboardEmptyStateHtml: dashboardEmptyStateHtml,
     patientRosterHtml: patientRosterHtml,
     appointmentsHtml: appointmentsHtml,
-    inventoryHtml: inventoryHtml
+    inventoryHtml: inventoryHtml,
+    pillFillOrdersHtml: pillFillOrdersHtml
   };
 })();

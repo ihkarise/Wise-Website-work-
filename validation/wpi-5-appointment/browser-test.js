@@ -259,12 +259,13 @@ async function main() {
       await page.waitForSelector('#dashEmptyState');
 
       // Updated at Batch WPI-7 (docs/50 §10/§19): the hand-ported registry
-      // now carries a third entry, `inventory` — a mechanical, disclosed
-      // update to this assertion's own stale count, mirroring the same
-      // update validation/wpi-4-doctor-dashboard/browser-test.js already
-      // received in this same change.
+      // now carries a third entry, `inventory`. Updated again at Batch WPI-8
+      // (docs/50 §11/§19): a fourth entry, `pillfill_orders` — mechanical,
+      // disclosed updates to this assertion's own stale count each time,
+      // mirroring the same update validation/wpi-4-doctor-dashboard/
+      // browser-test.js already received in each of those same changes.
       const registryLength = await page.evaluate(() => window.WiseDoctorDashboard.DOCTOR_MODULE_REGISTRY.length);
-      check('Doctor Dashboard: the hand-ported DOCTOR_MODULE_REGISTRY now carries three entries (patient_roster, appointments, inventory)', registryLength === 3);
+      check('Doctor Dashboard: the hand-ported DOCTOR_MODULE_REGISTRY now carries four entries (patient_roster, appointments, inventory, pillfill_orders)', registryLength === 4);
 
       const html = await page.evaluate(() => window.WiseDoctorDashboard.appointmentsHtml([]));
       check('Doctor Dashboard: appointmentsHtml([]) returns the "nodata" empty state directly, matching the live rendering above',

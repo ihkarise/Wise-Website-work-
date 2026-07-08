@@ -1244,6 +1244,13 @@ are promoted in place above rather than restated here. Full field-level detail l
 docs/50 — this section records only each entity's purpose and relationships, at the
 same fidelity the rest of this document uses.
 
+**Updated 2026-07-16** for Batch WPI-8 (implementation): §7.5 (PillFill Order)
+promoted from *Designed* to **Implemented** — see that subsection's own status update
+for the shipped shape, the dedicated fulfill operation's reuse of
+`InventoryTransaction.gs`'s `LockService`-protected dispense and `Notification.gs`'s
+`pillfill_order_status` record, and the Doctor Module Registry's fourth real entry,
+`pillfill_orders`.
+
 **Updated 2026-07-16** for Batch WPI-7 (implementation): §7.4 (Inventory Item and
 Inventory Transaction) promoted from *Designed* to **Implemented** — see that
 subsection's own status update for the shipped shape, the platform's first
@@ -1383,13 +1390,42 @@ built for this alert in this batch (a disclosed, minimal choice, `shared/schemas
 inventory-transaction.md`'s own "Low-stock Notification" section). Zero modification to
 any frozen Foundation/Identity & Access/Patient Access/PXP-1..11/WPI-1..6 file.
 
-## 7.5 PillFill Order — *Designed*
+## 7.5 PillFill Order — *Implemented (Batch WPI-8)*
 Connects a `medicine`-type Doctor Instruction (§2.3's own "Prescription is a
 `medicine`-type Doctor Instruction" mapping) to fulfillment. **Relationships:**
 Belongs to one Doctor Instruction and one Patient Identity; fulfillment draws down one
 Inventory Item (§7.4) and produces a `pillfill_order_status` Notification (§4.2). No
 external vendor API contract is designed — this entity is the platform's own internal
 order-and-fulfillment record only. **Full detail:** docs/50 §11.
+
+**Status update (2026-07-16, Batch WPI-8): Implemented.**
+`apps-script/PillFillOrder.gs`/`shared/schemas/pillfill-order.schema.json` ship exactly
+as docs/50 §11 designed, plus one disclosed, additive `created_by` provenance field
+mirroring `appointment.schema.json`'s/`inventory-item.schema.json`'s own precedent.
+Doctor/staff-owned, never patient-facing — every write (create, the dedicated fulfill
+operation, and every other status transition) is a manually-run Apps Script editor
+function, mirroring `Appointment.gs`'s/`InventoryItem.gs`'s own precedent exactly. The
+dedicated fulfill operation (`foundationFulfillPillFillOrder_()`) is the one operation
+with side effects: it reuses `InventoryTransaction.gs`'s existing, unmodified
+`foundationRecordInventoryTransaction_()` (reason `dispense`) — the first real,
+non-manual trigger for that function's `LockService` critical section (docs/54 §7/§17's
+own "the concrete trigger for this becoming real, not just theoretical") — and
+`Notification.gs`'s existing, unmodified `foundationRecordNotification_()` (type
+`pillfill_order_status`), reusing both mechanisms rather than inventing parallel ones.
+If the InventoryTransaction call fails for any reason, including a contended lock, the
+order's own status is never touched — no partial fulfillment, proven directly by
+`validation/phase-2a-foundation/conformance.js`'s new Stage 24 (a genuine, external-lock-
+contention test mirroring Stage 23's own discipline). Once fulfilled, an order can no
+longer be cancelled — a disclosed boundary, docs/50 §11 designs no reversal mechanism.
+`PillFillOrder` carries no `specialty_slug` of its own; the one doctor-facing surface
+this batch adds is a read-only route (`get_pillfill_orders`, `doctor_id` always
+`DoctorSession`-derived), returning the caller's own PillFill Orders, specialty-scoped
+by joining each order to its own referenced `InventoryItem` (mirroring
+`InventoryItem`'s own specialty filter) — registered as the Doctor Module Registry's
+fourth real entry, `pillfill_orders` (`shared/constants/doctor-module-registry.json`
+version 1.3.0 → 1.4.0, `display_order: 40`), rendering one new, read-only Doctor
+Dashboard card. Zero modification to any frozen Foundation/Identity & Access/Patient
+Access/PXP-1..11/WPI-1..7 file (full reasoning: `shared/schemas/pillfill-order.md`).
 
 ## 7.6 Analytics — *Conceptual (computed view, never a base table)*
 Not a stored entity — mirrors Digital Twin's (§3.5) own "computed view, never a base
@@ -1432,7 +1468,7 @@ exactly (§6, this document's Phase 2B section).
 | Specialty | **Implemented** | 3/WHIMS (docs/50 §6, ADR-018, batch WPI-2 — shipped, seeded with one specialty (homeopathy), plus the additive Condition-to-Specialty Map; no populated `specialty_scope` entry added to Module/Calculator/Template Registry, none needs one yet, docs/53 §4) |
 | Doctor Module Registry / Doctor Module State | **Implemented (backend + frontend consumer)** | 3/WHIMS (docs/50 §7, ADR-020, batch WPI-3 backend — shipped, registry ships empty, fail-closed `DoctorModuleState`, one read-only `get_doctor_module_states` route; batch WPI-4 — shipped, registry-driven Doctor Dashboard, first real entry `patient_roster`, docs/50 §7.4; batch WPI-5 — shipped, second real entry `appointments`, docs/50 §8; batch WPI-7 — shipped, third real entry `inventory`, docs/50 §10) |
 | Inventory Item / Inventory Transaction | **Implemented** | 3/WHIMS (docs/50 §10, batch WPI-7 — shipped, quantity_on_hand derived/recomputed from an append-only ledger, the platform's first LockService use per docs/54 §7/§19, Doctor Module Registry's third real entry `inventory`) |
-| PillFill Order | **Designed** | 3/WHIMS (docs/50 §11, batch WPI-8 — not yet built) |
+| PillFill Order | **Implemented** | 3/WHIMS (docs/50 §11, batch WPI-8 — shipped, connects a medicine-type Doctor Instruction to fulfillment; the dedicated fulfill operation reuses InventoryTransaction.gs's LockService-protected dispense and Notification.gs's pillfill_order_status record; Doctor Module Registry's fourth real entry, pillfill_orders) |
 | Analytics | Conceptual (view) | 3/WHIMS (docs/50 §12, batch WPI-9 — never a base table, non-AI aggregation only) |
 | Knowledge Article | Conceptual | Unassigned |
 | Knowledge Engine | Conceptual (system) | Unassigned |

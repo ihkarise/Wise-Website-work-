@@ -3,7 +3,7 @@
  * §7.1/§19, ADR-020, docs/53-PHASE-3-IMPLEMENTATION-RULES.md governs this
  * and every later WPI batch) shipped this registry empty; Batch WPI-4
  * (docs/50 §7.3/§7.4/§19) adds this version's one entry. Implements
- * shared/constants/doctor-module-registry.json version 1.1.0. Phase
+ * shared/constants/doctor-module-registry.json version 1.4.0. Phase
  * 3/WHIMS's Pillar 2 (docs/49 §4) — the platform's only mechanism for
  * naming which doctor-facing capability exists at all, mirroring
  * ModuleRegistry.gs's/CalculatorRegistry.gs's own "availability, not
@@ -27,14 +27,15 @@
  * (docs/50 §8) adds this version's second entry, 'appointments', backed by
  * Appointment.gs's new get_doctor_appointments route. Batch WPI-7 (docs/50
  * §10) adds this version's third entry, 'inventory', backed by
- * InventoryItem.gs's new get_inventory_items route. Every other illustrative
+ * InventoryItem.gs's new get_inventory_items route. Batch WPI-8 (docs/50
+ * §11) adds this version's fourth entry, 'pillfill_orders', backed by
+ * PillFillOrder.gs's new get_pillfill_orders route. Every other illustrative
  * capability docs/50 §7.1 names (condition assignment, care-plan authoring,
- * module/calculator/template enablement, PillFill orders, analytics)
- * remains unregistered — each is added as its own registry entry by
- * whichever later, separately-approved WPI batch actually designs and
- * builds it (docs/53 §4's "a new registry entry, never new architecture")
- * — the same disclosed precedent CalculatorRegistry.gs already established
- * for its own batch.
+ * module/calculator/template enablement, analytics) remains unregistered —
+ * each is added as its own registry entry by whichever later,
+ * separately-approved WPI batch actually designs and builds it (docs/53 §4's
+ * "a new registry entry, never new architecture") — the same disclosed
+ * precedent CalculatorRegistry.gs already established for its own batch.
  *
  * No dependency on any other file — leaf-level config, the same role
  * ModuleRegistry.gs/CalculatorRegistry.gs/SpecialtyRegistry.gs already
@@ -61,6 +62,13 @@ var FOUNDATION_DOCTOR_MODULE_REGISTRY_ = [
     display_name: 'Inventory',
     display_order: 30,
     data_source: 'get_inventory_items',
+    future_ai_capable: false
+  },
+  {
+    capability_key: 'pillfill_orders',
+    display_name: 'PillFill Orders',
+    display_order: 40,
+    data_source: 'get_pillfill_orders',
     future_ai_capable: false
   }
 ];
