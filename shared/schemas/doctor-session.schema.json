@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wisehomeopathy.com/shared/schemas/doctor-session.schema.json",
+  "title": "Doctor Session",
+  "version": "1.0.0",
+  "description": "The canonical shape of a Doctor Session token — docs/33-DOMAIN-MODEL.md §7.1, docs/50-PHASE-3-TECHNICAL-PLAN.md §5.3, ADR-017. Not a stored record: a self-verifying, HMAC-signed payload proving a request genuinely comes from an authenticated Doctor Identity, for a bounded window of time — structurally identical in mechanism to session.schema.json, but a permanently distinct payload shape (doctor_id, never patient_id) and a permanently distinct identity space (ADR-017: never merged, aliased, or interchangeable with Patient Session). See doctor-session.md for the wire-format encoding (identical to session.schema.json's, reusing the same signing primitives), the dedicated pre-ship security review (docs/50 §14), and why no signing algorithm is re-specified here.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["doctor_id", "issued_at", "expires_at"],
+  "properties": {
+    "doctor_id": {
+      "type": "string",
+      "description": "The Doctor Identity this session resolves to (docs/33 §7.1, ADR-017). Every authenticated doctor-facing call derives doctor_id from this verified field, never from client-supplied input — the same discipline docs/29 §3 established for patient_id, applied here to a structurally distinct identity space that can never be confused with it."
+    },
+    "issued_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "The instant this session was minted. Set once, at issuance, never modified."
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "The instant this session becomes invalid. No silent renewal (docs/15 \"session expiration\", ADR-010) — a caller presenting an expired token must re-authenticate from scratch, not receive a refreshed one. Same bounded-lifetime posture as session.schema.json (docs/50 §14: \"Doctor Session mirrors Patient Session's security posture exactly\")."
+    }
+  }
+}

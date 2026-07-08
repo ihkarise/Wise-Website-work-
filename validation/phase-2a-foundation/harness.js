@@ -100,6 +100,17 @@
  * for its own Long-Lived Session issuance, the same secret
  * `FoundationSession.gs` already reads — proving both mechanisms verify
  * against the identical signing secret without any new mock).
+ *
+ * Extended in Phase 3/WHIMS batch WPI-1 with `DoctorIdentity.gs`,
+ * `DoctorSession.gs`, `DoctorLoginTokens.gs`, `DoctorEmail.gs`,
+ * `DoctorLoginFlow.gs`, and `DoctorRouteGuard.gs` in the FILES list — no
+ * new mock needed, since all six only reuse SpreadsheetApp/Utilities/
+ * PropertiesService/MailApp/CacheService/Logger primitives already mocked
+ * above, including a real production exercise of the identical
+ * `FOUNDATION_SESSION_SIGNING_SECRET` Script Property for DoctorSession
+ * issuance (shared/schemas/doctor-session.md's security review §1: the
+ * signing secret is deliberately reused, unchanged, from
+ * `FoundationSession.gs`).
  */
 
 var fs = require('fs');
@@ -137,6 +148,12 @@ var FILES = [
   'CarePlan.gs',
   'DoctorInstruction.gs',
   'TrustedDevice.gs',
+  'DoctorIdentity.gs',
+  'DoctorSession.gs',
+  'DoctorLoginTokens.gs',
+  'DoctorEmail.gs',
+  'DoctorLoginFlow.gs',
+  'DoctorRouteGuard.gs',
   'FoundationRouter.gs'
 ];
 

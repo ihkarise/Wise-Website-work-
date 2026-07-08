@@ -156,6 +156,25 @@
  *     comment; docs/44 §5.5's implementation-time decision, resolved here
  *     without touching that frozen file).
  *
+ *   - request_doctor_login_link / consume_doctor_login_link / get_doctor_profile —
+ *     Batch WPI-1 additions (docs/50-PHASE-3-TECHNICAL-PLAN.md §5, docs/53,
+ *     ADR-017), the platform's first doctor-facing infrastructure batch.
+ *     Mirrors request_login_link/consume_login_link/get_profile exactly, for
+ *     a second, permanently distinct identity space — doctor_id is derived
+ *     only from a verified DoctorSession (withFoundationDoctorAuth_(),
+ *     DoctorRouteGuard.gs), never from client-supplied input, never
+ *     interchangeable with patient_id (shared/schemas/doctor-session.md's
+ *     dedicated security review). request_doctor_login_link and
+ *     consume_doctor_login_link are this batch's two unauthenticated
+ *     additions, mirroring the patient-side request/consume pair exactly.
+ *     get_doctor_profile is the one authenticated read route, returning the
+ *     caller's own Doctor record — the doctor-side proof point that
+ *     withFoundationDoctorAuth_() works end to end, mirroring get_profile's
+ *     own role at Batch IA-2 exactly. No Doctor creation route exists here
+ *     or is planned — Doctor rows are staff/administrative-provisioned only,
+ *     via DoctorIdentity.gs's manually-run createFoundationDoctor()
+ *     (ADR-017's "no public self-registration" rule).
+ *
  * A disclosed, additive exception, same category as Code.gs's own
  * one-line dispatch shim (IA-2): this file was previously listed among
  * Identity & Access's six files "frozen except for bug fixes"
@@ -183,7 +202,8 @@
  * DoctorAssignedCondition.gs, ModuleRegistry.gs, PatientModuleState.gs,
  * TemplateRegistry.gs, CheckInTemplateAssignment.gs, CheckInResponse.gs,
  * CalculatorRegistry.gs, CalculatorResult.gs, CarePlan.gs, DoctorInstruction.gs,
- * TrustedDevice.gs.
+ * TrustedDevice.gs, DoctorIdentity.gs, DoctorSession.gs, DoctorLoginTokens.gs,
+ * DoctorEmail.gs, DoctorLoginFlow.gs, DoctorRouteGuard.gs.
  */
 
 /**
@@ -517,6 +537,39 @@ function foundationHandleRevokeTrustedDevice_(input) {
 }
 
 /**
+ * Batch WPI-1: handles a doctor login-link request. Mirrors
+ * foundationHandleRequestLoginLink_() exactly, for the Doctor identity
+ * space. Unauthenticated — this is the necessarily-public first step of
+ * the doctor magic-link flow.
+ */
+function foundationHandleRequestDoctorLoginLinkRoute_(input) {
+  return foundationHandleRequestDoctorLoginLink_(input);
+}
+
+/**
+ * Batch WPI-1: consumes a presented doctor login-link token into a real
+ * Doctor Session. Mirrors foundationHandleConsumeLoginLink_() exactly, for
+ * the Doctor identity space. Unauthenticated — the presented token itself
+ * is the credential, so there is no session yet to authenticate with.
+ */
+function foundationHandleConsumeDoctorLoginLinkRoute_(input) {
+  return foundationHandleConsumeDoctorLoginLink_(input);
+}
+
+/**
+ * Batch WPI-1: returns the caller's own Doctor record, resolved strictly
+ * from the verified DoctorSession — mirrors foundationHandleGetProfile_()
+ * exactly, the doctor-side proof point that withFoundationDoctorAuth_()
+ * works end to end. doctor_id is always session-derived, never
+ * client-supplied.
+ */
+function foundationHandleGetDoctorProfile_(input) {
+  return withFoundationDoctorAuth_(input && input.session_token, function (doctorId) {
+    return foundationGetDoctorById_(doctorId);
+  });
+}
+
+/**
  * Serializes a response-envelope-shaped value to the wire. Apps Script
  * Web Apps cannot set a real HTTP status code (every response transports
  * as HTTP 200 regardless — the same platform fact Code.gs's own
@@ -611,6 +664,15 @@ function handleFoundationRequest_(input) {
       break;
     case 'revoke_trusted_device':
       envelope = foundationHandleRevokeTrustedDevice_(input);
+      break;
+    case 'request_doctor_login_link':
+      envelope = foundationHandleRequestDoctorLoginLinkRoute_(input);
+      break;
+    case 'consume_doctor_login_link':
+      envelope = foundationHandleConsumeDoctorLoginLinkRoute_(input);
+      break;
+    case 'get_doctor_profile':
+      envelope = foundationHandleGetDoctorProfile_(input);
       break;
     default:
       envelope = buildFoundationErrorEnvelope_('FOUNDATION_UNKNOWN_ACTION', 'Unknown request.');
