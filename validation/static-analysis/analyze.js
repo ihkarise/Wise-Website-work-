@@ -97,6 +97,29 @@ var MANUAL_DROPDOWN_WRAPPERS = [
   'createFoundationDoctor' // DoctorIdentity.gs — WPI-1's manually-run doctor provisioning tool
 ];
 
+// Underscore-suffixed pure accessor functions, correctly unused *within
+// apps-script/* by explicit, disclosed architectural design — a genuinely
+// different case from MANUAL_DROPDOWN_WRAPPERS above (a human never "calls"
+// these; no future call-site is missing due to an oversight). Every prior
+// registry (Module, Calculator, Template) shipped its own first accessor
+// function alongside a same-batch consumer that already called it
+// (e.g. ModuleRegistry.gs's foundationGetModuleRegistry_() consumed by
+// PatientModuleState.gs in the same batch, PXP-3). Batch WPI-2's Specialty
+// Registry (docs/50-PHASE-3-TECHNICAL-PLAN.md §6/§19, ADR-018) is the first
+// registry whose own batch scope is the mechanism only — no doctor- or
+// patient-facing consumer exists yet (the Doctor Dashboard is WPI-3/WPI-4's
+// scope) — mirroring Calculator Registry's (PXP-6) own "ships before any
+// consumer" precedent one step further. Covered directly by Conformance
+// Tests (Stage 18), not by any apps-script/ call-site. Extend this list only
+// when a new batch's own registry/lookup accessor genuinely has zero
+// same-batch consumer by disclosed design, with a comment naming the batch
+// and, if known, the future batch expected to add the first real call-site.
+var INFRASTRUCTURE_AHEAD_OF_CONSUMER = [
+  'foundationGetSpecialtyRegistry_', // SpecialtyRegistry.gs — WPI-2; first real consumer expected at WPI-3/WPI-4 (Doctor Module Registry / Doctor Dashboard)
+  'foundationGetSpecialtyBySlug_', // SpecialtyRegistry.gs — WPI-2; first real consumer expected at WPI-3/WPI-4
+  'foundationGetSpecialtyForCondition_' // SpecialtyRegistry.gs — WPI-2; first real consumer expected at WPI-3/WPI-4 (patient-roster/registry specialty filtering, docs/50 §7.4)
+];
+
 function listGsFiles() {
   return fs.readdirSync(APPS_SCRIPT_DIR)
     .filter(function (f) { return f.endsWith('.gs'); })
@@ -261,6 +284,7 @@ function analyze() {
     if (decl.kind !== 'function') return;
     if (RESERVED_ENTRY_POINTS.indexOf(name) !== -1) return;
     if (MANUAL_DROPDOWN_WRAPPERS.indexOf(name) !== -1) return;
+    if (INFRASTRUCTURE_AHEAD_OF_CONSUMER.indexOf(name) !== -1) return;
 
     var callPattern = new RegExp('\\b' + escapeRegExp(name) + '\\s*\\(', 'g');
     var callMatches = (allNeutralized.match(callPattern) || []).length; // includes the declaration line itself

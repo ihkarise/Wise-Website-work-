@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wisehomeopathy.com/shared/constants/specialty-registry.json",
+  "title": "Specialty Registry",
+  "version": "1.0.0",
+  "description": "The canonical, static list of Specialty descriptors — Phase 3/WHIMS Batch WPI-2 (docs/50-PHASE-3-TECHNICAL-PLAN.md §6.1/§19, ADR-018, docs/53-PHASE-3-IMPLEMENTATION-RULES.md governs this and every later batch). Pillar 3 (docs/49 §4) — the platform's only mechanism for naming which specialty a doctor, patient, or registry entry (Module, Calculator, Template, Doctor Module) is associated with, mirroring shared/constants/module-registry.json's own 'availability, not enablement' framing. Seeded, in this batch, with exactly one entry — the platform's current, implicit specialty (homeopathy), named explicitly for the first time (docs/49 §3.1, ADR-018) — no second specialty is populated; onboarding one is a future, separately approved product decision, never assumed by this registry's existence. Adding the optional `specialty_scope` field to Module Registry, Calculator Registry, or Template Registry entries happens independently, in whichever future batch first registers an entry that actually needs it (docs/53 §4) — this registry only makes a real Specialty record resolvable; it does not itself edit any of those three frozen files (docs/50 §3). apps-script/SpecialtyRegistry.gs hand-ports this list into its own Foundation-prefixed array, the same convention module-registry.json's own consumers already use.",
+  "specialties": [
+    {
+      "specialty_slug": "homeopathy",
+      "display_name": "Homeopathy",
+      "status": "active"
+    }
+  ]
+}

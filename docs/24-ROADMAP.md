@@ -1,5 +1,5 @@
 # 24 - Wise Product Roadmap
-## Version 1.13 — 2026-07-16
+## Version 1.14 — 2026-07-16
 
 # Phase 1 — Public Website
 Status: In Progress
@@ -598,9 +598,9 @@ any implementation begins.
 
 # Phase 3 — WHIMS Patient Intelligence Platform (formerly "WiseOS")
 Status: **Architecture freeze complete (Version 1.0, 2026-07-16). Implementation
-underway: Batch WPI-1 (Doctor Identity & Session) shipped 2026-07-16, explicitly
-approved and scoped to WPI-1 only. No later batch (WPI-2 onward) is authorized to
-begin.**
+underway: Batch WPI-1 (Doctor Identity & Session) shipped 2026-07-16, and Batch WPI-2
+(Specialty Registry) shipped 2026-07-16, each explicitly approved and scoped to its own
+batch only. No later batch (WPI-3 onward) is authorized to begin.**
 
 Renamed from "WiseOS" per this architecture-freeze pass (docs/49 §2) — no scope
 change from the rename itself. **Reordered ahead of Phase 2C (Health Milestones) and
@@ -636,7 +636,7 @@ unscoped placeholder, mirroring PXP-9's own precedent exactly**) → WPI-11 (Hol
 **reserved, unscoped placeholder; no existing document defines this item's purpose at
 all**) → WPI-12 (Closeout).
 
-**No WPI batch beyond WPI-1 is authorized to begin by any of the above documents.**
+**No WPI batch beyond WPI-2 is authorized to begin by any of the above documents.**
 Each requires its own separate, explicit approval, per docs/53's per-batch gate — the
 same discipline every Phase 2B batch already passed through. Two documentation-only
 closures identified by docs/51's readiness review were resolved within this same
@@ -675,6 +675,29 @@ unchanged; only a future, separately-approved batch migrates any of their write 
 onto a real `doctor_id`. Zero modification to any frozen Foundation/Identity &
 Access/Patient Access/PXP-1..11 file. **No batch beyond WPI-1 is authorized by this
 approval.**
+
+**Batch WPI-2 (Specialty Registry, docs/50 §6, ADR-018)** — Pillar 3, independent of
+WPI-1 — has now shipped: `Specialty` (`shared/constants/specialty-registry.json`,
+`apps-script/SpecialtyRegistry.gs`), seeded with exactly one entry (`homeopathy`), the
+platform's current, implicit specialty named explicitly for the first time. Also ships
+the Condition-to-Specialty Map (`shared/constants/condition-specialty-map.json`) docs/50
+§6.3 named but did not design — resolved at this batch per docs/51 Part 1.4's own
+recommendation, mapping every real condition slug (`shared/constants/
+condition-slugs.json`) to `homeopathy`, with a fail-open-to-default fallback for any
+unmapped slug. **Does not add a populated `specialty_scope` entry to Module Registry,
+Calculator Registry, or Template Registry** — none has a second specialty's entry to
+scope yet (docs/53 §4: each registry adopts the field independently, at whichever
+future WPI batch actually needs it for that specific registry) — `shared/constants/
+module-registry.json`, `calculator-registry.json`, `template-registry.json`, and their
+Apps Script counterparts (`ModuleRegistry.gs`, `CalculatorRegistry.gs`,
+`TemplateRegistry.gs`) are all untouched, zero lines, per docs/50 §3. `Doctor.
+specialty_slug` (WPI-1) is not retroactively validated against this new registry in
+this batch — `apps-script/DoctorIdentity.gs` is itself a frozen WPI-1 file; wiring that
+validation is a disclosed, deferred decision for a future batch. Zero patient-facing
+surface, zero doctor-facing frontend page, no new `FoundationRouter.gs` dispatch case
+(no consumer exists yet — the Doctor Dashboard is WPI-3/WPI-4's scope), zero
+modification to any frozen Foundation/Identity & Access/Patient Access/PXP-1..11/WPI-1
+file. **No batch beyond WPI-2 is authorized by this approval.**
 
 # Guiding Principle
 Every roadmap item should support the North Star:

@@ -1,5 +1,5 @@
 # 33 - Domain Model
-## Version 1.13 — 2026-07-16
+## Version 1.14 — 2026-07-16
 
 > Defines every major business entity in the Wise Platform: what it means, what it
 > holds, how it relates to everything else, how it comes into being and ends, who is
@@ -1169,7 +1169,7 @@ labeled test-only fixture pushed directly into the test harness's own registry a
 
 ---
 
-# 7. Phase 3 — WHIMS Patient Intelligence Platform Entities — *Mostly Designed, Batch WPI-1 Implemented (docs/49/50/51/52, ADR-017–020)*
+# 7. Phase 3 — WHIMS Patient Intelligence Platform Entities — *Mostly Designed, Batches WPI-1/WPI-2 Implemented (docs/49/50/51/52, ADR-017–020)*
 
 Net-new entities named by Phase 3's architecture-freeze pass (docs/49/50, 2026-07-16).
 Doctor (§1.4), Appointment (§4.1), and Notification (§4.2) were already conceptual and
@@ -1191,15 +1191,25 @@ not WPI-1) — alongside, not replacing, today's free-text values. **Full detail
 docs/50 §5; shipped shape: `shared/schemas/doctor-identity.schema.json`,
 `doctor-session.schema.json`, `doctor-login-token.schema.json`.
 
-## 7.2 Specialty — *Designed*
+## 7.2 Specialty — *Implemented (Batch WPI-2)*
 A config-level list of specialty descriptors (`specialty_slug`, `display_name`,
-`status`), seeded with exactly one entry — the platform's current, implicit specialty,
-named explicitly for the first time (ADR-018). Every registry (Module, Calculator,
-Template, Doctor Module) gains an optional `specialty_scope` field; absent, an entry
-behaves exactly as it does today. **Relationships:** A Doctor's specialty is
-`Doctor.specialty_slug` (§7.1) directly; a Patient's effective specialty is derived
-from their active Doctor Assigned Condition(s) (§6.2), via a small, additive lookup
-table — not a change to that entity's own schema. **Full detail:** docs/50 §6.
+`status`), seeded with exactly one entry — the platform's current, implicit specialty
+(homeopathy), named explicitly for the first time (ADR-018). Every registry (Module,
+Calculator, Template, Doctor Module) is *designed* to gain an optional
+`specialty_scope` field (ADR-018); absent, an entry behaves exactly as it does today —
+this batch does not add a populated `specialty_scope` entry to Module Registry,
+Calculator Registry, or Template Registry, since none has a second specialty's entry to
+scope yet (docs/53 §4: each registry adopts the field independently, at whichever
+future batch first needs it for that specific registry). **Relationships:** A Doctor's
+specialty is `Doctor.specialty_slug` (§7.1) directly, still unvalidated against this
+registry (a disclosed, deferred wiring decision — `apps-script/DoctorIdentity.gs` is a
+frozen WPI-1 file, untouched by this batch); a Patient's effective specialty is derived
+from their active Doctor Assigned Condition(s) (§6.2) via the new, additive
+Condition-to-Specialty Map (`shared/constants/condition-specialty-map.json`) — not a
+change to that entity's own schema, and not yet consumed by any patient- or
+doctor-facing route (infrastructure for a future batch, docs/50 §7.4). **Full detail:**
+docs/50 §6; shipped shape: `shared/constants/specialty-registry.json`,
+`shared/constants/condition-specialty-map.json`, `apps-script/SpecialtyRegistry.gs`.
 
 ## 7.3 Doctor Module Registry and Doctor Module State — *Designed*
 Structurally parallel to Module Registry/Patient Module State (§6.3), but a separate
@@ -1266,7 +1276,7 @@ exactly (§6, this document's Phase 2B section).
 | Digital Twin | Conceptual (view) | Recommended 2D — future consumer of Timeline, Reports, Check-ins, Care Plans, Calculators (docs/44 §16), not tightly coupled to Phase 2B |
 | Appointment | **Designed** | 3/WHIMS (docs/50 §8, batch WPI-5 — not yet built) |
 | Notification | **Designed** | 3/WHIMS (docs/50 §9, batch WPI-6 — not yet built) |
-| Specialty | **Designed** | 3/WHIMS (docs/50 §6, ADR-018, batch WPI-2 — not yet built) |
+| Specialty | **Implemented** | 3/WHIMS (docs/50 §6, ADR-018, batch WPI-2 — shipped, seeded with one specialty (homeopathy), plus the additive Condition-to-Specialty Map; no populated `specialty_scope` entry added to Module/Calculator/Template Registry, none needs one yet, docs/53 §4) |
 | Doctor Module Registry / Doctor Module State | **Designed** | 3/WHIMS (docs/50 §7, ADR-020, batches WPI-3/WPI-4 — not yet built) |
 | Inventory Item / Inventory Transaction | **Designed** | 3/WHIMS (docs/50 §10, batch WPI-7 — not yet built) |
 | PillFill Order | **Designed** | 3/WHIMS (docs/50 §11, batch WPI-8 — not yet built) |

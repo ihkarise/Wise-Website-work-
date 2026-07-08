@@ -111,6 +111,11 @@
  * issuance (shared/schemas/doctor-session.md's security review §1: the
  * signing secret is deliberately reused, unchanged, from
  * `FoundationSession.gs`).
+ *
+ * Extended in Phase 3/WHIMS batch WPI-2 with `SpecialtyRegistry.gs` in the
+ * FILES list — no new mock needed, a pure, leaf-level static config file
+ * with no Apps Script runtime dependency at all, mirroring
+ * `ModuleRegistry.gs`'s/`CalculatorRegistry.gs`'s own precedent exactly.
  */
 
 var fs = require('fs');
@@ -154,6 +159,7 @@ var FILES = [
   'DoctorEmail.gs',
   'DoctorLoginFlow.gs',
   'DoctorRouteGuard.gs',
+  'SpecialtyRegistry.gs',
   'FoundationRouter.gs'
 ];
 
