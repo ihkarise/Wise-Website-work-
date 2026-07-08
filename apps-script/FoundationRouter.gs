@@ -175,6 +175,18 @@
  *     via DoctorIdentity.gs's manually-run createFoundationDoctor()
  *     (ADR-017's "no public self-registration" rule).
  *
+ *   - get_doctor_module_states — Batch WPI-3 addition (docs/50-PHASE-3-
+ *     TECHNICAL-PLAN.md §7.2, docs/53, ADR-020), mirroring
+ *     get_patient_module_states exactly, for the Doctor Module Registry
+ *     (DoctorModuleRegistry.gs) instead of the patient-facing Module
+ *     Registry. Read-only — there is no corresponding write route; every
+ *     write is a staff/administrative action via DoctorModuleState.gs's
+ *     manually-run setFoundationDoctorModuleState() (see that file's own
+ *     header comment). doctor_id is derived only from a verified
+ *     DoctorSession, never from client-supplied input. Returns an empty
+ *     list today — the Doctor Module Registry ships empty in this batch
+ *     (DoctorModuleRegistry.gs's own header comment).
+ *
  * A disclosed, additive exception, same category as Code.gs's own
  * one-line dispatch shim (IA-2): this file was previously listed among
  * Identity & Access's six files "frozen except for bug fixes"
@@ -203,7 +215,8 @@
  * TemplateRegistry.gs, CheckInTemplateAssignment.gs, CheckInResponse.gs,
  * CalculatorRegistry.gs, CalculatorResult.gs, CarePlan.gs, DoctorInstruction.gs,
  * TrustedDevice.gs, DoctorIdentity.gs, DoctorSession.gs, DoctorLoginTokens.gs,
- * DoctorEmail.gs, DoctorLoginFlow.gs, DoctorRouteGuard.gs.
+ * DoctorEmail.gs, DoctorLoginFlow.gs, DoctorRouteGuard.gs,
+ * DoctorModuleRegistry.gs, DoctorModuleState.gs.
  */
 
 /**
@@ -570,6 +583,23 @@ function foundationHandleGetDoctorProfile_(input) {
 }
 
 /**
+ * Batch WPI-3: returns the caller's own DoctorModuleState view across the
+ * entire Doctor Module Registry (DoctorModuleRegistry.gs), synthesizing a
+ * fail-closed `enabled: false` entry for any capability with no persisted
+ * row yet — mirrors foundationHandleGetPatientModuleStates_() exactly.
+ * doctor_id is always DoctorSession-derived, never client-supplied.
+ * Read-only — there is no corresponding write route (see this file's own
+ * header comment). Returns an empty list today — the Doctor Module
+ * Registry ships empty in this batch (DoctorModuleRegistry.gs's own
+ * header comment).
+ */
+function foundationHandleGetDoctorModuleStates_(input) {
+  return withFoundationDoctorAuth_(input && input.session_token, function (doctorId) {
+    return foundationGetDoctorModuleStates_(doctorId);
+  });
+}
+
+/**
  * Serializes a response-envelope-shaped value to the wire. Apps Script
  * Web Apps cannot set a real HTTP status code (every response transports
  * as HTTP 200 regardless — the same platform fact Code.gs's own
@@ -673,6 +703,9 @@ function handleFoundationRequest_(input) {
       break;
     case 'get_doctor_profile':
       envelope = foundationHandleGetDoctorProfile_(input);
+      break;
+    case 'get_doctor_module_states':
+      envelope = foundationHandleGetDoctorModuleStates_(input);
       break;
     default:
       envelope = buildFoundationErrorEnvelope_('FOUNDATION_UNKNOWN_ACTION', 'Unknown request.');
