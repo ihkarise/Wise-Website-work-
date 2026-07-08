@@ -1,5 +1,5 @@
 # 24 - Wise Product Roadmap
-## Version 1.16 — 2026-07-16
+## Version 1.17 — 2026-07-16
 
 # Phase 1 — Public Website
 Status: In Progress
@@ -601,9 +601,10 @@ Status: **Architecture freeze complete (Version 1.0, 2026-07-16). Implementation
 underway: Batch WPI-1 (Doctor Identity & Session) shipped 2026-07-16, Batch WPI-2
 (Specialty Registry) shipped 2026-07-16, Batch WPI-3 (Doctor Module Registry,
 backend) shipped 2026-07-16, Batch WPI-4 (Doctor Dashboard, frontend consumer)
-shipped 2026-07-16, Batch WPI-5 (Appointment) shipped 2026-07-16, and Batch WPI-6
-(Notification, unification) shipped 2026-07-16, each explicitly approved and scoped
-to its own batch only. No later batch (WPI-7 onward) is authorized to begin.**
+shipped 2026-07-16, Batch WPI-5 (Appointment) shipped 2026-07-16, Batch WPI-6
+(Notification, unification) shipped 2026-07-16, and Batch WPI-7 (Inventory) shipped
+2026-07-16, each explicitly approved and scoped to its own batch only. No later batch
+(WPI-8 onward) is authorized to begin.**
 
 Renamed from "WiseOS" per this architecture-freeze pass (docs/49 §2) — no scope
 change from the rename itself. **Reordered ahead of Phase 2C (Health Milestones) and
@@ -641,7 +642,7 @@ unscoped placeholder, mirroring PXP-9's own precedent exactly**) → WPI-11 (Hol
 **reserved, unscoped placeholder; no existing document defines this item's purpose at
 all**) → WPI-12 (Closeout).
 
-**No WPI batch beyond WPI-6 is authorized to begin by any of the above documents.**
+**No WPI batch beyond WPI-7 is authorized to begin by any of the above documents.**
 Each requires its own separate, explicit approval, per docs/53's per-batch gate — the
 same discipline every Phase 2B batch already passed through. Two documentation-only
 closures identified by docs/51's readiness review were resolved within this same
@@ -851,6 +852,55 @@ disclosed exception, forced by this batch's cross-domain design, not a silent sc
 drift. Zero modification to any frozen Foundation/Identity & Access/Patient
 Access/PXP-1..11/WPI-1..5 file beyond the three disclosed sender-file exceptions
 above. **No batch beyond WPI-6 is authorized by this approval.**
+
+**Batch WPI-7 (Inventory, docs/50 §10/§19)** — a consumer of Doctor Instruction (indirectly,
+via the future PillFill Integration batch) with dependencies on WPI-4 (Doctor Dashboard
+capability) and WPI-6 (low-stock Notification), both already shipped — has also now
+shipped, preceded by **docs/54-SHEETS-PRODUCTION-SCALE-REVIEW.md (2026-07-08)** closing
+the Sheets-at-production-scale gate docs/49 §7/docs/51 Part 3 item 1/Part 5 named
+specifically for this batch. `InventoryItem`
+(`shared/schemas/inventory-item.schema.json`, `apps-script/InventoryItem.gs`) and
+`InventoryTransaction` (`shared/schemas/inventory-transaction.schema.json`,
+`apps-script/InventoryTransaction.gs`) ship exactly as docs/50 §10 designed:
+`quantity_on_hand` is a derived/cached value, never accepted from a create/update
+request, recomputed in full from the append-only ledger's own `change_qty` rows every
+time a transaction is recorded — never a cached-value-plus-delta update, the same
+recovery-strategy discipline docs/54 §13 names. **The platform's first use of
+`LockService`** (docs/54 §7/§18/§19's required mitigation) wraps the entire
+append-then-recompute-then-cache-write sequence; a contended lock returns a new,
+expected `FOUNDATION_LOCK_UNAVAILABLE` envelope and performs no write at all — additive
+only, zero change to `FoundationDataStore.gs` or any other frozen file.
+`InventoryTransaction.gs` is strictly append-only, with no update/patch call anywhere in
+its own implementation targeting its own ledger sheet, per docs/54 §19's explicit
+requirement. Doctor/staff-owned, never patient-facing — every write (item creation,
+retirement, threshold updates, and every stock-movement transaction) remains a
+manually-run Apps Script editor function, mirroring `Appointment.gs`'s/`CarePlan.gs`'s
+precedent exactly, a deliberate continuation of every prior WPI batch's
+"doctor/staff-owned entity writes stay manually-run" discipline even though a real
+`DoctorSession` already exists (WPI-1). One new, additive, read-only
+`FoundationRouter.gs` dispatch case (`get_inventory_items`) returns the caller's own
+specialty-scoped, active `InventoryItem` list, enriched with a computed `low_stock`
+boolean — the same specialty-derivation discipline `DoctorPatientRoster.gs`'s patient
+roster and `Appointment.gs`'s appointments view already established. The Doctor
+Dashboard's Doctor Module Registry gains its third real entry, `inventory`
+(`shared/constants/doctor-module-registry.json` version 1.2.0 → 1.3.0,
+`display_order: 30`) — the Doctor Dashboard (`doctor-dashboard/dashboard.js`) renders
+one new, read-only card, structurally parallel to the Patient Roster/Appointments
+cards, no write affordance. Crossing `reorder_threshold` records an
+`inventory_low_stock` Notification via `Notification.gs`'s own existing, unmodified
+mechanism (WPI-6) — a new call site adopting an already-designed extension point, zero
+lines changed in `Notification.gs` itself; `doctor_id` is set to the transaction's own
+`created_by`, and no real email transport is built for this alert in this batch, a
+disclosed, minimal choice (`shared/schemas/inventory-transaction.md`). This batch's own
+repository consistency review also corrected three pre-existing stale section headers
+in `docs/33-DOMAIN-MODEL.md` (Doctor §1.4, Appointment §4.1, Notification §4.2, each
+still reading *Conceptual (gap)* despite being promoted to *Implemented* by earlier
+batches) and a companion `shared/constants/doctor-module-registry.md` that had not been
+updated since Batch WPI-4 despite Batch WPI-5's own real JSON/`.gs` change — no entity's
+shape, schema, or shipped behavior changed by any of these corrections. Zero
+modification to any frozen Foundation/Identity & Access/Patient
+Access/PXP-1..11/WPI-1..6 file. **No batch beyond WPI-7 is authorized by this
+approval.**
 
 # Guiding Principle
 Every roadmap item should support the North Star:

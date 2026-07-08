@@ -135,6 +135,20 @@
  * Logger primitives already mocked above (the same "additive entity, zero
  * new infrastructure" pattern `Appointment.gs` already proved out at Batch
  * WPI-5).
+ *
+ * Extended in Phase 3/WHIMS batch WPI-7 with `InventoryItem.gs` and
+ * `InventoryTransaction.gs` in the FILES list, plus one new mock this batch
+ * actually needs: `LockService.getScriptLock()` — the platform's first use
+ * of this primitive (docs/54-SHEETS-PRODUCTION-SCALE-REVIEW.md §7/§19's
+ * required mitigation for `InventoryItem.quantity_on_hand`'s read-modify-
+ * write). A single, module-level `lockHeld` flag backs `tryLock()`/
+ * `releaseLock()` — a faithful mock of a real, process-wide exclusive lock
+ * (Node's own single-threaded execution model means no two calls in this
+ * harness are ever genuinely concurrent, but `tryLock()` returning `false`
+ * while another caller holds the lock is exactly the real primitive's own
+ * documented contract, and is what lets `conformance.js`'s Stage 23 hold the
+ * lock externally to prove `foundationRecordInventoryTransaction_()`'s own
+ * contention-handling path for real, not just assert it by inspection).
  */
 
 var fs = require('fs');
@@ -184,6 +198,8 @@ var FILES = [
   'DoctorPatientRoster.gs',
   'Appointment.gs',
   'Notification.gs',
+  'InventoryItem.gs',
+  'InventoryTransaction.gs',
   'FoundationRouter.gs'
 ];
 
@@ -239,6 +255,12 @@ function buildSandbox(opts) {
   // that a Cache eviction/expiry is a "fails open" scenario, not a
   // correctness-critical one to simulate here).
   var cacheStore = {};
+  // A single, process-wide exclusive lock — a faithful mock of
+  // LockService.getScriptLock()'s real contract (tryLock() returns false
+  // while another caller holds the lock; releaseLock() frees it). See this
+  // file's own header comment for why this is the platform's first
+  // LockService mock (Batch WPI-7, docs/54 §7/§19).
+  var lockHeld = false;
 
   function toSignedByteArray(buf) {
     var out = [];
@@ -391,6 +413,18 @@ function buildSandbox(opts) {
     },
     MailApp: {
       sendEmail: function (msg) { mailLog.push(msg); return mailImpl(msg); }
+    },
+    LockService: {
+      getScriptLock: function () {
+        return {
+          tryLock: function () {
+            if (lockHeld) return false;
+            lockHeld = true;
+            return true;
+          },
+          releaseLock: function () { lockHeld = false; }
+        };
+      }
     },
     ContentService: {
       MimeType: { JSON: 'JSON' },

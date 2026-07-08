@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wisehomeopathy.com/shared/schemas/inventory-item.schema.json",
+  "title": "InventoryItem",
+  "version": "1.0.0",
+  "description": "The canonical shape of an InventoryItem record — docs/50-PHASE-3-TECHNICAL-PLAN.md §10's design, Phase 3/WHIMS Batch WPI-7 (docs/50 §19), governed by docs/53-PHASE-3-IMPLEMENTATION-RULES.md. A stock-keeping record — never patient-facing, doctor/staff-facing only, exposed through the Doctor Dashboard's `inventory` capability. `quantity_on_hand` is a derived/cached value, recomputed from the append-only `InventoryTransaction` ledger (inventory-transaction.schema.json) every time a transaction is recorded — it is never the sole source of truth and is never accepted directly from a create/update request; a new item always starts at 0 and its real starting stock is set by recording an initial `restock`/`adjustment` transaction against it, the same 'never accept a derived field from input' discipline appointment.schema.json's `specialty_slug` already establishes. See inventory-item.md for the full disclosure, including why `quantity_on_hand` is never directly writable and the disclosed, additive `created_by`/`created_at` provenance fields.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["inventory_item_id", "name", "sku", "unit", "quantity_on_hand", "reorder_threshold", "specialty_scope", "status", "created_by", "created_at"],
+  "properties": {
+    "inventory_item_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "This row's own identity column (UUID), server-generated. Never staff-supplied."
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The stock-keeping unit's human-readable name (e.g. a remedy/product name). Staff-supplied at creation, immutable thereafter in this batch's scope."
+    },
+    "sku": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The stock-keeping unit's own identifying code. Staff-supplied at creation. No uniqueness constraint is enforced by this batch — docs/50 §10 does not name one, and inventing one would be undocumented scope beyond this entity's designed shape."
+    },
+    "unit": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The unit this item is counted in (e.g. 'tablets', 'ml', 'bottles'). Staff-supplied at creation, free text — docs/50 §10 does not name a fixed enum for this field."
+    },
+    "quantity_on_hand": {
+      "type": "integer",
+      "description": "A derived/cached running total, recomputed in full from the `InventoryTransaction` ledger's own `change_qty` rows every time a transaction is recorded against this item (docs/50 §10, docs/54 §13's recovery-strategy discipline) — never the sole source of truth, and always reconstructable by replaying the ledger. Always 0 at creation; never accepted from a create/update request afterward. Every write to this field is wrapped in `LockService` (apps-script/InventoryTransaction.gs's `foundationRecordInventoryTransaction_()`) per docs/54 §7/§19's required mitigation."
+    },
+    "reorder_threshold": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "The stock level at or below which an `inventory_low_stock` Notification (notification.schema.json) is produced (docs/50 §10, docs/54 §19). Staff-supplied at creation, editable via the retire/threshold-update path this batch adds."
+    },
+    "specialty_scope": {
+      "type": "string",
+      "description": "Optional specialty scoping (ADR-018, docs/50 §6.2) — empty-string sentinel means visible regardless of specialty (today's actual, only-seeded-specialty behavior), mirroring every other entity's own optional `specialty_scope`/nullable-field convention. When non-empty, must reference a real Specialty Registry entry (`SpecialtyRegistry.gs`)."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["active", "retired"],
+      "description": "This item's current lifecycle state (docs/50 §10). Always 'active' at creation. Transitions to 'retired' one-way, never reverted — a retired item no longer appears in the Doctor Dashboard's inventory view and can no longer receive a new transaction, mirroring every other Foundation-family lifecycle entity's 'no update, no delete, one-way transition' discipline."
+    },
+    "created_by": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The doctor/staff identifier who created this item (a disclosed, additive provenance field beyond docs/50 §10's literal attribute list — the same category of implementation-time field-level decision appointment.schema.json's own `created_by` already made). Never patient-supplied."
+    },
+    "created_at": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Server-set at creation (foundationNowIso_()), ISO 8601 UTC date-time. Never staff-supplied."
+    }
+  }
+}

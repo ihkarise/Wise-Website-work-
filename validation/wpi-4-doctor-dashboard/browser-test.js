@@ -336,16 +336,17 @@ async function main() {
       await page.waitForSelector('#dashEmptyState');
 
       // Updated at Batch WPI-5 (docs/50 §8/§19): DOCTOR_MODULE_REGISTRY now
-      // carries two entries (patient_roster, appointments) — a mechanical,
-      // disclosed update to this batch's own stale factual count, mirroring
-      // validation/phase-2a-foundation/conformance.js's Stage19 own
+      // carries two entries (patient_roster, appointments). Updated again at
+      // Batch WPI-7 (docs/50 §10/§19): a third entry, inventory — mechanical,
+      // disclosed updates to this batch's own stale factual count each time,
+      // mirroring validation/phase-2a-foundation/conformance.js's Stage19 own
       // precedent for updating an earlier stage's count when a later batch
       // adds a registry entry. This suite's remaining assertions (empty
       // dashboard, patient_roster rendering/empty-state, loader dispatch,
       // fail-closed session handling, sign-out) are untouched, still
       // WPI-4's own scope.
       const registryLength = await page.evaluate(() => window.WiseDoctorDashboard.DOCTOR_MODULE_REGISTRY.length);
-      check('Doctor Dashboard: the hand-ported DOCTOR_MODULE_REGISTRY carries exactly two entries (patient_roster, appointments, as of Batch WPI-5)', registryLength === 2);
+      check('Doctor Dashboard: the hand-ported DOCTOR_MODULE_REGISTRY carries exactly three entries (patient_roster, appointments, inventory, as of Batch WPI-7)', registryLength === 3);
 
       const filterResult = await page.evaluate(() => {
         var stateEntries = [

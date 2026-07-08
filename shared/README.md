@@ -197,6 +197,21 @@ their own already-completed send attempt as a Notification row — no sender's o
 transport, or return value changes. System-generated only, mirroring
 `schemas/session.schema.json`'s own ownership model — zero `FoundationRouter.gs`
 dispatch case ships in this batch. No other `shared/` file changed in this batch.
+Phase 3/WHIMS Batch WPI-7 added `schemas/inventory-item.schema.json` (the
+`InventoryItem` record shape — docs/50 §10, a stock-keeping record whose
+`quantity_on_hand` is never accepted from a create/update request, always `0` at
+creation, alongside its first implementation, `apps-script/InventoryItem.gs`) and
+`schemas/inventory-transaction.schema.json` (the `InventoryTransaction` record shape —
+an append-only stock-movement ledger, alongside its first implementation,
+`apps-script/InventoryTransaction.gs`, **the platform's first use of `LockService`**
+per docs/54-SHEETS-PRODUCTION-SCALE-REVIEW.md §7/§18/§19's required mitigation for
+`quantity_on_hand`'s read-modify-write). `quantity_on_hand` is recomputed in full from
+the ledger every time a transaction is recorded, wrapped in one `LockService` critical
+section — a contended lock returns a new, expected `FOUNDATION_LOCK_UNAVAILABLE`
+envelope and performs no write at all. Bumped `constants/doctor-module-registry.json`
+(1.2.0 → 1.3.0) to add this registry's third real entry, `inventory`, backed by a new,
+real, authenticated data_source route (`get_inventory_items`) — the Doctor Dashboard's
+third card. No other `shared/` file changed in this batch.
 
 ---
 

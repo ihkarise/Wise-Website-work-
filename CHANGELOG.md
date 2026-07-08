@@ -8,6 +8,129 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-16 — Phase 3 Batch WPI-7: Inventory
+
+Implements Batch WPI-7 (docs/50-PHASE-3-TECHNICAL-PLAN.md §10/§19), a consumer of
+Pillar 2 (Doctor Dashboard) dependent on WPI-4 and WPI-6 (both already shipped), per
+docs/53-PHASE-3-IMPLEMENTATION-RULES.md's per-batch gate. Preceded by
+docs/54-SHEETS-PRODUCTION-SCALE-REVIEW.md closing the Sheets-at-production-scale gate
+docs/49 §7/docs/51 Part 3 item 1/Part 5 named specifically for this batch. **Explicitly
+scoped to WPI-7 only — no later batch (WPI-8 onward) is authorized by this change.**
+
+### Added (schema)
+- **`shared/schemas/inventory-item.schema.json`** (new, version 1.0.0, + `.md`) — the
+  `InventoryItem` record shape (docs/50 §10): `quantity_on_hand` is never accepted from
+  a create/update request (always `0` at creation, thereafter written only via the
+  ledger's own recompute); `specialty_scope` optional (ADR-018); `status`
+  (`active`/`retired`) one-way; disclosed additive `created_by`/`created_at` provenance
+  fields.
+- **`shared/schemas/inventory-transaction.schema.json`** (new, version 1.0.0, + `.md`)
+  — the `InventoryTransaction` record shape (docs/50 §10): an append-only ledger row
+  (`transaction_id`, `inventory_item_id`, `change_qty`, `reason`, `reference_id`,
+  `created_by`, `created_at`), never updated or patched once written.
+
+### Added (Apps Script)
+- **`apps-script/InventoryItem.gs`** (new) — `foundationCreateInventoryItem_()`,
+  `foundationGetInventoryItemById_()`, `foundationGetInventoryItemsForDoctor_()`
+  (specialty-scoped, active-only, enriched with a computed `low_stock` boolean),
+  `foundationRetireInventoryItem_()`, `foundationUpdateInventoryItemThreshold_()`.
+  Every write is a manually-run Apps Script editor function
+  (`createFoundationInventoryItem()`/`retireFoundationInventoryItem()`/
+  `updateFoundationInventoryItemThreshold()`), mirroring `Appointment.gs`'s/
+  `CarePlan.gs`'s precedent exactly — a deliberate continuation of every prior WPI
+  batch's "doctor/staff-owned entity writes stay manually-run" discipline, not a
+  departure, even though a real `DoctorSession` already exists.
+- **`apps-script/InventoryTransaction.gs`** (new) —
+  `foundationRecordInventoryTransaction_()`, **the platform's first use of
+  `LockService`** (docs/54 §7/§18/§19's required mitigation). Wraps the entire
+  append-then-recompute-then-cache-write sequence in one `LockService` critical
+  section: `quantity_on_hand` is recomputed in full from every `change_qty` row in the
+  ledger, never a cached-value-plus-delta update, so the cache is always
+  reconstructable from — and self-correcting against — the ledger (docs/54 §13). A
+  contended lock returns a new, expected `FOUNDATION_LOCK_UNAVAILABLE` envelope and
+  performs no write at all — no ledger row, no cache update, no Notification. Strictly
+  append-only: no `updateById`/patch call anywhere in this file targets its own ledger
+  sheet. Crossing `reorder_threshold` records an `inventory_low_stock` Notification via
+  `Notification.gs`'s own existing, unmodified mechanism (WPI-6) — `doctor_id` set to
+  the transaction's own `created_by`; no real email transport is built for this alert
+  in this batch, a disclosed, minimal choice (`shared/schemas/
+  inventory-transaction.md`). The one manually-run wrapper,
+  `recordFoundationInventoryTransaction()`, mirrors every other doctor/staff-only
+  entity's precedent.
+
+### Added (router, registry, dashboard)
+- **`apps-script/FoundationRouter.gs`** — one new, additive, read-only dispatch case,
+  `get_inventory_items`, deriving `doctor_id` exclusively from the verified
+  `DoctorSession`, mirroring `get_doctor_appointments` exactly. No write route exists
+  for either entity.
+- **`shared/constants/doctor-module-registry.json`** (1.2.0 → 1.3.0) and
+  **`apps-script/DoctorModuleRegistry.gs`** — this registry's third real entry,
+  `inventory` (`display_order: 30`, `data_source: get_inventory_items`).
+- **`doctor-dashboard/dashboard.js`** — one new, read-only Inventory card, structurally
+  parallel to the Patient Roster/Appointments cards (docs/50 §7.3's registry-driven
+  discipline unchanged — `renderDashboard()`/`dispatchLoaders()` themselves gained no
+  new logic, only a new registry entry and a new loader).
+
+### Added (validation)
+- **`validation/phase-2a-foundation/harness.js`** — a new `LockService.getScriptLock()`
+  mock (`tryLock()`/`releaseLock()`, a faithful single-process exclusive lock), plus
+  `InventoryItem.gs`/`InventoryTransaction.gs` added to the loaded `FILES` list.
+- **`validation/phase-2a-foundation/conformance.js`** — new Stage 23 (44 checks):
+  validation rejections, `quantity_on_hand` recompute-from-ledger correctness,
+  append-only-ledger proof, low-stock Notification production, a genuine
+  external-contention `LockService` test (holds the lock externally, asserts
+  `FOUNDATION_LOCK_UNAVAILABLE` and zero write, then releases and confirms success),
+  retire/threshold-update lifecycle, specialty-scoping (including a direct-insert
+  fixture proving a non-matching `specialty_scope` is actually excluded), the new HTTP
+  dispatch case end to end, and cross-identity-type rejection.
+- **`validation/wpi-7-inventory/browser-test.js`** (new, 13 checks) — the Inventory
+  card's own render/empty/low-stock states and loader-dispatch participation, mirroring
+  `validation/wpi-5-appointment/browser-test.js`'s split-suite discipline exactly.
+- **`validation/static-analysis/analyze.js`** — the four new manually-run wrapper
+  function names added to the existing allowlist.
+
+### Fixed (disclosed, pre-existing documentation drift — not introduced by this batch)
+- **`docs/33-DOMAIN-MODEL.md`** — three stale section headers corrected: §1.4 (Doctor)
+  and §4.1 (Appointment) and §4.2 (Notification) each still read *Conceptual (gap)* in
+  their own heading despite each entity's own body text already recording its later
+  promotion to *Implemented* (Batches WPI-1, WPI-5, and WPI-6 respectively) — found
+  during this batch's own repository consistency review (docs/53 §14), the same
+  "keep history, correct the stale current-status framing" rule docs/48 §5 already
+  applied once to this same document. No entity's shape, schema, or shipped behavior
+  changed by any of these corrections.
+- **`shared/constants/doctor-module-registry.md`** — had not been updated since Batch
+  WPI-4 despite Batch WPI-5's own real `appointments` addition to the JSON/`.gs` files;
+  now records both WPI-5's and this batch's own WPI-7 addition.
+- **Three pre-existing conformance assertions** (`validation/phase-2a-foundation/
+  conformance.js` Stage19/Stage20/Stage21/Stage22, and matching count assertions in
+  `validation/wpi-4-doctor-dashboard/browser-test.js`/`validation/wpi-5-appointment/
+  browser-test.js`) hard-coded the Doctor Module Registry's total entry count or used
+  the literal string `'inventory'` as a "definitely unregistered" test fixture — both
+  mechanically, disclosedly updated to reflect this batch's own registry growth,
+  mirroring the exact precedent Batch WPI-5 already set for Stage19/Stage20's own
+  count assertions.
+
+### What this batch deliberately does not do
+- **No InventoryItem/InventoryTransaction write route.** Every write remains a
+  manually-run Apps Script editor function — no authenticated Web App write path for
+  either entity, per this batch's own disclosed continuation of every prior WPI batch's
+  precedent.
+- **No real email transport for the low-stock alert.** The `inventory_low_stock`
+  Notification row is produced; no `MailApp` call or recipient template is built in
+  this batch.
+- **No caching, indexing, or query language added to `FoundationDataStore.gs`** — docs/54
+  §18's explicit recommendation against this as part of WPI-7.
+- **No PillFill Integration (WPI-8), Analytics (WPI-9), or any later batch.**
+- **No modification to any frozen Foundation/Identity & Access/Patient
+  Access/PXP-1..11/WPI-1..6 file.**
+
+### Validation
+- Static Analysis: 0 findings.
+- Conformance: 612/612 checks passed (44 new in Stage 23).
+- Phase 1.5 Regression: 45/45 checks passed, untouched.
+- Browser suites: all 13 suites green, 296/296 checks passed (13 new in
+  `validation/wpi-7-inventory/`).
+
 ## 2026-07-08 — Phase 3: Google Sheets Production Scale / Capacity Review (WPI-7/WPI-9 gate)
 
 Documentation-only. Produces `docs/54-SHEETS-PRODUCTION-SCALE-REVIEW.md`, the dedicated
