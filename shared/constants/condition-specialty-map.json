@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wisehomeopathy.com/shared/constants/condition-specialty-map.json",
+  "title": "Condition-to-Specialty Map",
+  "version": "1.0.0",
+  "description": "The small, additive lookup table docs/50-PHASE-3-TECHNICAL-PLAN.md §6.3 names but does not itself design — resolved at this batch, Phase 3/WHIMS WPI-2, per docs/51-PHASE-3-ARCHITECTURE-READINESS-REVIEW.md Part 1.4's own recommendation. Maps every canonical condition slug (shared/constants/condition-slugs.json version 1.0.0) to the Specialty Registry entry (specialty-registry.json) responsible for it — the mechanism docs/50 §6.3 describes for deriving a patient's effective specialty from their active DoctorAssignedCondition entries, without changing DoctorAssignedCondition's own schema. Not a change to shared/schemas/doctor-assigned-condition.schema.json or apps-script/DoctorAssignedCondition.gs (docs/50 §3's zero-lines-touched list) — a new, separate, additive file only. Every condition slug that exists today maps to the platform's one seeded specialty (homeopathy), matching today's actual, if previously unstated, single-specialty behavior exactly (ADR-018). `default_specialty_slug` is the fallback for a condition_slug with no explicit mapping (or no condition assignment at all) — 'treated as the implicit default specialty, matching today's actual behavior exactly' (docs/50 §6.3). apps-script/SpecialtyRegistry.gs hand-ports this list into its own Foundation-prefixed array, the same duplication-by-convention condition-slugs.json's own consumers already use. No consumer reads this file yet in this batch — infrastructure for a future batch (Doctor Dashboard patient-roster/registry filtering, docs/50 §7.4) to eventually use, mirroring Calculator Registry's (Batch PXP-6) own 'mechanism ships before any consumer' precedent.",
+  "default_specialty_slug": "homeopathy",
+  "mappings": [
+    { "condition_slug": "mcas", "specialty_slug": "homeopathy" },
+    { "condition_slug": "hashimotos-thyroiditis", "specialty_slug": "homeopathy" },
+    { "condition_slug": "chronic-urticaria", "specialty_slug": "homeopathy" },
+    { "condition_slug": "eczema", "specialty_slug": "homeopathy" },
+    { "condition_slug": "allergic-rhinitis", "specialty_slug": "homeopathy" },
+    { "condition_slug": "eosinophilic-esophagitis", "specialty_slug": "homeopathy" },
+    { "condition_slug": "pots", "specialty_slug": "homeopathy" },
+    { "condition_slug": "dermographism", "specialty_slug": "homeopathy" }
+  ]
+}

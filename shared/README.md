@@ -149,7 +149,17 @@ and `apps-script/FoundationSession.gs`'s unmodified signing primitives; see its 
 `.md` for the dedicated pre-ship security review docs/50 §14 required), and
 `schemas/doctor-login-token.schema.json` (the `DoctorLoginToken` record shape — mirrors
 `login-token.schema.json` exactly, stored in its own `DoctorLoginTokens` sheet, never
-`LoginTokens`).
+`LoginTokens`). Phase 3/WHIMS Batch WPI-2 added `constants/specialty-registry.json`
+(the Specialty Registry's static, versioned list of specialty descriptors — Pillar 3,
+ADR-018, alongside its first implementation, `apps-script/SpecialtyRegistry.gs` —
+seeded with exactly one entry, `homeopathy`) and `constants/
+condition-specialty-map.json` (the small, additive condition-to-specialty lookup table
+docs/50 §6.3 named but did not design, resolved at this batch per docs/51 Part 1.4's
+recommendation — every real condition slug maps to `homeopathy` today, with a
+fail-open-to-default fallback for any unmapped slug). Neither file changes
+`constants/module-registry.json`, `calculator-registry.json`, or
+`template-registry.json` — none gains a populated `specialty_scope` entry in this
+batch, since none has a second specialty's entry to scope yet (docs/53 §4).
 
 ---
 

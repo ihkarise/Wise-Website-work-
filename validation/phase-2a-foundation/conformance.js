@@ -265,6 +265,8 @@ var trustedDeviceSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'sche
 var doctorIdentitySchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/doctor-identity.schema.json'), 'utf8'));
 var doctorSessionSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/doctor-session.schema.json'), 'utf8'));
 var doctorLoginTokenSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/doctor-login-token.schema.json'), 'utf8'));
+var specialtyRegistryConstant = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'constants/specialty-registry.json'), 'utf8'));
+var conditionSpecialtyMapConstant = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'constants/condition-specialty-map.json'), 'utf8'));
 
 var results = [];
 function record(name, pass, detail) {
@@ -2668,6 +2670,63 @@ var ctx = loadProject(h.sandbox);
     auditRowsOf(h, 'doctor_login_token_rejected').length >= 1);
   record('Stage17: every rejected DoctorSession verification wrote its own doctor_session_rejected AuditLog row',
     auditRowsOf(h, 'doctor_session_rejected').length >= 1);
+})();
+
+// ============================================================
+// Stage 18 — Phase 3/WHIMS Batch WPI-2: Specialty Registry
+// docs/50-PHASE-3-TECHNICAL-PLAN.md §6/§19, ADR-018,
+// shared/constants/specialty-registry.json,
+// shared/constants/condition-specialty-map.json
+// ============================================================
+(function stage18_specialtyRegistry() {
+  // ---- Specialty Registry — a static, pure config list, seeded with exactly one entry ----
+  var registry = ctx.foundationGetSpecialtyRegistry_();
+  record('Stage18: foundationGetSpecialtyRegistry_() returns exactly the one seeded specialty (homeopathy) — no second specialty populated (ADR-018)',
+    registry.length === 1 && registry[0].specialty_slug === 'homeopathy' && registry[0].status === 'active');
+
+  record('Stage18: the hand-ported FOUNDATION_SPECIALTY_REGISTRY_ matches shared/constants/specialty-registry.json exactly',
+    JSON.stringify(registry) === JSON.stringify(specialtyRegistryConstant.specialties));
+
+  // ---- foundationGetSpecialtyBySlug_() — exact-lookup shape, mirrors foundationGetCalculatorBySlugAndVersion_() ----
+  var found = ctx.foundationGetSpecialtyBySlug_('homeopathy');
+  record('Stage18: foundationGetSpecialtyBySlug_() resolves the real, seeded specialty_slug',
+    found !== null && found.display_name === 'Homeopathy');
+  record('Stage18: foundationGetSpecialtyBySlug_() returns null for an unregistered specialty_slug — no second specialty exists yet',
+    ctx.foundationGetSpecialtyBySlug_('nutrition') === null);
+  record('Stage18: foundationGetSpecialtyBySlug_() returns null for an empty specialty_slug',
+    ctx.foundationGetSpecialtyBySlug_('') === null);
+
+  // ---- Condition-to-Specialty Map — every canonical condition slug resolves to the one seeded specialty ----
+  record('Stage18: the hand-ported FOUNDATION_CONDITION_SPECIALTY_MAP_ matches shared/constants/condition-specialty-map.json exactly',
+    JSON.stringify(ctx.FOUNDATION_CONDITION_SPECIALTY_MAP_) === JSON.stringify(conditionSpecialtyMapConstant.mappings));
+  record('Stage18: FOUNDATION_DEFAULT_SPECIALTY_SLUG_ matches condition-specialty-map.json\'s own default_specialty_slug',
+    ctx.FOUNDATION_DEFAULT_SPECIALTY_SLUG_ === conditionSpecialtyMapConstant.default_specialty_slug);
+
+  var everyConditionSlug = conditionSpecialtyMapConstant.mappings.map(function (m) { return m.condition_slug; });
+  record('Stage18: every real condition_slug (shared/constants/condition-slugs.json) has an explicit mapping — none silently falls through to the default',
+    everyConditionSlug.length === 8 && everyConditionSlug.indexOf('mcas') !== -1 && everyConditionSlug.indexOf('dermographism') !== -1);
+
+  record('Stage18: foundationGetSpecialtyForCondition_() resolves a real, mapped condition_slug (mcas) to homeopathy',
+    ctx.foundationGetSpecialtyForCondition_('mcas') === 'homeopathy');
+  record('Stage18: foundationGetSpecialtyForCondition_() resolves every other real, mapped condition_slug to homeopathy too',
+    everyConditionSlug.every(function (slug) { return ctx.foundationGetSpecialtyForCondition_(slug) === 'homeopathy'; }));
+
+  // ---- Fail-open-to-default behavior (docs/50 §6.3) — the deliberate inverse of PatientModuleState's fail-closed default ----
+  record('Stage18: foundationGetSpecialtyForCondition_() resolves an unmapped condition_slug to the implicit default specialty, never an error',
+    ctx.foundationGetSpecialtyForCondition_('not-a-real-condition') === 'homeopathy');
+  record('Stage18: foundationGetSpecialtyForCondition_() resolves an empty condition_slug to the implicit default specialty',
+    ctx.foundationGetSpecialtyForCondition_('') === 'homeopathy');
+  record('Stage18: foundationGetSpecialtyForCondition_() resolves an undefined condition_slug to the implicit default specialty, never throwing',
+    ctx.foundationGetSpecialtyForCondition_(undefined) === 'homeopathy');
+
+  // ---- Zero-lines-touched proof (docs/50 §3): every existing registry this batch does not touch is unchanged ----
+  record('Stage18: Module Registry is untouched by this batch — still the same four modules Stage 12 already proved',
+    ctx.foundationGetModuleRegistry_().length === 4);
+  record('Stage18: Calculator Registry is untouched by this batch — still seeded empty, per Stage 14',
+    ctx.FOUNDATION_CALCULATOR_REGISTRY_.length === 0);
+  record('Stage18: neither Module Registry nor Calculator Registry entries carry a specialty_scope field — this batch adds no scoped entry to either',
+    ctx.foundationGetModuleRegistry_().every(function (m) { return !Object.prototype.hasOwnProperty.call(m, 'specialty_scope'); }) &&
+    ctx.FOUNDATION_CALCULATOR_REGISTRY_.every(function (c) { return !Object.prototype.hasOwnProperty.call(c, 'specialty_scope'); }));
 })();
 
 function auditRowsOf(h, eventType) {

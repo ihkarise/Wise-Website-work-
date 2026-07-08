@@ -8,6 +8,80 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-16 — Phase 3 Batch WPI-2: Specialty Registry
+
+Implements Batch WPI-2 (docs/50-PHASE-3-TECHNICAL-PLAN.md §6/§19, ADR-018), Phase
+3/WHIMS's Pillar 3, independent of WPI-1, per docs/53-PHASE-3-IMPLEMENTATION-RULES.md's
+per-batch gate. **Explicitly scoped to WPI-2 only — no later batch (WPI-3 onward) is
+authorized by this change.**
+
+### Added (constants)
+- **`shared/constants/specialty-registry.json`** (+ `.md`) — the Specialty Registry's
+  static, versioned list of specialty descriptors, seeded with exactly one entry
+  (`homeopathy`), the platform's current, implicit specialty, named explicitly for the
+  first time (ADR-018). No second specialty is populated.
+- **`shared/constants/condition-specialty-map.json`** (+ `.md`) — the small, additive
+  condition-to-specialty lookup table docs/50 §6.3 named but did not design, resolved
+  at this batch per docs/51 Part 1.4's own recommendation. Every real condition slug
+  (`shared/constants/condition-slugs.json`) maps to `homeopathy` today;
+  `default_specialty_slug` fails open to the implicit default for any unmapped slug
+  (the deliberate inverse of `PatientModuleState`'s fail-closed default). Not a change
+  to `shared/schemas/doctor-assigned-condition.schema.json` or
+  `apps-script/DoctorAssignedCondition.gs`.
+
+### Added (Apps Script)
+- **`apps-script/SpecialtyRegistry.gs`** — hand-ports both new constants files;
+  `foundationGetSpecialtyRegistry_()`, `foundationGetSpecialtyBySlug_()`, and
+  `foundationGetSpecialtyForCondition_()`. Pure, leaf-level config with no Apps Script
+  runtime dependency, mirroring `ModuleRegistry.gs`/`CalculatorRegistry.gs`. No
+  consumer exists yet in this batch — infrastructure for a future batch (Doctor
+  Dashboard patient-roster/registry filtering, WPI-3/WPI-4, docs/50 §7.4) to consume,
+  mirroring Calculator Registry's (Batch PXP-6) own "mechanism ships before any
+  consumer" precedent.
+
+### What this batch deliberately does not do
+- **Does not add a populated `specialty_scope` entry to Module Registry, Calculator
+  Registry, or Template Registry.** ADR-018 already decided, platform-wide, that all
+  three *may* optionally carry the field; docs/53 §4 governs *when* each specific
+  registry actually gains one — "independently, at whichever WPI batch first needs it
+  for that specific registry." Since no second specialty exists, none needs it yet.
+  `shared/constants/module-registry.json`, `calculator-registry.json`,
+  `template-registry.json`, and their Apps Script counterparts (`ModuleRegistry.gs`,
+  `CalculatorRegistry.gs`, `TemplateRegistry.gs`) are all untouched, zero lines, per
+  docs/50 §3.
+- **Does not wire `Doctor.specialty_slug` validation against this new registry.**
+  `shared/schemas/doctor-identity.schema.json`'s `specialty_slug` field shipped at
+  WPI-1, deliberately unvalidated since no real Specialty Registry existed yet.
+  `apps-script/DoctorIdentity.gs` is itself now a frozen WPI-1 file (frozen except for
+  genuine bug fixes) — wiring that validation is a disclosed, deferred decision for a
+  future batch, not this one.
+- No patient-facing surface, no doctor-facing frontend page, no new
+  `FoundationRouter.gs` dispatch case (no consumer exists yet — the Doctor Dashboard is
+  WPI-3/WPI-4's scope). Zero modification to any frozen Foundation/Identity &
+  Access/Patient Access/PXP-1..11/WPI-1 file.
+
+### Validation
+- Static Analysis (`validation/static-analysis/analyze.js`) — PASS, 0 findings (51
+  files scanned). A new, disclosed `INFRASTRUCTURE_AHEAD_OF_CONSUMER` allowlist covers
+  this batch's three registry/lookup accessor functions, correctly unused within
+  `apps-script/` by explicit architectural design (no same-batch consumer) — distinct
+  from the existing `MANUAL_DROPDOWN_WRAPPERS` allowlist, which covers human-invoked
+  editor functions, a different case.
+- Conformance (`validation/phase-2a-foundation/conformance.js`) — 477/477 passing (new
+  Stage 18, 16 checks), including hand-port-vs-canonical-JSON cross-checks and a direct
+  proof that Module Registry/Calculator Registry are unchanged by this batch.
+- Phase 1.5 Regression (`validation/phase-1-5/validate.js`) — 42/42 passing, unchanged.
+- All 10 existing browser-test suites — unaffected (WPI-2 ships no frontend page),
+  re-verified passing (249 checks, 0 failures).
+
+### Documentation
+- `docs/33-DOMAIN-MODEL.md` — §7.2 and the Summary Table: Specialty promoted from
+  Designed to Implemented. Every other Phase 3/WHIMS entity (Doctor Module Registry,
+  Appointment, Notification, Inventory, PillFill Order, Analytics) remains exactly as
+  Designed — untouched by this batch.
+- `docs/24-ROADMAP.md` — Phase 3 status updated; WPI-2 entry added.
+- `shared/README.md` — new constants-catalog paragraph for this batch's two additions.
+
 ## 2026-07-16 — Phase 3 Batch WPI-1: Doctor Identity & Session
 
 Implements Batch WPI-1 (docs/50-PHASE-3-TECHNICAL-PLAN.md §5/§19, ADR-017), the
