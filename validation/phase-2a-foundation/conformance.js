@@ -267,6 +267,8 @@ var doctorSessionSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'sche
 var doctorLoginTokenSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/doctor-login-token.schema.json'), 'utf8'));
 var specialtyRegistryConstant = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'constants/specialty-registry.json'), 'utf8'));
 var conditionSpecialtyMapConstant = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'constants/condition-specialty-map.json'), 'utf8'));
+var doctorModuleStateSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/doctor-module-state.schema.json'), 'utf8'));
+var doctorModuleRegistryConstant = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'constants/doctor-module-registry.json'), 'utf8'));
 
 var results = [];
 function record(name, pass, detail) {
@@ -2727,6 +2729,105 @@ var ctx = loadProject(h.sandbox);
   record('Stage18: neither Module Registry nor Calculator Registry entries carry a specialty_scope field — this batch adds no scoped entry to either',
     ctx.foundationGetModuleRegistry_().every(function (m) { return !Object.prototype.hasOwnProperty.call(m, 'specialty_scope'); }) &&
     ctx.FOUNDATION_CALCULATOR_REGISTRY_.every(function (c) { return !Object.prototype.hasOwnProperty.call(c, 'specialty_scope'); }));
+})();
+
+// ============================================================
+// Stage 19 — Phase 3/WHIMS Batch WPI-3: Doctor Module Registry (backend)
+// docs/50-PHASE-3-TECHNICAL-PLAN.md §7.1/§7.2/§19, ADR-020,
+// shared/constants/doctor-module-registry.json,
+// shared/schemas/doctor-module-state.schema.json, plus
+// FoundationRouter.gs's one new read-only dispatch case end to end.
+// Phase 3/WHIMS's Pillar 2 — staff-owned, doctor never writes,
+// fail-closed absence-of-row default (docs/50 §7.2/§14, ADR-020,
+// docs/53-PHASE-3-IMPLEMENTATION-RULES.md).
+// ============================================================
+(function stage19_doctorModuleState() {
+  var doctorA = ctx.foundationCreateDoctor_({
+    full_name: 'Stage19 Doctor A', role: 'physician', email: 'stage19-doctor-a@example.com',
+    specialty_slug: 'homeopathy', created_by: 'conformance-harness'
+  });
+  var doctorB = ctx.foundationCreateDoctor_({
+    full_name: 'Stage19 Doctor B', role: 'physician', email: 'stage19-doctor-b@example.com',
+    created_by: 'conformance-harness'
+  });
+  record('Stage19: setup — two independent doctors exist', doctorA.status === 'ok' && doctorB.status === 'ok');
+  var doctorIdA = doctorA.data.doctor_id;
+  var doctorIdB = doctorB.data.doctor_id;
+
+  // ---- Doctor Module Registry — a static, pure config list, deliberately seeded empty ----
+  var registry = ctx.foundationGetDoctorModuleRegistry_();
+  record('Stage19: foundationGetDoctorModuleRegistry_() ships empty — no doctor-facing capability registered yet (docs/50 §7.1, disclosed "ships empty" precedent)',
+    registry.length === 0);
+  record('Stage19: the hand-ported FOUNDATION_DOCTOR_MODULE_REGISTRY_ matches shared/constants/doctor-module-registry.json exactly',
+    JSON.stringify(registry) === JSON.stringify(doctorModuleRegistryConstant.capabilities));
+  record('Stage19: foundationGetRegisteredDoctorCapabilityKeys_() returns an empty allowlist — every capability_key write is fail-closed-by-absence today',
+    ctx.foundationGetRegisteredDoctorCapabilityKeys_().length === 0);
+
+  // ---- foundationGetDoctorModuleStates_() against an empty registry ----
+  var defaultStatesA = ctx.foundationGetDoctorModuleStates_(doctorIdA);
+  record('Stage19: foundationGetDoctorModuleStates_() succeeds even with zero persisted rows and zero registered capabilities',
+    defaultStatesA.status === 'ok' && defaultStatesA.data.length === 0);
+
+  // ---- Validation rejections ----
+  var missingDoctorId = ctx.foundationSetDoctorModuleState_({ capability_key: 'inventory', enabled: true, enabled_by: 'staff-1' });
+  record('Stage19: foundationSetDoctorModuleState_() rejects a missing doctor_id with FOUNDATION_INVALID_INPUT',
+    missingDoctorId.status === 'error' && missingDoctorId.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var badCapabilityKey = ctx.foundationSetDoctorModuleState_({ doctor_id: doctorIdA, capability_key: 'inventory', enabled: true, enabled_by: 'staff-1' });
+  record('Stage19: foundationSetDoctorModuleState_() rejects every capability_key — the registry ships empty, so none can ever resolve (fail-closed-by-absence, mirrors CalculatorResult.gs against an empty Calculator Registry)',
+    badCapabilityKey.status === 'error' && badCapabilityKey.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var nonBooleanEnabled = ctx.foundationSetDoctorModuleState_({ doctor_id: doctorIdA, capability_key: 'inventory', enabled: 'yes', enabled_by: 'staff-1' });
+  record('Stage19: foundationSetDoctorModuleState_() rejects a non-boolean enabled value',
+    nonBooleanEnabled.status === 'error' && nonBooleanEnabled.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var missingEnabledBy = ctx.foundationSetDoctorModuleState_({ doctor_id: doctorIdA, capability_key: 'inventory', enabled: true });
+  record('Stage19: foundationSetDoctorModuleState_() rejects a missing enabled_by (staff/administrative identifier) with FOUNDATION_INVALID_INPUT',
+    missingEnabledBy.status === 'error' && missingEnabledBy.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  // ---- state_key derivation is real and correct even though no write can ever succeed today ----
+  record('Stage19: foundationBuildDoctorModuleStateKey_() derives doctor_id + \'::\' + capability_key, mirroring PatientModuleState\'s own state_key convention',
+    ctx.foundationBuildDoctorModuleStateKey_(doctorIdA, 'inventory') === doctorIdA + '::inventory');
+
+  // ---- A real DoctorModuleState record shape, built directly (bypassing the fail-closed registry gate), still conforms to the schema ----
+  var manualRecord = ctx.foundationBuildDoctorModuleStateRecord_({ doctor_id: doctorIdA, capability_key: 'inventory', enabled: true, enabled_by: 'staff-1' }, '2026-07-16T00:00:00.000Z');
+  var manualRecordResult = validate(doctorModuleStateSchema, manualRecord);
+  record('Stage19: a DoctorModuleState record built by foundationBuildDoctorModuleStateRecord_() conforms to doctor-module-state.schema.json',
+    manualRecordResult.valid === true, manualRecordResult.errors.join('; '));
+
+  // ---- FoundationRouter.gs — the one new, read-only dispatch case, end to end ----
+  var doctorSessionA = ctx.foundationIssueDoctorSessionToken_(doctorIdA);
+  var getStatesHttp = ctx.handleFoundationRequest_({ foundation_action: 'get_doctor_module_states', session_token: doctorSessionA });
+  var getStatesBody = JSON.parse(getStatesHttp._text);
+  record('Stage19: get_doctor_module_states (real HTTP dispatch) resolves the caller\'s own, empty capability-state list from a valid DoctorSession',
+    getStatesBody.status === 'ok' && getStatesBody.data.length === 0);
+
+  var getStatesUnauthed = JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'get_doctor_module_states', session_token: 'not-a-real-session-token' })._text);
+  record('Stage19: get_doctor_module_states rejects an invalid session_token with FOUNDATION_UNAUTHORIZED, never leaking any data',
+    getStatesUnauthed.status === 'error' && getStatesUnauthed.error.code === 'FOUNDATION_UNAUTHORIZED' && getStatesUnauthed.data === null);
+
+  // ---- Cross-identity-type authorization confusion — a real Patient Session must never authorize this doctor-scoped route ----
+  var patientForCrossCheck = ctx.foundationCreatePatient_({
+    full_name: 'Stage19 Patient', email: 'stage19-patient@example.com', condition_slug: 'mcas', created_by: 'staff-1'
+  });
+  var patientSessionForCrossCheck = ctx.foundationIssueSessionToken_(patientForCrossCheck.data.patient_id);
+  var getStatesWithPatientSession = JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'get_doctor_module_states', session_token: patientSessionForCrossCheck })._text);
+  record('Stage19: get_doctor_module_states rejects a real Patient Session token with FOUNDATION_UNAUTHORIZED — cross-identity-type confusion prevented end to end, mirroring Stage 17\'s own proof',
+    getStatesWithPatientSession.status === 'error' && getStatesWithPatientSession.error.code === 'FOUNDATION_UNAUTHORIZED');
+
+  // ---- Cross-doctor isolation ----
+  var doctorSessionB = ctx.foundationIssueDoctorSessionToken_(doctorIdB);
+  var getStatesB = JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'get_doctor_module_states', session_token: doctorSessionB })._text);
+  record('Stage19: doctor B\'s own capability-state list resolves independently of doctor A\'s session — cross-doctor isolation, even though both are empty today',
+    getStatesB.status === 'ok' && getStatesB.data.length === 0);
+
+  // ---- Zero-lines-touched proof (docs/50 §3): every existing registry/entity this batch does not touch is unchanged ----
+  record('Stage19: Module Registry is untouched by this batch — still the same four modules Stage 12 already proved',
+    ctx.foundationGetModuleRegistry_().length === 4);
+  record('Stage19: Calculator Registry is untouched by this batch — still seeded empty, per Stage 14',
+    ctx.FOUNDATION_CALCULATOR_REGISTRY_.length === 0);
+  record('Stage19: Specialty Registry is untouched by this batch — still the one seeded homeopathy entry, per Stage 18',
+    ctx.foundationGetSpecialtyRegistry_().length === 1 && ctx.foundationGetSpecialtyRegistry_()[0].specialty_slug === 'homeopathy');
 })();
 
 function auditRowsOf(h, eventType) {

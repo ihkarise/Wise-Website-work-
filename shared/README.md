@@ -160,6 +160,17 @@ fail-open-to-default fallback for any unmapped slug). Neither file changes
 `constants/module-registry.json`, `calculator-registry.json`, or
 `template-registry.json` — none gains a populated `specialty_scope` entry in this
 batch, since none has a second specialty's entry to scope yet (docs/53 §4).
+Phase 3/WHIMS Batch WPI-3 added `constants/doctor-module-registry.json` (the Doctor
+Module Registry's static, versioned list of doctor-facing capability descriptors —
+Pillar 2, ADR-020, alongside its first implementation,
+`apps-script/DoctorModuleRegistry.gs` — seeded empty, a deliberate, disclosed scope
+decision explained in that file's own `.md`, mirroring `calculator-registry.json`'s
+own precedent) and `schemas/doctor-module-state.schema.json` (the `DoctorModuleState`
+record shape — per-doctor capability *enablement*, staff/administrative-owned,
+fail-closed by absence, alongside its first implementation,
+`apps-script/DoctorModuleState.gs`; structurally parallel to
+`schemas/patient-module-state.schema.json` but a separate registry and enablement
+table, never merged with the patient-facing ones, ADR-020).
 
 ---
 

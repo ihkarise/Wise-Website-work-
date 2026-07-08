@@ -1,5 +1,5 @@
 # 33 - Domain Model
-## Version 1.14 — 2026-07-16
+## Version 1.15 — 2026-07-16
 
 > Defines every major business entity in the Wise Platform: what it means, what it
 > holds, how it relates to everything else, how it comes into being and ends, who is
@@ -1169,7 +1169,7 @@ labeled test-only fixture pushed directly into the test harness's own registry a
 
 ---
 
-# 7. Phase 3 — WHIMS Patient Intelligence Platform Entities — *Mostly Designed, Batches WPI-1/WPI-2 Implemented (docs/49/50/51/52, ADR-017–020)*
+# 7. Phase 3 — WHIMS Patient Intelligence Platform Entities — *Mostly Designed, Batches WPI-1/WPI-2/WPI-3 Implemented (docs/49/50/51/52, ADR-017–020)*
 
 Net-new entities named by Phase 3's architecture-freeze pass (docs/49/50, 2026-07-16).
 Doctor (§1.4), Appointment (§4.1), and Notification (§4.2) were already conceptual and
@@ -1211,16 +1211,27 @@ doctor-facing route (infrastructure for a future batch, docs/50 §7.4). **Full d
 docs/50 §6; shipped shape: `shared/constants/specialty-registry.json`,
 `shared/constants/condition-specialty-map.json`, `apps-script/SpecialtyRegistry.gs`.
 
-## 7.3 Doctor Module Registry and Doctor Module State — *Designed*
+## 7.3 Doctor Module Registry and Doctor Module State — *Implemented (Batch WPI-3, backend only)*
 Structurally parallel to Module Registry/Patient Module State (§6.3), but a separate
 registry — patient-facing and doctor-facing capabilities are never exposed through one
-shared mechanism (ADR-020). Drives a new, registry-driven Doctor Dashboard, mirroring
-`dashboard.js`'s own post-PXP-4 discipline: no hardcoded per-capability rendering.
-**Relationships:** Governs whether a doctor sees patient-roster, condition-assignment,
-care-plan-authoring, module/calculator/template-enablement, inventory, or analytics
-capabilities. Patient roster is **derived** from Doctor Assigned Condition + specialty
-(§7.2), not a new stored entity — disclosed limitation at multi-doctor-per-specialty
-scale, docs/50 §7.4. **Full detail:** docs/50 §7.
+shared mechanism (ADR-020). Will drive a new, registry-driven Doctor Dashboard once
+built (WPI-4), mirroring `dashboard.js`'s own post-PXP-4 discipline: no hardcoded
+per-capability rendering. **Ships empty in this batch** (docs/50 §7.1's own "not a
+batch commitment" framing) — the same disclosed "mechanism before any concrete
+instance" precedent `shared/constants/calculator-registry.json` already established;
+no doctor-facing capability yet has a real, authenticated `data_source` route for the
+registry to point at. `DoctorModuleState`'s fail-closed absence-of-row default and
+one read-only route (`get_doctor_module_states`, `doctor_id` derived only from a
+verified `DoctorSession`) mirror `PatientModuleState`'s exact WPI-1-era precedent.
+**Relationships:** Will eventually govern whether a doctor sees patient-roster,
+condition-assignment, care-plan-authoring, module/calculator/template-enablement,
+inventory, or analytics capabilities, once each is registered by its own future WPI
+batch. Patient roster is **derived** from Doctor Assigned Condition + specialty (§7.2),
+not a new stored entity — disclosed limitation at multi-doctor-per-specialty scale,
+docs/50 §7.4; unaffected by this batch. **Full detail:** docs/50 §7; shipped shape:
+`shared/constants/doctor-module-registry.json`,
+`shared/schemas/doctor-module-state.schema.json`;
+`apps-script/DoctorModuleRegistry.gs`, `apps-script/DoctorModuleState.gs`.
 
 ## 7.4 Inventory Item and Inventory Transaction — *Designed*
 `InventoryItem` (stock-keeping record) plus an append-only `InventoryTransaction`
@@ -1277,7 +1288,7 @@ exactly (§6, this document's Phase 2B section).
 | Appointment | **Designed** | 3/WHIMS (docs/50 §8, batch WPI-5 — not yet built) |
 | Notification | **Designed** | 3/WHIMS (docs/50 §9, batch WPI-6 — not yet built) |
 | Specialty | **Implemented** | 3/WHIMS (docs/50 §6, ADR-018, batch WPI-2 — shipped, seeded with one specialty (homeopathy), plus the additive Condition-to-Specialty Map; no populated `specialty_scope` entry added to Module/Calculator/Template Registry, none needs one yet, docs/53 §4) |
-| Doctor Module Registry / Doctor Module State | **Designed** | 3/WHIMS (docs/50 §7, ADR-020, batches WPI-3/WPI-4 — not yet built) |
+| Doctor Module Registry / Doctor Module State | **Implemented (backend only)** | 3/WHIMS (docs/50 §7, ADR-020, batch WPI-3 — shipped, registry ships empty, fail-closed `DoctorModuleState`, one read-only `get_doctor_module_states` route; Doctor Dashboard frontend consumer is WPI-4, not yet built) |
 | Inventory Item / Inventory Transaction | **Designed** | 3/WHIMS (docs/50 §10, batch WPI-7 — not yet built) |
 | PillFill Order | **Designed** | 3/WHIMS (docs/50 §11, batch WPI-8 — not yet built) |
 | Analytics | Conceptual (view) | 3/WHIMS (docs/50 §12, batch WPI-9 — never a base table, non-AI aggregation only) |

@@ -598,9 +598,10 @@ any implementation begins.
 
 # Phase 3 — WHIMS Patient Intelligence Platform (formerly "WiseOS")
 Status: **Architecture freeze complete (Version 1.0, 2026-07-16). Implementation
-underway: Batch WPI-1 (Doctor Identity & Session) shipped 2026-07-16, and Batch WPI-2
-(Specialty Registry) shipped 2026-07-16, each explicitly approved and scoped to its own
-batch only. No later batch (WPI-3 onward) is authorized to begin.**
+underway: Batch WPI-1 (Doctor Identity & Session) shipped 2026-07-16, Batch WPI-2
+(Specialty Registry) shipped 2026-07-16, and Batch WPI-3 (Doctor Module Registry,
+backend) shipped 2026-07-16, each explicitly approved and scoped to its own batch
+only. No later batch (WPI-4 onward) is authorized to begin.**
 
 Renamed from "WiseOS" per this architecture-freeze pass (docs/49 §2) — no scope
 change from the rename itself. **Reordered ahead of Phase 2C (Health Milestones) and
@@ -636,7 +637,7 @@ unscoped placeholder, mirroring PXP-9's own precedent exactly**) → WPI-11 (Hol
 **reserved, unscoped placeholder; no existing document defines this item's purpose at
 all**) → WPI-12 (Closeout).
 
-**No WPI batch beyond WPI-2 is authorized to begin by any of the above documents.**
+**No WPI batch beyond WPI-3 is authorized to begin by any of the above documents.**
 Each requires its own separate, explicit approval, per docs/53's per-batch gate — the
 same discipline every Phase 2B batch already passed through. Two documentation-only
 closures identified by docs/51's readiness review were resolved within this same
@@ -698,6 +699,36 @@ surface, zero doctor-facing frontend page, no new `FoundationRouter.gs` dispatch
 (no consumer exists yet — the Doctor Dashboard is WPI-3/WPI-4's scope), zero
 modification to any frozen Foundation/Identity & Access/Patient Access/PXP-1..11/WPI-1
 file. **No batch beyond WPI-2 is authorized by this approval.**
+
+**Batch WPI-3 (Doctor Module Registry, backend, docs/50 §7.1/§7.2, ADR-020)** —
+Pillar 2, dependent on WPI-1 (needs `doctor_id` to key enablement) — has now shipped:
+`DoctorModuleRegistry` (`shared/constants/doctor-module-registry.json`,
+`apps-script/DoctorModuleRegistry.gs`) and `DoctorModuleState`
+(`shared/schemas/doctor-module-state.schema.json`,
+`apps-script/DoctorModuleState.gs`), structurally parallel to Module Registry/Patient
+Module State (docs/33 §6.3) but a separate registry and enablement table — never
+merged with the patient-facing ones (ADR-020, docs/53 §2). **Ships empty** — no
+concrete doctor-facing capability (patient roster, condition assignment, care-plan
+authoring, module/calculator/template enablement, inventory, PillFill orders,
+analytics) is registered here; this batch delivers only the generic
+registry-and-state mechanism, the same disclosed "mechanism before any concrete
+instance" precedent `calculator-registry.json` (Batch PXP-6) already established, no
+doctor-facing capability yet having a real, authenticated `data_source` route for a
+registry entry to point at. `DoctorModuleState` is fail-closed by absence of a row
+(ADR-010), staff/administrative-owned only (`setFoundationDoctorModuleState()`, a
+manually-run editor function mirroring `setFoundationModuleState()` exactly — every
+real invocation is rejected with `FOUNDATION_INVALID_INPUT` today, since the registry
+ships empty, a disclosed consequence, not a defect). One new, additive
+`FoundationRouter.gs` dispatch case (`get_doctor_module_states`) — read-only,
+`doctor_id` derived only from a verified `DoctorSession`, mirroring
+`get_patient_module_states`'s exact WPI-1/PXP-3-era precedent, including a direct,
+conformance-proven rejection of a real Patient Session token presented to this
+doctor-scoped route. Zero patient-facing surface, zero doctor-facing frontend page
+(the Doctor Dashboard is WPI-4's scope, not WPI-3's) — Module Registry, Calculator
+Registry, Template Registry, and Specialty Registry are all untouched, zero lines.
+Zero modification to any frozen Foundation/Identity & Access/Patient
+Access/PXP-1..11/WPI-1/WPI-2 file. **No batch beyond WPI-3 is authorized by this
+approval.**
 
 # Guiding Principle
 Every roadmap item should support the North Star:

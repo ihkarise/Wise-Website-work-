@@ -116,6 +116,14 @@
  * FILES list — no new mock needed, a pure, leaf-level static config file
  * with no Apps Script runtime dependency at all, mirroring
  * `ModuleRegistry.gs`'s/`CalculatorRegistry.gs`'s own precedent exactly.
+ *
+ * Extended in Phase 3/WHIMS batch WPI-3 with `DoctorModuleRegistry.gs`
+ * (pure, leaf-level config, same precedent as `SpecialtyRegistry.gs`) and
+ * `DoctorModuleState.gs` (reuses `FoundationDataStore.gs`'s/
+ * `FoundationAudit.gs`'s existing mocked primitives, no new mock needed —
+ * the same "additive entity, zero new infrastructure" pattern
+ * `PatientModuleState.gs` already proved out at Batch PXP-3) in the FILES
+ * list.
  */
 
 var fs = require('fs');
@@ -160,6 +168,8 @@ var FILES = [
   'DoctorLoginFlow.gs',
   'DoctorRouteGuard.gs',
   'SpecialtyRegistry.gs',
+  'DoctorModuleRegistry.gs',
+  'DoctorModuleState.gs',
   'FoundationRouter.gs'
 ];
 

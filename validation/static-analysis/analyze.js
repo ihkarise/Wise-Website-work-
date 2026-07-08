@@ -94,7 +94,8 @@ var MANUAL_DROPDOWN_WRAPPERS = [
   'saveFoundationCarePlan', // CarePlan.gs — PXP-7's manually-run doctor/staff authoring tool
   'createFoundationDoctorInstruction', // DoctorInstruction.gs — PXP-7's manually-run doctor/staff creation tool
   'updateFoundationDoctorInstructionStatus', // DoctorInstruction.gs — PXP-7's manually-run doctor/staff status-transition tool
-  'createFoundationDoctor' // DoctorIdentity.gs — WPI-1's manually-run doctor provisioning tool
+  'createFoundationDoctor', // DoctorIdentity.gs — WPI-1's manually-run doctor provisioning tool
+  'setFoundationDoctorModuleState' // DoctorModuleState.gs — WPI-3's manually-run staff/administrative enable/disable tool
 ];
 
 // Underscore-suffixed pure accessor functions, correctly unused *within

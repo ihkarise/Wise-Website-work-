@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wisehomeopathy.com/shared/schemas/doctor-module-state.schema.json",
+  "title": "Doctor Module State",
+  "version": "1.0.0",
+  "description": "The canonical shape of a DoctorModuleState record — docs/50-PHASE-3-TECHNICAL-PLAN.md §7.2's per-doctor capability-enablement design, batch WPI-3 (docs/50 §19), governed by docs/53-PHASE-3-IMPLEMENTATION-RULES.md, ADR-020. Structurally parallel to shared/schemas/patient-module-state.schema.json (ADR-012, amended), applied to the Doctor Module Registry (shared/constants/doctor-module-registry.json) instead of the Module Registry — a separate registry and a separate enablement table, never merged with the patient-facing one (ADR-020). One row per (doctor_id, capability_key) pair. Absence of a row for a given (doctor_id, capability_key) means that capability is disabled for that doctor — fail-closed, ADR-010 — never inferred as enabled, and never automatic from Doctor.role or Doctor.specialty_slug alone (docs/50 §7.2). Doctor/staff-administered only: every write is a staff/administrative action, enforced server-side; enablement is never automatic and never doctor-self-service. See shared/constants/doctor-module-registry.json for the separate concern of which doctor-facing capabilities exist at all (availability), and doctor-module-state.md for the enable/disable lifecycle, the state_key field's own rationale, and the read-only doctor route this schema also backs.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["state_key", "doctor_id", "capability_key", "enabled", "enabled_by", "enabled_at"],
+  "properties": {
+    "state_key": {
+      "type": "string",
+      "minLength": 1,
+      "description": "This row's own identity column, server-derived and deterministic: `doctor_id + '::' + capability_key`, never staff-supplied and never doctor-visible. Exists solely so FoundationDataStore.gs's existing, frozen, single-idColumn getById_/updateById_ primitives (ADR-009's 'no new Data Store primitive' reuse discipline) can address this composite-keyed (doctor_id, capability_key) entity without any change to that frozen file — mirrors patient-module-state.schema.json's own state_key rationale exactly, applied to the doctor identity space."
+    },
+    "doctor_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The Doctor Identity this capability-state row belongs to (docs/33 §7.1, ADR-017). Many DoctorModuleState rows may share the same doctor_id (one per capability). Session-derived at read time for the doctor-facing route (a verified DoctorSession, never client-supplied); supplied by the staff/administrative caller at write time."
+    },
+    "capability_key": {
+      "type": "string",
+      "minLength": 1,
+      "description": "One of shared/constants/doctor-module-registry.json's canonical capability_key values (manually adapted into apps-script/DoctorModuleRegistry.gs's own allowlist, the same convention apps-script/PatientModuleState.gs's module_id allowlist already established). Staff-supplied at write time — never doctor-selected. The registry ships empty in this batch (docs/53 §4-style 'mechanism before consumer' precedent, mirroring shared/constants/calculator-registry.json's own disclosed 'ships empty' decision) — every write is fail-closed-by-absence-of-a-real-entry until a future batch registers the first real capability."
+    },
+    "enabled": {
+      "type": "boolean",
+      "description": "Whether this capability is currently turned on for this doctor. Always an explicit staff/administrative-set value (docs/50 §7.2) — never automatically derived from Doctor.role or Doctor.specialty_slug alone, never doctor-controlled. A doctor/capability pair with no row at all is disabled by default (fail-closed, ADR-010) — this field only exists once a staff member has explicitly acted at least once for that pair."
+    },
+    "enabled_by": {
+      "type": "string",
+      "description": "The staff/administrative identifier who most recently set this row's `enabled` value (a free-text string, the same provenance convention patient-module-state.schema.json's enabled_by already uses). Never doctor-supplied. Despite the name, this field is also updated when a capability is explicitly disabled — it always names whoever performed the most recent write, not only an 'enabling' actor. Empty-string sentinel (the same convention patient-module-state.schema.json's own sentinel already establishes) for a capability/doctor pair that has never been written at all — foundationGetDoctorModuleStates_() synthesizes exactly this empty-sentinel shape, never a persisted row, for any capability absent from the DoctorModuleState sheet (the fail-closed default, ADR-010)."
+    },
+    "enabled_at": {
+      "type": "string",
+      "description": "Server-set (foundationNowIso_()) at the most recent write, whether that write enabled or disabled the capability. Never staff-supplied directly and never doctor-supplied."
+    }
+  }
+}

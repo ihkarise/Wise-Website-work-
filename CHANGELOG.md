@@ -8,6 +8,90 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-16 — Phase 3 Batch WPI-3: Doctor Module Registry (backend)
+
+Implements Batch WPI-3 (docs/50-PHASE-3-TECHNICAL-PLAN.md §7.1/§7.2/§19, ADR-020),
+Phase 3/WHIMS's Pillar 2, dependent on WPI-1 (needs `doctor_id` to key enablement),
+per docs/53-PHASE-3-IMPLEMENTATION-RULES.md's per-batch gate. **Explicitly scoped to
+WPI-3 only — no later batch (WPI-4 onward) is authorized by this change.**
+
+### Added (schemas/constants)
+- **`shared/constants/doctor-module-registry.json`** (+ `.md`) — the Doctor Module
+  Registry's static, versioned list of doctor-facing capability descriptors,
+  structurally parallel to `module-registry.json` (ADR-012) but a separate registry,
+  for a separate identity type, never merged with the patient-facing one (ADR-020).
+  **Deliberately seeded empty** — no doctor-facing capability yet has a real,
+  authenticated `data_source` route for the registry to point at; this batch delivers
+  only the generic registry-and-state mechanism, the same disclosed "ships empty"
+  precedent `calculator-registry.json` (Batch PXP-6) already established.
+- **`shared/schemas/doctor-module-state.schema.json`** (+ `.md`) — the
+  `DoctorModuleState` record shape, structurally parallel to
+  `patient-module-state.schema.json` (ADR-012, amended) but keyed to the Doctor
+  Module Registry instead, one row per `(doctor_id, capability_key)` pair, fail-closed
+  by absence (ADR-010).
+
+### Added (Apps Script)
+- **`apps-script/DoctorModuleRegistry.gs`** — hand-ports the new constants file;
+  `foundationGetDoctorModuleRegistry_()`, `foundationGetRegisteredDoctorCapabilityKeys_()`.
+  Pure, leaf-level config with no Apps Script runtime dependency, mirroring
+  `ModuleRegistry.gs`/`CalculatorRegistry.gs`/`SpecialtyRegistry.gs`.
+- **`apps-script/DoctorModuleState.gs`** — `foundationSetDoctorModuleState_()`,
+  `foundationGetDoctorModuleStates_()`, and the composite `state_key` helpers,
+  mirroring `PatientModuleState.gs` exactly for the doctor identity space.
+  `setFoundationDoctorModuleState()` is a manually-run editor function (staff/
+  administrative-only, mirrors `setFoundationModuleState()`'s precedent exactly) —
+  every real invocation is rejected with `FOUNDATION_INVALID_INPUT` today, since the
+  registry ships empty, a disclosed consequence, not a defect.
+
+### Changed
+- **`apps-script/FoundationRouter.gs`** — one new, additive dispatch case:
+  `get_doctor_module_states`. Zero existing case changed. Read-only, mirroring
+  `get_patient_module_states` exactly — `doctor_id` is derived only from a verified
+  `DoctorSession`, never client-supplied. Returns an empty list today (the registry
+  ships empty).
+
+### What this batch deliberately does not do
+- **Does not register any concrete doctor-facing capability.** `patient_roster`,
+  `condition_assignment`, `care_plan_authoring`, `module_state_management`,
+  `inventory`, `pillfill_orders`, and `analytics` are docs/50 §7.1's own illustrative
+  examples only, "not a batch commitment" — none is registered by this batch. A
+  future capability is added as its own registry entry by whichever later,
+  separately-approved WPI batch actually builds a real doctor-facing `data_source`
+  route for it.
+- **Does not build the Doctor Dashboard.** No doctor-facing HTML page, no frontend
+  rendering — that is WPI-4's scope, not WPI-3's, mirroring the exact
+  Module-Registry-backend (PXP-3) / Dashboard-Registry-frontend (PXP-4) split
+  precedent already proven on the patient side.
+- No patient-facing surface. Module Registry, Calculator Registry, Template
+  Registry, and Specialty Registry are all untouched, zero lines. Zero modification
+  to any frozen Foundation/Identity & Access/Patient Access/PXP-1..11/WPI-1/WPI-2
+  file.
+
+### Validation
+- Static Analysis (`validation/static-analysis/analyze.js`) — PASS, 0 findings (53
+  files scanned). `setFoundationDoctorModuleState` added to the existing
+  `MANUAL_DROPDOWN_WRAPPERS` allowlist (the same convention every other manually-run
+  editor function already uses).
+- Conformance (`validation/phase-2a-foundation/conformance.js`) — 495/495 passing (new
+  Stage 19, 18 checks), including a hand-port-vs-canonical-JSON cross-check, the
+  fail-closed-by-empty-registry proof, the full `get_doctor_module_states` HTTP
+  dispatch round trip, a direct cross-identity-type rejection proof (a real Patient
+  Session token rejected by this doctor-scoped route), cross-doctor isolation, and a
+  direct proof that Module Registry/Calculator Registry/Specialty Registry are
+  unchanged by this batch.
+- Phase 1.5 Regression (`validation/phase-1-5/validate.js`) — 42/42 passing, unchanged.
+- All 10 existing browser-test suites — unaffected (WPI-3 ships no frontend page),
+  re-verified passing (249 checks, 0 failures).
+
+### Documentation
+- `docs/33-DOMAIN-MODEL.md` — §7.3 and the Summary Table: Doctor Module Registry and
+  Doctor Module State promoted from Designed to Implemented (backend only). Every
+  other Phase 3/WHIMS entity (Appointment, Notification, Inventory, PillFill Order,
+  Analytics) remains exactly as Designed — untouched by this batch.
+- `docs/24-ROADMAP.md` — Phase 3 status updated; WPI-3 entry added.
+- `shared/README.md` — new constants/schema-catalog paragraph for this batch's two
+  additions.
+
 ## 2026-07-16 — Phase 3 Batch WPI-2: Specialty Registry
 
 Implements Batch WPI-2 (docs/50-PHASE-3-TECHNICAL-PLAN.md §6/§19, ADR-018), Phase
