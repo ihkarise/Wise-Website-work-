@@ -176,6 +176,7 @@ var FILES = [
   'DoctorModuleRegistry.gs',
   'DoctorModuleState.gs',
   'DoctorPatientRoster.gs',
+  'Appointment.gs',
   'FoundationRouter.gs'
 ];
 

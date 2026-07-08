@@ -1,5 +1,5 @@
 # 24 - Wise Product Roadmap
-## Version 1.15 — 2026-07-16
+## Version 1.16 — 2026-07-16
 
 # Phase 1 — Public Website
 Status: In Progress
@@ -600,9 +600,10 @@ any implementation begins.
 Status: **Architecture freeze complete (Version 1.0, 2026-07-16). Implementation
 underway: Batch WPI-1 (Doctor Identity & Session) shipped 2026-07-16, Batch WPI-2
 (Specialty Registry) shipped 2026-07-16, Batch WPI-3 (Doctor Module Registry,
-backend) shipped 2026-07-16, and Batch WPI-4 (Doctor Dashboard, frontend consumer)
-shipped 2026-07-16, each explicitly approved and scoped to its own batch only. No
-later batch (WPI-5 onward) is authorized to begin.**
+backend) shipped 2026-07-16, Batch WPI-4 (Doctor Dashboard, frontend consumer)
+shipped 2026-07-16, and Batch WPI-5 (Appointment) shipped 2026-07-16, each explicitly
+approved and scoped to its own batch only. No later batch (WPI-6 onward) is
+authorized to begin.**
 
 Renamed from "WiseOS" per this architecture-freeze pass (docs/49 §2) — no scope
 change from the rename itself. **Reordered ahead of Phase 2C (Health Milestones) and
@@ -638,7 +639,7 @@ unscoped placeholder, mirroring PXP-9's own precedent exactly**) → WPI-11 (Hol
 **reserved, unscoped placeholder; no existing document defines this item's purpose at
 all**) → WPI-12 (Closeout).
 
-**No WPI batch beyond WPI-4 is authorized to begin by any of the above documents.**
+**No WPI batch beyond WPI-5 is authorized to begin by any of the above documents.**
 Each requires its own separate, explicit approval, per docs/53's per-batch gate — the
 same discipline every Phase 2B batch already passed through. Two documentation-only
 closures identified by docs/51's readiness review were resolved within this same
@@ -763,6 +764,39 @@ fail-closed-by-absence default every other module/capability enablement mechanis
 the platform already uses. Zero modification to any frozen Foundation/Identity &
 Access/Patient Access/PXP-1..11/WPI-1..3 file — `my-health-journey/` is completely
 untouched. **No batch beyond WPI-4 is authorized by this approval.**
+
+**Batch WPI-5 (Appointment, docs/50 §8/§19)** — a consumer of Pillars 1 and 2, closing
+docs/20 §3's "THE GAP" between a public booking-form submission and the platform's own
+patient-facing history for the first time — has now shipped: `Appointment`
+(`shared/schemas/appointment.schema.json`, `apps-script/Appointment.gs`),
+staff/doctor-facing only, exactly as docs/50 §8 scoped it — no patient-facing
+Appointment UI exists. `patient_id`/`doctor_id` are nullable, empty-string-sentinel
+fields (a first-time visitor has no Patient Identity yet, and no Doctor is assigned
+until confirmed), validated against a real Patient Identity/Doctor when supplied.
+`specialty_slug` is server-derived once, at creation, from `condition_slug` via WPI-2's
+Condition-to-Specialty Map (ADR-018) — never staff-supplied directly. Lifecycle is
+one-way and exactly-once: `requested` → `confirmed` (assigns a real
+`doctor_id`/`scheduled_at`) → `completed`, or `requested`/`confirmed` → `cancelled`,
+mirroring `DoctorInstruction.gs`'s own one-way-transition discipline. **Disclosed,
+implementation-time intake decision:** docs/50 §8 deliberately leaves open how a
+`contact.html`/Netlify Forms booking submission becomes a real `Appointment` row; this
+batch resolves it as a staff-run tool (`createFoundationAppointment()`), a manually-run
+Apps Script editor function mirroring `DoctorAssignedCondition.gs`'s
+`assignFoundationCondition()` precedent exactly — not a new, unauthenticated public
+write endpoint. Every write (creation, confirmation, status transitions) remains a
+manually-run Apps Script editor function; there is no create/confirm/status-update
+route reachable over HTTP. One new, additive, read-only `FoundationRouter.gs` dispatch
+case (`get_doctor_appointments`) returns the caller's own specialty-derived Appointments
+view, `doctor_id` always `DoctorSession`-derived — the same specialty-derivation
+discipline WPI-4's `DoctorPatientRoster.gs` already established, including its own
+disclosed multi-doctor-per-specialty limitation (docs/50 §7.4, docs/51 Part 1.6). The
+Doctor Dashboard's Doctor Module Registry gains its second real entry, `appointments`
+(`shared/constants/doctor-module-registry.json` version 1.1.0 → 1.2.0,
+`display_order: 20`) — the Doctor Dashboard (`doctor-dashboard/dashboard.js`) renders
+one new, read-only card, structurally parallel to the Patient Roster card, no write
+affordance. Zero modification to any frozen Foundation/Identity & Access/Patient
+Access/PXP-1..11/WPI-1..4 file. **No batch beyond WPI-5 is authorized by this
+approval.**
 
 # Guiding Principle
 Every roadmap item should support the North Star:

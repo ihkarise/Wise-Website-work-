@@ -8,6 +8,91 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-16 — Phase 3 Batch WPI-5: Appointment
+
+Implements Batch WPI-5 (docs/50-PHASE-3-TECHNICAL-PLAN.md §8/§19), a consumer of
+Pillars 1 and 2, per docs/53-PHASE-3-IMPLEMENTATION-RULES.md's per-batch gate.
+**Explicitly scoped to WPI-5 only — no later batch (WPI-6 onward) is authorized by
+this change.**
+
+### Added (schema)
+- **`shared/schemas/appointment.schema.json`** (new, version 1.0.0, + `.md`) — the
+  `Appointment` record shape (docs/50 §8): nullable `patient_id`/`doctor_id`
+  (empty-string sentinel until known), server-derived `specialty_slug`, a one-way
+  `requested`/`confirmed`/`completed`/`cancelled` lifecycle, and a disclosed, additive
+  `created_by` provenance field.
+
+### Added (Apps Script)
+- **`apps-script/Appointment.gs`** (new) — `foundationCreateAppointment_()`,
+  `foundationConfirmAppointment_()` (assigns a real `doctor_id`/`scheduled_at`,
+  `requested` → `confirmed`), `foundationUpdateAppointmentStatus_()` (`confirmed` →
+  `completed`; `requested`/`confirmed` → `cancelled`), and
+  `foundationGetDoctorAppointments_()` — a specialty-derived, patient-name-enriched
+  read view, mirroring `DoctorPatientRoster.gs`'s own derivation discipline (and its
+  disclosed multi-doctor-per-specialty limitation) exactly. Every write is a
+  manually-run Apps Script editor function (`createFoundationAppointment()`/
+  `confirmFoundationAppointment()`/`updateFoundationAppointmentStatus()`) — this
+  batch's disclosed intake-mechanism decision: a staff-run transcription tool, not a
+  new public write endpoint, mirroring `DoctorAssignedCondition.gs`'s
+  `assignFoundationCondition()` precedent exactly.
+
+### Added (constants)
+- **`shared/constants/doctor-module-registry.json`** bumped 1.1.0 → 1.2.0 (+ `.md`
+  updated) — this registry's second real entry, `appointments` (`display_order: 20`,
+  `data_source: get_doctor_appointments`).
+- **`apps-script/DoctorModuleRegistry.gs`** — same entry hand-ported.
+
+### Changed
+- **`apps-script/FoundationRouter.gs`** — one new, additive dispatch case:
+  `get_doctor_appointments`. Zero existing case changed. Read-only — `doctor_id` is
+  derived only from a verified `DoctorSession`, never client-supplied.
+- **`doctor-dashboard/dashboard.js`** — a new `appointments` entry in the hand-ported
+  `DOCTOR_MODULE_REGISTRY`, a new `appointmentsHtml()` renderer/`loadAppointmentsPreview()`
+  loader registered in `CAPABILITY_LOADERS` — `renderDashboard()` itself is unchanged,
+  the same "add a registry entry + a loader, nothing else changes" discipline WPI-4
+  established.
+
+### What this batch deliberately does not do
+- **No patient-facing Appointment UI.** Exactly as docs/50 §8 scopes it — staff/doctor
+  facing only in this batch's scope.
+- **No create/confirm/status-update Web App route.** Every write remains a
+  manually-run Apps Script editor function; `get_doctor_appointments` is the only route
+  this batch adds, and it is read-only.
+- **Does not populate `specialty_scope` on the new registry entry.** Mirrors
+  `patient_roster`'s own precedent — the platform still has only one seeded specialty
+  (docs/53 §4).
+- No modification to any frozen Foundation/Identity & Access/Patient
+  Access/PXP-1..11/WPI-1..4 file.
+
+### Validation
+- Static Analysis (`validation/static-analysis/analyze.js`) — PASS, 0 findings (55
+  files scanned; 3 new manually-run wrapper functions added to the allowlist).
+- Conformance (`validation/phase-2a-foundation/conformance.js`) — 545/545 passing (new
+  Stage 21, 36 checks: creation/confirm/status-transition validation rejections, the
+  full one-way state machine, specialty derivation, patient-name enrichment, the
+  `get_doctor_appointments` HTTP dispatch round trip, a direct cross-identity-type
+  rejection proof, and an unknown-`doctor_id` defensive check; Stage 19/Stage20's own
+  registry-count assertions mechanically updated to reflect the registry's new
+  two-entry reality).
+- Phase 1.5 Regression (`validation/phase-1-5/validate.js`) — 42/42 passing, unchanged.
+- All 11 existing browser-test suites — unaffected (zero unrelated behavior change),
+  re-verified passing (270 checks total, 0 failures), plus one mechanical, disclosed
+  update to `wpi-4-doctor-dashboard`'s own `DOCTOR_MODULE_REGISTRY.length` assertion
+  (1 → 2).
+- New browser-test suite `validation/wpi-5-appointment/` — 13/13 passing: empty/
+  populated Appointments card states, patient-name/fallback rendering, both capabilities'
+  loaders firing independently and exactly once, fail-closed disabled-capability
+  behavior, and a pure-function unit check.
+
+### Documentation
+- `docs/33-DOMAIN-MODEL.md` — §4.1 (Appointment) promoted to Implemented; Summary Table
+  rows for Appointment and Doctor Module Registry/Doctor Module State updated; §7's own
+  header status line corrected to include WPI-4/WPI-5.
+- `docs/24-ROADMAP.md` — Phase 3 status updated; WPI-5 entry added; authorization gate
+  advanced to WPI-6.
+- `shared/README.md` — new paragraph for this batch's schema addition and registry
+  version bump.
+
 ## 2026-07-16 — Phase 3 Batch WPI-4: Doctor Dashboard (frontend consumer)
 
 Implements Batch WPI-4 (docs/50-PHASE-3-TECHNICAL-PLAN.md §7.3/§7.4/§19, ADR-020),

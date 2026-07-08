@@ -33,7 +33,7 @@
   });
 
   // Hand-ported from shared/constants/doctor-module-registry.json (version
-  // 1.1.0 as of Batch WPI-4) — the same "port a shared/ definition into a
+  // 1.2.0 as of Batch WPI-5) — the same "port a shared/ definition into a
   // consuming file" convention my-health-journey/dashboard.js's own
   // MODULE_REGISTRY already uses (a browser has no ES-module/build-step to
   // read the canonical JSON at runtime). Only the fields this dashboard
@@ -48,7 +48,8 @@
   // renderDashboard() itself changes. Update all three ports by hand if
   // the canonical list ever changes, per shared/README.md's rule.
   var DOCTOR_MODULE_REGISTRY = [
-    { capability_key: 'patient_roster', display_name: 'Patient Roster', display_order: 10, empty_state: 'nodata', data_source: 'get_doctor_patient_roster' }
+    { capability_key: 'patient_roster', display_name: 'Patient Roster', display_order: 10, empty_state: 'nodata', data_source: 'get_doctor_patient_roster' },
+    { capability_key: 'appointments', display_name: 'Appointments', display_order: 20, empty_state: 'nodata', data_source: 'get_doctor_appointments' }
   ];
 
   function getCapabilityDescriptor(capabilityKey) {
@@ -90,8 +91,8 @@
   // The Patient Roster card's body (docs/50 §7.4) — a bare, read-only list
   // of patient name + matching condition_slug(s), no write affordance (the
   // roster is a derived view, docs/50 §7.4's own "no new entity"). Every
-  // other card this dashboard might one day render is out of this batch's
-  // scope (docs/50 §19's own WPI-5 onward).
+  // other card beyond this one and the Appointments card below is out of
+  // scope for this dashboard so far (docs/50 §19's own WPI-6 onward).
   function patientRosterHtml(entries) {
     if (!entries.length) {
       return emptyStateHtml('nodata', 'No patients are currently assigned to your specialty.');
@@ -125,11 +126,65 @@
       });
   }
 
+  // Human-readable labels for Appointment's own status enum (docs/50 §8) —
+  // display only, never fed back into a write (this card has no write
+  // affordance, docs/50 §8's own "no patient-facing Appointment UI" applies
+  // equally to this batch's doctor-facing, read-only view).
+  var APPOINTMENT_STATUS_LABELS_ = {
+    requested: 'Requested',
+    confirmed: 'Confirmed',
+    completed: 'Completed',
+    cancelled: 'Cancelled'
+  };
+
+  // The Appointments card's body (docs/50 §8) — a bare, read-only list of
+  // each appointment's linked patient (or "Not yet linked" for a
+  // first-time visitor with no Patient Identity yet), condition, status,
+  // and scheduled time, no write affordance (docs/50 §8's own "no
+  // patient-facing Appointment UI is designed here" — this batch's
+  // doctor-facing view is read-only for the same reason).
+  function appointmentsHtml(entries) {
+    if (!entries.length) {
+      return emptyStateHtml('nodata', 'No appointments have been requested for your specialty yet.');
+    }
+    var items = entries.map(function (entry) {
+      var who = entry.patient_full_name ? escapeHtmlForDisplay(entry.patient_full_name) : 'Not yet linked to a patient record';
+      var when = entry.scheduled_at ? escapeHtmlForDisplay(entry.scheduled_at) : 'Not yet scheduled';
+      var statusLabel = APPOINTMENT_STATUS_LABELS_[entry.status] || escapeHtmlForDisplay(entry.status);
+      return '<li>' +
+        '<div class="roster-name">' + who + '</div>' +
+        '<div class="roster-conditions">' + escapeHtmlForDisplay(entry.condition_slug) + ' &middot; ' + statusLabel + ' &middot; ' + when + '</div>' +
+        '</li>';
+    }).join('');
+    return '<ul class="roster-list">' + items + '</ul>';
+  }
+
+  function loadAppointmentsPreview(sessionToken, capabilityKey) {
+    var body = document.getElementById('card-' + capabilityKey + '-body');
+    fetch(WEB_APP_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ foundation_action: 'get_doctor_appointments', session_token: sessionToken })
+    })
+      .then(function (response) { return response.json(); })
+      .then(function (data) {
+        if (data.status === 'ok' && Array.isArray(data.data)) {
+          body.innerHTML = appointmentsHtml(data.data);
+        } else {
+          body.innerHTML = '<p class="empty-text">Could not load your appointments. Check your connection and reload the page.</p>';
+        }
+      })
+      .catch(function () {
+        body.innerHTML = '<p class="empty-text">Could not load your appointments. Check your connection and reload the page.</p>';
+      });
+  }
+
   // Loader-dispatcher registry — one entry per registry data_source, the
   // same discipline my-health-journey/dashboard.js's own MODULE_LOADERS
   // already establishes.
   var CAPABILITY_LOADERS = {
-    'get_doctor_patient_roster': loadPatientRosterPreview
+    'get_doctor_patient_roster': loadPatientRosterPreview,
+    'get_doctor_appointments': loadAppointmentsPreview
   };
 
   // Merges the per-doctor state rows from get_doctor_module_states with
@@ -253,6 +308,7 @@
     getCapabilityDescriptor: getCapabilityDescriptor,
     filterEnabledCapabilities: filterEnabledCapabilities,
     dashboardEmptyStateHtml: dashboardEmptyStateHtml,
-    patientRosterHtml: patientRosterHtml
+    patientRosterHtml: patientRosterHtml,
+    appointmentsHtml: appointmentsHtml
   };
 })();

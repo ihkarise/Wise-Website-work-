@@ -21,10 +21,12 @@
  * already established — update both places by hand if the canonical list
  * ever changes, per shared/README.md's rule.
  *
- * Batch WPI-4 registers this registry's first real, doctor-facing
+ * Batch WPI-4 registered this registry's first real, doctor-facing
  * capability: 'patient_roster' (docs/50 §7.4), backed by
- * DoctorPatientRoster.gs's new get_doctor_patient_roster route. Every
- * other illustrative capability docs/50 §7.1 names (condition assignment,
+ * DoctorPatientRoster.gs's get_doctor_patient_roster route. Batch WPI-5
+ * (docs/50 §8) adds this version's second entry, 'appointments', backed by
+ * Appointment.gs's new get_doctor_appointments route. Every other
+ * illustrative capability docs/50 §7.1 names (condition assignment,
  * care-plan authoring, module/calculator/template enablement, inventory,
  * PillFill orders, analytics) remains unregistered — each is added as its
  * own registry entry by whichever later, separately-approved WPI batch
@@ -43,6 +45,13 @@ var FOUNDATION_DOCTOR_MODULE_REGISTRY_ = [
     display_name: 'Patient Roster',
     display_order: 10,
     data_source: 'get_doctor_patient_roster',
+    future_ai_capable: false
+  },
+  {
+    capability_key: 'appointments',
+    display_name: 'Appointments',
+    display_order: 20,
+    data_source: 'get_doctor_appointments',
     future_ai_capable: false
   }
 ];

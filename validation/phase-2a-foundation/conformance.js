@@ -269,6 +269,7 @@ var specialtyRegistryConstant = JSON.parse(fs.readFileSync(path.join(SHARED_DIR,
 var conditionSpecialtyMapConstant = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'constants/condition-specialty-map.json'), 'utf8'));
 var doctorModuleStateSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/doctor-module-state.schema.json'), 'utf8'));
 var doctorModuleRegistryConstant = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'constants/doctor-module-registry.json'), 'utf8'));
+var appointmentSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/appointment.schema.json'), 'utf8'));
 
 var results = [];
 function record(name, pass, detail) {
@@ -2756,26 +2757,33 @@ var ctx = loadProject(h.sandbox);
 
   // ---- Doctor Module Registry — a static, pure config list ----
   // Updated at Batch WPI-4 (docs/50 §7.3/§7.4/§19): this registry no
-  // longer ships empty — WPI-4 registers its first real entry,
-  // `patient_roster` (see Stage20). These three assertions are mechanical,
-  // disclosed updates to Stage19's own factual count, mirroring Batch
-  // PXP-5's own precedent of updating an earlier stage's stale
-  // module-count assertion when a later batch changes registered state
-  // (module-registry.md's "Batch PXP-10 removal" section) — Stage19's own
-  // remaining assertions (validation rejections, cross-doctor isolation,
-  // cross-identity-type rejection) are untouched, still WPI-3's own scope.
+  // longer ships empty — WPI-4 registered its first real entry,
+  // `patient_roster` (see Stage20). Updated again at Batch WPI-5 (docs/50
+  // §8/§19): a second real entry, `appointments`, is registered (see
+  // Stage21). These assertions are mechanical, disclosed updates to
+  // Stage19's own factual count, mirroring Batch PXP-5's own precedent of
+  // updating an earlier stage's stale module-count assertion when a later
+  // batch changes registered state (module-registry.md's "Batch PXP-10
+  // removal" section) — Stage19's own remaining assertions (validation
+  // rejections, cross-doctor isolation, cross-identity-type rejection) are
+  // untouched, still WPI-3's own scope.
   var registry = ctx.foundationGetDoctorModuleRegistry_();
-  record('Stage19: foundationGetDoctorModuleRegistry_() now has one entry (patient_roster, added at Batch WPI-4 — see Stage20)',
-    registry.length === 1);
+  record('Stage19: foundationGetDoctorModuleRegistry_() now has two entries (patient_roster added at Batch WPI-4, appointments added at Batch WPI-5 — see Stage20/Stage21)',
+    registry.length === 2);
   record('Stage19: the hand-ported FOUNDATION_DOCTOR_MODULE_REGISTRY_ matches shared/constants/doctor-module-registry.json exactly',
     JSON.stringify(registry) === JSON.stringify(doctorModuleRegistryConstant.capabilities));
-  record('Stage19: foundationGetRegisteredDoctorCapabilityKeys_() returns exactly one allowlisted capability_key (patient_roster) as of Batch WPI-4',
-    ctx.foundationGetRegisteredDoctorCapabilityKeys_().length === 1 && ctx.foundationGetRegisteredDoctorCapabilityKeys_()[0] === 'patient_roster');
+  record('Stage19: foundationGetRegisteredDoctorCapabilityKeys_() returns exactly two allowlisted capability_keys (patient_roster, appointments) as of Batch WPI-5',
+    ctx.foundationGetRegisteredDoctorCapabilityKeys_().length === 2 &&
+    ctx.foundationGetRegisteredDoctorCapabilityKeys_().indexOf('patient_roster') !== -1 &&
+    ctx.foundationGetRegisteredDoctorCapabilityKeys_().indexOf('appointments') !== -1);
 
   // ---- foundationGetDoctorModuleStates_() synthesizes one fail-closed entry per registered capability ----
+  // Updated at Batch WPI-5 (docs/50 §8/§19): now two registered capabilities
+  // (patient_roster, appointments), so two synthesized entries — a
+  // mechanical, disclosed update to this assertion's own stale count.
   var defaultStatesA = ctx.foundationGetDoctorModuleStates_(doctorIdA);
-  record('Stage19: foundationGetDoctorModuleStates_() succeeds with zero persisted rows, synthesizing one fail-closed (enabled: false) entry for the one registered capability',
-    defaultStatesA.status === 'ok' && defaultStatesA.data.length === 1 && defaultStatesA.data[0].enabled === false);
+  record('Stage19: foundationGetDoctorModuleStates_() succeeds with zero persisted rows, synthesizing one fail-closed (enabled: false) entry per registered capability (now two, as of Batch WPI-5)',
+    defaultStatesA.status === 'ok' && defaultStatesA.data.length === 2 && defaultStatesA.data.every(function (row) { return row.enabled === false; }));
 
   // ---- Validation rejections ----
   var missingDoctorId = ctx.foundationSetDoctorModuleState_({ capability_key: 'inventory', enabled: true, enabled_by: 'staff-1' });
@@ -2809,7 +2817,7 @@ var ctx = loadProject(h.sandbox);
   var getStatesHttp = ctx.handleFoundationRequest_({ foundation_action: 'get_doctor_module_states', session_token: doctorSessionA });
   var getStatesBody = JSON.parse(getStatesHttp._text);
   record('Stage19: get_doctor_module_states (real HTTP dispatch) resolves the caller\'s own, fail-closed-by-default capability-state list from a valid DoctorSession',
-    getStatesBody.status === 'ok' && getStatesBody.data.length === 1 && getStatesBody.data[0].enabled === false);
+    getStatesBody.status === 'ok' && getStatesBody.data.length === 2 && getStatesBody.data.every(function (row) { return row.enabled === false; }));
 
   var getStatesUnauthed = JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'get_doctor_module_states', session_token: 'not-a-real-session-token' })._text);
   record('Stage19: get_doctor_module_states rejects an invalid session_token with FOUNDATION_UNAUTHORIZED, never leaking any data',
@@ -2828,7 +2836,7 @@ var ctx = loadProject(h.sandbox);
   var doctorSessionB = ctx.foundationIssueDoctorSessionToken_(doctorIdB);
   var getStatesB = JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'get_doctor_module_states', session_token: doctorSessionB })._text);
   record('Stage19: doctor B\'s own capability-state list resolves independently of doctor A\'s session — cross-doctor isolation, even though both are fail-closed-disabled today',
-    getStatesB.status === 'ok' && getStatesB.data.length === 1 && getStatesB.data[0].enabled === false);
+    getStatesB.status === 'ok' && getStatesB.data.length === 2 && getStatesB.data.every(function (row) { return row.enabled === false; }));
 
   // ---- Zero-lines-touched proof (docs/50 §3): every existing registry/entity this batch does not touch is unchanged ----
   record('Stage19: Module Registry is untouched by this batch — still the same four modules Stage 12 already proved',
@@ -2864,9 +2872,14 @@ var ctx = loadProject(h.sandbox);
   var doctorHomeoId = doctorHomeo.data.doctor_id;
   var doctorNoSpecialtyId = doctorNoSpecialty.data.doctor_id;
 
-  // ---- Doctor Module Registry now carries this batch's one real entry ----
-  record('Stage20: shared/constants/doctor-module-registry.json now carries exactly one entry, patient_roster, data_source get_doctor_patient_roster',
-    doctorModuleRegistryConstant.capabilities.length === 1 &&
+  // ---- Doctor Module Registry carries this batch's own entry, patient_roster ----
+  // Updated at Batch WPI-5 (docs/50 §8/§19): the registry now carries a
+  // second entry, `appointments` (see Stage21) — a mechanical, disclosed
+  // update to this stage's own stale total-count assertion; this stage's
+  // own patient_roster-specific assertions (still this entry's own first,
+  // unchanged position) are untouched, still WPI-4's own scope.
+  record('Stage20: shared/constants/doctor-module-registry.json carries patient_roster as its first entry, data_source get_doctor_patient_roster',
+    doctorModuleRegistryConstant.capabilities.length === 2 &&
     doctorModuleRegistryConstant.capabilities[0].capability_key === 'patient_roster' &&
     doctorModuleRegistryConstant.capabilities[0].data_source === 'get_doctor_patient_roster');
 
@@ -2949,6 +2962,177 @@ var ctx = loadProject(h.sandbox);
     ctx.foundationGetPatientConditionAssignments_(patientAlice.data.patient_id).status === 'ok');
   record('Stage20: Module Registry is untouched by this batch — still the same four modules Stage 12 already proved',
     ctx.foundationGetModuleRegistry_().length === 4);
+})();
+
+// ============================================================
+// Stage 21 — Phase 3/WHIMS Batch WPI-5: Appointment
+// docs/50-PHASE-3-TECHNICAL-PLAN.md §8/§19, shared/schemas/
+// appointment.schema.json, apps-script/Appointment.gs, plus this batch's
+// one new, read-only FoundationRouter.gs dispatch case
+// (get_doctor_appointments) and the Doctor Module Registry's second real
+// entry, `appointments` (docs/50 §7.1), end to end. The Doctor Dashboard
+// frontend's own Appointments card is validation/wpi-5-appointment/
+// browser-test.js, mirroring the PXP-4/pxp-5-checkin-engine split
+// precedent exactly.
+// ============================================================
+(function stage21_appointment() {
+  var doctorHomeo = ctx.foundationCreateDoctor_({
+    full_name: 'Stage21 Doctor Homeopathy', role: 'physician', email: 'stage21-doctor-homeo@example.com',
+    specialty_slug: 'homeopathy', created_by: 'conformance-harness'
+  });
+  var doctorNoSpecialty = ctx.foundationCreateDoctor_({
+    full_name: 'Stage21 Doctor No Specialty', role: 'physician', email: 'stage21-doctor-nospec@example.com',
+    created_by: 'conformance-harness'
+  });
+  record('Stage21: setup — two independent doctors exist (one with an explicit specialty_slug, one with none)',
+    doctorHomeo.status === 'ok' && doctorNoSpecialty.status === 'ok');
+  var doctorHomeoId = doctorHomeo.data.doctor_id;
+
+  var patientDawn = ctx.foundationCreatePatient_({
+    full_name: 'Dawn Appointment', email: 'stage21-dawn@example.com', condition_slug: 'mcas', created_by: 'staff-1'
+  });
+  record('Stage21: setup — a real patient exists', patientDawn.status === 'ok');
+
+  // ---- Doctor Module Registry now carries this batch's second entry ----
+  record('Stage21: shared/constants/doctor-module-registry.json now carries appointments as its second entry, data_source get_doctor_appointments',
+    doctorModuleRegistryConstant.capabilities.length === 2 &&
+    doctorModuleRegistryConstant.capabilities[1].capability_key === 'appointments' &&
+    doctorModuleRegistryConstant.capabilities[1].data_source === 'get_doctor_appointments');
+
+  // ---- Validation rejections — creation ----
+  var missingCondition = ctx.foundationCreateAppointment_({ created_by: 'staff-1' });
+  record('Stage21: foundationCreateAppointment_() rejects a missing/invalid condition_slug with FOUNDATION_INVALID_INPUT',
+    missingCondition.status === 'error' && missingCondition.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var badCondition = ctx.foundationCreateAppointment_({ condition_slug: 'not-a-real-slug', created_by: 'staff-1' });
+  record('Stage21: foundationCreateAppointment_() rejects an unrecognized condition_slug',
+    badCondition.status === 'error' && badCondition.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var missingCreatedBy = ctx.foundationCreateAppointment_({ condition_slug: 'mcas' });
+  record('Stage21: foundationCreateAppointment_() rejects a missing created_by (staff/doctor identifier)',
+    missingCreatedBy.status === 'error' && missingCreatedBy.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var badPatientId = ctx.foundationCreateAppointment_({ condition_slug: 'mcas', created_by: 'staff-1', patient_id: 'does-not-exist-patient-id' });
+  record('Stage21: foundationCreateAppointment_() rejects a patient_id that does not reference a real Patient Identity',
+    badPatientId.status === 'error' && badPatientId.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  // ---- Creation — a first-time visitor with no Patient Identity yet (docs/50 §8's own nullable patient_id) ----
+  var firstTimeVisitor = ctx.foundationCreateAppointment_({ condition_slug: 'mcas', created_by: 'staff-1' });
+  record('Stage21: foundationCreateAppointment_() succeeds with no patient_id at all — a first-time visitor booking',
+    firstTimeVisitor.status === 'ok' && firstTimeVisitor.data.patient_id === '' && firstTimeVisitor.data.doctor_id === '' && firstTimeVisitor.data.scheduled_at === '');
+  record('Stage21: a newly created appointment is always "requested", with requested_at server-set',
+    firstTimeVisitor.data.status === 'requested' && typeof firstTimeVisitor.data.requested_at === 'string' && firstTimeVisitor.data.requested_at !== '');
+  record('Stage21: specialty_slug is server-derived from condition_slug (mcas -> homeopathy, per condition-specialty-map.json), never staff-supplied',
+    firstTimeVisitor.data.specialty_slug === 'homeopathy');
+
+  var createdRecordValidation = validate(appointmentSchema, firstTimeVisitor.data);
+  record('Stage21: a newly created Appointment record conforms to appointment.schema.json',
+    createdRecordValidation.valid === true, createdRecordValidation.errors.join('; '));
+
+  // ---- Creation — with a real, linked patient_id ----
+  var linkedAppointment = ctx.foundationCreateAppointment_({ condition_slug: 'mcas', created_by: 'staff-1', patient_id: patientDawn.data.patient_id });
+  record('Stage21: foundationCreateAppointment_() succeeds with a real, linked patient_id',
+    linkedAppointment.status === 'ok' && linkedAppointment.data.patient_id === patientDawn.data.patient_id);
+
+  // ---- Confirm — validation rejections ----
+  var confirmMissingDoctor = ctx.foundationConfirmAppointment_({ appointment_id: linkedAppointment.data.appointment_id, scheduled_at: '2026-07-20T10:00:00.000Z' });
+  record('Stage21: foundationConfirmAppointment_() rejects a missing doctor_id',
+    confirmMissingDoctor.status === 'error' && confirmMissingDoctor.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var confirmMissingSchedule = ctx.foundationConfirmAppointment_({ appointment_id: linkedAppointment.data.appointment_id, doctor_id: doctorHomeoId });
+  record('Stage21: foundationConfirmAppointment_() rejects a missing scheduled_at',
+    confirmMissingSchedule.status === 'error' && confirmMissingSchedule.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var confirmBadDoctor = ctx.foundationConfirmAppointment_({ appointment_id: linkedAppointment.data.appointment_id, doctor_id: 'does-not-exist-doctor-id', scheduled_at: '2026-07-20T10:00:00.000Z' });
+  record('Stage21: foundationConfirmAppointment_() rejects a doctor_id that does not reference a real Doctor',
+    confirmBadDoctor.status === 'error' && confirmBadDoctor.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var confirmUnknownAppointment = ctx.foundationConfirmAppointment_({ appointment_id: 'does-not-exist', doctor_id: doctorHomeoId, scheduled_at: '2026-07-20T10:00:00.000Z' });
+  record('Stage21: foundationConfirmAppointment_() rejects an unknown appointment_id',
+    confirmUnknownAppointment.status === 'error' && confirmUnknownAppointment.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  // ---- Confirm — the real, one-way transition ----
+  var confirmed = ctx.foundationConfirmAppointment_({ appointment_id: linkedAppointment.data.appointment_id, doctor_id: doctorHomeoId, scheduled_at: '2026-07-20T10:00:00.000Z' });
+  record('Stage21: foundationConfirmAppointment_() transitions a requested appointment to confirmed, assigning doctor_id and scheduled_at',
+    confirmed.status === 'ok' && confirmed.data.status === 'confirmed' && confirmed.data.doctor_id === doctorHomeoId && confirmed.data.scheduled_at === '2026-07-20T10:00:00.000Z');
+
+  var confirmAgain = ctx.foundationConfirmAppointment_({ appointment_id: linkedAppointment.data.appointment_id, doctor_id: doctorHomeoId, scheduled_at: '2026-07-21T10:00:00.000Z' });
+  record('Stage21: foundationConfirmAppointment_() rejects re-confirming an already-confirmed appointment — one-way, exactly once',
+    confirmAgain.status === 'error' && confirmAgain.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  // ---- Status transitions — the full state machine ----
+  var completeFromRequested = ctx.foundationUpdateAppointmentStatus_({ appointment_id: firstTimeVisitor.data.appointment_id, status: 'completed' });
+  record('Stage21: foundationUpdateAppointmentStatus_() rejects "completed" from "requested" — must be confirmed first',
+    completeFromRequested.status === 'error' && completeFromRequested.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var badStatus = ctx.foundationUpdateAppointmentStatus_({ appointment_id: firstTimeVisitor.data.appointment_id, status: 'requested' });
+  record('Stage21: foundationUpdateAppointmentStatus_() rejects a status value outside {completed, cancelled}',
+    badStatus.status === 'error' && badStatus.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var cancelFromRequested = ctx.foundationUpdateAppointmentStatus_({ appointment_id: firstTimeVisitor.data.appointment_id, status: 'cancelled' });
+  record('Stage21: foundationUpdateAppointmentStatus_() allows "cancelled" from "requested"',
+    cancelFromRequested.status === 'ok' && cancelFromRequested.data.status === 'cancelled');
+
+  var cancelAgain = ctx.foundationUpdateAppointmentStatus_({ appointment_id: firstTimeVisitor.data.appointment_id, status: 'cancelled' });
+  record('Stage21: foundationUpdateAppointmentStatus_() rejects transitioning out of a terminal "cancelled" state — one-way, never reverted',
+    cancelAgain.status === 'error' && cancelAgain.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var completeFromConfirmed = ctx.foundationUpdateAppointmentStatus_({ appointment_id: confirmed.data.appointment_id, status: 'completed' });
+  record('Stage21: foundationUpdateAppointmentStatus_() allows "completed" from "confirmed"',
+    completeFromConfirmed.status === 'ok' && completeFromConfirmed.data.status === 'completed');
+
+  var cancelFromCompleted = ctx.foundationUpdateAppointmentStatus_({ appointment_id: confirmed.data.appointment_id, status: 'cancelled' });
+  record('Stage21: foundationUpdateAppointmentStatus_() rejects transitioning out of a terminal "completed" state',
+    cancelFromCompleted.status === 'error' && cancelFromCompleted.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var unknownAppointmentStatus = ctx.foundationUpdateAppointmentStatus_({ appointment_id: 'does-not-exist', status: 'cancelled' });
+  record('Stage21: foundationUpdateAppointmentStatus_() rejects an unknown appointment_id',
+    unknownAppointmentStatus.status === 'error' && unknownAppointmentStatus.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  // ---- foundationGetDoctorAppointments_() — specialty-derived, patient-name-enriched view ----
+  var doctorAppointments = ctx.foundationGetDoctorAppointments_(doctorHomeoId);
+  record('Stage21: foundationGetDoctorAppointments_() succeeds for a doctor with an explicit specialty_slug',
+    doctorAppointments.status === 'ok');
+  var appointmentIds = doctorAppointments.data.map(function (e) { return e.appointment_id; });
+  record('Stage21: the doctor\'s view includes every homeopathy-specialty appointment created above (cancelled and completed alike — no status filtering)',
+    appointmentIds.indexOf(firstTimeVisitor.data.appointment_id) !== -1 && appointmentIds.indexOf(confirmed.data.appointment_id) !== -1);
+  var linkedEntry = doctorAppointments.data.filter(function (e) { return e.appointment_id === confirmed.data.appointment_id; })[0];
+  record('Stage21: an appointment linked to a real patient_id is enriched with that patient\'s own full_name',
+    linkedEntry.patient_full_name === 'Dawn Appointment');
+  var unlinkedEntry = doctorAppointments.data.filter(function (e) { return e.appointment_id === firstTimeVisitor.data.appointment_id; })[0];
+  record('Stage21: a first-time-visitor appointment with no patient_id has an empty patient_full_name, never an error',
+    unlinkedEntry.patient_full_name === '');
+
+  var doctorNoSpecialtyAppointments = ctx.foundationGetDoctorAppointments_(doctorNoSpecialty.data.doctor_id);
+  record('Stage21: a doctor with no specialty_slug set is scoped to the implicit default specialty (homeopathy) — same appointment membership as an explicit homeopathy doctor',
+    doctorNoSpecialtyAppointments.status === 'ok' &&
+    doctorNoSpecialtyAppointments.data.map(function (e) { return e.appointment_id; }).indexOf(firstTimeVisitor.data.appointment_id) !== -1);
+
+  var unknownDoctorAppointments = ctx.foundationGetDoctorAppointments_('does-not-exist-doctor-id');
+  record('Stage21: foundationGetDoctorAppointments_() returns FOUNDATION_NOT_FOUND for an unknown doctor_id',
+    unknownDoctorAppointments.status === 'error' && unknownDoctorAppointments.error.code === 'FOUNDATION_NOT_FOUND');
+
+  // ---- FoundationRouter.gs — the one new, read-only dispatch case, end to end ----
+  var doctorSessionHomeo = ctx.foundationIssueDoctorSessionToken_(doctorHomeoId);
+  var appointmentsHttp = JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'get_doctor_appointments', session_token: doctorSessionHomeo })._text);
+  record('Stage21: get_doctor_appointments (real HTTP dispatch) resolves the caller\'s own specialty-derived appointments from a valid DoctorSession',
+    appointmentsHttp.status === 'ok' && appointmentsHttp.data.map(function (e) { return e.appointment_id; }).indexOf(confirmed.data.appointment_id) !== -1);
+
+  var appointmentsUnauthed = JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'get_doctor_appointments', session_token: 'not-a-real-session-token' })._text);
+  record('Stage21: get_doctor_appointments rejects an invalid session_token with FOUNDATION_UNAUTHORIZED, never leaking any data',
+    appointmentsUnauthed.status === 'error' && appointmentsUnauthed.error.code === 'FOUNDATION_UNAUTHORIZED' && appointmentsUnauthed.data === null);
+
+  // ---- Cross-identity-type authorization confusion — a real Patient Session must never authorize this doctor-scoped route ----
+  var patientSessionForCrossCheck = ctx.foundationIssueSessionToken_(patientDawn.data.patient_id);
+  var appointmentsWithPatientSession = JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'get_doctor_appointments', session_token: patientSessionForCrossCheck })._text);
+  record('Stage21: get_doctor_appointments rejects a real Patient Session token with FOUNDATION_UNAUTHORIZED — cross-identity-type confusion prevented end to end, mirroring Stage 17/Stage19/Stage20\'s own proof',
+    appointmentsWithPatientSession.status === 'error' && appointmentsWithPatientSession.error.code === 'FOUNDATION_UNAUTHORIZED');
+
+  // ---- Zero-lines-touched proof (docs/50 §3): existing entities this batch does not touch are unchanged ----
+  record('Stage21: DoctorAssignedCondition.gs/its schema are untouched by this batch — read only, via the existing foundationDsQuery_ primitive',
+    ctx.foundationGetPatientConditionAssignments_(patientDawn.data.patient_id).status === 'ok');
+  record('Stage21: Specialty Registry is untouched by this batch — still the one seeded homeopathy entry, per Stage 18',
+    ctx.foundationGetSpecialtyRegistry_().length === 1 && ctx.foundationGetSpecialtyRegistry_()[0].specialty_slug === 'homeopathy');
 })();
 
 function auditRowsOf(h, eventType) {
