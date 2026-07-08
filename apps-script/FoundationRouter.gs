@@ -193,6 +193,22 @@
  *     doctor_id is derived only from a verified DoctorSession, mirroring
  *     get_doctor_module_states exactly.
  *
+ *   - get_doctor_appointments — Batch WPI-5 addition (docs/50-PHASE-3-
+ *     TECHNICAL-PLAN.md §8/§19), the Doctor Dashboard's second capability
+ *     (Appointment.gs, registered as shared/constants/
+ *     doctor-module-registry.json's `appointments` entry). Read-only —
+ *     every Appointment write (creation, confirmation, status transitions)
+ *     is doctor/staff-only and remains a manually-run Apps Script editor
+ *     function (Appointment.gs's createFoundationAppointment()/
+ *     confirmFoundationAppointment()/updateFoundationAppointmentStatus()),
+ *     mirroring every earlier doctor/staff-only entity's precedent exactly
+ *     — there is no create/confirm/status-update route reachable over
+ *     HTTP. doctor_id is derived only from a verified DoctorSession,
+ *     mirroring get_doctor_patient_roster exactly. Returns the doctor's
+ *     specialty-derived Appointments view (Appointment.gs's
+ *     foundationGetDoctorAppointments_()), the same specialty-derivation
+ *     discipline the patient roster already established.
+ *
  * A disclosed, additive exception, same category as Code.gs's own
  * one-line dispatch shim (IA-2): this file was previously listed among
  * Identity & Access's six files "frozen except for bug fixes"
@@ -222,7 +238,8 @@
  * CalculatorRegistry.gs, CalculatorResult.gs, CarePlan.gs, DoctorInstruction.gs,
  * TrustedDevice.gs, DoctorIdentity.gs, DoctorSession.gs, DoctorLoginTokens.gs,
  * DoctorEmail.gs, DoctorLoginFlow.gs, DoctorRouteGuard.gs,
- * DoctorModuleRegistry.gs, DoctorModuleState.gs, DoctorPatientRoster.gs.
+ * DoctorModuleRegistry.gs, DoctorModuleState.gs, DoctorPatientRoster.gs,
+ * Appointment.gs.
  */
 
 /**
@@ -619,6 +636,21 @@ function foundationHandleGetDoctorPatientRoster_(input) {
 }
 
 /**
+ * Batch WPI-5: returns the caller's own derived Appointments view
+ * (Appointment.gs) — the Doctor Dashboard's second capability this batch
+ * registers (`appointments`, doctor-module-registry.json). doctor_id is
+ * always DoctorSession-derived, never client-supplied. Read-only — every
+ * Appointment write is doctor/staff-only via a manually-run Apps Script
+ * editor function (Appointment.gs's own header comment); no write route
+ * exists here.
+ */
+function foundationHandleGetDoctorAppointments_(input) {
+  return withFoundationDoctorAuth_(input && input.session_token, function (doctorId) {
+    return foundationGetDoctorAppointments_(doctorId);
+  });
+}
+
+/**
  * Serializes a response-envelope-shaped value to the wire. Apps Script
  * Web Apps cannot set a real HTTP status code (every response transports
  * as HTTP 200 regardless — the same platform fact Code.gs's own
@@ -728,6 +760,9 @@ function handleFoundationRequest_(input) {
       break;
     case 'get_doctor_patient_roster':
       envelope = foundationHandleGetDoctorPatientRoster_(input);
+      break;
+    case 'get_doctor_appointments':
+      envelope = foundationHandleGetDoctorAppointments_(input);
       break;
     default:
       envelope = buildFoundationErrorEnvelope_('FOUNDATION_UNKNOWN_ACTION', 'Unknown request.');

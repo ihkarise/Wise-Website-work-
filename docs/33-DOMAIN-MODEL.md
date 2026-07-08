@@ -1,5 +1,5 @@
 # 33 - Domain Model
-## Version 1.16 — 2026-07-16
+## Version 1.17 — 2026-07-16
 
 > Defines every major business entity in the Wise Platform: what it means, what it
 > holds, how it relates to everything else, how it comes into being and ends, who is
@@ -628,6 +628,31 @@ booking-form-to-`Appointment` intake mechanism is deliberately left as an
 implementation-time decision, not designed here. Not yet implemented — see docs/50
 §19's `WPI-5` batch.
 
+**Status update (2026-07-16, Batch WPI-5): promoted from Designed to Implemented.**
+`Appointment` has shipped (`shared/schemas/appointment.schema.json`,
+`apps-script/Appointment.gs`) — staff/doctor-facing only, exactly as docs/50 §8 scoped
+it; no patient-facing Appointment UI exists. `patient_id`/`doctor_id` are real,
+empty-string-sentinel-until-assigned fields, validated against a real Patient
+Identity/Doctor when supplied; `specialty_slug` is server-derived once, at creation,
+from `condition_slug` via `SpecialtyRegistry.gs`'s `foundationGetSpecialtyForCondition_()`
+(ADR-018). Lifecycle is one-way and exactly-once:
+`requested` → `confirmed` (assigns a real `doctor_id`/`scheduled_at`) → `completed`, or
+`requested`/`confirmed` → `cancelled` — mirroring `DoctorInstruction.gs`'s own
+one-way-transition discipline. The booking-form-to-`Appointment` intake question docs/50
+§8 left open is resolved as a disclosed, staff-run tool
+(`createFoundationAppointment()`), mirroring `DoctorAssignedCondition.gs`'s
+`assignFoundationCondition()` precedent exactly, not a new public write endpoint — every
+write (creation, confirmation, status transitions) remains a manually-run Apps Script
+editor function. One new, additive, read-only `FoundationRouter.gs` dispatch case
+(`get_doctor_appointments`) returns the caller's own specialty-derived Appointments view,
+`doctor_id` always `DoctorSession`-derived — the same specialty-derivation discipline
+`DoctorPatientRoster.gs`'s patient roster already established, including its own
+disclosed multi-doctor-per-specialty limitation (docs/50 §7.4, docs/51 Part 1.6). The
+Doctor Dashboard's Doctor Module Registry gains its second real entry, `appointments`
+(`shared/constants/doctor-module-registry.json` 1.1.0 → 1.2.0), rendering one new,
+read-only card. See `shared/schemas/appointment.md` for the full lifecycle and
+disclosed-decision detail.
+
 ---
 
 ## 4.2 Notification — *Conceptual (gap)*
@@ -1169,7 +1194,7 @@ labeled test-only fixture pushed directly into the test harness's own registry a
 
 ---
 
-# 7. Phase 3 — WHIMS Patient Intelligence Platform Entities — *Mostly Designed, Batches WPI-1/WPI-2/WPI-3 Implemented (docs/49/50/51/52, ADR-017–020)*
+# 7. Phase 3 — WHIMS Patient Intelligence Platform Entities — *Mostly Designed, Batches WPI-1/WPI-2/WPI-3/WPI-4/WPI-5 Implemented (docs/49/50/51/52, ADR-017–020)*
 
 Net-new entities named by Phase 3's architecture-freeze pass (docs/49/50, 2026-07-16).
 Doctor (§1.4), Appointment (§4.1), and Notification (§4.2) were already conceptual and
@@ -1310,10 +1335,10 @@ exactly (§6, this document's Phase 2B section).
 | Report | Implemented | 2A (Batch PA-5) |
 | Care Plan | **Implemented** | 2B (docs/44 §12, batch PXP-7 — shipped, one evolving plan per patient, append-only versioned, Timeline Event emission deliberately deferred — see §3.4's own status update) |
 | Digital Twin | Conceptual (view) | Recommended 2D — future consumer of Timeline, Reports, Check-ins, Care Plans, Calculators (docs/44 §16), not tightly coupled to Phase 2B |
-| Appointment | **Designed** | 3/WHIMS (docs/50 §8, batch WPI-5 — not yet built) |
+| Appointment | **Implemented** | 3/WHIMS (docs/50 §8, batch WPI-5 — shipped, staff/doctor-facing only, nullable patient_id/doctor_id, server-derived specialty_slug, one-way requested→confirmed→completed/cancelled lifecycle, one read-only `get_doctor_appointments` route, Doctor Module Registry's second real entry `appointments`) |
 | Notification | **Designed** | 3/WHIMS (docs/50 §9, batch WPI-6 — not yet built) |
 | Specialty | **Implemented** | 3/WHIMS (docs/50 §6, ADR-018, batch WPI-2 — shipped, seeded with one specialty (homeopathy), plus the additive Condition-to-Specialty Map; no populated `specialty_scope` entry added to Module/Calculator/Template Registry, none needs one yet, docs/53 §4) |
-| Doctor Module Registry / Doctor Module State | **Implemented (backend + frontend consumer)** | 3/WHIMS (docs/50 §7, ADR-020, batch WPI-3 backend — shipped, registry ships empty, fail-closed `DoctorModuleState`, one read-only `get_doctor_module_states` route; batch WPI-4 — shipped, registry-driven Doctor Dashboard, first real entry `patient_roster`, docs/50 §7.4) |
+| Doctor Module Registry / Doctor Module State | **Implemented (backend + frontend consumer)** | 3/WHIMS (docs/50 §7, ADR-020, batch WPI-3 backend — shipped, registry ships empty, fail-closed `DoctorModuleState`, one read-only `get_doctor_module_states` route; batch WPI-4 — shipped, registry-driven Doctor Dashboard, first real entry `patient_roster`, docs/50 §7.4; batch WPI-5 — shipped, second real entry `appointments`, docs/50 §8) |
 | Inventory Item / Inventory Transaction | **Designed** | 3/WHIMS (docs/50 §10, batch WPI-7 — not yet built) |
 | PillFill Order | **Designed** | 3/WHIMS (docs/50 §11, batch WPI-8 — not yet built) |
 | Analytics | Conceptual (view) | 3/WHIMS (docs/50 §12, batch WPI-9 — never a base table, non-AI aggregation only) |

@@ -176,6 +176,15 @@ Phase 3/WHIMS Batch WPI-4 bumped `constants/doctor-module-registry.json` (1.0.0 
 alongside its first implementation, `apps-script/DoctorPatientRoster.gs`, a derived,
 read-only view with no schema of its own (no new stored entity). No other `shared/`
 file changed in this batch.
+Phase 3/WHIMS Batch WPI-5 added `schemas/appointment.schema.json` (the `Appointment`
+record shape — docs/50 §8, the scheduled or requested clinical encounter that precedes
+a Consultation, closing docs/20 §3's "THE GAP" for the first time; nullable
+`patient_id`/`doctor_id`, a server-derived `specialty_slug`, and a disclosed, additive
+`created_by` provenance field, alongside its first implementation,
+`apps-script/Appointment.gs`) and bumped `constants/doctor-module-registry.json`
+(1.1.0 → 1.2.0) to add this registry's second real entry, `appointments`, backed by a
+new, real, authenticated data_source route (`get_doctor_appointments`). No other
+`shared/` file changed in this batch.
 
 ---
 

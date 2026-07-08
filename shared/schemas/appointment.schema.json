@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wisehomeopathy.com/shared/schemas/appointment.schema.json",
+  "title": "Appointment",
+  "version": "1.0.0",
+  "description": "The canonical shape of an Appointment record — docs/50-PHASE-3-TECHNICAL-PLAN.md §8's design, Phase 3/WHIMS Batch WPI-5 (docs/50 §19), governed by docs/53-PHASE-3-IMPLEMENTATION-RULES.md. The scheduled or requested clinical encounter that precedes, and once held becomes, a Consultation (docs/33-DOMAIN-MODEL.md §2.1/§4.1) — concretely closing docs/20 §3's 'THE GAP' between a public booking-form submission and the platform's own patient-facing history. patient_id and doctor_id are both nullable (empty-string sentinel): a first-time visitor booking has no Patient Identity yet, and no Doctor is assigned until the appointment is confirmed. Staff/doctor-facing only in this batch's scope — no patient-facing Appointment UI is designed or built here (docs/50 §8). See appointment.md for the full lifecycle, the disclosed intake-mechanism decision, and the validation rules.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["appointment_id", "patient_id", "doctor_id", "requested_at", "scheduled_at", "status", "condition_slug", "specialty_slug", "created_by"],
+  "properties": {
+    "appointment_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "This row's own identity column (UUID), server-generated. Never staff-supplied, never patient-supplied."
+    },
+    "patient_id": {
+      "type": "string",
+      "description": "The Patient Identity this appointment belongs to (docs/33 §1.2, ADR-002), if one exists yet. Empty-string sentinel for a first-time visitor's booking, mirroring doctor-instruction.schema.json's consultation_id convention — a real Patient Identity is not required to exist before an Appointment can be requested (docs/50 §8). When non-empty, must reference a real Patient Identity. Staff-supplied at write time; never patient-supplied (no patient-facing write path exists for this entity)."
+    },
+    "doctor_id": {
+      "type": "string",
+      "description": "The Doctor this appointment is assigned to (docs/33 §1.4, ADR-017), if one has been assigned yet. Empty-string sentinel until the appointment is confirmed — an appointment is requested before any doctor is assigned (docs/50 §8's 'nullable until assigned'). When non-empty, must reference a real Doctor. Staff/doctor-supplied only, set by the confirm operation."
+    },
+    "requested_at": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Server-set at creation (foundationNowIso_()), ISO 8601 UTC date-time — when this appointment was first logged into the platform's own data. Never staff-supplied, never patient-supplied."
+    },
+    "scheduled_at": {
+      "type": "string",
+      "description": "The real-world date/time this appointment is scheduled for. Empty-string sentinel until the appointment is confirmed, mirroring doctor-assigned-condition.schema.json's resolved_at convention. Staff/doctor-supplied at confirm time only — never server-computed, since it reflects an actual scheduling decision."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["requested", "confirmed", "completed", "cancelled"],
+      "description": "This appointment's current lifecycle state (docs/50 §8). Always 'requested' at creation. Transitions to 'confirmed' (a doctor and a real scheduled_at are assigned), then to 'completed'; or to 'cancelled' from either 'requested' or 'confirmed'. Every transition is one-way — never reverted, never re-opened once 'completed' or 'cancelled' (a new Appointment row is created instead, the same 'no update, no delete, append new instead' discipline every other Foundation-family lifecycle entity already follows)."
+    },
+    "condition_slug": {
+      "type": "string",
+      "minLength": 1,
+      "description": "One of shared/constants/condition-slugs.json's canonical slugs (manually adapted into apps-script/Appointment.gs's own allowlist, the same convention doctor-assigned-condition.schema.json's condition_slug already established). Staff-supplied at creation, from the booking submission — never patient-selected directly, mirroring doctor-assigned-condition.schema.json's own 'never patient-selected' rule."
+    },
+    "specialty_slug": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The specialty this appointment belongs to (ADR-018, docs/50 §6.3) — server-derived once, at creation, from condition_slug via SpecialtyRegistry.gs's foundationGetSpecialtyForCondition_(), never staff-supplied directly and never recomputed afterward even if the condition-to-specialty map itself later changes. Used by the Doctor Dashboard's Appointments capability (docs/50 §7.3/§7.4-style derivation) to scope which doctors see this appointment."
+    },
+    "created_by": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The staff/doctor identifier who logged this appointment into the platform (a free-text string, the same provenance convention doctor-assigned-condition.schema.json's assigned_by/doctor-instruction.schema.json's prescribed_by already use). A disclosed, additive field beyond docs/50 §8's literal attribute list — necessary provenance for this entity's own audit trail, mirroring care-plan.schema.json's version_key precedent for a schema-necessary field docs/50 named the entity's purpose for but did not itself spell out as a field. Never patient-supplied."
+    }
+  }
+}
