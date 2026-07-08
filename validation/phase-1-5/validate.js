@@ -164,6 +164,13 @@ function doPostJson(ctx, payload) {
   const updated = ctx.getRowObjectByRowIndex_(2);
   record('Stage4: successful send writes email_status=sent and email_sent_at',
     updated.email_status === ctx.EMAIL_STATUS.SENT && !!updated.email_sent_at);
+
+  // Batch WPI-6 (docs/50 Section 9): a successful send also writes a
+  // Notification row, in addition to (never instead of) email_status above.
+  const notificationRows = h.foundationSpreadsheet._sheetsByName['Notifications']._debug().rows;
+  record('Stage4: a successful send also records a Notification row (type visit_summary, status sent, recipient_email set — Phase 1.5 predates Patient Identity)',
+    notificationRows.length === 1 && notificationRows[0][4] === 'email' && notificationRows[0][5] === 'visit_summary' &&
+    notificationRows[0][6] === 'sent' && notificationRows[0][3] === 'patient@example.com' && notificationRows[0][1] === '' && notificationRows[0][2] === '');
 })();
 
 (function stage4_email_failure() {
@@ -182,6 +189,12 @@ function doPostJson(ctx, payload) {
   record('Stage4: provider failure logs email_status=failed + error_log, does not throw',
     result.sent === false && updated.email_status === ctx.EMAIL_STATUS.FAILED &&
     String(updated.error_log).indexOf('EMAIL_SEND_FAILED') === 0);
+
+  // Batch WPI-6: a failed send attempt also records a Notification row,
+  // status failed — the transport's own real result, never masked.
+  const notificationRows = h.foundationSpreadsheet._sheetsByName['Notifications']._debug().rows;
+  record('Stage4: a failed send attempt also records a Notification row with status failed',
+    notificationRows.length === 1 && notificationRows[0][6] === 'failed');
 })();
 
 (function stage4_consent_tampered_blocks_send() {
@@ -198,6 +211,12 @@ function doPostJson(ctx, payload) {
   const result = ctx.attemptSend_(row);
   record('Stage4: tampered consent (false) blocks send even though review_status=approved',
     result.sent === false && h.mailLog.length === 0);
+
+  // Batch WPI-6: a gate-blocked attempt never even reaches the point where
+  // a Notification row would be recorded — no send was ever attempted, so
+  // no row exists (the Notifications sheet is never even created).
+  record('Stage4: a gate-blocked attempt records no Notification row at all',
+    !h.foundationSpreadsheet._sheetsByName['Notifications']);
 })();
 
 // ============================================================

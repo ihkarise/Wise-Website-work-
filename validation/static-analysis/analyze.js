@@ -121,7 +121,9 @@ var MANUAL_DROPDOWN_WRAPPERS = [
 var INFRASTRUCTURE_AHEAD_OF_CONSUMER = [
   'foundationGetSpecialtyRegistry_', // SpecialtyRegistry.gs — WPI-2; first real consumer expected at WPI-3/WPI-4 (Doctor Module Registry / Doctor Dashboard)
   'foundationGetSpecialtyBySlug_', // SpecialtyRegistry.gs — WPI-2; first real consumer expected at WPI-3/WPI-4
-  'foundationGetSpecialtyForCondition_' // SpecialtyRegistry.gs — WPI-2; first real consumer expected at WPI-3/WPI-4 (patient-roster/registry specialty filtering, docs/50 §7.4)
+  'foundationGetSpecialtyForCondition_', // SpecialtyRegistry.gs — WPI-2; first real consumer expected at WPI-3/WPI-4 (patient-roster/registry specialty filtering, docs/50 §7.4)
+  'foundationGetNotificationsForPatient_', // Notification.gs — WPI-6; no FoundationRouter.gs route in this batch by disclosed design (shared/schemas/notification.md's "No route in this batch", mirrors Session's own ownership model per docs/50 §9). Covered directly by Conformance Tests (Stage 22). First real consumer expected once a future dashboard "Messages" module is separately scoped.
+  'foundationGetNotificationsForDoctor_' // Notification.gs — WPI-6; same disclosed reason as foundationGetNotificationsForPatient_ above
 ];
 
 function listGsFiles() {

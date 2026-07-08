@@ -59,6 +59,23 @@ function attemptSend_(row) {
     logEvent_('failed', row.record_id, 'Could not log email result: ' + err.message);
   }
 
+  // Disclosed, additive touch — Batch WPI-6 (docs/50 §9, shared/schemas/
+  // notification.md): this is Send.gs's first-ever dependency on a
+  // Foundation-family function, reachable only because both domains share
+  // one Apps Script project (docs/29 §14 Decision 1). Records this
+  // already-completed send attempt as a Notification row, in addition to
+  // (never instead of) the email_status/error_log bookkeeping above.
+  // Phase 1.5's ConsultationSummary row predates Patient Identity and has
+  // no patient_id — recipient_email is this batch's disclosed fallback
+  // subject reference (shared/schemas/notification.md). Never changes this
+  // function's own gate, transport, or return value.
+  foundationRecordNotification_({
+    recipient_email: row.recipient_email,
+    channel: 'email',
+    type: 'visit_summary',
+    status: result.ok ? 'sent' : 'failed'
+  });
+
   if (result.ok) {
     logEvent_('sent', row.record_id, 'Email delivered to recipient.');
     return { sent: true, reason: null };

@@ -106,6 +106,17 @@ function foundationHandleRequestLoginLink_(input) {
     } else {
       foundationLogAuditEvent_('login_link_requested', patient.patient_id, '', 'reason=email_sent');
     }
+    // Disclosed, additive touch — Batch WPI-6 (docs/50 §9, shared/schemas/
+    // notification.md): records this already-completed send attempt as a
+    // Notification row, in addition to (never instead of) the audit-log
+    // bookkeeping above. Never changes this function's own gate, transport,
+    // or return value.
+    foundationRecordNotification_({
+      patient_id: patient.patient_id,
+      channel: 'email',
+      type: 'login_link',
+      status: emailResult.ok ? 'sent' : 'failed'
+    });
     return genericMessage;
   });
 }
