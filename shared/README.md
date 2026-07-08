@@ -171,6 +171,11 @@ fail-closed by absence, alongside its first implementation,
 `apps-script/DoctorModuleState.gs`; structurally parallel to
 `schemas/patient-module-state.schema.json` but a separate registry and enablement
 table, never merged with the patient-facing ones, ADR-020).
+Phase 3/WHIMS Batch WPI-4 bumped `constants/doctor-module-registry.json` (1.0.0 →
+1.1.0) to add this registry's first real entry, `patient_roster` (docs/50 §7.4) —
+alongside its first implementation, `apps-script/DoctorPatientRoster.gs`, a derived,
+read-only view with no schema of its own (no new stored entity). No other `shared/`
+file changed in this batch.
 
 ---
 

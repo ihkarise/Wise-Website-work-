@@ -124,6 +124,11 @@
  * the same "additive entity, zero new infrastructure" pattern
  * `PatientModuleState.gs` already proved out at Batch PXP-3) in the FILES
  * list.
+ *
+ * Extended in Phase 3/WHIMS batch WPI-4 with `DoctorPatientRoster.gs` in
+ * the FILES list — a derived, read-only view over already-mocked
+ * primitives (`foundationDsQuery_`, `FoundationDataStore.gs`), no new mock
+ * needed.
  */
 
 var fs = require('fs');
@@ -170,6 +175,7 @@ var FILES = [
   'SpecialtyRegistry.gs',
   'DoctorModuleRegistry.gs',
   'DoctorModuleState.gs',
+  'DoctorPatientRoster.gs',
   'FoundationRouter.gs'
 ];
 

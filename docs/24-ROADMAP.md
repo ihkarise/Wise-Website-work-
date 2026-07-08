@@ -1,5 +1,5 @@
 # 24 - Wise Product Roadmap
-## Version 1.14 — 2026-07-16
+## Version 1.15 — 2026-07-16
 
 # Phase 1 — Public Website
 Status: In Progress
@@ -599,9 +599,10 @@ any implementation begins.
 # Phase 3 — WHIMS Patient Intelligence Platform (formerly "WiseOS")
 Status: **Architecture freeze complete (Version 1.0, 2026-07-16). Implementation
 underway: Batch WPI-1 (Doctor Identity & Session) shipped 2026-07-16, Batch WPI-2
-(Specialty Registry) shipped 2026-07-16, and Batch WPI-3 (Doctor Module Registry,
-backend) shipped 2026-07-16, each explicitly approved and scoped to its own batch
-only. No later batch (WPI-4 onward) is authorized to begin.**
+(Specialty Registry) shipped 2026-07-16, Batch WPI-3 (Doctor Module Registry,
+backend) shipped 2026-07-16, and Batch WPI-4 (Doctor Dashboard, frontend consumer)
+shipped 2026-07-16, each explicitly approved and scoped to its own batch only. No
+later batch (WPI-5 onward) is authorized to begin.**
 
 Renamed from "WiseOS" per this architecture-freeze pass (docs/49 §2) — no scope
 change from the rename itself. **Reordered ahead of Phase 2C (Health Milestones) and
@@ -637,7 +638,7 @@ unscoped placeholder, mirroring PXP-9's own precedent exactly**) → WPI-11 (Hol
 **reserved, unscoped placeholder; no existing document defines this item's purpose at
 all**) → WPI-12 (Closeout).
 
-**No WPI batch beyond WPI-3 is authorized to begin by any of the above documents.**
+**No WPI batch beyond WPI-4 is authorized to begin by any of the above documents.**
 Each requires its own separate, explicit approval, per docs/53's per-batch gate — the
 same discipline every Phase 2B batch already passed through. Two documentation-only
 closures identified by docs/51's readiness review were resolved within this same
@@ -729,6 +730,39 @@ Registry, Template Registry, and Specialty Registry are all untouched, zero line
 Zero modification to any frozen Foundation/Identity & Access/Patient
 Access/PXP-1..11/WPI-1/WPI-2 file. **No batch beyond WPI-3 is authorized by this
 approval.**
+
+**Batch WPI-4 (Doctor Dashboard, frontend consumer, docs/50 §7.3/§7.4/§19, ADR-020)**
+— Pillar 2's frontend consumer half, dependent on WPI-3 — has now shipped: a new,
+authenticated, doctor-facing page (`doctor-dashboard/index.html` + `dashboard.js`) is
+now a registry-driven consumer of WPI-3's Doctor Module Registry plus
+`DoctorModuleState`, structurally parallel to `my-health-journey/dashboard.js`'s own
+post-PXP-4 discipline — every card corresponds to a registry entry the doctor is
+enabled for; there is no hardcoded per-capability rendering logic in
+`renderDashboard()`. This batch registers the Doctor Module Registry's first real
+entry, `patient_roster` (`shared/constants/doctor-module-registry.json` version
+1.0.0 → 1.1.0), implementing docs/50 §7.4's derived patient roster exactly: a new,
+read-only, `DoctorSession`-authenticated route (`get_doctor_patient_roster`,
+`apps-script/DoctorPatientRoster.gs`) returns every distinct patient with at least one
+active Doctor Assigned Condition whose `condition_slug` maps (via WPI-2's
+Condition-to-Specialty Map) to the doctor's own `specialty_slug` — no new stored
+entity, exactly docs/50 §7.4's "derived, not a new entity" design, including its own
+disclosed multi-doctor-per-specialty limitation (docs/51 Part 1.6), unaffected by this
+batch. **Disclosed, additive prerequisite beyond docs/50 §19's literal scope:**
+reaching an authenticated Doctor Dashboard requires a doctor-facing login flow, which
+no earlier batch built a frontend for (WPI-1 shipped only the backend routes, with
+"zero doctor-facing frontend page" explicitly named as that batch's own boundary).
+This batch adds `doctor-login.html`/`doctor-verify.html` (root, `noindex`, mirroring
+`login.html`/`verify.html` exactly, minus the Trusted Device mechanism, which has no
+doctor-side equivalent) as the minimal, necessary path to the dashboard this batch
+itself introduces — the same kind of implementation-time plumbing decision docs/50 §8
+already left open for Appointment's own intake mechanism, disclosed here rather than
+silently assumed. `DoctorModuleState` enablement remains staff/administrative-only
+(WPI-3's `setFoundationDoctorModuleState()`, unchanged) — a doctor sees the Patient
+Roster card only once staff explicitly enables it for that doctor, the same
+fail-closed-by-absence default every other module/capability enablement mechanism on
+the platform already uses. Zero modification to any frozen Foundation/Identity &
+Access/Patient Access/PXP-1..11/WPI-1..3 file — `my-health-journey/` is completely
+untouched. **No batch beyond WPI-4 is authorized by this approval.**
 
 # Guiding Principle
 Every roadmap item should support the North Star:

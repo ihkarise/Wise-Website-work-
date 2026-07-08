@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sign In | Wise Homeopathy Doctor Dashboard</title>
+<meta name="description" content="Complete your secure, passwordless sign-in to the Wise Homeopathy Doctor Dashboard.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="canonical" href="https://www.wisehomeopathy.com/doctor-verify.html">
+<link rel="icon" href="assets/favicon.ico">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/site.css">
+<style>
+/* Page-specific layout only — shared tokens/components come from
+   assets/site.css (docs/29 §13 Batch 5C extraction), the same reuse
+   verify.html already makes for the patient-facing equivalent of this
+   page. */
+.wrap{max-width:480px;min-height:100vh;display:flex;flex-direction:column;justify-content:center}
+.card{text-align:center}
+.status{text-align:left}
+.status.loading{text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <main>
+    <div class="brand">
+      <img src="assets/logo.svg" alt="Wise Homeopathy Multispeciality Center" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';this.nextElementSibling.nextElementSibling.style.display='block'">
+      <span class="mark" aria-hidden="true">W</span>
+      <span class="txt">Wise Homeopathy</span>
+    </div>
+
+    <h1 class="serif">Sign In</h1>
+
+    <div class="card">
+      <!-- State: no token in the URL at all -->
+      <div id="noTokenState" hidden>
+        <p class="sub" style="margin-bottom:0">This sign-in link is missing its token. Please request a new one.</p>
+        <a class="secondary" href="doctor-login.html">Request a new login link</a>
+      </div>
+
+      <!-- State: token present, waiting for the user to confirm (not
+           auto-submitted — see login.html/verify.html's own build notes on
+           why: an email-security link-scanner that pre-fetches this page
+           must never be able to spend a single-use token on the real
+           doctor's behalf). -->
+      <div id="readyState" hidden>
+        <p class="sub" style="margin-bottom:18px">Click below to finish signing in to your Wise Homeopathy Doctor Dashboard.</p>
+        <button class="submit" type="button" id="continueBtn">Continue to sign in</button>
+        <div class="status" id="statusBox" role="status" aria-live="polite"></div>
+      </div>
+
+      <!-- State: verifying (skeleton, not a spinner, per docs/04) -->
+      <div id="loadingState" hidden aria-live="polite">
+        <div class="skeleton" style="width:70%;margin-left:auto;margin-right:auto"></div>
+        <div class="skeleton" style="width:45%;margin-left:auto;margin-right:auto"></div>
+      </div>
+
+      <!-- State: success -->
+      <div id="successState" hidden>
+        <p class="sub" style="margin-bottom:0">You're signed in ✓</p>
+        <p class="sub" style="margin-bottom:18px">Your session will stay active for the next 60 minutes.</p>
+        <a class="secondary" href="doctor-dashboard/">Go to Doctor Dashboard</a>
+      </div>
+
+      <!-- State: failure -->
+      <div id="errorState" hidden>
+        <p class="sub" id="errorMessage" style="margin-bottom:18px"></p>
+        <a class="secondary" href="doctor-login.html">Request a new login link</a>
+      </div>
+    </div>
+
+    <p class="foot"><a href="index.html">Return to the homepage</a></p>
+  </main>
+</div>
+
+<script>
+(function () {
+  // Same Apps Script Web App deployment doctor-login.html uses —
+  // Foundation and Phase 1.5 share one project/one doPost (docs/29 §14
+  // Decision 1).
+  var WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwrAx9jPnji2U-ngBpYTtV2p_SJnnFrYa7fKYo589zeVfRrwuz3N5aIS0xeiQeuFvMhIQ/exec';
+
+  var states = {
+    noToken: document.getElementById('noTokenState'),
+    ready: document.getElementById('readyState'),
+    loading: document.getElementById('loadingState'),
+    success: document.getElementById('successState'),
+    error: document.getElementById('errorState')
+  };
+  var continueBtn = document.getElementById('continueBtn');
+  var statusBox = document.getElementById('statusBox');
+  var errorMessage = document.getElementById('errorMessage');
+
+  function showState(name) {
+    Object.keys(states).forEach(function (key) {
+      states[key].hidden = key !== name;
+    });
+  }
+
+  function showStatus(kind, message) {
+    statusBox.className = 'status ' + kind;
+    statusBox.textContent = message;
+  }
+
+  var token = new URLSearchParams(window.location.search).get('token');
+
+  // Strip the token from the visible URL/history as soon as we've read it
+  // — a minor hygiene step so it doesn't linger in browser history or get
+  // re-shared accidentally if the page URL is copied after this point.
+  if (token && window.history && window.history.replaceState) {
+    window.history.replaceState({}, document.title, window.location.pathname);
+  }
+
+  if (!token) {
+    showState('noToken');
+    return;
+  }
+
+  showState('ready');
+
+  continueBtn.addEventListener('click', function () {
+    if (WEB_APP_URL.indexOf('REPLACE_WITH') === 0) {
+      showStatus('err', 'This page is not yet connected to a deployed Apps Script Web App. See apps-script/README.md.');
+      return;
+    }
+
+    continueBtn.disabled = true;
+    showState('loading');
+
+    fetch(WEB_APP_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        foundation_action: 'consume_doctor_login_link',
+        token: token
+      })
+    })
+      .then(function (response) { return response.json(); })
+      .then(function (data) {
+        if (data.status === 'ok') {
+          // Store ONLY the session token, and ONLY in sessionStorage
+          // (cleared on tab close, never localStorage — docs/29 §3, reused
+          // unchanged for the doctor flow at Batch WPI-1). doctor_id is
+          // never stored separately, client-side, anywhere — every future
+          // authenticated call derives it server-side from this same token
+          // (ADR-017). A distinct sessionStorage key from the patient
+          // flow's wise_session_token — the two identity spaces' sessions
+          // are never interchangeable (ADR-017), including client-side.
+          window.sessionStorage.setItem('wise_doctor_session_token', data.data.session_token);
+          showState('success');
+        } else {
+          errorMessage.textContent = (data.error && data.error.message) || 'This login link is invalid or has expired.';
+          showState('error');
+        }
+      })
+      .catch(function () {
+        errorMessage.textContent = 'Could not reach the login service. Check your internet connection and try again.';
+        showState('error');
+      });
+  });
+})();
+</script>
+</body>
+</html>
