@@ -158,6 +158,14 @@
  * already-mocked primitives (the same "additive entity, zero new
  * infrastructure" pattern `Notification.gs` already proved out at Batch
  * WPI-6).
+ *
+ * Extended in Phase 3/WHIMS batch WPI-9 with `Analytics.gs` in the FILES
+ * list — no new mock needed, since it is a computed, read-only view that
+ * only reuses already-mocked primitives (`foundationDsQuery_`) plus
+ * `DoctorPatientRoster.gs`'s/`InventoryItem.gs`'s/`PillFillOrder.gs`'s own
+ * already-mocked read functions (the same "additive view, zero new
+ * infrastructure" pattern `DoctorPatientRoster.gs` already proved out at
+ * Batch WPI-4).
  */
 
 var fs = require('fs');
@@ -210,6 +218,7 @@ var FILES = [
   'InventoryItem.gs',
   'InventoryTransaction.gs',
   'PillFillOrder.gs',
+  'Analytics.gs',
   'FoundationRouter.gs'
 ];
 

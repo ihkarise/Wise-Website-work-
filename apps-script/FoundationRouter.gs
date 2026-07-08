@@ -247,6 +247,19 @@
  *     specialty_slug of its own) — the same specialty-scoping discipline
  *     the patient roster/appointments/inventory views already establish.
  *
+ *   - get_doctor_analytics — Batch WPI-9 addition (docs/50-PHASE-3-
+ *     TECHNICAL-PLAN.md §12/§19, docs/54-SHEETS-PRODUCTION-SCALE-REVIEW.md
+ *     §18 item 4), the Doctor Dashboard's fifth capability (Analytics.gs,
+ *     registered as shared/constants/doctor-module-registry.json's
+ *     `analytics` entry). Read-only — Analytics is never a stored entity
+ *     (docs/50 §12), so there is nothing for this route to write. doctor_id
+ *     is derived only from a verified DoctorSession, mirroring
+ *     get_pillfill_orders exactly. Returns the doctor's specialty-scoped,
+ *     deterministic aggregate report (Analytics.gs's
+ *     foundationGetAnalyticsForDoctor_()), bounded to a fixed trailing
+ *     30-day window — never "all history", never an AI-generated
+ *     interpretation or prediction.
+ *
  * A disclosed, additive exception, same category as Code.gs's own
  * one-line dispatch shim (IA-2): this file was previously listed among
  * Identity & Access's six files "frozen except for bug fixes"
@@ -720,6 +733,20 @@ function foundationHandleGetPillFillOrders_(input) {
 }
 
 /**
+ * Batch WPI-9: returns the caller's own specialty-scoped, bounded-window
+ * Analytics report (Analytics.gs) — the Doctor Dashboard's fifth capability
+ * this batch registers (`analytics`, doctor-module-registry.json).
+ * doctor_id is always DoctorSession-derived, never client-supplied.
+ * Read-only — Analytics is never a stored entity (docs/50 §12), so there is
+ * nothing to write here.
+ */
+function foundationHandleGetDoctorAnalytics_(input) {
+  return withFoundationDoctorAuth_(input && input.session_token, function (doctorId) {
+    return foundationGetAnalyticsForDoctor_(doctorId);
+  });
+}
+
+/**
  * Serializes a response-envelope-shaped value to the wire. Apps Script
  * Web Apps cannot set a real HTTP status code (every response transports
  * as HTTP 200 regardless — the same platform fact Code.gs's own
@@ -838,6 +865,9 @@ function handleFoundationRequest_(input) {
       break;
     case 'get_pillfill_orders':
       envelope = foundationHandleGetPillFillOrders_(input);
+      break;
+    case 'get_doctor_analytics':
+      envelope = foundationHandleGetDoctorAnalytics_(input);
       break;
     default:
       envelope = buildFoundationErrorEnvelope_('FOUNDATION_UNKNOWN_ACTION', 'Unknown request.');

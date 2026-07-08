@@ -603,9 +603,9 @@ underway: Batch WPI-1 (Doctor Identity & Session) shipped 2026-07-16, Batch WPI-
 backend) shipped 2026-07-16, Batch WPI-4 (Doctor Dashboard, frontend consumer)
 shipped 2026-07-16, Batch WPI-5 (Appointment) shipped 2026-07-16, Batch WPI-6
 (Notification, unification) shipped 2026-07-16, Batch WPI-7 (Inventory) shipped
-2026-07-16, and Batch WPI-8 (PillFill Integration) shipped 2026-07-16, each explicitly
-approved and scoped to its own batch only. No later batch (WPI-9 onward) is authorized
-to begin.**
+2026-07-16, Batch WPI-8 (PillFill Integration) shipped 2026-07-16, and Batch WPI-9
+(Analytics) shipped 2026-07-16, each explicitly approved and scoped to its own batch
+only. No later batch (WPI-10 onward) is authorized to begin.**
 
 Renamed from "WiseOS" per this architecture-freeze pass (docs/49 §2) — no scope
 change from the rename itself. **Reordered ahead of Phase 2C (Health Milestones) and
@@ -643,7 +643,7 @@ unscoped placeholder, mirroring PXP-9's own precedent exactly**) → WPI-11 (Hol
 **reserved, unscoped placeholder; no existing document defines this item's purpose at
 all**) → WPI-12 (Closeout).
 
-**No WPI batch beyond WPI-8 is authorized to begin by any of the above documents.**
+**No WPI batch beyond WPI-9 is authorized to begin by any of the above documents.**
 Each requires its own separate, explicit approval, per docs/53's per-batch gate — the
 same discipline every Phase 2B batch already passed through. Two documentation-only
 closures identified by docs/51's readiness review were resolved within this same
@@ -940,6 +940,35 @@ API, webhook, or integration contract is designed or built — this batch is the
 platform's own internal order-and-fulfillment record only (docs/50 §11's own explicit
 restraint). Zero modification to any frozen Foundation/Identity & Access/Patient
 Access/PXP-1..11/WPI-1..7 file. **No batch beyond WPI-8 is authorized by this
+approval.**
+
+**Batch WPI-9 (Analytics, docs/50 §12/§19)** — a consumer of Doctor Dashboard (WPI-4),
+benefiting from Inventory (WPI-7) and PillFill Integration (WPI-8) without strictly
+requiring either, gated on docs/54-SHEETS-PRODUCTION-SCALE-REVIEW.md's own Sheets-at-
+scale review — has now shipped: `apps-script/Analytics.gs`, a computed, read-only
+aggregate view, never a stored entity and never a base table (docs/50 §12, docs/33
+§7.6), reading across `CheckInResponse`, `CalculatorResult`, `CarePlan`,
+`DoctorAssignedCondition` (via `DoctorPatientRoster.gs`'s own derivation, reused, not
+re-implemented), `InventoryItem`/`InventoryTransaction`, `PillFillOrder`, and
+`Appointment` — every entity docs/50 §12 names, and no other. Every report section
+(check-in completion, care plan activity, calculator/module engagement, inventory
+turnover, PillFill fulfillment, appointment conversion) is a deterministic count/sum/
+rate over already-stored rows — never an AI-generated interpretation, prediction, or
+recommendation (docs/50 §12's own hard boundary, ADR-001/004/005/019 unaffected).
+Bounded to a fixed trailing 30-day window, never "all history" — the forward
+constraint docs/54 §18 item 4 named for this batch specifically. Doctor/staff-facing
+only, never patient-facing. One new, additive, read-only `FoundationRouter.gs`
+dispatch case (`get_doctor_analytics`) returns the caller's own specialty-scoped
+report, `doctor_id` always `DoctorSession`-derived, specialty scoping reused directly
+from `DoctorPatientRoster.gs`/`InventoryItem.gs`/`PillFillOrder.gs`'s own existing
+views rather than re-derived. The Doctor Dashboard's Doctor Module Registry gains its
+fifth real entry, `analytics` (`shared/constants/doctor-module-registry.json` version
+1.4.0 → 1.5.0, `display_order: 50`) — the Doctor Dashboard
+(`doctor-dashboard/dashboard.js`) renders one new, read-only card summarizing the
+report's own counts/rates, no chart or graph, no write affordance, structurally
+parallel to the Patient Roster/Appointments/Inventory/PillFill Orders cards. Zero
+modification to any frozen Foundation/Identity & Access/Patient
+Access/PXP-1..11/WPI-1..8 file. **No batch beyond WPI-9 is authorized by this
 approval.**
 
 # Guiding Principle

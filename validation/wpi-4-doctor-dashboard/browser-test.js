@@ -348,7 +348,7 @@ async function main() {
       // fail-closed session handling, sign-out) are untouched, still
       // WPI-4's own scope.
       const registryLength = await page.evaluate(() => window.WiseDoctorDashboard.DOCTOR_MODULE_REGISTRY.length);
-      check('Doctor Dashboard: the hand-ported DOCTOR_MODULE_REGISTRY carries exactly four entries (patient_roster, appointments, inventory, pillfill_orders, as of Batch WPI-8)', registryLength === 4);
+      check('Doctor Dashboard: the hand-ported DOCTOR_MODULE_REGISTRY carries exactly five entries (patient_roster, appointments, inventory, pillfill_orders, analytics, as of Batch WPI-9)', registryLength === 5);
 
       const filterResult = await page.evaluate(() => {
         var stateEntries = [

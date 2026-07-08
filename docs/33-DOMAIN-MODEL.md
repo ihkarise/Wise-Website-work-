@@ -1427,14 +1427,20 @@ version 1.3.0 → 1.4.0, `display_order: 40`), rendering one new, read-only Doct
 Dashboard card. Zero modification to any frozen Foundation/Identity & Access/Patient
 Access/PXP-1..11/WPI-1..7 file (full reasoning: `shared/schemas/pillfill-order.md`).
 
-## 7.6 Analytics — *Conceptual (computed view, never a base table)*
+## 7.6 Analytics — *Implemented (Batch WPI-9, computed view — never a base table)*
 Not a stored entity — mirrors Digital Twin's (§3.5) own "computed view, never a base
-table" discipline. Reads across Check-In Response, Calculator Result, Care Plan,
-Doctor Assigned Condition, Inventory Transaction, PillFill Order, and Appointment.
+table" discipline; `apps-script/Analytics.gs` reads across Check-In Response,
+Calculator Result, Care Plan, Doctor Assigned Condition (via `DoctorPatientRoster.gs`'s
+own derivation, reused, not re-implemented), Inventory Item/Inventory Transaction,
+PillFill Order, and Appointment — every entity docs/50 §12 names, and no other.
 **Every report is a deterministic aggregation — never an AI-generated interpretation,
 prediction, or recommendation**; any future AI-assisted analytics narrative is
 independently gated by ADR-001/004/005/019, identically to every other reserved
-extension point on the platform. **Full detail:** docs/50 §12.
+extension point on the platform. Bounded to a fixed trailing 30-day window, never "all
+history" (docs/54-SHEETS-PRODUCTION-SCALE-REVIEW.md §18 item 4's own forward
+constraint on this batch). Doctor/staff-facing only, never patient-facing; one new,
+read-only `FoundationRouter.gs` route (`get_doctor_analytics`), Doctor Module
+Registry's fifth real entry, `analytics`. **Full detail:** docs/50 §12.
 
 ## 7.7 Reserved — AI Assistant, Holoscan
 Named, not designed. Every registry above carries the same inert AI-compatibility
@@ -1466,10 +1472,10 @@ exactly (§6, this document's Phase 2B section).
 | Appointment | **Implemented** | 3/WHIMS (docs/50 §8, batch WPI-5 — shipped, staff/doctor-facing only, nullable patient_id/doctor_id, server-derived specialty_slug, one-way requested→confirmed→completed/cancelled lifecycle, one read-only `get_doctor_appointments` route, Doctor Module Registry's second real entry `appointments`) |
 | Notification | **Implemented** | 3/WHIMS (docs/50 §9, batch WPI-6 — shipped, a shared record of what was sent, never a new delivery pipeline; nullable patient_id/doctor_id, disclosed additive recipient_email fallback; system-generated only, zero FoundationRouter.gs dispatch case) |
 | Specialty | **Implemented** | 3/WHIMS (docs/50 §6, ADR-018, batch WPI-2 — shipped, seeded with one specialty (homeopathy), plus the additive Condition-to-Specialty Map; no populated `specialty_scope` entry added to Module/Calculator/Template Registry, none needs one yet, docs/53 §4) |
-| Doctor Module Registry / Doctor Module State | **Implemented (backend + frontend consumer)** | 3/WHIMS (docs/50 §7, ADR-020, batch WPI-3 backend — shipped, registry ships empty, fail-closed `DoctorModuleState`, one read-only `get_doctor_module_states` route; batch WPI-4 — shipped, registry-driven Doctor Dashboard, first real entry `patient_roster`, docs/50 §7.4; batch WPI-5 — shipped, second real entry `appointments`, docs/50 §8; batch WPI-7 — shipped, third real entry `inventory`, docs/50 §10) |
+| Doctor Module Registry / Doctor Module State | **Implemented (backend + frontend consumer)** | 3/WHIMS (docs/50 §7, ADR-020, batch WPI-3 backend — shipped, registry ships empty, fail-closed `DoctorModuleState`, one read-only `get_doctor_module_states` route; batch WPI-4 — shipped, registry-driven Doctor Dashboard, first real entry `patient_roster`, docs/50 §7.4; batch WPI-5 — shipped, second real entry `appointments`, docs/50 §8; batch WPI-7 — shipped, third real entry `inventory`, docs/50 §10; batch WPI-8 — shipped, fourth real entry `pillfill_orders`, docs/50 §11; batch WPI-9 — shipped, fifth real entry `analytics`, docs/50 §12) |
 | Inventory Item / Inventory Transaction | **Implemented** | 3/WHIMS (docs/50 §10, batch WPI-7 — shipped, quantity_on_hand derived/recomputed from an append-only ledger, the platform's first LockService use per docs/54 §7/§19, Doctor Module Registry's third real entry `inventory`) |
 | PillFill Order | **Implemented** | 3/WHIMS (docs/50 §11, batch WPI-8 — shipped, connects a medicine-type Doctor Instruction to fulfillment; the dedicated fulfill operation reuses InventoryTransaction.gs's LockService-protected dispense and Notification.gs's pillfill_order_status record; Doctor Module Registry's fourth real entry, pillfill_orders) |
-| Analytics | Conceptual (view) | 3/WHIMS (docs/50 §12, batch WPI-9 — never a base table, non-AI aggregation only) |
+| Analytics | **Implemented (computed view — never a base table)** | 3/WHIMS (docs/50 §12, batch WPI-9 — shipped, reads across seven existing entities, bounded to a fixed trailing 30-day window, non-AI deterministic aggregation only, Doctor Module Registry's fifth real entry `analytics`) |
 | Knowledge Article | Conceptual | Unassigned |
 | Knowledge Engine | Conceptual (system) | Unassigned |
 | Calculator | **Implemented — backend only — Pillar 3** | 2B (docs/44 §8, batch PXP-6, Calculator Registry — shipped, registry seeded empty, no UI; see §6.8). Public variant still unassigned — roadmap gap carried forward (docs/46 Part 3). |

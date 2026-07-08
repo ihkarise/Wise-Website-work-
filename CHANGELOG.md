@@ -8,6 +8,110 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-16 — Phase 3 Batch WPI-9: Analytics
+
+Implements Batch WPI-9 (docs/50-PHASE-3-TECHNICAL-PLAN.md §12/§19), a consumer of
+Doctor Dashboard (WPI-4, already shipped), benefiting from Inventory (WPI-7) and
+PillFill Integration (WPI-8) without strictly requiring either, per
+docs/53-PHASE-3-IMPLEMENTATION-RULES.md's per-batch gate. Re-confirms
+docs/54-SHEETS-PRODUCTION-SCALE-REVIEW.md's own Analytics-specific gate (§18 item 4:
+"scope its own reports to bounded ranges"). **Explicitly scoped to WPI-9 only — no
+later batch (WPI-10 onward) is authorized by this change.**
+
+### Added (Apps Script)
+- **`apps-script/Analytics.gs`** (new) — Analytics is **not a stored entity** (docs/50
+  §12, docs/33 §7.6): a computed, read-only, doctor-facing aggregate view with no
+  schema of its own. `foundationGetAnalyticsForDoctor_()` returns six report sections,
+  each a deterministic count/sum/rate over already-stored rows, never an AI-generated
+  interpretation, prediction, or recommendation:
+  - `check_in_completion` — `CheckInResponse` rows scoped directly by
+    `condition_slug` → specialty (`SpecialtyRegistry.gs`, mirroring
+    `DoctorPatientRoster.gs`'s own derivation).
+  - `care_plan_activity` — `CarePlan` version counts, scoped to the doctor's own
+    roster (`DoctorPatientRoster.gs`'s `foundationGetDoctorPatientRoster_()`, reused).
+  - `calculator_engagement` — `CalculatorResult` rows, same roster scoping, grouped by
+    `calculator_slug`.
+  - `inventory_turnover` — `InventoryTransaction` rows, scoped to the doctor's own
+    specialty-visible `InventoryItem` list (`InventoryItem.gs`'s
+    `foundationGetInventoryItemsForDoctor_()`, reused).
+  - `pillfill_fulfillment` — the doctor's own specialty-scoped `PillFillOrder` list
+    (`PillFillOrder.gs`'s `foundationGetPillFillOrdersForDoctor_()`, reused).
+  - `appointment_conversion` — `Appointment` rows scoped directly by `specialty_slug`.
+
+  Every section is bounded to a fixed trailing **30-day window** (`from`/`to` ISO
+  timestamps returned alongside the report) — never "all history", the forward
+  constraint docs/54 §18 item 4 named for this batch specifically. Zero new Sheet,
+  zero new schema, zero modification to any of the seven entities read.
+
+### Added (router, registry, dashboard)
+- **`apps-script/FoundationRouter.gs`** — one new, additive, read-only dispatch case,
+  `get_doctor_analytics`, deriving `doctor_id` exclusively from the verified
+  `DoctorSession`, mirroring `get_pillfill_orders` exactly. No write route exists —
+  there is nothing for this view to write.
+- **`shared/constants/doctor-module-registry.json`** (1.4.0 → 1.5.0) and
+  **`apps-script/DoctorModuleRegistry.gs`** — this registry's fifth real entry,
+  `analytics` (`display_order: 50`, `data_source: get_doctor_analytics`).
+- **`doctor-dashboard/dashboard.js`** — one new, read-only Analytics card rendering a
+  plain summary line per report section (counts/rates, no chart or graph — registry-
+  driven integration only, not a dashboard redesign), structurally parallel to the
+  Patient Roster/Appointments/Inventory/PillFill Orders cards (docs/50 §7.3's
+  registry-driven discipline unchanged — `renderDashboard()`/`dispatchLoaders()`
+  themselves gained no new logic, only a new registry entry and a new loader).
+
+### Added (validation)
+- **`validation/phase-2a-foundation/harness.js`** — `Analytics.gs` added to the loaded
+  `FILES` list; no new mock needed (a computed view reusing only already-mocked
+  primitives).
+- **`validation/phase-2a-foundation/conformance.js`** — new Stage 25 (34 checks):
+  every report section's aggregation math verified as an exact delta over a
+  pre-fixture snapshot (immune to the shared, cumulative in-memory spreadsheet's own
+  cross-stage fixture volume, docs/54 §2.1), the fixed 30-day window genuinely
+  excluding a directly-inserted, outside-window fixture row per entity, roster-scoping
+  correctly excluding an off-roster patient's own `CarePlan`/`CalculatorResult`, the
+  new HTTP dispatch case end to end, and cross-identity-type rejection.
+- **`validation/wpi-9-analytics/browser-test.js`** (new, 18 checks) — the Analytics
+  card's own render of an all-zero report and a real, non-zero report (Analytics has
+  no "empty list" state, unlike every prior WPI card), loader-dispatch participation,
+  and the disabled-capability/fail-closed path, mirroring
+  `validation/wpi-8-pillfill/browser-test.js`'s split-suite discipline exactly.
+
+### Fixed (disclosed, mechanical — not a defect, a factual-count update)
+- **Six pre-existing conformance assertions** (`validation/phase-2a-foundation/
+  conformance.js` Stage19/Stage20/Stage21/Stage22/Stage23/Stage24) and **four matching
+  count assertions** (`validation/wpi-4-doctor-dashboard/browser-test.js`/
+  `validation/wpi-5-appointment/browser-test.js`/`validation/wpi-7-inventory/
+  browser-test.js`/`validation/wpi-8-pillfill/browser-test.js`) hard-coded the Doctor
+  Module Registry's total entry count at four — mechanically, disclosedly updated to
+  five, mirroring the exact precedent Batch WPI-8 already set for these same
+  assertions.
+
+### What this batch deliberately does not do
+- **No AI, no forecasting, no ML.** Every report is a deterministic aggregation over
+  already-stored rows — docs/50 §12's own hard boundary; any future AI-assisted
+  analytics narrative remains independently gated by ADR-001/004/005/019.
+- **No dashboard redesign.** One new registry entry and one new card, rendered with
+  the same plain list markup every existing card already uses — no chart/graph
+  library, no new CSS, no change to `renderDashboard()`/`dispatchLoaders()` themselves.
+- **No patient-facing analytics.** Doctor/staff-facing only (docs/50 §12's own
+  "Ownership" clause).
+- **No configurable date range.** The window is a fixed, server-computed trailing
+  30 days — not a caller-supplied parameter — the simplest way to honor docs/54 §18
+  item 4's "bounded ranges" constraint without adding request-shape validation surface
+  this batch's own scope does not need.
+- **No caching or materialized aggregate.** Every report recomputes from scratch on
+  each request, per docs/50 §12/docs/54 §4's own disclosed read-cost profile — adding
+  one would be new infrastructure disguised as an Analytics feature, contrary to
+  docs/53 §3/§6.
+- **No modification to any frozen Foundation/Identity & Access/Patient
+  Access/PXP-1..11/WPI-1..8 file.**
+
+### Validation
+- Static Analysis: 0 findings (60 `apps-script/*.gs` files scanned).
+- Conformance: 689/689 checks passed (34 new in Stage 25).
+- Phase 1.5 Regression: 45/45 checks passed, untouched.
+- Browser suites: all 15 suites green, 328/328 checks passed (18 new in
+  `validation/wpi-9-analytics/`).
+
 ## 2026-07-16 — Phase 3 Batch WPI-8: PillFill Integration
 
 Implements Batch WPI-8 (docs/50-PHASE-3-TECHNICAL-PLAN.md §11/§19), a consumer of
