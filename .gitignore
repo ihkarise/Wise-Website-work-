@@ -1,3 +1,8 @@
 # Environment-specific Apps Script deployment config (contains a real scriptId).
 # Copy apps-script/.clasp.json.example to apps-script/.clasp.json and fill it in locally.
 apps-script/.clasp.json
+
+# Local-only Playwright install used to run validation/*/browser-test.js suites.
+# No package.json/package-lock.json is tracked either — every contributor installs
+# playwright locally (npm install playwright) rather than this repo pinning it.
+node_modules/
