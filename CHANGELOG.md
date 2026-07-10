@@ -8,7 +8,7 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
-## 2026-07-10 — WPI-10 Architecture Freeze: AI Assistant
+## 2026-07-16 — WPI-10 Architecture Freeze: AI Assistant
 
 Documentation-only architecture-freeze pass, scoped to AI Assistant (WPI-10)
 specifically, per ADR-019's own "Future Considerations" ask: *"each requires its own

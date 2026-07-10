@@ -1,5 +1,5 @@
 # 33 - Domain Model
-## Version 1.20 — 2026-07-10
+## Version 1.20 — 2026-07-16
 
 > Defines every major business entity in the Wise Platform: what it means, what it
 > holds, how it relates to everything else, how it comes into being and ends, who is
@@ -1443,7 +1443,7 @@ read-only `FoundationRouter.gs` route (`get_doctor_analytics`), Doctor Module
 Registry's fifth real entry, `analytics`. **Full detail:** docs/50 §12.
 
 ## 7.7 AI Assistant — *Architecture Frozen (docs/55, ADR-021/022/023) — not Implemented*; Holoscan — Reserved
-**Status update (2026-07-10):** AI Assistant's architecture is now frozen — its own
+**Status update (2026-07-16):** AI Assistant's architecture is now frozen — its own
 separate, feature-specific technical plan (docs/55-WPI-10-AI-ASSISTANT-ARCHITECTURE-
 FREEZE.md) and three new ADRs (ADR-021 retrieval boundary, ADR-022 non-persisting-draft
 doctor-approval boundary, ADR-023 disabled-by-default registry rollout), fulfilling

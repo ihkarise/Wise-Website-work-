@@ -24,18 +24,23 @@ prevent — a capability becoming broadly available before anyone has deliberate
 decided, clinic by clinic and doctor by doctor, that it should be.
 
 ## Decision
-The Doctor Module Registry's `ai_assistant` entry (once a future, separately-approved
-WPI-10 batch actually registers it) must remain unregistered — its `DoctorModuleState`
-absent, which ADR-010 already guarantees fails closed — for every doctor by default.
-Enabling it for any given doctor must be a deliberate, disclosed, staff/administrative
-decision made individually, per doctor, never a bulk rollout applied automatically to an
-existing roster the way a purely informational entry reasonably could be. This is not a
-new code mechanism beyond what ADR-010 already guarantees (fail-closed-by-absence
-already means every doctor starts disabled, for every entry, today) — it is a
-**procedural** constraint governing how a future implementation and clinic rollout must
-treat this one entry differently from every prior one: no bulk/default-enablement
-script, no "enable for all doctors" migration step, ever, specifically for
-`ai_assistant`.
+The Doctor Module Registry's `ai_assistant` entry itself is registered normally,
+exactly like every other entry, by a future, separately-approved WPI-10 batch
+(docs/55 §13) — nothing about the registry entry's own existence is withheld by this
+ADR. What must remain absent, for every doctor, by default, is that doctor's own
+`DoctorModuleState` row for `ai_assistant` — which ADR-010 already guarantees fails
+closed (absence of a row means the capability does not render or function for that
+doctor, exactly as it already does for every other entry). The feature is unavailable
+to any doctor until a staff/administrative action explicitly creates an enabled
+`DoctorModuleState` row for that specific doctor. Enabling it for any given doctor must
+be a deliberate, disclosed, staff/administrative decision made individually, per doctor,
+never a bulk rollout applied automatically to an existing roster the way a purely
+informational entry reasonably could be. This is not a new code mechanism beyond what
+ADR-010 already guarantees (fail-closed-by-absence already means every doctor starts
+disabled, for every entry, today) — it is a **procedural** constraint governing how a
+future implementation and clinic rollout must treat this one entry's *enablement*
+differently from every prior one: no bulk/default-enablement script, no "enable for all
+doctors" migration step, ever, specifically for `ai_assistant`.
 
 This ADR does not:
 - Change the Doctor Module Registry's mechanism itself — still ADR-020/ADR-010's

@@ -1,5 +1,5 @@
 # 55 - WPI-10 AI Assistant Architecture Freeze
-## Version 1.0 — 2026-07-10
+## Version 1.0 — 2026-07-16
 
 > Architecture freeze only. No code, no schema, no registry entry, no router case, no
 > dashboard card, no Apps Script file, no frontend file is touched by this document.
@@ -104,7 +104,7 @@ new, narrowly-scoped ADRs this document requires:
   three-part pattern: prompt constraint, code-level check, mandatory human review).
 - **ADR-010** (security before convenience / fail-closed) — governs §6/§13.
 - **ADR-013** (calculators deterministic, never AI) — unaffected; AI Assistant never
-  touches `CalculatorResult.result_value`, only reads it (§9.3).
+  touches `CalculatorResult.result_value`, only reads it (§9.1.4).
 - **ADR-017/018/020** — Doctor Identity, specialty scoping, registry-driven dashboard —
   reused as-is, no amendment.
 - **ADR-019** — the platform-wide "reserve, don't implement" rule this whole document
@@ -222,7 +222,6 @@ Rules, all enforced in code, none left to the prompt:
   `context_sources` allow-list; the builder reads only what that capability declares —
   a `summarize_patient_status` call never pulls Inventory data, for example, even though
   the builder *could* technically reach it. No capability may request "everything."
-  the caller's own roster.
 - **Size-bounded, flat, deterministically serialized** — the same JSON storage
   discipline docs/44 §11.4 already established for `CheckInResponse`/`CalculatorResult`,
   applied here to a request payload instead of a stored row.
@@ -547,7 +546,7 @@ A future WPI-10 batch's validation suite (docs/53 §7/§13 Phase B) must, at min
   category, low-overlap sentences), mirroring `flagDrift_()`'s own existing test
   coverage shape.
 - Statically or structurally verify `post_ai_assistant_decision` never itself writes to
-  any entity's own Sheet beyond `AIAssistantInteraction` (§16 item 1).
+  any entity's own Sheet beyond `AIAssistantInteraction` (§18 item 1).
 - Verify `AIAssistantInteraction` rows are append-only except for the single
   decision-transition update, and that the transition happens at most once per row.
 - Verify the per-doctor rate limit (§10) actually rejects a request once the ceiling is

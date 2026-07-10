@@ -1,5 +1,5 @@
 # 31 - Architectural Decision Record Index
-## Version 1.6 — 2026-07-10
+## Version 1.6 — 2026-07-16
 
 > This is the canonical index of every Architectural Decision Record (ADR) for the
 > Wise Platform. Full records live in `/adr/`. This index is the entry point — check

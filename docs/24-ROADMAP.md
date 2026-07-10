@@ -1,5 +1,5 @@
 # 24 - Wise Product Roadmap
-## Version 1.19 — 2026-07-10
+## Version 1.19 — 2026-07-16
 
 # Phase 1 — Public Website
 Status: In Progress
@@ -606,7 +606,7 @@ shipped 2026-07-16, Batch WPI-5 (Appointment) shipped 2026-07-16, Batch WPI-6
 2026-07-16, Batch WPI-8 (PillFill Integration) shipped 2026-07-16, and Batch WPI-9
 (Analytics) shipped 2026-07-16, each explicitly approved and scoped to its own batch
 only. **WPI-10 (AI Assistant)'s own dedicated architecture is now frozen** (docs/55-
-WPI-10-AI-ASSISTANT-ARCHITECTURE-FREEZE.md, ADR-021/022/023, 2026-07-10) — an
+WPI-10-AI-ASSISTANT-ARCHITECTURE-FREEZE.md, ADR-021/022/023, 2026-07-16) — an
 architecture-only pass, fulfilling ADR-019's own "Future Considerations" ask for AI
 Assistant specifically; **no code, schema, registry entry, router case, or dashboard
 card exists, and WPI-10 implementation is still not authorized to begin** — it requires
@@ -645,8 +645,9 @@ Intelligence" batch, mirroring exactly how `PXP-` was derived for Phase 2B),
 infrastructure before features: WPI-1 (Doctor Identity & Session) → WPI-2 (Specialty
 Registry) → WPI-3 (Doctor Module Registry, backend) → WPI-4 (Doctor Dashboard,
 frontend consumer) → WPI-5 (Appointment) → WPI-6 (Notification) → WPI-7 (Inventory) →
-WPI-8 (PillFill Integration) → WPI-9 (Analytics) → WPI-10 (AI Assistant — **reserved,
-unscoped placeholder, mirroring PXP-9's own precedent exactly**) → WPI-11 (Holoscan —
+WPI-8 (PillFill Integration) → WPI-9 (Analytics) → WPI-10 (AI Assistant — **architecture
+frozen** (docs/55-WPI-10-AI-ASSISTANT-ARCHITECTURE-FREEZE.md, ADR-021/022/023), **not
+implemented; implementation still not authorized**) → WPI-11 (Holoscan —
 **reserved, unscoped placeholder; no existing document defines this item's purpose at
 all**) → WPI-12 (Closeout).
 
