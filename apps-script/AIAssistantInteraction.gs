@@ -112,9 +112,16 @@ var FOUNDATION_AI_ASSISTANT_SYSTEM_PROMPTS_ = {
   summarize_patient_status: FOUNDATION_AI_ASSISTANT_SUMMARIZE_PATIENT_STATUS_SYSTEM_PROMPT_
 };
 
-// A deliberately small budget, mirroring FoundationRateLimit.gs's own "not a tuned
-// production value" disclaimer — revisit once real usage exists.
-var FOUNDATION_AI_ASSISTANT_RATE_LIMIT_WINDOW_SECONDS_ = 86400;
+// CacheService.put()'s actual maximum TTL is 21600 seconds (6 hours) — a value
+// above that is silently clamped by the platform, not rejected, so the
+// original 86400 (24h) here never took effect: each counter actually expired
+// after 6 hours, letting a doctor's per-day budget silently reset up to four
+// times a day instead of once. The per-day ceiling below is enforced across
+// FOUNDATION_AI_ASSISTANT_RATE_LIMIT_BUCKETS_PER_DAY_ consecutive windows of
+// this exact size (see foundationCheckAndIncrementAiAssistantRateLimit_),
+// rather than by requesting a longer TTL than the platform actually honors.
+var FOUNDATION_AI_ASSISTANT_RATE_LIMIT_WINDOW_SECONDS_ = 21600;
+var FOUNDATION_AI_ASSISTANT_RATE_LIMIT_BUCKETS_PER_DAY_ = 86400 / FOUNDATION_AI_ASSISTANT_RATE_LIMIT_WINDOW_SECONDS_;
 var FOUNDATION_AI_ASSISTANT_RATE_LIMIT_MAX_PER_DAY_ = 20;
 
 // ---- Pure helpers — no Apps Script dependency, covered by Conformance Tests ----
@@ -202,13 +209,14 @@ function foundationAiAssistantInteractionRowToApiShape_(row) {
 // ---- Rate limiting (CacheService — see this file's own header comment) ----
 
 /**
- * Returns a cache key namespaced to this feature and the current UTC calendar day,
+ * Returns a cache key namespaced to this feature, the current UTC calendar day, and
+ * one of that day's FOUNDATION_AI_ASSISTANT_RATE_LIMIT_BUCKETS_PER_DAY_ windows,
  * keyed by a hash of doctorId — mirrors foundationRateLimitCacheKey_()'s own
- * hash-the-identifier discipline.
+ * hash-the-identifier discipline. Each bucket is its own CacheService entry sized
+ * to the platform's real 21600s TTL ceiling, never a single entry asked to outlive it.
  */
-function foundationAiAssistantRateLimitCacheKey_(doctorId) {
-  var utcDate = new Date().toISOString().slice(0, 10); // 'YYYY-MM-DD', UTC
-  var digestBytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, doctorId + '::' + utcDate);
+function foundationAiAssistantRateLimitCacheKey_(doctorId, utcDate, bucketIndex) {
+  var digestBytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, doctorId + '::' + utcDate + '::' + bucketIndex);
   var hex = digestBytes.map(function (b) {
     var unsigned = b < 0 ? b + 256 : b;
     var hexStr = unsigned.toString(16);
@@ -222,17 +230,34 @@ function foundationAiAssistantRateLimitCacheKey_(doctorId) {
  * request budget; returns false once the budget is spent. Fails open on a
  * CacheService error — see this file's own header comment for why that is the
  * disclosed, correct behavior here, mirroring FoundationRateLimit.gs's own precedent.
+ *
+ * The 24-hour budget is tracked as the sum of counts across today's buckets so far
+ * (see FOUNDATION_AI_ASSISTANT_RATE_LIMIT_WINDOW_SECONDS_'s own comment for why a
+ * single, longer-lived entry cannot be used instead) — only the current bucket is
+ * incremented, but every earlier bucket from today still counts toward the ceiling
+ * for as long as CacheService actually retains it.
  */
 function foundationCheckAndIncrementAiAssistantRateLimit_(doctorId) {
   try {
     var cache = CacheService.getScriptCache();
-    var key = foundationAiAssistantRateLimitCacheKey_(doctorId);
-    var current = parseInt(cache.get(key), 10);
-    if (isNaN(current)) current = 0;
-    if (current >= FOUNDATION_AI_ASSISTANT_RATE_LIMIT_MAX_PER_DAY_) {
+    var now = new Date();
+    var utcDate = now.toISOString().slice(0, 10); // 'YYYY-MM-DD', UTC
+    var secondsSinceUtcMidnight = (now.getUTCHours() * 3600) + (now.getUTCMinutes() * 60) + now.getUTCSeconds();
+    var currentBucket = Math.floor(secondsSinceUtcMidnight / FOUNDATION_AI_ASSISTANT_RATE_LIMIT_WINDOW_SECONDS_);
+
+    var total = 0;
+    for (var b = 0; b <= currentBucket; b++) {
+      var bucketCount = parseInt(cache.get(foundationAiAssistantRateLimitCacheKey_(doctorId, utcDate, b)), 10);
+      if (!isNaN(bucketCount)) total += bucketCount;
+    }
+    if (total >= FOUNDATION_AI_ASSISTANT_RATE_LIMIT_MAX_PER_DAY_) {
       return false;
     }
-    cache.put(key, String(current + 1), FOUNDATION_AI_ASSISTANT_RATE_LIMIT_WINDOW_SECONDS_);
+
+    var currentKey = foundationAiAssistantRateLimitCacheKey_(doctorId, utcDate, currentBucket);
+    var currentCount = parseInt(cache.get(currentKey), 10);
+    if (isNaN(currentCount)) currentCount = 0;
+    cache.put(currentKey, String(currentCount + 1), FOUNDATION_AI_ASSISTANT_RATE_LIMIT_WINDOW_SECONDS_);
     return true;
   } catch (err) {
     Logger.log('AIAssistantInteraction: CacheService error, failing open: ' + (err && err.message ? err.message : err));

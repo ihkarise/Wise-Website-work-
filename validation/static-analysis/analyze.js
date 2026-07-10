@@ -388,7 +388,20 @@ function analyze() {
   // ---- Rule 1 (docs/55 §18 item 1) — the load-bearing one behind ADR-022: ----
   // no file matching AIAssistant*.gs may call another entity's write
   // function (save*/create*/update*/record*/fulfill*) — only its own.
-  var writePrefixPattern = /\b((?:save|create|update|record|fulfill)[A-Za-z0-9_]*)\s*\(/g;
+  //
+  // The write-shaped verb never sits at a real regex word boundary in this
+  // codebase's own naming convention — every write helper is named
+  // `foundation<Verb><Entity>_` (foundationCreateAppointment_,
+  // foundationUpdateInventoryItemThreshold_, foundationSaveCarePlan_,
+  // foundationRecordInventoryTransaction_, foundationFulfillPillFillOrder_,
+  // etc.), so the verb is mid-identifier, camelCase, with no non-word
+  // character before it. A pattern anchored on the bare verb (`\bcreate`)
+  // never matches "foundationCreate" and so never finds a real call-site.
+  // Anchoring on `\bfoundation<Verb>` instead matches the actual convention
+  // and captures the full identifier, so the ownership lookup below (against
+  // declByName, which stores each function's full declared name) resolves
+  // correctly instead of always missing.
+  var writePrefixPattern = /\b(foundation(?:Create|Record|Update|Fulfill|Save)[A-Za-z0-9_]*)\s*\(/g;
   aiAssistantFiles.forEach(function (file) {
     var match;
     writePrefixPattern.lastIndex = 0;
