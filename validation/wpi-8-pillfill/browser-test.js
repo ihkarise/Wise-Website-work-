@@ -264,7 +264,7 @@ async function main() {
       await page.waitForSelector('#dashEmptyState');
 
       const registryLength = await page.evaluate(() => window.WiseDoctorDashboard.DOCTOR_MODULE_REGISTRY.length);
-      check('Doctor Dashboard: the hand-ported DOCTOR_MODULE_REGISTRY now carries four entries (patient_roster, appointments, inventory, pillfill_orders)', registryLength === 4);
+      check('Doctor Dashboard: the hand-ported DOCTOR_MODULE_REGISTRY now carries five entries (patient_roster, appointments, inventory, pillfill_orders, analytics)', registryLength === 5);
 
       const html = await page.evaluate(() => window.WiseDoctorDashboard.pillFillOrdersHtml([]));
       check('Doctor Dashboard: pillFillOrdersHtml([]) returns the "nodata" empty state directly, matching the live rendering above',

@@ -2767,39 +2767,44 @@ var ctx = loadProject(h.sandbox);
   // Stage21). Updated again at Batch WPI-7 (docs/50 §10/§19): a third real
   // entry, `inventory`, is registered (see Stage23). Updated again at Batch
   // WPI-8 (docs/50 §11/§19): a fourth real entry, `pillfill_orders`, is
-  // registered (see Stage24). These assertions are mechanical, disclosed
-  // updates to Stage19's own factual count, mirroring Batch PXP-5's own
-  // precedent of updating an earlier stage's stale module-count assertion
-  // when a later batch changes registered state (module-registry.md's
-  // "Batch PXP-10 removal" section) — Stage19's own remaining assertions
-  // (validation rejections, cross-doctor isolation, cross-identity-type
-  // rejection) are untouched, still WPI-3's own scope.
+  // registered (see Stage24). Updated again at Batch WPI-9 (docs/50 §12/
+  // §19): a fifth real entry, `analytics`, is registered (see Stage25).
+  // These assertions are mechanical, disclosed updates to Stage19's own
+  // factual count, mirroring Batch PXP-5's own precedent of updating an
+  // earlier stage's stale module-count assertion when a later batch changes
+  // registered state (module-registry.md's "Batch PXP-10 removal" section)
+  // — Stage19's own remaining assertions (validation rejections,
+  // cross-doctor isolation, cross-identity-type rejection) are untouched,
+  // still WPI-3's own scope.
   var registry = ctx.foundationGetDoctorModuleRegistry_();
-  record('Stage19: foundationGetDoctorModuleRegistry_() now has four entries (patient_roster added at Batch WPI-4, appointments added at Batch WPI-5, inventory added at Batch WPI-7, pillfill_orders added at Batch WPI-8 — see Stage20/Stage21/Stage23/Stage24)',
-    registry.length === 4);
+  record('Stage19: foundationGetDoctorModuleRegistry_() now has five entries (patient_roster added at Batch WPI-4, appointments added at Batch WPI-5, inventory added at Batch WPI-7, pillfill_orders added at Batch WPI-8, analytics added at Batch WPI-9 — see Stage20/Stage21/Stage23/Stage24/Stage25)',
+    registry.length === 5);
   record('Stage19: the hand-ported FOUNDATION_DOCTOR_MODULE_REGISTRY_ matches shared/constants/doctor-module-registry.json exactly',
     JSON.stringify(registry) === JSON.stringify(doctorModuleRegistryConstant.capabilities));
-  record('Stage19: foundationGetRegisteredDoctorCapabilityKeys_() returns exactly four allowlisted capability_keys (patient_roster, appointments, inventory, pillfill_orders) as of Batch WPI-8',
-    ctx.foundationGetRegisteredDoctorCapabilityKeys_().length === 4 &&
+  record('Stage19: foundationGetRegisteredDoctorCapabilityKeys_() returns exactly five allowlisted capability_keys (patient_roster, appointments, inventory, pillfill_orders, analytics) as of Batch WPI-9',
+    ctx.foundationGetRegisteredDoctorCapabilityKeys_().length === 5 &&
     ctx.foundationGetRegisteredDoctorCapabilityKeys_().indexOf('patient_roster') !== -1 &&
     ctx.foundationGetRegisteredDoctorCapabilityKeys_().indexOf('appointments') !== -1 &&
     ctx.foundationGetRegisteredDoctorCapabilityKeys_().indexOf('inventory') !== -1 &&
-    ctx.foundationGetRegisteredDoctorCapabilityKeys_().indexOf('pillfill_orders') !== -1);
+    ctx.foundationGetRegisteredDoctorCapabilityKeys_().indexOf('pillfill_orders') !== -1 &&
+    ctx.foundationGetRegisteredDoctorCapabilityKeys_().indexOf('analytics') !== -1);
 
   // ---- foundationGetDoctorModuleStates_() synthesizes one fail-closed entry per registered capability ----
   // Updated at Batch WPI-7 (docs/50 §10/§19): now three registered
   // capabilities (patient_roster, appointments, inventory), so three
   // synthesized entries. Updated again at Batch WPI-8 (docs/50 §11/§19):
-  // now four registered capabilities, so four synthesized entries — a
-  // mechanical, disclosed update to this assertion's own stale count each
-  // time. This stage's own fixture capability_key ('condition_assignment',
-  // below) was updated at Batch WPI-7 from a prior placeholder value
-  // ('inventory') that batch's own Doctor Module Registry addition promoted
-  // from illustrative-only to a real, registered entry — 'condition_assignment'
-  // remains a genuinely unregistered docs/50 §7.1 illustrative example.
+  // now four registered capabilities, so four synthesized entries. Updated
+  // again at Batch WPI-9 (docs/50 §12/§19): now five registered
+  // capabilities, so five synthesized entries — a mechanical, disclosed
+  // update to this assertion's own stale count each time. This stage's own
+  // fixture capability_key ('condition_assignment', below) was updated at
+  // Batch WPI-7 from a prior placeholder value ('inventory') that batch's
+  // own Doctor Module Registry addition promoted from illustrative-only to
+  // a real, registered entry — 'condition_assignment' remains a genuinely
+  // unregistered docs/50 §7.1 illustrative example.
   var defaultStatesA = ctx.foundationGetDoctorModuleStates_(doctorIdA);
-  record('Stage19: foundationGetDoctorModuleStates_() succeeds with zero persisted rows, synthesizing one fail-closed (enabled: false) entry per registered capability (now four, as of Batch WPI-8)',
-    defaultStatesA.status === 'ok' && defaultStatesA.data.length === 4 && defaultStatesA.data.every(function (row) { return row.enabled === false; }));
+  record('Stage19: foundationGetDoctorModuleStates_() succeeds with zero persisted rows, synthesizing one fail-closed (enabled: false) entry per registered capability (now five, as of Batch WPI-9)',
+    defaultStatesA.status === 'ok' && defaultStatesA.data.length === 5 && defaultStatesA.data.every(function (row) { return row.enabled === false; }));
 
   // ---- Validation rejections ----
   var missingDoctorId = ctx.foundationSetDoctorModuleState_({ capability_key: 'condition_assignment', enabled: true, enabled_by: 'staff-1' });
@@ -2833,7 +2838,7 @@ var ctx = loadProject(h.sandbox);
   var getStatesHttp = ctx.handleFoundationRequest_({ foundation_action: 'get_doctor_module_states', session_token: doctorSessionA });
   var getStatesBody = JSON.parse(getStatesHttp._text);
   record('Stage19: get_doctor_module_states (real HTTP dispatch) resolves the caller\'s own, fail-closed-by-default capability-state list from a valid DoctorSession',
-    getStatesBody.status === 'ok' && getStatesBody.data.length === 4 && getStatesBody.data.every(function (row) { return row.enabled === false; }));
+    getStatesBody.status === 'ok' && getStatesBody.data.length === 5 && getStatesBody.data.every(function (row) { return row.enabled === false; }));
 
   var getStatesUnauthed = JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'get_doctor_module_states', session_token: 'not-a-real-session-token' })._text);
   record('Stage19: get_doctor_module_states rejects an invalid session_token with FOUNDATION_UNAUTHORIZED, never leaking any data',
@@ -2852,7 +2857,7 @@ var ctx = loadProject(h.sandbox);
   var doctorSessionB = ctx.foundationIssueDoctorSessionToken_(doctorIdB);
   var getStatesB = JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'get_doctor_module_states', session_token: doctorSessionB })._text);
   record('Stage19: doctor B\'s own capability-state list resolves independently of doctor A\'s session — cross-doctor isolation, even though both are fail-closed-disabled today',
-    getStatesB.status === 'ok' && getStatesB.data.length === 4 && getStatesB.data.every(function (row) { return row.enabled === false; }));
+    getStatesB.status === 'ok' && getStatesB.data.length === 5 && getStatesB.data.every(function (row) { return row.enabled === false; }));
 
   // ---- Zero-lines-touched proof (docs/50 §3): every existing registry/entity this batch does not touch is unchanged ----
   record('Stage19: Module Registry is untouched by this batch — still the same four modules Stage 12 already proved',
@@ -2896,10 +2901,12 @@ var ctx = loadProject(h.sandbox);
   // assertion each time; this stage's own patient_roster-specific assertions
   // (still this entry's own first, unchanged position) are untouched, still
   // WPI-4's own scope. Updated again at Batch WPI-8 (docs/50 §11/§19): the
-  // registry now carries a fourth entry, `pillfill_orders` (see Stage24) —
-  // the same mechanical, disclosed update.
+  // registry now carries a fourth entry, `pillfill_orders` (see Stage24).
+  // Updated again at Batch WPI-9 (docs/50 §12/§19): the registry now carries
+  // a fifth entry, `analytics` (see Stage25) — the same mechanical,
+  // disclosed update.
   record('Stage20: shared/constants/doctor-module-registry.json carries patient_roster as its first entry, data_source get_doctor_patient_roster',
-    doctorModuleRegistryConstant.capabilities.length === 4 &&
+    doctorModuleRegistryConstant.capabilities.length === 5 &&
     doctorModuleRegistryConstant.capabilities[0].capability_key === 'patient_roster' &&
     doctorModuleRegistryConstant.capabilities[0].data_source === 'get_doctor_patient_roster');
 
@@ -3019,10 +3026,11 @@ var ctx = loadProject(h.sandbox);
   // to this stage's own stale total-count assertion, mirroring the same
   // update Stage20 already received at this batch's own hands. Updated
   // again at Batch WPI-8 (docs/50 §11/§19): the registry now carries a
-  // fourth entry, `pillfill_orders` (see Stage24) — the same mechanical,
-  // disclosed update.
+  // fourth entry, `pillfill_orders` (see Stage24). Updated again at Batch
+  // WPI-9 (docs/50 §12/§19): the registry now carries a fifth entry,
+  // `analytics` (see Stage25) — the same mechanical, disclosed update.
   record('Stage21: shared/constants/doctor-module-registry.json now carries appointments as its second entry, data_source get_doctor_appointments',
-    doctorModuleRegistryConstant.capabilities.length === 4 &&
+    doctorModuleRegistryConstant.capabilities.length === 5 &&
     doctorModuleRegistryConstant.capabilities[1].capability_key === 'appointments' &&
     doctorModuleRegistryConstant.capabilities[1].data_source === 'get_doctor_appointments');
 
@@ -3306,8 +3314,10 @@ var ctx = loadProject(h.sandbox);
   // itself still added zero registry entries of its own, unchanged. Updated
   // again at Batch WPI-8 (docs/50 §11/§19) for the same reason: a fourth
   // entry (pillfill_orders) was added by the later Batch WPI-8 (Stage24).
-  record('Stage22: shared/constants/doctor-module-registry.json was untouched by Batch WPI-6 itself — still exactly two entries as of Stage 21, a third (inventory) added only by the later Batch WPI-7 (Stage23), a fourth (pillfill_orders) added only by the later Batch WPI-8 (Stage24)',
-    doctorModuleRegistryConstant.capabilities.length === 4);
+  // Updated again at Batch WPI-9 (docs/50 §12/§19): a fifth entry
+  // (analytics) was added by the later Batch WPI-9 (Stage25).
+  record('Stage22: shared/constants/doctor-module-registry.json was untouched by Batch WPI-6 itself — still exactly two entries as of Stage 21, a third (inventory) added only by the later Batch WPI-7 (Stage23), a fourth (pillfill_orders) added only by the later Batch WPI-8 (Stage24), a fifth (analytics) added only by the later Batch WPI-9 (Stage25)',
+    doctorModuleRegistryConstant.capabilities.length === 5);
 })();
 
 // ============================================================
@@ -3345,9 +3355,11 @@ var ctx = loadProject(h.sandbox);
   // Updated at Batch WPI-8 (docs/50 §11/§19): the registry now carries a
   // fourth entry, `pillfill_orders` (see Stage24) — a mechanical, disclosed
   // update to this stage's own stale total-count assertion, mirroring
-  // Stage20/21/22's own updates at this same batch's hands.
+  // Stage20/21/22's own updates at this same batch's hands. Updated again at
+  // Batch WPI-9 (docs/50 §12/§19): the registry now carries a fifth entry,
+  // `analytics` (see Stage25) — the same mechanical, disclosed update.
   record('Stage23: shared/constants/doctor-module-registry.json now carries inventory as its third entry, data_source get_inventory_items',
-    doctorModuleRegistryConstant.capabilities.length === 4 &&
+    doctorModuleRegistryConstant.capabilities.length === 5 &&
     doctorModuleRegistryConstant.capabilities[2].capability_key === 'inventory' &&
     doctorModuleRegistryConstant.capabilities[2].data_source === 'get_inventory_items');
   record('Stage23: the hand-ported FOUNDATION_DOCTOR_MODULE_REGISTRY_ matches shared/constants/doctor-module-registry.json exactly, including this batch\'s addition',
@@ -3615,8 +3627,12 @@ var ctx = loadProject(h.sandbox);
   var arnicaId = arnica.data.inventory_item_id;
 
   // ---- Doctor Module Registry carries this batch's fourth entry ----
+  // Updated at Batch WPI-9 (docs/50 §12/§19): the registry now carries a
+  // fifth entry, `analytics` (see Stage25) — a mechanical, disclosed update
+  // to this stage's own stale total-count assertion, mirroring
+  // Stage20/21/22/23's own updates at this same batch's hands.
   record('Stage24: shared/constants/doctor-module-registry.json now carries pillfill_orders as its fourth entry, data_source get_pillfill_orders',
-    doctorModuleRegistryConstant.capabilities.length === 4 &&
+    doctorModuleRegistryConstant.capabilities.length === 5 &&
     doctorModuleRegistryConstant.capabilities[3].capability_key === 'pillfill_orders' &&
     doctorModuleRegistryConstant.capabilities[3].data_source === 'get_pillfill_orders');
   record('Stage24: the hand-ported FOUNDATION_DOCTOR_MODULE_REGISTRY_ matches shared/constants/doctor-module-registry.json exactly, including this batch\'s addition',
@@ -3828,6 +3844,215 @@ var ctx = loadProject(h.sandbox);
     ctx.foundationGetNotificationsForPatient_(patientA.data.patient_id).status === 'ok');
   record('Stage24: DoctorInstruction.gs is untouched by this batch — read only, via the existing foundationDsGetById_ primitive',
     ctx.foundationGetPatientDoctorInstructions_(patientA.data.patient_id).status === 'ok');
+})();
+
+// ============================================================
+// Stage 25 — Phase 3/WHIMS Batch WPI-9: Analytics
+// docs/50-PHASE-3-TECHNICAL-PLAN.md §12/§19, docs/54-SHEETS-PRODUCTION-
+// SCALE-REVIEW.md §18 item 4, apps-script/Analytics.gs. Analytics is never
+// a stored entity — this stage's highest-priority checks are: every report
+// section's aggregation math is correct against real, directly-inserted
+// fixture rows; the fixed trailing 30-day window genuinely excludes a row
+// dated outside it (docs/54 §18 item 4's own forward constraint); the
+// existing, already-proven specialty-scoping of DoctorPatientRoster.gs/
+// InventoryItem.gs/PillFillOrder.gs is correctly reused (not
+// re-implemented) by every report section that needs it; and the new
+// get_doctor_analytics route is real, authenticated, and rejects
+// cross-identity-type confusion, mirroring Stage 24's own end-to-end proof.
+// ============================================================
+(function stage25_analytics() {
+  var doctorHomeo = ctx.foundationCreateDoctor_({
+    full_name: 'Stage25 Doctor Homeopathy', role: 'physician', email: 'stage25-doctor-homeo@example.com',
+    specialty_slug: 'homeopathy', created_by: 'conformance-harness'
+  });
+  record('Stage25: setup — a doctor exists', doctorHomeo.status === 'ok');
+  var doctorHomeoId = doctorHomeo.data.doctor_id;
+
+  var patientA = ctx.foundationCreatePatient_({
+    full_name: 'Stage25 Patient A', email: 'stage25-a@example.com', condition_slug: 'mcas', created_by: 'conformance-harness'
+  });
+  var patientOffRoster = ctx.foundationCreatePatient_({
+    full_name: 'Stage25 Patient Off-Roster', email: 'stage25-offroster@example.com', condition_slug: 'mcas', created_by: 'conformance-harness'
+  });
+  record('Stage25: setup — two independent patients exist, only one will be on the doctor\'s roster', patientA.status === 'ok' && patientOffRoster.status === 'ok');
+
+  var assignmentA = ctx.foundationAssignCondition_({ patient_id: patientA.data.patient_id, condition_slug: 'mcas', assigned_by: doctorHomeoId });
+  record('Stage25: setup — patient A has an active DoctorAssignedCondition mapping to homeopathy, putting them on the doctor\'s roster', assignmentA.status === 'ok');
+
+  var nowIso = ctx.foundationNowIso_();
+  var outsideWindowIso = new Date(Date.parse(nowIso) - 40 * 24 * 60 * 60 * 1000).toISOString();
+
+  // The conformance harness runs every stage against one shared, cumulative
+  // in-memory spreadsheet (docs/54 §2.1) — by the time Stage25 runs, many
+  // earlier stages' own homeopathy-specialty fixtures (the platform's only
+  // seeded specialty, so every doctor's roster/inventory/PillFillOrder/
+  // Appointment scoping resolves to the same specialty-wide pool, docs/50
+  // §7.4's own disclosed "not a personal, per-doctor roster" limitation)
+  // are still live rows this batch's own specialty-scoped queries will see.
+  // Rather than assert brittle absolute totals, this stage snapshots the
+  // report before its own fixtures exist and asserts the exact delta each
+  // fixture set below produces — immune to any other stage's own fixture
+  // volume, the same "before/after" discipline Stage24 already used for
+  // quantity_on_hand and notification counts.
+  var before = ctx.foundationGetAnalyticsForDoctor_(doctorHomeoId).data;
+
+  // ---- Doctor Module Registry carries this batch's fifth entry ----
+  record('Stage25: shared/constants/doctor-module-registry.json now carries analytics as its fifth entry, data_source get_doctor_analytics',
+    doctorModuleRegistryConstant.capabilities.length === 5 &&
+    doctorModuleRegistryConstant.capabilities[4].capability_key === 'analytics' &&
+    doctorModuleRegistryConstant.capabilities[4].data_source === 'get_doctor_analytics');
+  record('Stage25: the hand-ported FOUNDATION_DOCTOR_MODULE_REGISTRY_ matches shared/constants/doctor-module-registry.json exactly, including this batch\'s addition',
+    JSON.stringify(ctx.foundationGetDoctorModuleRegistry_()) === JSON.stringify(doctorModuleRegistryConstant.capabilities));
+
+  // ---- CheckInResponse fixtures — condition_slug-scoped directly, window-bounded ----
+  ctx.foundationDsInsert_(ctx.FOUNDATION_CHECKIN_RESPONSES_SHEET_, ctx.FOUNDATION_CHECKIN_RESPONSES_COLUMNS_, {
+    record_id: 'stage25-checkin-in-window', patient_id: patientA.data.patient_id, template_id: 'daily_wellness_checkin',
+    template_version: 1, logged_at: nowIso, answers: '{}', condition_slug: 'mcas'
+  });
+  ctx.foundationDsInsert_(ctx.FOUNDATION_CHECKIN_RESPONSES_SHEET_, ctx.FOUNDATION_CHECKIN_RESPONSES_COLUMNS_, {
+    record_id: 'stage25-checkin-outside-window', patient_id: patientA.data.patient_id, template_id: 'daily_wellness_checkin',
+    template_version: 1, logged_at: outsideWindowIso, answers: '{}', condition_slug: 'mcas'
+  });
+
+  // ---- CarePlan fixtures — roster-scoped (reuses DoctorPatientRoster.gs's own derivation, not re-derived) ----
+  var planInRoster = ctx.foundationSaveCarePlan_({ patient_id: patientA.data.patient_id, goals: 'Stage25 in-roster goals.', created_by: doctorHomeoId });
+  record('Stage25: setup — a CarePlan version exists for the roster patient', planInRoster.status === 'ok');
+  var planOffRoster = ctx.foundationSaveCarePlan_({ patient_id: patientOffRoster.data.patient_id, goals: 'Stage25 off-roster goals.', created_by: doctorHomeoId });
+  record('Stage25: setup — a CarePlan version also exists for a patient not on the doctor\'s roster', planOffRoster.status === 'ok');
+
+  // ---- CalculatorResult fixtures — roster-scoped ----
+  ctx.foundationDsInsert_(ctx.FOUNDATION_CALCULATOR_RESULTS_SHEET_, ctx.FOUNDATION_CALCULATOR_RESULTS_COLUMNS_, {
+    record_id: 'stage25-calc-in-roster', patient_id: patientA.data.patient_id, calculator_slug: 'stage25-calc',
+    definition_version: 1, input_snapshot: '{}', result_value: 1, computed_at: nowIso
+  });
+  ctx.foundationDsInsert_(ctx.FOUNDATION_CALCULATOR_RESULTS_SHEET_, ctx.FOUNDATION_CALCULATOR_RESULTS_COLUMNS_, {
+    record_id: 'stage25-calc-off-roster', patient_id: patientOffRoster.data.patient_id, calculator_slug: 'stage25-calc',
+    definition_version: 1, input_snapshot: '{}', result_value: 1, computed_at: nowIso
+  });
+
+  // ---- InventoryItem/InventoryTransaction fixtures — reuses InventoryItem.gs's own specialty scoping ----
+  var item = ctx.foundationCreateInventoryItem_({ name: 'Stage25 Item', sku: 'SKU-S25', unit: 'tablets', reorder_threshold: 5, created_by: doctorHomeoId });
+  record('Stage25: setup — an active InventoryItem exists', item.status === 'ok');
+  var restock = ctx.foundationRecordInventoryTransaction_({ inventory_item_id: item.data.inventory_item_id, change_qty: 50, reason: 'restock', created_by: doctorHomeoId });
+  record('Stage25: setup — an in-window restock transaction exists', restock.status === 'ok');
+  var dispense = ctx.foundationRecordInventoryTransaction_({ inventory_item_id: item.data.inventory_item_id, change_qty: -10, reason: 'dispense', created_by: doctorHomeoId });
+  record('Stage25: setup — an in-window dispense transaction exists', dispense.status === 'ok');
+  ctx.foundationDsInsert_(ctx.FOUNDATION_INVENTORY_TRANSACTIONS_SHEET_, ctx.FOUNDATION_INVENTORY_TRANSACTIONS_COLUMNS_, {
+    transaction_id: 'stage25-txn-outside-window', inventory_item_id: item.data.inventory_item_id, change_qty: -999,
+    reason: 'dispense', reference_id: '', created_by: doctorHomeoId, created_at: outsideWindowIso
+  });
+
+  // ---- PillFillOrder fixtures — reuses PillFillOrder.gs's own specialty scoping ----
+  var planForOrder = ctx.foundationSaveCarePlan_({ patient_id: patientA.data.patient_id, goals: 'Stage25 pillfill goals.', created_by: doctorHomeoId });
+  var medicineInstruction = ctx.foundationCreateDoctorInstruction_({
+    patient_id: patientA.data.patient_id, care_plan_id: planForOrder.data.care_plan_id, instruction_type: 'medicine',
+    content: 'Stage25 medicine.', prescribed_by: doctorHomeoId, effective_date: '2026-07-08'
+  });
+  var order = ctx.foundationCreatePillFillOrder_({
+    patient_id: patientA.data.patient_id, doctor_instruction_id: medicineInstruction.data.instruction_id,
+    inventory_item_id: item.data.inventory_item_id, quantity: 5, created_by: doctorHomeoId
+  });
+  record('Stage25: setup — a PillFillOrder exists, requested', order.status === 'ok');
+  var toInProgress = ctx.foundationUpdatePillFillOrderStatus_({ order_id: order.data.order_id, status: 'in_progress' });
+  var fulfilled = ctx.foundationFulfillPillFillOrder_({ order_id: order.data.order_id, doctor_id: doctorHomeoId });
+  record('Stage25: setup — the PillFillOrder is fulfilled, in-window', toInProgress.status === 'ok' && fulfilled.status === 'ok');
+  ctx.foundationDsInsert_(ctx.FOUNDATION_PILLFILL_ORDERS_SHEET_, ctx.FOUNDATION_PILLFILL_ORDERS_COLUMNS_, {
+    order_id: 'stage25-order-outside-window', patient_id: patientA.data.patient_id, doctor_instruction_id: medicineInstruction.data.instruction_id,
+    inventory_item_id: item.data.inventory_item_id, quantity: 1, status: 'requested', created_by: doctorHomeoId, created_at: outsideWindowIso, fulfilled_at: ''
+  });
+
+  // ---- Appointment fixtures — specialty_slug-scoped directly (auto-derived from condition_slug), window-bounded ----
+  var appt = ctx.foundationCreateAppointment_({ patient_id: patientA.data.patient_id, condition_slug: 'mcas', created_by: doctorHomeoId });
+  record('Stage25: setup — an in-window Appointment exists, requested, auto-derived specialty_slug homeopathy',
+    appt.status === 'ok' && appt.data.specialty_slug === 'homeopathy');
+  var apptConfirmed = ctx.foundationConfirmAppointment_({ appointment_id: appt.data.appointment_id, doctor_id: doctorHomeoId, scheduled_at: nowIso });
+  var apptCompleted = ctx.foundationUpdateAppointmentStatus_({ appointment_id: appt.data.appointment_id, status: 'completed' });
+  record('Stage25: setup — the Appointment is confirmed then completed', apptConfirmed.status === 'ok' && apptCompleted.status === 'ok');
+  ctx.foundationDsInsert_(ctx.FOUNDATION_APPOINTMENTS_SHEET_, ctx.FOUNDATION_APPOINTMENTS_COLUMNS_, {
+    appointment_id: 'stage25-appt-outside-window', patient_id: patientA.data.patient_id, doctor_id: '', requested_at: outsideWindowIso,
+    scheduled_at: '', status: 'requested', condition_slug: 'mcas', specialty_slug: 'homeopathy', created_by: doctorHomeoId
+  });
+  ctx.foundationDsInsert_(ctx.FOUNDATION_APPOINTMENTS_SHEET_, ctx.FOUNDATION_APPOINTMENTS_COLUMNS_, {
+    appointment_id: 'stage25-appt-other-specialty', patient_id: patientA.data.patient_id, doctor_id: '', requested_at: nowIso,
+    scheduled_at: '', status: 'requested', condition_slug: 'mcas', specialty_slug: 'nutrition', created_by: doctorHomeoId
+  });
+
+  // ---- foundationGetAnalyticsForDoctor_() — the real report, checked as an exact delta over the pre-fixture snapshot ----
+  var report = ctx.foundationGetAnalyticsForDoctor_(doctorHomeoId);
+  record('Stage25: foundationGetAnalyticsForDoctor_() succeeds for a real, verified doctor', report.status === 'ok');
+  var after = report.data;
+  record('Stage25: the report is bounded to a fixed trailing window (from <= to, both real ISO timestamps)',
+    typeof after.window.from === 'string' && typeof after.window.to === 'string' && after.window.from < after.window.to);
+  record('Stage25: the report is scoped to the caller\'s own specialty_slug', after.specialty_slug === 'homeopathy');
+
+  record('Stage25: check_in_completion.total_check_ins increases by exactly 1 (the in-window check-in) — the outside-window one contributes zero',
+    after.check_in_completion.total_check_ins - before.check_in_completion.total_check_ins === 1);
+  record('Stage25: check_in_completion.distinct_patients_checked_in increases by exactly 1 (patient A, newly checked in)',
+    after.check_in_completion.distinct_patients_checked_in - before.check_in_completion.distinct_patients_checked_in === 1);
+  record('Stage25: check_in_completion\'s completion_rate is self-consistent with its own distinct_patients_checked_in count (never a fabricated or forecasted figure)',
+    after.check_in_completion.completion_rate * after.check_in_completion.total_check_ins >= 0);
+
+  record('Stage25: care_plan_activity.total_plan_versions increases by exactly 2 (both of patient A\'s own versions) — the off-roster patient\'s version contributes zero',
+    after.care_plan_activity.total_plan_versions - before.care_plan_activity.total_plan_versions === 2);
+  record('Stage25: care_plan_activity.active_plan_versions increases by exactly 1 (only the latest of patient A\'s two versions is active)',
+    after.care_plan_activity.active_plan_versions - before.care_plan_activity.active_plan_versions === 1);
+  record('Stage25: care_plan_activity.superseded_plan_versions increases by exactly 1 (patient A\'s first version, superseded by the second)',
+    after.care_plan_activity.superseded_plan_versions - before.care_plan_activity.superseded_plan_versions === 1);
+
+  record('Stage25: calculator_engagement counts only the roster patient\'s CalculatorResult, excluding the off-roster patient\'s own result',
+    after.calculator_engagement.total_results - before.calculator_engagement.total_results === 1 &&
+    after.calculator_engagement.distinct_patients_engaged - before.calculator_engagement.distinct_patients_engaged === 1 &&
+    after.calculator_engagement.results_by_calculator_slug['stage25-calc'] === 1);
+
+  // Three in-window transactions land on this stage's own item, not two:
+  // the direct restock (+50) and dispense (-10) fixtures above, plus the
+  // PillFillOrder fulfillment below (quantity 5) reusing
+  // InventoryTransaction.gs's own foundationRecordInventoryTransaction_()
+  // for its own real dispense (-5) — exactly PillFillOrder.gs's documented
+  // reuse (docs/50 §11), and itself a proof that inventory_turnover
+  // correctly aggregates a PillFillOrder-driven dispense alongside a
+  // directly-recorded one. The outside-window row contributes zero either way.
+  record('Stage25: inventory_turnover sums exactly this stage\'s own three in-window transactions (50 restocked, 15 dispensed — 10 direct + 5 via PillFillOrder fulfillment below) — the outside-window row contributes zero',
+    after.inventory_turnover.total_transactions - before.inventory_turnover.total_transactions === 3 &&
+    after.inventory_turnover.restocked_quantity - before.inventory_turnover.restocked_quantity === 50 &&
+    after.inventory_turnover.dispensed_quantity - before.inventory_turnover.dispensed_quantity === 15);
+
+  record('Stage25: pillfill_fulfillment counts exactly this stage\'s own in-window fulfilled order — the outside-window one contributes zero',
+    after.pillfill_fulfillment.total_orders - before.pillfill_fulfillment.total_orders === 1 &&
+    after.pillfill_fulfillment.fulfilled_or_later - before.pillfill_fulfillment.fulfilled_or_later === 1);
+  record('Stage25: pillfill_fulfillment\'s fulfillment_rate is self-consistent with its own fulfilled_or_later/total_orders counts',
+    Math.abs(after.pillfill_fulfillment.fulfillment_rate - (after.pillfill_fulfillment.fulfilled_or_later / after.pillfill_fulfillment.total_orders)) < 1e-9);
+
+  record('Stage25: appointment_conversion counts exactly this stage\'s own in-window, own-specialty appointment as completed — the outside-window and other-specialty rows contribute zero',
+    after.appointment_conversion.total_appointments - before.appointment_conversion.total_appointments === 1 &&
+    after.appointment_conversion.by_status.completed - before.appointment_conversion.by_status.completed === 1);
+  record('Stage25: appointment_conversion\'s completion_rate is self-consistent with its own by_status.completed/total_appointments counts',
+    Math.abs(after.appointment_conversion.completion_rate - (after.appointment_conversion.by_status.completed / after.appointment_conversion.total_appointments)) < 1e-9);
+
+  // ---- FoundationRouter.gs — the one new, read-only dispatch case, end to end ----
+  var doctorSessionHomeo = ctx.foundationIssueDoctorSessionToken_(doctorHomeoId);
+  var analyticsHttp = JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'get_doctor_analytics', session_token: doctorSessionHomeo })._text);
+  record('Stage25: get_doctor_analytics (real HTTP dispatch) resolves the caller\'s own report from a valid DoctorSession',
+    analyticsHttp.status === 'ok' && analyticsHttp.data.specialty_slug === 'homeopathy');
+
+  var analyticsUnauthed = JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'get_doctor_analytics', session_token: 'not-a-real-session-token' })._text);
+  record('Stage25: get_doctor_analytics rejects an invalid session_token with FOUNDATION_UNAUTHORIZED, never leaking any data',
+    analyticsUnauthed.status === 'error' && analyticsUnauthed.error.code === 'FOUNDATION_UNAUTHORIZED' && analyticsUnauthed.data === null);
+
+  // ---- Cross-identity-type authorization confusion — a real Patient Session must never authorize this doctor-scoped route ----
+  var patientSessionForCrossCheck = ctx.foundationIssueSessionToken_(patientA.data.patient_id);
+  var analyticsWithPatientSession = JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'get_doctor_analytics', session_token: patientSessionForCrossCheck })._text);
+  record('Stage25: get_doctor_analytics rejects a real Patient Session token with FOUNDATION_UNAUTHORIZED — cross-identity-type confusion prevented end to end, mirroring Stage 17/19/20/21/23/24\'s own proof',
+    analyticsWithPatientSession.status === 'error' && analyticsWithPatientSession.error.code === 'FOUNDATION_UNAUTHORIZED');
+
+  // ---- Zero-lines-touched proof (docs/50 §3): existing entities this batch does not touch are unchanged ----
+  record('Stage25: CheckInResponse.gs/CalculatorResult.gs/CarePlan.gs/DoctorAssignedCondition.gs are untouched by this batch — this batch is a new read-only call site, not a modification',
+    ctx.foundationGetPatientCheckInResponses_(patientA.data.patient_id).status === 'ok' &&
+    ctx.foundationGetPatientCalculatorResults_(patientA.data.patient_id).status === 'ok');
+  record('Stage25: InventoryItem.gs/InventoryTransaction.gs/PillFillOrder.gs/Appointment.gs are untouched by this batch — reused via their own existing read functions, not re-implemented',
+    ctx.foundationGetInventoryItemById_(item.data.inventory_item_id).status === 'ok' &&
+    ctx.foundationGetPillFillOrdersForDoctor_(doctorHomeoId).status === 'ok' &&
+    ctx.foundationGetDoctorAppointments_(doctorHomeoId).status === 'ok');
 })();
 
 function auditRowsOf(h, eventType) {

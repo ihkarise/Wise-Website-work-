@@ -33,7 +33,7 @@
   });
 
   // Hand-ported from shared/constants/doctor-module-registry.json (version
-  // 1.4.0 as of Batch WPI-8) — the same "port a shared/ definition into a
+  // 1.5.0 as of Batch WPI-9) — the same "port a shared/ definition into a
   // consuming file" convention my-health-journey/dashboard.js's own
   // MODULE_REGISTRY already uses (a browser has no ES-module/build-step to
   // read the canonical JSON at runtime). Only the fields this dashboard
@@ -51,7 +51,8 @@
     { capability_key: 'patient_roster', display_name: 'Patient Roster', display_order: 10, empty_state: 'nodata', data_source: 'get_doctor_patient_roster' },
     { capability_key: 'appointments', display_name: 'Appointments', display_order: 20, empty_state: 'nodata', data_source: 'get_doctor_appointments' },
     { capability_key: 'inventory', display_name: 'Inventory', display_order: 30, empty_state: 'nodata', data_source: 'get_inventory_items' },
-    { capability_key: 'pillfill_orders', display_name: 'PillFill Orders', display_order: 40, empty_state: 'nodata', data_source: 'get_pillfill_orders' }
+    { capability_key: 'pillfill_orders', display_name: 'PillFill Orders', display_order: 40, empty_state: 'nodata', data_source: 'get_pillfill_orders' },
+    { capability_key: 'analytics', display_name: 'Analytics', display_order: 50, empty_state: 'nodata', data_source: 'get_doctor_analytics' }
   ];
 
   function getCapabilityDescriptor(capabilityKey) {
@@ -279,6 +280,65 @@
       });
   }
 
+  // The Analytics card's body (docs/50 §12) — a bare, read-only summary of
+  // the report's own deterministic counts/rates, one line per report
+  // section, no write affordance and no chart/graph rendering (this batch
+  // adds registry-driven integration only, not a dashboard redesign). The
+  // report object is always present (never an empty list to check against,
+  // unlike every other card above) — a doctor with zero activity in the
+  // window still gets a real report, just one whose counts are zero.
+  function analyticsHtml(report) {
+    if (!report) {
+      return emptyStateHtml('nodata', 'No analytics data is available for your specialty yet.');
+    }
+    var rows = [
+      ['Check-in completion (last 30 days)',
+        report.check_in_completion.total_check_ins + ' check-in(s) from ' + report.check_in_completion.distinct_patients_checked_in +
+        ' patient(s) &middot; ' + Math.round(report.check_in_completion.completion_rate * 100) + '% of roster'],
+      ['Care plan activity',
+        report.care_plan_activity.active_plan_versions + ' active, ' + report.care_plan_activity.superseded_plan_versions +
+        ' superseded (' + report.care_plan_activity.total_plan_versions + ' version(s) total)'],
+      ['Calculator engagement',
+        report.calculator_engagement.total_results + ' result(s) from ' + report.calculator_engagement.distinct_patients_engaged + ' patient(s)'],
+      ['Inventory turnover',
+        report.inventory_turnover.dispensed_quantity + ' dispensed, ' + report.inventory_turnover.restocked_quantity +
+        ' restocked (' + report.inventory_turnover.total_transactions + ' transaction(s))'],
+      ['PillFill fulfillment',
+        report.pillfill_fulfillment.fulfilled_or_later + ' of ' + report.pillfill_fulfillment.total_orders +
+        ' order(s) fulfilled or later &middot; ' + Math.round(report.pillfill_fulfillment.fulfillment_rate * 100) + '%'],
+      ['Appointment conversion',
+        report.appointment_conversion.by_status.completed + ' of ' + report.appointment_conversion.total_appointments +
+        ' completed &middot; ' + Math.round(report.appointment_conversion.completion_rate * 100) + '%']
+    ];
+    var items = rows.map(function (pair) {
+      return '<li>' +
+        '<div class="roster-name">' + escapeHtmlForDisplay(pair[0]) + '</div>' +
+        '<div class="roster-conditions">' + pair[1] + '</div>' +
+        '</li>';
+    }).join('');
+    return '<ul class="roster-list">' + items + '</ul>';
+  }
+
+  function loadAnalyticsPreview(sessionToken, capabilityKey) {
+    var body = document.getElementById('card-' + capabilityKey + '-body');
+    fetch(WEB_APP_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ foundation_action: 'get_doctor_analytics', session_token: sessionToken })
+    })
+      .then(function (response) { return response.json(); })
+      .then(function (data) {
+        if (data.status === 'ok' && data.data) {
+          body.innerHTML = analyticsHtml(data.data);
+        } else {
+          body.innerHTML = '<p class="empty-text">Could not load your analytics. Check your connection and reload the page.</p>';
+        }
+      })
+      .catch(function () {
+        body.innerHTML = '<p class="empty-text">Could not load your analytics. Check your connection and reload the page.</p>';
+      });
+  }
+
   // Loader-dispatcher registry — one entry per registry data_source, the
   // same discipline my-health-journey/dashboard.js's own MODULE_LOADERS
   // already establishes.
@@ -286,7 +346,8 @@
     'get_doctor_patient_roster': loadPatientRosterPreview,
     'get_doctor_appointments': loadAppointmentsPreview,
     'get_inventory_items': loadInventoryPreview,
-    'get_pillfill_orders': loadPillFillOrdersPreview
+    'get_pillfill_orders': loadPillFillOrdersPreview,
+    'get_doctor_analytics': loadAnalyticsPreview
   };
 
   // Merges the per-doctor state rows from get_doctor_module_states with
@@ -413,6 +474,7 @@
     patientRosterHtml: patientRosterHtml,
     appointmentsHtml: appointmentsHtml,
     inventoryHtml: inventoryHtml,
-    pillFillOrdersHtml: pillFillOrdersHtml
+    pillFillOrdersHtml: pillFillOrdersHtml,
+    analyticsHtml: analyticsHtml
   };
 })();

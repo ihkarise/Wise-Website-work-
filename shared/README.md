@@ -227,6 +227,15 @@ including a contended lock, the order's own status is never touched. Bumped
 real entry, `pillfill_orders`, backed by a new, real, authenticated data_source route
 (`get_pillfill_orders`) — the Doctor Dashboard's fourth card. No other `shared/` file
 changed in this batch.
+Phase 3/WHIMS Batch WPI-9 added no new schema — Analytics (docs/50 §12) is a computed,
+read-only view, never a stored entity and never a base table, so it has no record
+shape to contract for (`apps-script/Analytics.gs`, its first and only implementation,
+reads across seven already-contracted entities' existing schemas without adding one of
+its own). Bumped `constants/doctor-module-registry.json` (1.4.0 → 1.5.0) to add this
+registry's fifth real entry, `analytics`, backed by a new, real, authenticated
+data_source route (`get_doctor_analytics`) — the Doctor Dashboard's fifth card,
+bounded to a fixed trailing 30-day window (docs/54-SHEETS-PRODUCTION-SCALE-REVIEW.md
+§18 item 4). No other `shared/` file changed in this batch.
 
 ---
 
