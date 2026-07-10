@@ -76,7 +76,7 @@ later batch (WPI-10 onward) is authorized by this change.**
   `validation/wpi-8-pillfill/browser-test.js`'s split-suite discipline exactly.
 
 ### Fixed (disclosed, mechanical — not a defect, a factual-count update)
-- **Six pre-existing conformance assertions** (`validation/phase-2a-foundation/
+- **Ten pre-existing conformance assertions** (`validation/phase-2a-foundation/
   conformance.js` Stage19/Stage20/Stage21/Stage22/Stage23/Stage24) and **four matching
   count assertions** (`validation/wpi-4-doctor-dashboard/browser-test.js`/
   `validation/wpi-5-appointment/browser-test.js`/`validation/wpi-7-inventory/
