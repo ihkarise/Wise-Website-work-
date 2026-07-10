@@ -1,5 +1,5 @@
 # 33 - Domain Model
-## Version 1.19 — 2026-07-16
+## Version 1.20 — 2026-07-10
 
 > Defines every major business entity in the Wise Platform: what it means, what it
 > holds, how it relates to everything else, how it comes into being and ends, who is
@@ -1442,12 +1442,35 @@ constraint on this batch). Doctor/staff-facing only, never patient-facing; one n
 read-only `FoundationRouter.gs` route (`get_doctor_analytics`), Doctor Module
 Registry's fifth real entry, `analytics`. **Full detail:** docs/50 §12.
 
-## 7.7 Reserved — AI Assistant, Holoscan
-Named, not designed. Every registry above carries the same inert AI-compatibility
-field docs/44 §7.1/§8.1/§11.5 already established, governed permanently by ADR-019.
-Holoscan has no defined scope in any existing document (docs/49 §9) and is
-deliberately not given one here. Both require their own future, separately-approved
-architecture-freeze pass before either becomes real — mirroring PXP-9's own precedent
+## 7.7 AI Assistant — *Architecture Frozen (docs/55, ADR-021/022/023) — not Implemented*; Holoscan — Reserved
+**Status update (2026-07-10):** AI Assistant's architecture is now frozen — its own
+separate, feature-specific technical plan (docs/55-WPI-10-AI-ASSISTANT-ARCHITECTURE-
+FREEZE.md) and three new ADRs (ADR-021 retrieval boundary, ADR-022 non-persisting-draft
+doctor-approval boundary, ADR-023 disabled-by-default registry rollout), fulfilling
+ADR-019's own "Future Considerations" ask for AI Assistant specifically. **This is an
+architecture-only status change — no code, schema, registry entry, router case, or
+dashboard card exists yet; WPI-10 implementation still requires its own separate,
+explicit approval, per docs/53 §9/§13/§15, unchanged.** Two new entities are *Designed*
+by docs/55, neither *Implemented*: `AIAssistantInteraction` (docs/55 §11.1, the
+audit/decision log — every AI Assistant output is a non-persisting draft; AI Assistant
+never gains a write path into any other clinical entity, ADR-022) and the AI Assistant
+Capability Registry (docs/55 §11.2, structurally parallel to Calculator Registry —
+a fixed, bounded menu of AI Assistant actions, never a free-form chat surface). AI
+Assistant's retrieval is bounded to the patient's own already-stored structured
+record only, per ADR-021, since a real Knowledge Engine (§7.7 note below) does not yet
+exist. Governed permanently by ADR-019, still bounded by ADR-001/004/005/013 in full.
+This entry is the platform's doctor-facing AI Assistant only (inside the Doctor
+Dashboard, ADR-020) — docs/22-WISE-KNOWLEDGE-ENGINE.md's separate, patient-facing
+"Website AI Assistant" remains entirely unscoped, unaffected by this update (docs/55
+§0.1).
+
+Every registry on the platform still carries the same inert AI-compatibility field
+docs/44 §7.1/§8.1/§11.5 already established, governed permanently by ADR-019 — this
+status update does not populate any of those other reserved fields; it designs one
+new, dedicated capability (AI Assistant) instead. **Holoscan remains named, not
+designed** — it has no defined scope in any existing document (docs/49 §9) and is
+deliberately not given one here, requiring its own future, separately-approved
+architecture-freeze pass before it becomes real — mirroring PXP-9's own precedent
 exactly (§6, this document's Phase 2B section).
 
 ---
@@ -1476,6 +1499,8 @@ exactly (§6, this document's Phase 2B section).
 | Inventory Item / Inventory Transaction | **Implemented** | 3/WHIMS (docs/50 §10, batch WPI-7 — shipped, quantity_on_hand derived/recomputed from an append-only ledger, the platform's first LockService use per docs/54 §7/§19, Doctor Module Registry's third real entry `inventory`) |
 | PillFill Order | **Implemented** | 3/WHIMS (docs/50 §11, batch WPI-8 — shipped, connects a medicine-type Doctor Instruction to fulfillment; the dedicated fulfill operation reuses InventoryTransaction.gs's LockService-protected dispense and Notification.gs's pillfill_order_status record; Doctor Module Registry's fourth real entry, pillfill_orders) |
 | Analytics | **Implemented (computed view — never a base table)** | 3/WHIMS (docs/50 §12, batch WPI-9 — shipped, reads across seven existing entities, bounded to a fixed trailing 30-day window, non-AI deterministic aggregation only, Doctor Module Registry's fifth real entry `analytics`) |
+| AI Assistant Interaction | **Designed — architecture frozen, not implemented** | 3/WHIMS (docs/55 §11.1, ADR-021/022, fulfills ADR-019 for AI Assistant specifically — append-only audit/decision log; AI Assistant never writes to any other clinical entity, WPI-10 implementation not authorized by this design) |
+| AI Assistant Capability Registry | **Designed — architecture frozen, not implemented** | 3/WHIMS (docs/55 §11.2, structurally parallel to Calculator Registry — a fixed, bounded menu of AI Assistant actions, never a free-form chat surface; ships with zero or one seeded entry as an implementation-time decision) |
 | Knowledge Article | Conceptual | Unassigned |
 | Knowledge Engine | Conceptual (system) | Unassigned |
 | Calculator | **Implemented — backend only — Pillar 3** | 2B (docs/44 §8, batch PXP-6, Calculator Registry — shipped, registry seeded empty, no UI; see §6.8). Public variant still unassigned — roadmap gap carried forward (docs/46 Part 3). |

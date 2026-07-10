@@ -1,5 +1,5 @@
 # 24 - Wise Product Roadmap
-## Version 1.18 — 2026-07-16
+## Version 1.19 — 2026-07-10
 
 # Phase 1 — Public Website
 Status: In Progress
@@ -605,7 +605,14 @@ shipped 2026-07-16, Batch WPI-5 (Appointment) shipped 2026-07-16, Batch WPI-6
 (Notification, unification) shipped 2026-07-16, Batch WPI-7 (Inventory) shipped
 2026-07-16, Batch WPI-8 (PillFill Integration) shipped 2026-07-16, and Batch WPI-9
 (Analytics) shipped 2026-07-16, each explicitly approved and scoped to its own batch
-only. No later batch (WPI-10 onward) is authorized to begin.**
+only. **WPI-10 (AI Assistant)'s own dedicated architecture is now frozen** (docs/55-
+WPI-10-AI-ASSISTANT-ARCHITECTURE-FREEZE.md, ADR-021/022/023, 2026-07-10) — an
+architecture-only pass, fulfilling ADR-019's own "Future Considerations" ask for AI
+Assistant specifically; **no code, schema, registry entry, router case, or dashboard
+card exists, and WPI-10 implementation is still not authorized to begin** — it requires
+its own separate, explicit approval, per docs/53 §9/§13/§15, unchanged by this freeze.
+No later batch (WPI-10 implementation itself, or WPI-11 onward) is authorized to
+begin.**
 
 Renamed from "WiseOS" per this architecture-freeze pass (docs/49 §2) — no scope
 change from the rename itself. **Reordered ahead of Phase 2C (Health Milestones) and
@@ -970,6 +977,38 @@ parallel to the Patient Roster/Appointments/Inventory/PillFill Orders cards. Zer
 modification to any frozen Foundation/Identity & Access/Patient
 Access/PXP-1..11/WPI-1..8 file. **No batch beyond WPI-9 is authorized by this
 approval.**
+
+**WPI-10 Architecture Freeze (AI Assistant, docs/55-WPI-10-AI-ASSISTANT-ARCHITECTURE-
+FREEZE.md, ADR-021/022/023)** — a documentation-and-architecture-only pass, fulfilling
+ADR-019's own "Future Considerations" ask ("each requires its own technical plan and...
+likely its own feature-specific ADRs") for AI Assistant specifically — has now been
+produced: a component diagram, data flow, security/permission model, a doctor
+supervision model mirroring `Ai.gs`'s existing prompt-constraint + independent
+code-level-check + mandatory-human-review three-part pattern exactly (ADR-005), a
+deterministic Context Builder and a retrieval strategy bounded to the patient's own
+already-stored structured record only (ADR-021, since a real Knowledge Engine remains
+Conceptual, docs/33 §7.7/§5.1-5.2), a fixed, bounded prompt-orchestration menu rather
+than a free-form chat surface, a deterministic-vs-AI responsibility split, and
+system-by-system interaction detail against Analytics, Care Plans, Check-ins, Calculator
+Results, Inventory, PillFill, Appointments, and Notifications — every one read-only,
+none gaining a new write path. Two new entities are *Designed*, not *Implemented*:
+`AIAssistantInteraction` (an append-only audit/decision log) and an AI Assistant
+Capability Registry (structurally parallel to Calculator Registry). One new Doctor
+Module Registry entry (`ai_assistant`), three new `FoundationRouter.gs` dispatch cases,
+and one new Doctor Dashboard card are named and specified, none built. AI Assistant
+never gains a write path into any clinical entity — every output is a non-persisting
+draft; an accepted draft still requires the doctor's own, separate, existing write
+action on the target entity's own page (ADR-022) — and the `ai_assistant` registry
+entry is disabled by default for every doctor, diverging deliberately from every prior
+entry's rollout convention (ADR-023). Validation strategy, browser-test strategy,
+conformance strategy, and four new static-analysis rules (most notably: no AI Assistant
+code path may call another entity's write function directly) are specified for a future
+implementation batch to satisfy. **This scopes the doctor-facing AI Assistant inside the
+already-frozen Doctor Dashboard only** — docs/22-WISE-KNOWLEDGE-ENGINE.md's separate,
+unscoped, patient-facing "Website AI Assistant" is untouched by this freeze. Zero
+modification to docs/49/50/51/52/53/54 or any code, schema, registry, or frontend file.
+**No implementation of any kind is authorized by this pass — WPI-10 implementation
+requires its own separate, explicit approval**, per docs/53 §9/§13/§15.
 
 # Guiding Principle
 Every roadmap item should support the North Star:
