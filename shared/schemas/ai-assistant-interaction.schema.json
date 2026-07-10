@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wisehomeopathy.com/shared/schemas/ai-assistant-interaction.schema.json",
+  "title": "AI Assistant Interaction",
+  "version": "1.0.0",
+  "description": "The canonical shape of an AIAssistantInteraction record — docs/55-WPI-10-AI-ASSISTANT-ARCHITECTURE-FREEZE.md §11.1's audit/decision log, Batch WPI-10 (docs/50-PHASE-3-TECHNICAL-PLAN.md §19, ADR-021/022/023), governed by docs/53-PHASE-3-IMPLEMENTATION-RULES.md. Every AI Assistant invocation writes exactly one row here — the platform's only persisted trace of an AI Assistant query, and the only place its own decision (accept/edit/reject) is ever recorded. AI Assistant never writes to any other clinical entity (ADR-022) — this schema's own append-only-except-one-transition shape is what makes that guarantee auditable, mirroring DoctorInstruction.gs's/Appointment.gs's own one-way status-transition precedent, applied here to doctor_decision instead of a lifecycle status. `context_snapshot` and `ai_output_flags` follow docs/44 §11.4's JSON-storage policy exactly as CalculatorResult.input_snapshot and CheckInResponse.answers already established: stored as JSON-encoded strings in the underlying Sheet cell (an implementation-only detail, shared/README.md's 'Contract vs. implementation-only detail'), but this schema — the entity's real, contractual shape — describes both as real object/array values, since apps-script/AIAssistantInteraction.gs's own row-to-API-shape conversion always parses them back before returning a record to any caller.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["interaction_id", "doctor_id", "patient_id", "capability_key", "context_snapshot", "prompt_template_version", "model", "ai_output", "ai_output_flags", "doctor_decision", "decision_notes", "target_entity_type", "target_entity_id", "created_at", "decided_at"],
+  "properties": {
+    "interaction_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Server-generated UUID (generateFoundationId_()), this row's own identity — never doctor-supplied."
+    },
+    "doctor_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The Doctor Identity that invoked this capability (docs/33 §7.1, ADR-017). Always DoctorSession-derived — never client-supplied."
+    },
+    "patient_id": {
+      "type": "string",
+      "description": "The Patient Identity this invocation concerned, empty-string sentinel for a roster-wide capability with no single patient target (docs/55 §11.1). When present, roster-validated at creation (docs/55 §6) — must belong to the calling doctor's own derived roster (DoctorPatientRoster.gs, reused, never re-derived)."
+    },
+    "capability_key": {
+      "type": "string",
+      "minLength": 1,
+      "description": "References a fixed, registry-declared capability (shared/constants/ai-assistant-capability-registry.json). Never free text — must resolve to a real registry entry at write time."
+    },
+    "context_snapshot": {
+      "type": "object",
+      "description": "The exact, flat, size-bounded context object AssistantContextBuilder (apps-script/AIAssistantContext.gs) assembled and sent to the model — stored for audit/traceability, mirroring CalculatorResult.input_snapshot's own 'store what produced this result' precedent, applied to AI Assistant's own input instead (docs/55 §11.1). Stored as a JSON-encoded string in the underlying Sheet cell — an implementation-only detail, not part of this contract; every function returning a record to a caller parses it back into this real object shape first."
+    },
+    "prompt_template_version": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Matches the version-controlled prompt spec (apps-script/AI-ASSISTANT-PROMPTS.md), mirrors Ai.gs's PROMPT_VERSION_ convention exactly."
+    },
+    "model": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The OpenRouter model identifier used for this invocation, mirroring Consultation Summary's ai_model_used field."
+    },
+    "ai_output": {
+      "type": "string",
+      "description": "The model's raw draft output. Never auto-applied anywhere (ADR-022) — a draft only, held in this row and the doctor's own screen until a decision is recorded."
+    },
+    "ai_output_flags": {
+      "type": "array",
+      "description": "AssistantDriftCheck_()'s advisory flags (docs/55 §8.2), an array of human-readable strings — empty array, not null, when clean. Stored as a JSON-encoded string in the underlying Sheet cell — an implementation-only detail; every function returning a record to a caller parses it back into this real array shape first."
+    },
+    "doctor_decision": {
+      "type": "string",
+      "enum": ["pending", "accepted", "edited_and_accepted", "rejected", "ignored"],
+      "description": "Always 'pending' at creation; transitions one-way, exactly once, mirroring DoctorAssignedCondition's/DoctorInstruction's existing one-way-status-transition precedent. Recording a decision persists the decision only — it never itself writes to any other entity (ADR-022)."
+    },
+    "decision_notes": {
+      "type": "string",
+      "description": "Optional doctor rationale, empty-string sentinel when not supplied — the same convention every other optional free-text field in this codebase already uses (e.g. Doctor.specialty_slug)."
+    },
+    "target_entity_type": {
+      "type": "string",
+      "description": "Recorded only if/when the doctor separately persists an accepted draft elsewhere — purely observational, never written by AI Assistant's own logic, never a live foreign key AI Assistant enforces (docs/55 §11.1/§8.3). Empty-string sentinel when not supplied."
+    },
+    "target_entity_id": {
+      "type": "string",
+      "description": "Same provenance as target_entity_type — the doctor supplies both, after the fact, via post_ai_assistant_decision, if they choose to. Empty-string sentinel when not supplied."
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Server-set (foundationNowIso_()) at creation. Never doctor-editable."
+    },
+    "decided_at": {
+      "type": "string",
+      "description": "Server-set (foundationNowIso_()) at the moment doctor_decision transitions away from 'pending'. Empty-string sentinel while still pending — mirrors login-token.schema.json's used_at convention exactly (a plain string type, never real null, per this codebase's platform-wide 'no true null in a flat Sheet column' discipline, ADR-006)."
+    }
+  }
+}

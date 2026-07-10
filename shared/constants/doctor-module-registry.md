@@ -1,6 +1,6 @@
 # Doctor Module Registry
 
-Explains `doctor-module-registry.json` (version `1.5.0`, the authoritative definition —
+Explains `doctor-module-registry.json` (version `1.6.0`, the authoritative definition —
 this file explains, it does not define, per `shared/README.md`'s format rule).
 
 ## Scope: Batch WPI-3 (docs/50-PHASE-3-TECHNICAL-PLAN.md §7.1/§19/§22, ADR-020)
@@ -61,6 +61,20 @@ stored entity, never an AI-generated interpretation, bounded to a fixed trailing
 30-day window per docs/54 §18 item 4), backed by a new, real, authenticated route,
 `Analytics.gs`'s `get_doctor_analytics` (`FoundationRouter.gs`).
 
+**Batch WPI-10 (docs/55-WPI-10-AI-ASSISTANT-ARCHITECTURE-FREEZE.md §13, ADR-021/022/023)**
+adds this registry's sixth real entry: `ai_assistant` — the platform's first
+AI-generated-content doctor capability, backed by new, real, authenticated routes
+(`AIAssistantContext.gs`'s `get_ai_assistant_capabilities`; `AIAssistantInteraction.gs`'s
+`post_ai_assistant_query`/`post_ai_assistant_decision`). **Diverges from every prior
+entry in exactly one way, per ADR-023:** this entry's own `DoctorModuleState` must
+remain absent (fail-closed, ADR-010) for every doctor by default — enabling it is a
+deliberate, disclosed, per-doctor administrative decision, never a bulk/default
+rollout, unlike every prior entry's own "enable whenever convenient" treatment. Every
+AI Assistant output is a non-persisting draft requiring doctor approval through the
+target entity's own existing write path (ADR-022) — this registry entry only exposes
+*that* capability; it grants AI Assistant no write authority of its own over any other
+entity.
+
 Every other illustrative capability named below (condition assignment, care-plan
 authoring, module/calculator/template enablement) remains unregistered — each becomes
 real by a later, separately-approved WPI batch adding its own registry entry here
@@ -86,7 +100,9 @@ illustrative examples named by docs/50 §7.1 include `patient_roster`,
 `pillfill_orders`, `analytics`; illustrative only, not a batch commitment, mirroring
 docs/50 §7.1's own "not a batch commitment" framing — `patient_roster`, `appointments`,
 `inventory`, `pillfill_orders`, and `analytics` are the five promoted from illustrative
-to real, by Batches WPI-4, WPI-5, WPI-7, WPI-8, and WPI-9 respectively), `display_name`,
+to real, by Batches WPI-4, WPI-5, WPI-7, WPI-8, and WPI-9 respectively; `ai_assistant`
+is a sixth, not named by docs/50 §7.1 at all — named and designed instead by docs/55's
+own dedicated architecture freeze, registered by Batch WPI-10), `display_name`,
 `display_order` (integer, mirrors `module-registry.json`'s own field), `data_source`
 (loader key — the doctor-facing route a Doctor Dashboard card calls, mirroring
 `module-registry.json`'s own field), `specialty_scope` (optional — absent means visible
@@ -112,10 +128,11 @@ precedent already proven on the patient side.
 
 ## Versioning
 
-Version `1.5.0` (bumped from `1.0.0` → `1.1.0` at Batch WPI-4 to add `patient_roster`;
+Version `1.6.0` (bumped from `1.0.0` → `1.1.0` at Batch WPI-4 to add `patient_roster`;
 → `1.2.0` at Batch WPI-5 to add `appointments`; → `1.3.0` at Batch WPI-7 to add
 `inventory`; → `1.4.0` at Batch WPI-8 to add `pillfill_orders`; → `1.5.0` at Batch
-WPI-9 to add `analytics`). Adding a new capability (a new `capability_key` row)
+WPI-9 to add `analytics`; → `1.6.0` at Batch WPI-10 to add `ai_assistant`). Adding a
+new capability (a new `capability_key` row)
 requires a new version here first, then a subsequent update to
 `apps-script/DoctorModuleRegistry.gs`'s hand-ported copy — never the reverse, per
 `shared/README.md`.

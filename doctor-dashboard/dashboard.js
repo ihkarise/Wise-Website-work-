@@ -52,7 +52,8 @@
     { capability_key: 'appointments', display_name: 'Appointments', display_order: 20, empty_state: 'nodata', data_source: 'get_doctor_appointments' },
     { capability_key: 'inventory', display_name: 'Inventory', display_order: 30, empty_state: 'nodata', data_source: 'get_inventory_items' },
     { capability_key: 'pillfill_orders', display_name: 'PillFill Orders', display_order: 40, empty_state: 'nodata', data_source: 'get_pillfill_orders' },
-    { capability_key: 'analytics', display_name: 'Analytics', display_order: 50, empty_state: 'nodata', data_source: 'get_doctor_analytics' }
+    { capability_key: 'analytics', display_name: 'Analytics', display_order: 50, empty_state: 'nodata', data_source: 'get_doctor_analytics' },
+    { capability_key: 'ai_assistant', display_name: 'AI Assistant', display_order: 60, empty_state: 'nodata', data_source: 'get_ai_assistant_capabilities' }
   ];
 
   function getCapabilityDescriptor(capabilityKey) {
@@ -339,6 +340,183 @@
       });
   }
 
+  // The AI Assistant card's body (docs/55-WPI-10-AI-ASSISTANT-ARCHITECTURE-FREEZE.md
+  // §14) — the only Doctor Dashboard card that is interactive rather than a passive,
+  // read-only list, since AI Assistant's own get_ai_assistant_capabilities/
+  // post_ai_assistant_query/post_ai_assistant_decision routes are a picker + a query +
+  // a decision, not a single GET. Disabled by default (ADR-023) — this card renders
+  // for no doctor until a staff/administrative action explicitly enables it, so most
+  // doctors never see any of the markup below at all (fail-closed rendering, the same
+  // discipline every existing card already follows).
+  //
+  // A capability picker constrained to the fixed list get_ai_assistant_capabilities
+  // returns — never a free-text prompt box (docs/55 §7.1). A roster-patient selector
+  // reusing the same get_doctor_patient_roster route the Patient Roster card already
+  // calls — no new patient-lookup mechanism (docs/55 §14). A draft output area that
+  // always shows an explicit, un-dismissable "AI-generated draft — not saved" banner
+  // above any Accept/Edit/Reject control, so the ADR-022 boundary is visible at the
+  // point of use, not just documented. Accept/Edit/Reject call
+  // post_ai_assistant_decision only; on acceptance, the UI explicitly directs the
+  // doctor to the target entity's own existing authoring page — no auto-navigation-
+  // with-silent-prefill in this v1 (docs/55 §14's own disclosed, deliberately simple
+  // starting point).
+  function aiAssistantPickerHtml(capabilities, rosterEntries) {
+    if (!capabilities.length) {
+      return emptyStateHtml('nodata', 'No AI Assistant capabilities are registered yet.');
+    }
+    var capabilityOptions = capabilities.map(function (c) {
+      return '<option value="' + escapeHtmlForDisplay(c.capability_key) + '">' + escapeHtmlForDisplay(c.display_name) + '</option>';
+    }).join('');
+    var patientOptions = rosterEntries.map(function (p) {
+      return '<option value="' + escapeHtmlForDisplay(p.patient_id) + '">' + escapeHtmlForDisplay(p.full_name) + '</option>';
+    }).join('');
+    return '<div class="ai-assistant-picker">' +
+      '<label for="aiaCapabilitySelect">Capability</label>' +
+      '<select id="aiaCapabilitySelect">' + capabilityOptions + '</select>' +
+      '<label for="aiaPatientSelect">Patient</label>' +
+      '<select id="aiaPatientSelect">' + (patientOptions || '<option value="">No roster patients</option>') + '</select>' +
+      '<button type="button" id="aiaRunBtn">Get Draft</button>' +
+      '</div>' +
+      '<div id="aiaResultArea"></div>';
+  }
+
+  // Human-readable labels for AIAssistantInteraction's own doctor_decision enum —
+  // display only.
+  var AI_ASSISTANT_DECISION_LABELS_ = {
+    accepted: 'Accepted',
+    edited_and_accepted: 'Edited and accepted',
+    rejected: 'Rejected',
+    ignored: 'Ignored'
+  };
+
+  // Renders one AIAssistantInteraction's draft + the mandatory, un-dismissable
+  // ADR-022 banner + Accept/Edit/Reject controls, or (once decided) the recorded
+  // decision. The banner always renders above the controls in markup order — the
+  // exact property validation/wpi-10-ai-assistant/browser-test.js checks for.
+  function aiAssistantDraftHtml(interaction, capability) {
+    var flagsHtml = interaction.ai_output_flags.length
+      ? '<ul class="ai-assistant-flags">' + interaction.ai_output_flags.map(function (f) {
+          return '<li>' + escapeHtmlForDisplay(f) + '</li>';
+        }).join('') + '</ul>'
+      : '';
+    var banner = '<p class="ai-assistant-banner" role="note">AI-generated draft &mdash; not saved</p>';
+    var draftText = '<p class="ai-assistant-output">' + escapeHtmlForDisplay(interaction.ai_output) + '</p>';
+
+    if (interaction.doctor_decision !== 'pending') {
+      var decisionLabel = AI_ASSISTANT_DECISION_LABELS_[interaction.doctor_decision] || escapeHtmlForDisplay(interaction.doctor_decision);
+      return banner + draftText + flagsHtml +
+        '<p class="ai-assistant-decision">Decision recorded: ' + decisionLabel + '.</p>';
+    }
+
+    var targetNote = capability && capability.target_entity_type
+      ? '<p class="ai-assistant-target-note">To save this, open the ' + escapeHtmlForDisplay(capability.target_entity_type) + ' page and enter it there yourself &mdash; accepting here only records your decision, it does not save anything.</p>'
+      : '<p class="ai-assistant-target-note">This capability is reference-only &mdash; there is nothing to save elsewhere.</p>';
+
+    return banner + draftText + flagsHtml + targetNote +
+      '<div class="ai-assistant-decision-controls">' +
+      '<button type="button" data-decision="accepted">Accept</button>' +
+      '<button type="button" data-decision="edited_and_accepted">Edit &amp; Accept</button>' +
+      '<button type="button" data-decision="rejected">Reject</button>' +
+      '</div>';
+  }
+
+  function loadAiAssistantCard(sessionToken, capabilityKey) {
+    var body = document.getElementById('card-' + capabilityKey + '-body');
+    Promise.all([
+      fetch(WEB_APP_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ foundation_action: 'get_ai_assistant_capabilities', session_token: sessionToken })
+      }).then(function (response) { return response.json(); }),
+      // Reuses the same get_doctor_patient_roster route the Patient Roster card
+      // already calls — no new patient-lookup mechanism (docs/55 §14).
+      fetch(WEB_APP_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ foundation_action: 'get_doctor_patient_roster', session_token: sessionToken })
+      }).then(function (response) { return response.json(); })
+    ])
+      .then(function (results) {
+        var capabilitiesEnv = results[0];
+        var rosterEnv = results[1];
+        if (capabilitiesEnv.status !== 'ok' || rosterEnv.status !== 'ok') {
+          body.innerHTML = '<p class="empty-text">Could not load AI Assistant. Check your connection and reload the page.</p>';
+          return;
+        }
+        var capabilities = capabilitiesEnv.data;
+        var roster = rosterEnv.data;
+        body.innerHTML = aiAssistantPickerHtml(capabilities, roster);
+
+        var runBtn = document.getElementById('aiaRunBtn');
+        if (!runBtn) return; // no capabilities registered — nothing further to wire
+
+        runBtn.addEventListener('click', function () {
+          var capabilityKeySelected = document.getElementById('aiaCapabilitySelect').value;
+          var patientIdSelected = document.getElementById('aiaPatientSelect').value;
+          var resultArea = document.getElementById('aiaResultArea');
+          runBtn.disabled = true;
+          resultArea.innerHTML = '<div class="skeleton"></div>';
+          fetch(WEB_APP_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+              foundation_action: 'post_ai_assistant_query',
+              session_token: sessionToken,
+              capability_key: capabilityKeySelected,
+              patient_id: patientIdSelected
+            })
+          })
+            .then(function (response) { return response.json(); })
+            .then(function (data) {
+              runBtn.disabled = false;
+              if (data.status !== 'ok') {
+                resultArea.innerHTML = '<p class="empty-text">' + escapeHtmlForDisplay(data.error && data.error.message ? data.error.message : 'Could not generate a draft right now.') + '</p>';
+                return;
+              }
+              var capability = capabilities.filter(function (c) { return c.capability_key === capabilityKeySelected; })[0];
+              resultArea.innerHTML = aiAssistantDraftHtml(data.data, capability);
+              wireAiAssistantDecisionButtons(sessionToken, resultArea, data.data, capability);
+            })
+            .catch(function () {
+              runBtn.disabled = false;
+              resultArea.innerHTML = '<p class="empty-text">Could not reach the server. Check your connection and try again.</p>';
+            });
+        });
+      })
+      .catch(function () {
+        body.innerHTML = '<p class="empty-text">Could not load AI Assistant. Check your connection and reload the page.</p>';
+      });
+  }
+
+  // Wires the Accept/Edit/Reject controls rendered by aiAssistantDraftHtml() to
+  // post_ai_assistant_decision — the only action any of the three ever calls
+  // (ADR-022: recording a decision never itself persists anything into a target
+  // entity).
+  function wireAiAssistantDecisionButtons(sessionToken, resultArea, interaction, capability) {
+    var buttons = resultArea.querySelectorAll('[data-decision]');
+    for (var i = 0; i < buttons.length; i++) {
+      buttons[i].addEventListener('click', function (evt) {
+        var decision = evt.currentTarget.getAttribute('data-decision');
+        fetch(WEB_APP_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({
+            foundation_action: 'post_ai_assistant_decision',
+            session_token: sessionToken,
+            interaction_id: interaction.interaction_id,
+            doctor_decision: decision
+          })
+        })
+          .then(function (response) { return response.json(); })
+          .then(function (data) {
+            if (data.status === 'ok') {
+              resultArea.innerHTML = aiAssistantDraftHtml(data.data, capability);
+            }
+          });
+      });
+    }
+  }
+
   // Loader-dispatcher registry — one entry per registry data_source, the
   // same discipline my-health-journey/dashboard.js's own MODULE_LOADERS
   // already establishes.
@@ -347,7 +525,8 @@
     'get_doctor_appointments': loadAppointmentsPreview,
     'get_inventory_items': loadInventoryPreview,
     'get_pillfill_orders': loadPillFillOrdersPreview,
-    'get_doctor_analytics': loadAnalyticsPreview
+    'get_doctor_analytics': loadAnalyticsPreview,
+    'get_ai_assistant_capabilities': loadAiAssistantCard
   };
 
   // Merges the per-doctor state rows from get_doctor_module_states with
@@ -475,6 +654,8 @@
     appointmentsHtml: appointmentsHtml,
     inventoryHtml: inventoryHtml,
     pillFillOrdersHtml: pillFillOrdersHtml,
-    analyticsHtml: analyticsHtml
+    analyticsHtml: analyticsHtml,
+    aiAssistantPickerHtml: aiAssistantPickerHtml,
+    aiAssistantDraftHtml: aiAssistantDraftHtml
   };
 })();

@@ -166,6 +166,21 @@
  * already-mocked read functions (the same "additive view, zero new
  * infrastructure" pattern `DoctorPatientRoster.gs` already proved out at
  * Batch WPI-4).
+ *
+ * Extended in Phase 3/WHIMS batch WPI-10 with `AIAssistantContext.gs`,
+ * `AIAssistantDriftCheck.gs`, and `AIAssistantInteraction.gs` in the FILES
+ * list, plus one new mock this batch actually needs: `UrlFetchApp.fetch` —
+ * the platform's first use of this primitive in the Foundation-family
+ * harness (Phase 1.5's own `Ai.gs`, which also calls it, is deliberately not
+ * loaded into this harness at all — see `AIAssistantDriftCheck.gs`'s own
+ * header comment for why this batch avoids any dependency on that frozen
+ * Phase 1.5 file). A single, injectable `urlFetchImpl` backs it, defaulting
+ * to a canned, OpenRouter-shaped success response — a faithful mock of a
+ * real, well-specified wire format, mirroring `MailApp.sendEmail`'s own
+ * injectable-implementation mock exactly, so `conformance.js`'s Stage 26 can
+ * exercise the real `callOpenRouterForAiAssistant_()` code path
+ * deterministically (default success) and also simulate a genuine model-call
+ * failure (via `setUrlFetchImpl()`) without any live network call.
  */
 
 var fs = require('fs');
@@ -219,6 +234,9 @@ var FILES = [
   'InventoryTransaction.gs',
   'PillFillOrder.gs',
   'Analytics.gs',
+  'AIAssistantContext.gs',
+  'AIAssistantDriftCheck.gs',
+  'AIAssistantInteraction.gs',
   'FoundationRouter.gs'
 ];
 
@@ -268,6 +286,18 @@ function buildSandbox(opts) {
   var spreadsheet = makeFakeSpreadsheet();
   var mailLog = [];
   var mailImpl = opts.mailImpl || function () { return true; };
+  // Default: a canned, OpenRouter-shaped success response — see this file's
+  // own header comment for why this is this harness's first UrlFetchApp mock
+  // (Batch WPI-10). Tests needing a specific draft string or a genuine
+  // failure call setUrlFetchImpl() to override.
+  var urlFetchImpl = opts.urlFetchImpl || function () {
+    return {
+      getResponseCode: function () { return 200; },
+      getContentText: function () {
+        return JSON.stringify({ choices: [{ message: { content: 'Default fake AI Assistant draft output based on the provided context.' } }] });
+      }
+    };
+  };
   // A minimal, faithful in-memory CacheService.getScriptCache() mock —
   // ignores the TTL argument (no test in this suite needs real
   // expiration; FoundationRateLimit.gs's own header already documents
@@ -433,6 +463,9 @@ function buildSandbox(opts) {
     MailApp: {
       sendEmail: function (msg) { mailLog.push(msg); return mailImpl(msg); }
     },
+    UrlFetchApp: {
+      fetch: function (url, options) { return urlFetchImpl(url, options); }
+    },
     LockService: {
       getScriptLock: function () {
         return {
@@ -459,6 +492,7 @@ function buildSandbox(opts) {
     sandbox: sandbox, spreadsheet: spreadsheet, scriptProperties: scriptProperties,
     executionLog: executionLog, mailLog: mailLog, cacheStore: cacheStore,
     setMailImpl: function (fn) { mailImpl = fn; },
+    setUrlFetchImpl: function (fn) { urlFetchImpl = fn; },
     // Exposed so conformance.js can directly assert Drive-file
     // sharing/trash state (docs/42 §6/§15's named required checks) and
     // seed a "pre-existing Drive file" fixture for the staff-wrapper path

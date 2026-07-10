@@ -260,6 +260,29 @@
  *     30-day window — never "all history", never an AI-generated
  *     interpretation or prediction.
  *
+ *   - get_ai_assistant_capabilities / post_ai_assistant_query /
+ *     post_ai_assistant_decision — Batch WPI-10 additions (docs/55-WPI-10-AI-
+ *     ASSISTANT-ARCHITECTURE-FREEZE.md §12, ADR-021/022/023), the Doctor
+ *     Dashboard's sixth capability (AIAssistantContext.gs/
+ *     AIAssistantInteraction.gs, registered as shared/constants/
+ *     doctor-module-registry.json's `ai_assistant` entry, disabled by default
+ *     per ADR-023). All three are doctor-guarded only — doctor_id is always
+ *     DoctorSession-derived, never client-supplied, and a real Patient Session
+ *     token is rejected on all three, mirroring get_doctor_analytics's own
+ *     precedent exactly. get_ai_assistant_capabilities is read-only, returning
+ *     the fixed capability list. post_ai_assistant_query is this batch's one
+ *     genuinely new *write* route among every WPI-1..9 doctor-facing route (all
+ *     of which were read-only) — but the only Sheet it writes is
+ *     AIAssistantInteractions; it never creates, updates, or fulfills any other
+ *     entity (ADR-022, statically enforced per docs/55 §18 item 1).
+ *     post_ai_assistant_decision records the caller's own one-way decision
+ *     transition on an interaction row they own, and likewise never writes
+ *     anywhere else. Zero modification to CarePlan.gs, DoctorInstruction.gs,
+ *     CheckInResponse.gs, CalculatorResult.gs, InventoryItem.gs,
+ *     InventoryTransaction.gs, PillFillOrder.gs, Appointment.gs, or
+ *     Notification.gs — AI Assistant only reads each through its own existing,
+ *     already-scoped reader function.
+ *
  * A disclosed, additive exception, same category as Code.gs's own
  * one-line dispatch shim (IA-2): this file was previously listed among
  * Identity & Access's six files "frozen except for bug fixes"
@@ -290,7 +313,7 @@
  * TrustedDevice.gs, DoctorIdentity.gs, DoctorSession.gs, DoctorLoginTokens.gs,
  * DoctorEmail.gs, DoctorLoginFlow.gs, DoctorRouteGuard.gs,
  * DoctorModuleRegistry.gs, DoctorModuleState.gs, DoctorPatientRoster.gs,
- * Appointment.gs, InventoryItem.gs.
+ * Appointment.gs, InventoryItem.gs, AIAssistantContext.gs, AIAssistantInteraction.gs.
  */
 
 /**
@@ -747,6 +770,61 @@ function foundationHandleGetDoctorAnalytics_(input) {
 }
 
 /**
+ * Batch WPI-10: returns the fixed, doctor-guarded AI Assistant capability list
+ * (AIAssistantContext.gs) — the Doctor Dashboard's sixth capability this batch
+ * registers (`ai_assistant`, doctor-module-registry.json, disabled by default,
+ * ADR-023). doctor_id is always DoctorSession-derived, never client-supplied.
+ * Read-only — this route never checks per-doctor enablement itself (that check
+ * belongs to post_ai_assistant_query, the route with a real per-call cost);
+ * returning the fixed menu to any authenticated doctor is harmless, mirroring
+ * every other read-only capability route's own precedent.
+ */
+function foundationHandleGetAiAssistantCapabilities_(input) {
+  return withFoundationDoctorAuth_(input && input.session_token, function (doctorId) {
+    return buildFoundationOkEnvelope_(foundationGetAiAssistantCapabilityRegistry_());
+  });
+}
+
+/**
+ * Batch WPI-10: invokes one AI Assistant capability for the caller, optionally
+ * scoped to one of the caller's own roster patients — this batch's one genuinely
+ * new *write* route among every WPI-1..9 doctor-facing route (docs/55 §12).
+ * doctor_id is always DoctorSession-derived, never client-supplied.
+ * foundationCreateAiAssistantInteraction_() itself enforces fail-closed
+ * enablement, the per-doctor rate limit, roster/capability-bounded context
+ * assembly, and the independent drift check before writing exactly one
+ * AIAssistantInteraction row (ADR-021/022/023).
+ */
+function foundationHandlePostAiAssistantQuery_(input) {
+  return withFoundationDoctorAuth_(input && input.session_token, function (doctorId) {
+    return foundationCreateAiAssistantInteraction_({
+      doctor_id: doctorId,
+      capability_key: input && input.capability_key,
+      patient_id: input && input.patient_id
+    });
+  });
+}
+
+/**
+ * Batch WPI-10: records the caller's one-way decision (accepted/edited_and_accepted/
+ * rejected/ignored) on one of their own AI Assistant interaction rows. doctor_id is
+ * always DoctorSession-derived, never client-supplied. Never writes to any entity's
+ * Sheet other than AIAssistantInteractions (ADR-022's central guarantee).
+ */
+function foundationHandlePostAiAssistantDecision_(input) {
+  return withFoundationDoctorAuth_(input && input.session_token, function (doctorId) {
+    return foundationRecordAiAssistantDecision_({
+      doctor_id: doctorId,
+      interaction_id: input && input.interaction_id,
+      doctor_decision: input && input.doctor_decision,
+      decision_notes: input && input.decision_notes,
+      target_entity_type: input && input.target_entity_type,
+      target_entity_id: input && input.target_entity_id
+    });
+  });
+}
+
+/**
  * Serializes a response-envelope-shaped value to the wire. Apps Script
  * Web Apps cannot set a real HTTP status code (every response transports
  * as HTTP 200 regardless — the same platform fact Code.gs's own
@@ -868,6 +946,15 @@ function handleFoundationRequest_(input) {
       break;
     case 'get_doctor_analytics':
       envelope = foundationHandleGetDoctorAnalytics_(input);
+      break;
+    case 'get_ai_assistant_capabilities':
+      envelope = foundationHandleGetAiAssistantCapabilities_(input);
+      break;
+    case 'post_ai_assistant_query':
+      envelope = foundationHandlePostAiAssistantQuery_(input);
+      break;
+    case 'post_ai_assistant_decision':
+      envelope = foundationHandlePostAiAssistantDecision_(input);
       break;
     default:
       envelope = buildFoundationErrorEnvelope_('FOUNDATION_UNKNOWN_ACTION', 'Unknown request.');

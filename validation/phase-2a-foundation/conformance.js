@@ -274,6 +274,8 @@ var notificationSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schem
 var inventoryItemSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/inventory-item.schema.json'), 'utf8'));
 var inventoryTransactionSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/inventory-transaction.schema.json'), 'utf8'));
 var pillFillOrderSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/pillfill-order.schema.json'), 'utf8'));
+var aiAssistantInteractionSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/ai-assistant-interaction.schema.json'), 'utf8'));
+var aiAssistantCapabilityRegistryConstant = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'constants/ai-assistant-capability-registry.json'), 'utf8'));
 
 var results = [];
 function record(name, pass, detail) {
@@ -341,7 +343,7 @@ function record(name, pass, detail) {
 // ============================================================
 // Load the real Foundation source through the real Apps Script mock.
 // ============================================================
-var h = buildSandbox({ scriptProperties: { FOUNDATION_SESSION_SIGNING_SECRET: 'conformance-test-secret' } });
+var h = buildSandbox({ scriptProperties: { FOUNDATION_SESSION_SIGNING_SECRET: 'conformance-test-secret', OPENROUTER_API_KEY: 'conformance-test-openrouter-key' } });
 var ctx = loadProject(h.sandbox);
 
 // ============================================================
@@ -2777,17 +2779,18 @@ var ctx = loadProject(h.sandbox);
   // cross-doctor isolation, cross-identity-type rejection) are untouched,
   // still WPI-3's own scope.
   var registry = ctx.foundationGetDoctorModuleRegistry_();
-  record('Stage19: foundationGetDoctorModuleRegistry_() now has five entries (patient_roster added at Batch WPI-4, appointments added at Batch WPI-5, inventory added at Batch WPI-7, pillfill_orders added at Batch WPI-8, analytics added at Batch WPI-9 — see Stage20/Stage21/Stage23/Stage24/Stage25)',
-    registry.length === 5);
+  record('Stage19: foundationGetDoctorModuleRegistry_() now has six entries (patient_roster added at Batch WPI-4, appointments added at Batch WPI-5, inventory added at Batch WPI-7, pillfill_orders added at Batch WPI-8, analytics added at Batch WPI-9, ai_assistant added at Batch WPI-10 — see Stage20/Stage21/Stage23/Stage24/Stage25/Stage26)',
+    registry.length === 6);
   record('Stage19: the hand-ported FOUNDATION_DOCTOR_MODULE_REGISTRY_ matches shared/constants/doctor-module-registry.json exactly',
     JSON.stringify(registry) === JSON.stringify(doctorModuleRegistryConstant.capabilities));
-  record('Stage19: foundationGetRegisteredDoctorCapabilityKeys_() returns exactly five allowlisted capability_keys (patient_roster, appointments, inventory, pillfill_orders, analytics) as of Batch WPI-9',
-    ctx.foundationGetRegisteredDoctorCapabilityKeys_().length === 5 &&
+  record('Stage19: foundationGetRegisteredDoctorCapabilityKeys_() returns exactly six allowlisted capability_keys (patient_roster, appointments, inventory, pillfill_orders, analytics, ai_assistant) as of Batch WPI-10',
+    ctx.foundationGetRegisteredDoctorCapabilityKeys_().length === 6 &&
     ctx.foundationGetRegisteredDoctorCapabilityKeys_().indexOf('patient_roster') !== -1 &&
     ctx.foundationGetRegisteredDoctorCapabilityKeys_().indexOf('appointments') !== -1 &&
     ctx.foundationGetRegisteredDoctorCapabilityKeys_().indexOf('inventory') !== -1 &&
     ctx.foundationGetRegisteredDoctorCapabilityKeys_().indexOf('pillfill_orders') !== -1 &&
-    ctx.foundationGetRegisteredDoctorCapabilityKeys_().indexOf('analytics') !== -1);
+    ctx.foundationGetRegisteredDoctorCapabilityKeys_().indexOf('analytics') !== -1 &&
+    ctx.foundationGetRegisteredDoctorCapabilityKeys_().indexOf('ai_assistant') !== -1);
 
   // ---- foundationGetDoctorModuleStates_() synthesizes one fail-closed entry per registered capability ----
   // Updated at Batch WPI-7 (docs/50 §10/§19): now three registered
@@ -2803,8 +2806,8 @@ var ctx = loadProject(h.sandbox);
   // a real, registered entry — 'condition_assignment' remains a genuinely
   // unregistered docs/50 §7.1 illustrative example.
   var defaultStatesA = ctx.foundationGetDoctorModuleStates_(doctorIdA);
-  record('Stage19: foundationGetDoctorModuleStates_() succeeds with zero persisted rows, synthesizing one fail-closed (enabled: false) entry per registered capability (now five, as of Batch WPI-9)',
-    defaultStatesA.status === 'ok' && defaultStatesA.data.length === 5 && defaultStatesA.data.every(function (row) { return row.enabled === false; }));
+  record('Stage19: foundationGetDoctorModuleStates_() succeeds with zero persisted rows, synthesizing one fail-closed (enabled: false) entry per registered capability (now six, as of Batch WPI-10)',
+    defaultStatesA.status === 'ok' && defaultStatesA.data.length === 6 && defaultStatesA.data.every(function (row) { return row.enabled === false; }));
 
   // ---- Validation rejections ----
   var missingDoctorId = ctx.foundationSetDoctorModuleState_({ capability_key: 'condition_assignment', enabled: true, enabled_by: 'staff-1' });
@@ -2838,7 +2841,7 @@ var ctx = loadProject(h.sandbox);
   var getStatesHttp = ctx.handleFoundationRequest_({ foundation_action: 'get_doctor_module_states', session_token: doctorSessionA });
   var getStatesBody = JSON.parse(getStatesHttp._text);
   record('Stage19: get_doctor_module_states (real HTTP dispatch) resolves the caller\'s own, fail-closed-by-default capability-state list from a valid DoctorSession',
-    getStatesBody.status === 'ok' && getStatesBody.data.length === 5 && getStatesBody.data.every(function (row) { return row.enabled === false; }));
+    getStatesBody.status === 'ok' && getStatesBody.data.length === 6 && getStatesBody.data.every(function (row) { return row.enabled === false; }));
 
   var getStatesUnauthed = JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'get_doctor_module_states', session_token: 'not-a-real-session-token' })._text);
   record('Stage19: get_doctor_module_states rejects an invalid session_token with FOUNDATION_UNAUTHORIZED, never leaking any data',
@@ -2857,7 +2860,7 @@ var ctx = loadProject(h.sandbox);
   var doctorSessionB = ctx.foundationIssueDoctorSessionToken_(doctorIdB);
   var getStatesB = JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'get_doctor_module_states', session_token: doctorSessionB })._text);
   record('Stage19: doctor B\'s own capability-state list resolves independently of doctor A\'s session — cross-doctor isolation, even though both are fail-closed-disabled today',
-    getStatesB.status === 'ok' && getStatesB.data.length === 5 && getStatesB.data.every(function (row) { return row.enabled === false; }));
+    getStatesB.status === 'ok' && getStatesB.data.length === 6 && getStatesB.data.every(function (row) { return row.enabled === false; }));
 
   // ---- Zero-lines-touched proof (docs/50 §3): every existing registry/entity this batch does not touch is unchanged ----
   record('Stage19: Module Registry is untouched by this batch — still the same four modules Stage 12 already proved',
@@ -2906,7 +2909,7 @@ var ctx = loadProject(h.sandbox);
   // a fifth entry, `analytics` (see Stage25) — the same mechanical,
   // disclosed update.
   record('Stage20: shared/constants/doctor-module-registry.json carries patient_roster as its first entry, data_source get_doctor_patient_roster',
-    doctorModuleRegistryConstant.capabilities.length === 5 &&
+    doctorModuleRegistryConstant.capabilities.length === 6 &&
     doctorModuleRegistryConstant.capabilities[0].capability_key === 'patient_roster' &&
     doctorModuleRegistryConstant.capabilities[0].data_source === 'get_doctor_patient_roster');
 
@@ -3030,7 +3033,7 @@ var ctx = loadProject(h.sandbox);
   // WPI-9 (docs/50 §12/§19): the registry now carries a fifth entry,
   // `analytics` (see Stage25) — the same mechanical, disclosed update.
   record('Stage21: shared/constants/doctor-module-registry.json now carries appointments as its second entry, data_source get_doctor_appointments',
-    doctorModuleRegistryConstant.capabilities.length === 5 &&
+    doctorModuleRegistryConstant.capabilities.length === 6 &&
     doctorModuleRegistryConstant.capabilities[1].capability_key === 'appointments' &&
     doctorModuleRegistryConstant.capabilities[1].data_source === 'get_doctor_appointments');
 
@@ -3315,9 +3318,11 @@ var ctx = loadProject(h.sandbox);
   // again at Batch WPI-8 (docs/50 §11/§19) for the same reason: a fourth
   // entry (pillfill_orders) was added by the later Batch WPI-8 (Stage24).
   // Updated again at Batch WPI-9 (docs/50 §12/§19): a fifth entry
-  // (analytics) was added by the later Batch WPI-9 (Stage25).
-  record('Stage22: shared/constants/doctor-module-registry.json was untouched by Batch WPI-6 itself — still exactly two entries as of Stage 21, a third (inventory) added only by the later Batch WPI-7 (Stage23), a fourth (pillfill_orders) added only by the later Batch WPI-8 (Stage24), a fifth (analytics) added only by the later Batch WPI-9 (Stage25)',
-    doctorModuleRegistryConstant.capabilities.length === 5);
+  // (analytics) was added by the later Batch WPI-9 (Stage25). Updated again
+  // at Batch WPI-10 (docs/55 §13): a sixth entry (ai_assistant) was added by
+  // the later Batch WPI-10 (Stage26) — the same mechanical, disclosed update.
+  record('Stage22: shared/constants/doctor-module-registry.json was untouched by Batch WPI-6 itself — still exactly two entries as of Stage 21, a third (inventory) added only by the later Batch WPI-7 (Stage23), a fourth (pillfill_orders) added only by the later Batch WPI-8 (Stage24), a fifth (analytics) added only by the later Batch WPI-9 (Stage25), a sixth (ai_assistant) added only by the later Batch WPI-10 (Stage26)',
+    doctorModuleRegistryConstant.capabilities.length === 6);
 })();
 
 // ============================================================
@@ -3359,7 +3364,7 @@ var ctx = loadProject(h.sandbox);
   // Batch WPI-9 (docs/50 §12/§19): the registry now carries a fifth entry,
   // `analytics` (see Stage25) — the same mechanical, disclosed update.
   record('Stage23: shared/constants/doctor-module-registry.json now carries inventory as its third entry, data_source get_inventory_items',
-    doctorModuleRegistryConstant.capabilities.length === 5 &&
+    doctorModuleRegistryConstant.capabilities.length === 6 &&
     doctorModuleRegistryConstant.capabilities[2].capability_key === 'inventory' &&
     doctorModuleRegistryConstant.capabilities[2].data_source === 'get_inventory_items');
   record('Stage23: the hand-ported FOUNDATION_DOCTOR_MODULE_REGISTRY_ matches shared/constants/doctor-module-registry.json exactly, including this batch\'s addition',
@@ -3632,7 +3637,7 @@ var ctx = loadProject(h.sandbox);
   // to this stage's own stale total-count assertion, mirroring
   // Stage20/21/22/23's own updates at this same batch's hands.
   record('Stage24: shared/constants/doctor-module-registry.json now carries pillfill_orders as its fourth entry, data_source get_pillfill_orders',
-    doctorModuleRegistryConstant.capabilities.length === 5 &&
+    doctorModuleRegistryConstant.capabilities.length === 6 &&
     doctorModuleRegistryConstant.capabilities[3].capability_key === 'pillfill_orders' &&
     doctorModuleRegistryConstant.capabilities[3].data_source === 'get_pillfill_orders');
   record('Stage24: the hand-ported FOUNDATION_DOCTOR_MODULE_REGISTRY_ matches shared/constants/doctor-module-registry.json exactly, including this batch\'s addition',
@@ -3898,7 +3903,7 @@ var ctx = loadProject(h.sandbox);
 
   // ---- Doctor Module Registry carries this batch's fifth entry ----
   record('Stage25: shared/constants/doctor-module-registry.json now carries analytics as its fifth entry, data_source get_doctor_analytics',
-    doctorModuleRegistryConstant.capabilities.length === 5 &&
+    doctorModuleRegistryConstant.capabilities.length === 6 &&
     doctorModuleRegistryConstant.capabilities[4].capability_key === 'analytics' &&
     doctorModuleRegistryConstant.capabilities[4].data_source === 'get_doctor_analytics');
   record('Stage25: the hand-ported FOUNDATION_DOCTOR_MODULE_REGISTRY_ matches shared/constants/doctor-module-registry.json exactly, including this batch\'s addition',
@@ -4053,6 +4058,253 @@ var ctx = loadProject(h.sandbox);
     ctx.foundationGetInventoryItemById_(item.data.inventory_item_id).status === 'ok' &&
     ctx.foundationGetPillFillOrdersForDoctor_(doctorHomeoId).status === 'ok' &&
     ctx.foundationGetDoctorAppointments_(doctorHomeoId).status === 'ok');
+})();
+
+// ============================================================
+// Stage 26 — Phase 3/WHIMS Batch WPI-10: AI Assistant
+// docs/55-WPI-10-AI-ASSISTANT-ARCHITECTURE-FREEZE.md §4-§18, ADR-021/022/023,
+// apps-script/AIAssistantContext.gs, AIAssistantDriftCheck.gs,
+// AIAssistantInteraction.gs. This stage's highest-priority checks are: the
+// ai_assistant Doctor Module Registry entry is disabled by default and a
+// disabled doctor is rejected with FOUNDATION_UNAUTHORIZED (ADR-023); an
+// unknown capability_key, a missing patient_id a patient-scoped capability
+// requires, and a patient_id outside the caller's own roster are all rejected
+// before any model call happens (ADR-021); AssistantDriftCheck_() actually
+// flags a known-bad, prohibited-category output and a low-traceability
+// sentence, and does not flag a fully-traceable one; every written
+// AIAssistantInteraction row conforms to ai-assistant-interaction.schema.json
+// and is append-only except its own single doctor_decision transition, which
+// happens at most once per row and is rejected a second time; the per-doctor
+// daily rate limit actually rejects once its ceiling is reached; and every
+// new dispatch case rejects a real Patient Session token, mirroring every
+// earlier stage's own cross-identity-type proof.
+// ============================================================
+(function stage26_aiAssistant() {
+  // ---- Capability registry ----
+  record('Stage26: shared/constants/ai-assistant-capability-registry.json ships with exactly one entry, summarize_patient_status',
+    aiAssistantCapabilityRegistryConstant.capabilities.length === 1 &&
+    aiAssistantCapabilityRegistryConstant.capabilities[0].capability_key === 'summarize_patient_status' &&
+    aiAssistantCapabilityRegistryConstant.capabilities[0].requires_knowledge_engine === false &&
+    aiAssistantCapabilityRegistryConstant.capabilities[0].future_ai_capable === false);
+  record('Stage26: the hand-ported FOUNDATION_AI_ASSISTANT_CAPABILITY_REGISTRY_ matches shared/constants/ai-assistant-capability-registry.json exactly',
+    JSON.stringify(ctx.foundationGetAiAssistantCapabilityRegistry_()) === JSON.stringify(aiAssistantCapabilityRegistryConstant.capabilities));
+
+  // ---- Doctor Module Registry carries this batch's sixth entry, disabled by default ----
+  record('Stage26: shared/constants/doctor-module-registry.json now carries ai_assistant as its sixth entry, data_source get_ai_assistant_capabilities',
+    doctorModuleRegistryConstant.capabilities.length === 6 &&
+    doctorModuleRegistryConstant.capabilities[5].capability_key === 'ai_assistant' &&
+    doctorModuleRegistryConstant.capabilities[5].data_source === 'get_ai_assistant_capabilities');
+  record('Stage26: the hand-ported FOUNDATION_DOCTOR_MODULE_REGISTRY_ matches shared/constants/doctor-module-registry.json exactly, including this batch\'s addition',
+    JSON.stringify(ctx.foundationGetDoctorModuleRegistry_()) === JSON.stringify(doctorModuleRegistryConstant.capabilities));
+
+  // ---- Setup: two doctors, only one with ai_assistant enabled; two patients, only one on the roster ----
+  var doctorEnabled = ctx.foundationCreateDoctor_({
+    full_name: 'Stage26 Doctor Enabled', role: 'physician', email: 'stage26-doctor-enabled@example.com',
+    specialty_slug: 'homeopathy', created_by: 'conformance-harness'
+  });
+  var doctorDisabled = ctx.foundationCreateDoctor_({
+    full_name: 'Stage26 Doctor Disabled', role: 'physician', email: 'stage26-doctor-disabled@example.com',
+    specialty_slug: 'homeopathy', created_by: 'conformance-harness'
+  });
+  record('Stage26: setup — two independent doctors exist', doctorEnabled.status === 'ok' && doctorDisabled.status === 'ok');
+  var doctorEnabledId = doctorEnabled.data.doctor_id;
+  var doctorDisabledId = doctorDisabled.data.doctor_id;
+
+  var enableResult = ctx.foundationSetDoctorModuleState_({ doctor_id: doctorEnabledId, capability_key: 'ai_assistant', enabled: true, enabled_by: 'conformance-harness' });
+  record('Stage26: setup — ai_assistant is explicitly enabled for doctorEnabled only (ADR-023: never a bulk/default rollout)', enableResult.status === 'ok');
+
+  var patientOnRoster = ctx.foundationCreatePatient_({
+    full_name: 'Stage26 Patient On Roster', email: 'stage26-onroster@example.com', condition_slug: 'mcas', created_by: 'conformance-harness'
+  });
+  var patientOffRoster = ctx.foundationCreatePatient_({
+    full_name: 'Stage26 Patient Off Roster', email: 'stage26-offroster@example.com', condition_slug: 'mcas', created_by: 'conformance-harness'
+  });
+  var assignment = ctx.foundationAssignCondition_({ patient_id: patientOnRoster.data.patient_id, condition_slug: 'mcas', assigned_by: doctorEnabledId });
+  record('Stage26: setup — patient On-Roster has an active DoctorAssignedCondition putting them on doctorEnabled\'s roster; patient Off-Roster has none',
+    patientOnRoster.status === 'ok' && patientOffRoster.status === 'ok' && assignment.status === 'ok');
+
+  // ---- Fail-closed enablement (ADR-010/ADR-023) ----
+  var disabledAttempt = ctx.foundationCreateAiAssistantInteraction_({ doctor_id: doctorDisabledId, capability_key: 'summarize_patient_status', patient_id: '' });
+  record('Stage26: foundationCreateAiAssistantInteraction_() rejects a doctor with no enabled DoctorModuleState row for ai_assistant, FOUNDATION_UNAUTHORIZED — fail-closed by absence',
+    disabledAttempt.status === 'error' && disabledAttempt.error.code === 'FOUNDATION_UNAUTHORIZED');
+
+  // ---- Unknown capability_key ----
+  var unknownCapability = ctx.foundationCreateAiAssistantInteraction_({ doctor_id: doctorEnabledId, capability_key: 'not_a_real_capability', patient_id: patientOnRoster.data.patient_id });
+  record('Stage26: foundationCreateAiAssistantInteraction_() rejects an unregistered capability_key with FOUNDATION_INVALID_INPUT',
+    unknownCapability.status === 'error' && unknownCapability.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  // ---- Missing patient_id for a patient-scoped capability ----
+  var missingPatient = ctx.foundationCreateAiAssistantInteraction_({ doctor_id: doctorEnabledId, capability_key: 'summarize_patient_status', patient_id: '' });
+  record('Stage26: foundationCreateAiAssistantInteraction_() rejects a missing patient_id for a patient-scoped capability with FOUNDATION_INVALID_INPUT',
+    missingPatient.status === 'error' && missingPatient.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  // ---- Patient outside the caller's own roster (ADR-021: rejected before any read happens) ----
+  var offRosterAttempt = ctx.foundationCreateAiAssistantInteraction_({ doctor_id: doctorEnabledId, capability_key: 'summarize_patient_status', patient_id: patientOffRoster.data.patient_id });
+  record('Stage26: foundationCreateAiAssistantInteraction_() rejects a patient_id outside the caller\'s own derived roster with FOUNDATION_INVALID_INPUT',
+    offRosterAttempt.status === 'error' && offRosterAttempt.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  // ---- Happy path — a real, enabled doctor querying their own roster patient ----
+  var beforeRowCount = (function () {
+    var sheet = h.spreadsheet.getSheetByName('AIAssistantInteractions');
+    return sheet ? sheet._debug().rows.length : 0;
+  })();
+  var interaction1 = ctx.foundationCreateAiAssistantInteraction_({ doctor_id: doctorEnabledId, capability_key: 'summarize_patient_status', patient_id: patientOnRoster.data.patient_id });
+  record('Stage26: foundationCreateAiAssistantInteraction_() succeeds for an enabled doctor querying their own roster patient', interaction1.status === 'ok');
+  record('Stage26: the written AIAssistantInteraction record conforms to ai-assistant-interaction.schema.json',
+    validate(aiAssistantInteractionSchema, interaction1.data).valid === true, validate(aiAssistantInteractionSchema, interaction1.data).errors.join('; '));
+  record('Stage26: a fresh interaction is always doctor_decision "pending", with empty-string sentinels for decision_notes/target_entity_type/target_entity_id/decided_at',
+    interaction1.data.doctor_decision === 'pending' && interaction1.data.decision_notes === '' &&
+    interaction1.data.target_entity_type === '' && interaction1.data.target_entity_id === '' && interaction1.data.decided_at === '');
+  record('Stage26: context_snapshot is returned as a real, parsed object (never the raw stored JSON string), scoped to the queried capability/doctor/patient',
+    typeof interaction1.data.context_snapshot === 'object' &&
+    interaction1.data.context_snapshot.capability_key === 'summarize_patient_status' &&
+    interaction1.data.context_snapshot.doctor_id === doctorEnabledId &&
+    interaction1.data.context_snapshot.patient_id === patientOnRoster.data.patient_id);
+  record('Stage26: ai_output_flags is returned as a real, parsed array (never the raw stored JSON string), empty is a valid outcome',
+    Array.isArray(interaction1.data.ai_output_flags));
+  record('Stage26: model and prompt_template_version are recorded from this batch\'s own local, decoupled config — never Config.gs\'s CONFIG.AI',
+    interaction1.data.model === 'anthropic/claude-haiku-4.5' && interaction1.data.prompt_template_version === '1.0');
+  var afterRowCount = h.spreadsheet.getSheetByName('AIAssistantInteractions')._debug().rows.length;
+  record('Stage26: exactly one new AIAssistantInteractions row was written', afterRowCount - beforeRowCount === 1);
+  record('Stage26: the successful query wrote its own ai_assistant_query_created AuditLog row',
+    auditRowsOf(h, 'ai_assistant_query_created').length >= 1);
+
+  // ---- A genuine model-call failure writes no row and is reported as FOUNDATION_AI_ASSISTANT_UNAVAILABLE ----
+  h.setUrlFetchImpl(function () { return { getResponseCode: function () { return 500; }, getContentText: function () { return 'upstream error'; } }; });
+  var modelFailureAttempt = ctx.foundationCreateAiAssistantInteraction_({ doctor_id: doctorEnabledId, capability_key: 'summarize_patient_status', patient_id: patientOnRoster.data.patient_id });
+  record('Stage26: a genuine OpenRouter failure is reported as FOUNDATION_AI_ASSISTANT_UNAVAILABLE, never a raw exception',
+    modelFailureAttempt.status === 'error' && modelFailureAttempt.error.code === 'FOUNDATION_AI_ASSISTANT_UNAVAILABLE');
+  var afterFailureRowCount = h.spreadsheet.getSheetByName('AIAssistantInteractions')._debug().rows.length;
+  record('Stage26: no AIAssistantInteractions row is written when the model call itself fails',
+    afterFailureRowCount === afterRowCount);
+  h.setUrlFetchImpl(function () {
+    return {
+      getResponseCode: function () { return 200; },
+      getContentText: function () { return JSON.stringify({ choices: [{ message: { content: 'Default fake AI Assistant draft output based on the provided context.' } }] }); }
+    };
+  });
+
+  // ---- Rate limiting (docs/55 §10) — tested directly against the isolated counter for a fresh doctor, never polluting doctorEnabled's own budget used above ----
+  var rateLimitDoctor = ctx.foundationCreateDoctor_({ full_name: 'Stage26 Rate Limit Doctor', role: 'physician', email: 'stage26-ratelimit@example.com', created_by: 'conformance-harness' });
+  var rateLimitDoctorId = rateLimitDoctor.data.doctor_id;
+  var allAllowed = true;
+  for (var i = 0; i < 20; i++) {
+    if (!ctx.foundationCheckAndIncrementAiAssistantRateLimit_(rateLimitDoctorId)) { allAllowed = false; break; }
+  }
+  record('Stage26: the per-doctor daily rate limit allows exactly its own budget (20) of requests', allAllowed);
+  var overBudget = ctx.foundationCheckAndIncrementAiAssistantRateLimit_(rateLimitDoctorId);
+  record('Stage26: the per-doctor daily rate limit rejects the request once the budget is exhausted', overBudget === false);
+  var otherDoctorUnaffected = ctx.foundationCheckAndIncrementAiAssistantRateLimit_(doctorDisabledId);
+  record('Stage26: a different doctor\'s own rate-limit budget is completely unaffected by rateLimitDoctor\'s exhausted one', otherDoctorUnaffected === true);
+
+  var rateLimitedQuery = (function () {
+    ctx.foundationSetDoctorModuleState_({ doctor_id: rateLimitDoctorId, capability_key: 'ai_assistant', enabled: true, enabled_by: 'conformance-harness' });
+    return ctx.foundationCreateAiAssistantInteraction_({ doctor_id: rateLimitDoctorId, capability_key: 'summarize_patient_status', patient_id: '' });
+  })();
+  record('Stage26: an enabled doctor who has exhausted today\'s budget is rejected with FOUNDATION_AI_ASSISTANT_RATE_LIMITED before any context is assembled (a missing patient_id would otherwise be FOUNDATION_INVALID_INPUT)',
+    rateLimitedQuery.status === 'error' && rateLimitedQuery.error.code === 'FOUNDATION_AI_ASSISTANT_RATE_LIMITED');
+
+  // ---- AssistantDriftCheck_() — capability-agnostic, unit-tested directly against known contexts/outputs ----
+  var cleanContext = { capability_key: 'summarize_patient_status', care_plan: { goals: 'Patient reports improved sleep and reduced itching this month.' } };
+  var cleanOutput = 'Patient reports improved sleep and reduced itching this month.';
+  record('Stage26: AssistantDriftCheck_() raises zero flags against an output fully traceable to the assembled context',
+    ctx.AssistantDriftCheck_(cleanContext, cleanOutput).length === 0);
+
+  var diagnosisOutput = 'The patient is diagnosed with eczema and should start medication immediately.';
+  var diagnosisFlags = ctx.AssistantDriftCheck_(cleanContext, diagnosisOutput);
+  record('Stage26: AssistantDriftCheck_() flags a prohibited-category phrase (diagnosis/medicine/recommendation) not present in the assembled context',
+    diagnosisFlags.some(function (f) { return f.indexOf('diagnosis') !== -1; }) && diagnosisFlags.length >= 2);
+
+  var lowOverlapOutput = 'Zebras migrate across quiet valleys during autumn.';
+  var lowOverlapFlags = ctx.AssistantDriftCheck_(cleanContext, lowOverlapOutput);
+  record('Stage26: AssistantDriftCheck_() flags a sentence with low word-overlap against the assembled context as low-traceability',
+    lowOverlapFlags.some(function (f) { return f.indexOf('low traceability') !== -1; }));
+
+  // ---- Doctor decision — one-way, exactly once, own-row-only (ADR-022) ----
+  var decisionResult = ctx.foundationRecordAiAssistantDecision_({
+    doctor_id: doctorEnabledId, interaction_id: interaction1.data.interaction_id, doctor_decision: 'accepted',
+    decision_notes: 'Looks accurate.', target_entity_type: 'care_plan', target_entity_id: 'stage26-fake-care-plan-id'
+  });
+  record('Stage26: foundationRecordAiAssistantDecision_() succeeds for the caller\'s own pending interaction', decisionResult.status === 'ok');
+  record('Stage26: the decision transition sets doctor_decision/decision_notes/target_entity_type/target_entity_id/decided_at exactly as supplied',
+    decisionResult.data.doctor_decision === 'accepted' && decisionResult.data.decision_notes === 'Looks accurate.' &&
+    decisionResult.data.target_entity_type === 'care_plan' && decisionResult.data.target_entity_id === 'stage26-fake-care-plan-id' &&
+    decisionResult.data.decided_at !== '');
+  record('Stage26: every other field (context_snapshot, ai_output, model, prompt_template_version, created_at) is completely unchanged by the decision transition — append-only except this one patch',
+    JSON.stringify(decisionResult.data.context_snapshot) === JSON.stringify(interaction1.data.context_snapshot) &&
+    decisionResult.data.ai_output === interaction1.data.ai_output && decisionResult.data.model === interaction1.data.model &&
+    decisionResult.data.prompt_template_version === interaction1.data.prompt_template_version && decisionResult.data.created_at === interaction1.data.created_at);
+  record('Stage26: the decision wrote its own ai_assistant_decision_recorded AuditLog row',
+    auditRowsOf(h, 'ai_assistant_decision_recorded').length >= 1);
+
+  var secondDecisionAttempt = ctx.foundationRecordAiAssistantDecision_({ doctor_id: doctorEnabledId, interaction_id: interaction1.data.interaction_id, doctor_decision: 'rejected' });
+  record('Stage26: a second decision attempt against an already-decided interaction is rejected — one-way, exactly once, never reverted',
+    secondDecisionAttempt.status === 'error' && secondDecisionAttempt.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var interaction2 = ctx.foundationCreateAiAssistantInteraction_({ doctor_id: doctorEnabledId, capability_key: 'summarize_patient_status', patient_id: patientOnRoster.data.patient_id });
+  var wrongDoctorDecisionAttempt = ctx.foundationRecordAiAssistantDecision_({ doctor_id: doctorDisabledId, interaction_id: interaction2.data.interaction_id, doctor_decision: 'accepted' });
+  record('Stage26: a decision attempt from a doctor who does not own the interaction is rejected — the same generic "not found or not yours" outcome, never distinguishing which',
+    wrongDoctorDecisionAttempt.status === 'error' && wrongDoctorDecisionAttempt.error.code === 'FOUNDATION_INVALID_INPUT');
+  var interaction2StillPending = ctx.foundationDsGetById_(ctx.FOUNDATION_AI_ASSISTANT_INTERACTIONS_SHEET_, ctx.FOUNDATION_AI_ASSISTANT_INTERACTIONS_COLUMNS_, 'interaction_id', interaction2.data.interaction_id);
+  record('Stage26: interaction2 is completely untouched by the rejected cross-doctor attempt — still pending', interaction2StillPending.doctor_decision === 'pending');
+
+  var unknownInteractionDecision = ctx.foundationRecordAiAssistantDecision_({ doctor_id: doctorEnabledId, interaction_id: 'not-a-real-interaction-id', doctor_decision: 'accepted' });
+  record('Stage26: a decision attempt against an unknown interaction_id is rejected with the same generic FOUNDATION_INVALID_INPUT',
+    unknownInteractionDecision.status === 'error' && unknownInteractionDecision.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var invalidDecisionValue = ctx.foundationRecordAiAssistantDecision_({ doctor_id: doctorEnabledId, interaction_id: interaction2.data.interaction_id, doctor_decision: 'pending' });
+  record('Stage26: "pending" itself is never a valid decision-transition target — rejected at the input-shape level',
+    invalidDecisionValue.status === 'error' && invalidDecisionValue.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  // ---- HTTP dispatch (FoundationRouter.gs) — all three new routes, doctor-guarded only ----
+  var doctorSessionEnabled = ctx.foundationIssueDoctorSessionToken_(doctorEnabledId);
+
+  var capabilitiesHttp = JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'get_ai_assistant_capabilities', session_token: doctorSessionEnabled })._text);
+  record('Stage26: get_ai_assistant_capabilities (real HTTP dispatch) returns the fixed capability list for a valid DoctorSession',
+    capabilitiesHttp.status === 'ok' && capabilitiesHttp.data.length === 1 && capabilitiesHttp.data[0].capability_key === 'summarize_patient_status');
+  var capabilitiesUnauthed = JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'get_ai_assistant_capabilities', session_token: 'not-a-real-session-token' })._text);
+  record('Stage26: get_ai_assistant_capabilities rejects an invalid session_token with FOUNDATION_UNAUTHORIZED, never leaking any data',
+    capabilitiesUnauthed.status === 'error' && capabilitiesUnauthed.error.code === 'FOUNDATION_UNAUTHORIZED' && capabilitiesUnauthed.data === null);
+
+  var patientSessionForCrossCheck26 = ctx.foundationIssueSessionToken_(patientOnRoster.data.patient_id);
+  var capabilitiesWithPatientSession = JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'get_ai_assistant_capabilities', session_token: patientSessionForCrossCheck26 })._text);
+  record('Stage26: get_ai_assistant_capabilities rejects a real Patient Session token with FOUNDATION_UNAUTHORIZED — cross-identity-type confusion prevented end to end, mirroring Stage 17/19/20/21/23/24/25\'s own proof',
+    capabilitiesWithPatientSession.status === 'error' && capabilitiesWithPatientSession.error.code === 'FOUNDATION_UNAUTHORIZED');
+
+  var queryHttp = JSON.parse(ctx.handleFoundationRequest_({
+    foundation_action: 'post_ai_assistant_query', session_token: doctorSessionEnabled,
+    capability_key: 'summarize_patient_status', patient_id: patientOnRoster.data.patient_id
+  })._text);
+  record('Stage26: post_ai_assistant_query (real HTTP dispatch) succeeds for a valid DoctorSession and returns a pending interaction',
+    queryHttp.status === 'ok' && queryHttp.data.doctor_decision === 'pending');
+  var queryWithPatientSession = JSON.parse(ctx.handleFoundationRequest_({
+    foundation_action: 'post_ai_assistant_query', session_token: patientSessionForCrossCheck26,
+    capability_key: 'summarize_patient_status', patient_id: patientOnRoster.data.patient_id
+  })._text);
+  record('Stage26: post_ai_assistant_query rejects a real Patient Session token with FOUNDATION_UNAUTHORIZED — cross-identity-type confusion prevented end to end',
+    queryWithPatientSession.status === 'error' && queryWithPatientSession.error.code === 'FOUNDATION_UNAUTHORIZED');
+
+  var decisionHttp = JSON.parse(ctx.handleFoundationRequest_({
+    foundation_action: 'post_ai_assistant_decision', session_token: doctorSessionEnabled,
+    interaction_id: queryHttp.data.interaction_id, doctor_decision: 'ignored'
+  })._text);
+  record('Stage26: post_ai_assistant_decision (real HTTP dispatch) succeeds and records the caller\'s own decision',
+    decisionHttp.status === 'ok' && decisionHttp.data.doctor_decision === 'ignored');
+  var decisionWithPatientSession = JSON.parse(ctx.handleFoundationRequest_({
+    foundation_action: 'post_ai_assistant_decision', session_token: patientSessionForCrossCheck26,
+    interaction_id: interaction2.data.interaction_id, doctor_decision: 'accepted'
+  })._text);
+  record('Stage26: post_ai_assistant_decision rejects a real Patient Session token with FOUNDATION_UNAUTHORIZED — cross-identity-type confusion prevented end to end',
+    decisionWithPatientSession.status === 'error' && decisionWithPatientSession.error.code === 'FOUNDATION_UNAUTHORIZED');
+
+  // ---- Zero-lines-touched proof (docs/50 §3/docs/55 §21): existing entities this batch does not touch are unchanged ----
+  record('Stage26: CarePlan.gs/CheckInResponse.gs/CalculatorResult.gs/Appointment.gs/DoctorPatientRoster.gs/DoctorModuleState.gs are untouched by this batch — reused via their own existing read functions, not re-implemented or modified',
+    ctx.foundationGetCurrentCarePlanForPatient_(patientOnRoster.data.patient_id).status === 'ok' &&
+    ctx.foundationGetPatientCheckInResponses_(patientOnRoster.data.patient_id).status === 'ok' &&
+    ctx.foundationGetPatientCalculatorResults_(patientOnRoster.data.patient_id).status === 'ok' &&
+    ctx.foundationGetDoctorAppointments_(doctorEnabledId).status === 'ok' &&
+    ctx.foundationGetDoctorPatientRoster_(doctorEnabledId).status === 'ok' &&
+    ctx.foundationGetDoctorModuleStates_(doctorEnabledId).status === 'ok');
 })();
 
 function auditRowsOf(h, eventType) {
