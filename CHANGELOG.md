@@ -8,6 +8,63 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-16 — WPI-10 Architecture Freeze: AI Assistant
+
+Documentation-only architecture-freeze pass, scoped to AI Assistant (WPI-10)
+specifically, per ADR-019's own "Future Considerations" ask: *"each requires its own
+technical plan and, per ADR-001/004/005/013's existing pattern, likely its own
+feature-specific ADRs."* No `apps-script/*.gs` file, no `shared/schemas/*.schema.json`
+file, no `shared/constants/*.json` registry file, and no patient-facing or doctor-facing
+page was touched — no implementation of any kind. WPI-1 through WPI-9 remain shipped and
+frozen; docs/49/50/51/52/53/54 are not reopened, edited, or contradicted — this pass is
+additive to all of them, the same relationship docs/50 has to docs/49. **WPI-10
+implementation is still not authorized to begin** — it requires its own separate,
+explicit approval, per docs/53 §9/§13/§15, unchanged.
+
+### Added (documentation)
+- **`docs/55-WPI-10-AI-ASSISTANT-ARCHITECTURE-FREEZE.md`** (new) — full technical
+  architecture for the doctor-facing AI Assistant inside the already-frozen Doctor
+  Dashboard (never docs/22's separate, still-unscoped patient-facing "Website AI
+  Assistant"): component diagram, data flow, a retrieval strategy bounded to the
+  patient's own already-stored structured record only (a real Knowledge Engine remains
+  Conceptual), a fixed, bounded prompt-orchestration menu rather than a free-form chat
+  surface, a doctor supervision model mirroring `apps-script/Ai.gs`'s existing
+  prompt-constraint + independent code-level-check + mandatory-human-review pattern, a
+  deterministic-vs-AI responsibility split, system-by-system interaction detail against
+  Analytics/Care Plans/Check-ins/Calculator Results/Inventory/PillFill/Appointments/
+  Notifications (all read-only, none gaining a new write path), two new *Designed* (not
+  *Implemented*) entities, three named router dispatch cases, one named registry entry,
+  one named dashboard card, and validation/browser-test/conformance/static-analysis
+  requirements for a future implementation batch.
+- **`adr/ADR-021-ai-assistant-grounded-in-structured-record-only.md`** (new) — AI
+  Assistant's retrieval is bounded to the patient's own structured record only, until a
+  real Knowledge Engine exists; extends ADR-001, amends none of it.
+- **`adr/ADR-022-ai-assistant-non-persisting-draft-doctor-approval.md`** (new) — AI
+  Assistant never gains a write path into any clinical entity; every output is a
+  non-persisting draft requiring the doctor's own, separate, existing write action on
+  the target entity's own page; extends ADR-004/ADR-005, amends neither.
+- **`adr/ADR-023-ai-assistant-registry-entry-disabled-by-default.md`** (new) — the
+  future `ai_assistant` Doctor Module Registry entry is disabled by default for every
+  doctor, diverging deliberately from every prior entry's rollout convention; extends
+  ADR-020/ADR-010, amends neither.
+
+### Changed (documentation)
+- **`docs/31-ADR-INDEX.md`** bumped to Version 1.6 — ADR-021 through ADR-023 added to
+  the index and the Grouped-by-Concern section.
+- **`docs/33-DOMAIN-MODEL.md`** bumped to Version 1.20 — §7.7 updated from "Reserved —
+  AI Assistant, Holoscan" to disclose AI Assistant's architecture-frozen (not
+  implemented) status; two new entity subsections (`AIAssistantInteraction`, AI
+  Assistant Capability Registry), both *Designed*, added to the Summary Table. Holoscan
+  remains untouched — named, not designed.
+- **`docs/24-ROADMAP.md`** bumped to Version 1.19 — Phase 3's status line and the
+  WPI-10 batch slot updated to disclose the architecture freeze, explicitly still not
+  authorizing implementation.
+
+### Not authorized by this pass
+No code, schema, registry entry, router case, or dashboard card was added. WPI-10
+implementation is not authorized to begin by this document or any document it
+references — a separate, explicit approval is still required.
+
 ## 2026-07-16 — Phase 3 Batch WPI-9: Analytics
 
 Implements Batch WPI-9 (docs/50-PHASE-3-TECHNICAL-PLAN.md §12/§19), a consumer of
