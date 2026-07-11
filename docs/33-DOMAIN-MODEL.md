@@ -1,5 +1,5 @@
 # 33 - Domain Model
-## Version 1.22 — 2026-07-16
+## Version 1.23 — 2026-07-16
 
 > Defines every major business entity in the Wise Platform: what it means, what it
 > holds, how it relates to everything else, how it comes into being and ends, who is
@@ -1236,13 +1236,23 @@ labeled test-only fixture pushed directly into the test harness's own registry a
 
 ---
 
-# 7. Phase 3 — WHIMS Patient Intelligence Platform Entities — *Mostly Designed, Batches WPI-1/WPI-2/WPI-3/WPI-4/WPI-5/WPI-6/WPI-7 Implemented (docs/49/50/51/52, ADR-017–020)*
+# 7. Phase 3 — WHIMS Patient Intelligence Platform Entities — *Batches WPI-1 through WPI-9 Implemented, WPI-10 Implemented, WPI-11 Architecture-Frozen (not implemented) — Phase 3 Closed (WPI-12, docs/57)*
 
 Net-new entities named by Phase 3's architecture-freeze pass (docs/49/50, 2026-07-16).
 Doctor (§1.4), Appointment (§4.1), and Notification (§4.2) were already conceptual and
 are promoted in place above rather than restated here. Full field-level detail lives in
 docs/50 — this section records only each entity's purpose and relationships, at the
 same fidelity the rest of this document uses.
+
+**Updated 2026-07-16** for Batch WPI-12 (Closeout, documentation-only, docs/57): this
+section's own top-level header still read *"Mostly Designed, Batches WPI-1/WPI-2/WPI-3/
+WPI-4/WPI-5/WPI-6/WPI-7 Implemented"* even though WPI-8, WPI-9, and WPI-10 had each
+already promoted their own subsections to *Implemented* by this point, and WPI-11 had
+already promoted its own to *Designed* (architecture-frozen) — found during this
+batch's own repository consistency review (docs/53 §14), the same "keep history,
+correct the stale current-status framing" rule docs/48 §5/WPI-7's own consistency
+review already applied twice to this same document. No entity's shape, schema, or
+shipped behavior changed by this header correction. Phase 3 is now closed (docs/57).
 
 **Updated 2026-07-16** for Batch WPI-8 (implementation): §7.5 (PillFill Order)
 promoted from *Designed* to **Implemented** — see that subsection's own status update
