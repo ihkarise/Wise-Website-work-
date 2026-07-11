@@ -1,5 +1,5 @@
 # 31 - Architectural Decision Record Index
-## Version 1.6 — 2026-07-16
+## Version 1.7 — 2026-07-16
 
 > This is the canonical index of every Architectural Decision Record (ADR) for the
 > Wise Platform. Full records live in `/adr/`. This index is the entry point — check
@@ -56,13 +56,16 @@ deprecates any ADR.
 | ADR-021 | AI Assistant Retrieval Is Grounded Only in the Patient's Own Structured Record, Never an Unstructured Knowledge Base, Until a Real Knowledge Engine Exists | Accepted — extends ADR-001 for AI Assistant specifically, amends none of it | `/adr/ADR-021-ai-assistant-grounded-in-structured-record-only.md` |
 | ADR-022 | AI Assistant Output Is Always a Non-Persisting Draft Requiring Doctor Approval Through the Target Entity's Own Existing Write Path | Accepted — extends ADR-004/ADR-005 for AI Assistant specifically, amends neither | `/adr/ADR-022-ai-assistant-non-persisting-draft-doctor-approval.md` |
 | ADR-023 | The Doctor Module Registry's `ai_assistant` Entry Is Disabled by Default, Diverging From Every Prior Entry's Rollout Convention | Accepted — extends ADR-020/ADR-010 for the `ai_assistant` entry specifically, amends neither | `/adr/ADR-023-ai-assistant-registry-entry-disabled-by-default.md` |
+| ADR-024 | Holoscan Recognition Is Grounded Only in Uploaded Image Content, Never External Medical Inference, Diagnosis, or Treatment Recommendation | Accepted — extends ADR-001/ADR-004 for Holoscan specifically, amends neither | `/adr/ADR-024-holoscan-grounded-in-image-content-only.md` |
+| ADR-025 | Holoscan Recognition Output Is Always a Non-Persisting Draft Requiring Doctor Approval Through Medication History's Own Existing Write Path | Accepted — extends ADR-004/ADR-005/ADR-022 for Holoscan specifically, amends none | `/adr/ADR-025-holoscan-non-persisting-draft-doctor-approval.md` |
+| ADR-026 | The Doctor Module Registry's `holoscan_review` Entry Is Disabled by Default, Mirroring ADR-023's Rollout Discipline | Accepted — extends ADR-020/ADR-010, follows ADR-023's precedent for the `holoscan_review` entry specifically, amends none | `/adr/ADR-026-holoscan-review-registry-entry-disabled-by-default.md` |
 
 ---
 
 # Grouped by Concern
 
 **Identity & Access** — ADR-002, ADR-003, ADR-010, ADR-015, ADR-017 (ADR-011, ADR-014 superseded)
-**AI & Clinical Authority** — ADR-001, ADR-004, ADR-005, ADR-013, ADR-019, ADR-021, ADR-022, ADR-023
+**AI & Clinical Authority** — ADR-001, ADR-004, ADR-005, ADR-013, ADR-019, ADR-021, ADR-022, ADR-023, ADR-024, ADR-025, ADR-026
 **Data & Storage** — ADR-002, ADR-006
 **Modularity & Delivery** — ADR-008, ADR-009, ADR-012, ADR-016, ADR-018, ADR-020
 **Governance & Documentation** — ADR-007
@@ -92,6 +95,11 @@ deprecates any ADR.
   Considerations" ask for AI Assistant specifically (its own technical plan plus
   feature-specific ADRs, per the ADR-001/004/005/013 pattern) — a dedicated,
   feature-scoped architecture freeze, not an amendment to docs/49/50 or ADR-019 itself.
+- `docs/56-WPI-11-HOLOSCAN-ARCHITECTURE-FREEZE.md` (Version 1.0) is the first
+  implementation plan built against ADR-024/025/026 — fulfills ADR-019's own "Future
+  Considerations" ask for Holoscan specifically, the identical role docs/55 plays for
+  ADR-021/022/023 — a dedicated, feature-scoped architecture freeze, not an amendment
+  to docs/49/50/55 or ADR-019 itself.
 
 ---
 

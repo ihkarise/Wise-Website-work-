@@ -8,6 +8,70 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-16 — WPI-11 Architecture Freeze: Holoscan
+
+Documentation-only architecture-freeze pass, scoped to Holoscan (WPI-11) specifically,
+per ADR-019's own "Future Considerations" ask: *"each requires its own technical plan
+and, per ADR-001/004/005's existing pattern, likely its own feature-specific ADRs."*
+Closes docs/49 §9's own "no existing document defines this item's purpose at all" gap
+for the first time — the clinic supplied Holoscan's purpose directly for this freeze;
+it is not inferred or invented by this document. No `apps-script/*.gs` file, no
+`shared/schemas/*.schema.json` file, no `shared/constants/*.json` registry file, and no
+patient-facing or doctor-facing page was touched — no implementation of any kind. WPI-1
+through WPI-10 remain shipped and frozen; docs/49/50/51/52/53/54/55 are not reopened,
+edited, or contradicted — this pass is additive to all of them, the same relationship
+docs/55 has to docs/49/50. **WPI-11 implementation is not authorized to begin** — it
+requires its own separate, explicit approval, per docs/53 §9/§13/§15, unchanged.
+
+### Added (documentation)
+- **`docs/56-WPI-11-HOLOSCAN-ARCHITECTURE-FREEZE.md`** (new) — full technical
+  architecture for Holoscan, defined as the **Patient Medication Recognition Engine**:
+  a patient-initiated photo-capture pipeline (reusing Report's existing Drive
+  file-upload mechanism), a vision/OCR recognition pipeline (mirroring `Ai.gs`'s/AI
+  Assistant's own model-call pattern, extended to image input), a deliberately
+  reserved-and-unbacked medicine-catalog-matching step (no real Medicine Catalog
+  exists, the same disclosed-gap treatment ADR-021 gave the Knowledge Engine), a doctor
+  supervision model mirroring `Ai.gs`'s/AI Assistant's existing prompt-constraint +
+  independent code-level-check + mandatory-human-review pattern, a
+  deterministic-vs-AI responsibility split, four new *Designed* (not *Implemented*)
+  entities, seven named router dispatch cases, two named registry entries, three named
+  dashboard cards, and validation/browser-test/conformance/static-analysis
+  requirements for a future implementation batch. Explicitly out of scope: Inventory,
+  Inventory Transaction, PillFill Order (clinic stock management), diagnosis, treatment
+  recommendation, and drug-interaction checking.
+- **`adr/ADR-024-holoscan-grounded-in-image-content-only.md`** (new) — Holoscan
+  extracts and reports only what is visible in the uploaded image(s), never a
+  diagnosis, treatment recommendation, or drug-interaction claim; names the platform's
+  still-nonexistent Medicine Catalog as a disclosed gap; extends ADR-001/ADR-004,
+  amends neither.
+- **`adr/ADR-025-holoscan-non-persisting-draft-doctor-approval.md`** (new) — Holoscan
+  never gains a write path into `MedicationHistory`/`MedicationDecision`; every
+  recognition is a non-persisting draft requiring the doctor's own, separate, existing
+  write action; every later clinical status change (Continue/Stop/Replace/Unknown) is
+  equally non-automatic; extends ADR-004/ADR-005/ADR-022, amends none.
+- **`adr/ADR-026-holoscan-review-registry-entry-disabled-by-default.md`** (new) — the
+  future `holoscan_review` Doctor Module Registry entry is disabled by default for
+  every doctor, mirroring ADR-023's identical precedent for `ai_assistant`; extends
+  ADR-020/ADR-010, amends neither.
+
+### Changed (documentation)
+- **`docs/31-ADR-INDEX.md`** bumped to Version 1.7 — ADR-024 through ADR-026 added to
+  the index and the Grouped-by-Concern section.
+- **`docs/33-DOMAIN-MODEL.md`** bumped to Version 1.22 — §7.7 updated from "Holoscan —
+  Reserved" to disclose Holoscan's architecture-frozen (not implemented) status as the
+  Patient Medication Recognition Engine; a new §7.8 adds four new entity subsections
+  (`HoloscanRecognition`, `HoloscanRecognitionItem`, `MedicationHistory`,
+  `MedicationDecision`), all *Designed*, added to the Summary Table.
+- **`docs/24-ROADMAP.md`** bumped to Version 1.21 — Phase 3's status line and the
+  WPI-11 batch slot updated to disclose the architecture freeze, explicitly still not
+  authorizing implementation; a full WPI-11 Architecture Freeze narrative entry added
+  alongside the existing WPI-10 one.
+
+### Not authorized by this pass
+No code, schema, registry entry, router case, or dashboard card was added. WPI-11
+implementation is not authorized to begin by this document or any document it
+references — a separate, explicit approval is still required.
+
 ## 2026-07-16 — Phase 3 Batch WPI-10: AI Assistant
 
 Implements Batch WPI-10 (docs/55-WPI-10-AI-ASSISTANT-ARCHITECTURE-FREEZE.md §4–§18,
