@@ -1,5 +1,5 @@
 # 56 - WPI-11 Holoscan Architecture Freeze
-## Version 1.0 — 2026-07-16
+## Version 1.1 — 2026-07-16
 
 > Architecture freeze only. No code, no schema, no registry entry, no router case, no
 > dashboard card, no Apps Script file, no frontend file is touched by this document.
@@ -18,6 +18,20 @@
 > through WPI-10 remain exactly as shipped and frozen; nothing in this freeze depends on,
 > or changes, any of them beyond reading their already-shipped, already-authenticated
 > data and reusing their already-proven patterns.
+
+---
+
+# Version History
+
+## v1.1 (2026-07-16)
+- Added patient Medication History page design (§19.1).
+- Corrected Component Diagram (§4) to show dual-guarded `get_medication_history`.
+- Corrected router guard-count wording (docs/24).
+- Documentation consistency improvements only.
+- No architectural changes.
+
+## v1.0 (2026-07-16)
+- Initial WPI-11 Holoscan Architecture Freeze.
 
 ---
 
@@ -156,7 +170,8 @@ Patient Session (Foundation, frozen)
       |  Patient Module Registry entry: holoscan (§18), fail-closed by
       |  PatientModuleState absence (ADR-012/PXP-3 precedent)
       v
-FoundationRouter.gs -- two new patient-guarded dispatch cases (§17)
+FoundationRouter.gs -- two new patient-only dispatch cases, plus one
+      |  dual-guarded case shared with the Doctor Session block below (§17)
       |
       +--> submit_holoscan_recognition   (write; uploads image(s), creates one
       |        HoloscanRecognition row, status: uploaded)
@@ -186,7 +201,13 @@ FoundationRouter.gs -- two new patient-guarded dispatch cases (§17)
       |        HoloscanRecognition.status -> completed | failed
       |
       +--> get_holoscan_recognitions     (read-only; caller's own recognition
-               history + item drafts, session-derived patient_id only)
+      |        history + item drafts, session-derived patient_id only)
+      |
+      +--> get_medication_history        (read-only; DUAL-GUARDED, §17 --
+               also reachable via Doctor Session below -- for a Patient
+               caller, returns only the caller's own MedicationHistory rows
+               + MedicationDecision ledger, patient_id always session-derived,
+               reused by the patient's own Medication History page, §19.1)
 
 Doctor Session (WPI-1, frozen)
       |
@@ -195,7 +216,8 @@ Doctor Dashboard -- two new cards: Holoscan Review, Medication History (§19),
       |  registry-driven, Doctor Module Registry entry: holoscan_review (§18),
       |  disabled by default (ADR-026)
       v
-FoundationRouter.gs -- four new doctor-guarded dispatch cases (§17)
+FoundationRouter.gs -- four new doctor-only dispatch cases, plus the same
+      |  dual-guarded case reachable from the Patient Session block above (§17)
       |
       +--> get_holoscan_review_queue        (read-only; pending
       |        HoloscanRecognitionItem rows across the doctor's own derived
@@ -206,8 +228,10 @@ FoundationRouter.gs -- four new doctor-guarded dispatch cases (§17)
       |        HoloscanRecognitionItem row -- never writes MedicationHistory,
       |        ADR-025)
       |
-      +--> get_medication_history           (read-only; one roster patient's
-      |        MedicationHistory + its own MedicationDecision ledger)
+      +--> get_medication_history           (read-only; DUAL-GUARDED, §17 --
+      |        also reachable via Patient Session above -- for a Doctor
+      |        caller, returns one roster patient's MedicationHistory +
+      |        MedicationDecision ledger, roster-scoped)
       |
       +--> create_medication_history_entry  (write; the doctor's own,
       |        SEPARATE action -- creates one MedicationHistory row, using an
@@ -220,6 +244,12 @@ FoundationRouter.gs -- four new doctor-guarded dispatch cases (§17)
                from the latest row, mirroring InventoryItem's derived-cache-
                from-ledger discipline, WPI-7/docs/54)
 ```
+
+Seven distinct dispatch cases total (§17): two reachable only via Patient
+Session, four reachable only via Doctor Session, and one
+(`get_medication_history`) reachable via both, each session type receiving a
+different, independently-scoped slice of the same underlying data — never a
+shared, unscoped result.
 
 ---
 
@@ -541,7 +571,9 @@ deferral `CarePlan` already made at Batch PXP-7 (docs/33 §3.4's own "disclosed,
 deliberate scope decision" section): widening the frozen `consultation-history.schema.json`'s
 `entry_type` enum is new functionality, not a bug fix, and this freeze makes the same
 disclosed choice not to touch that frozen file. A patient's medication history remains
-fully visible via `get_medication_history` and its own dedicated page regardless.
+fully visible regardless, via the patient's own dedicated Medication History page
+(§19.1), reusing `get_medication_history`'s own patient-scoped guard (§17) — own record
+only, the same dual-guarded route a roster-scoped doctor also uses (§19.3).
 
 ## 12.2 AI Assistant (WPI-10)
 `MedicationHistory` is a plausible future addition to a `context_sources` allow-list
@@ -741,7 +773,7 @@ presentation decision.
 
 # 19. Dashboard Additions (named only — no `dashboard.js` change made by this document, either side)
 
-## 19.1 Patient Dashboard ("My Health Journey") — new Holoscan card
+## 19.1 Patient Dashboard ("My Health Journey") — new Holoscan card, plus a linked Medication History page
 - A photo-upload affordance (one or more images per submission), mirroring the Reports
   card's own upload-form precedent exactly (docs/44 §17's pattern reused, not
   reinvented).
@@ -749,9 +781,21 @@ presentation decision.
   `processing` / `completed` / `failed`) and, once reviewed, each item's decision —
   never showing a raw, un-reviewed candidate as if it were already part of the patient's
   medication record.
+- A link to a full Medication History page (illustrative path
+  `/my-health-journey/medications/`; not fixed by this document — mirroring Report's/
+  Check-In's own full-history-page precedent, e.g. `/my-health-journey/reports/`),
+  listing every `MedicationHistory` row belonging to the caller with its
+  deterministically-derived `current_status` and full `MedicationDecision` ledger —
+  calls `get_medication_history` (§17) under its own patient-scoped guard, own record
+  only, never a roster-wide view. **Read-only**: no Continue/Stop/Replace/Unknown
+  control appears on this page — those remain doctor-only, exercised from the Doctor
+  Dashboard's own Medication History card (§19.3), never the patient's.
 - Renders nothing when the `holoscan` registry entry or the patient's own
   `PatientModuleState` is disabled — the same fail-closed rendering discipline every
-  existing patient card already follows.
+  existing patient card already follows. The linked Medication History page is reached
+  only from this same card — no separate registry entry gates it, mirroring how
+  Report's/Check-In's own full-history pages are reached only via their own already-
+  gated card, with no additional registry entry of their own.
 
 ## 19.2 Doctor Dashboard — new Holoscan Review card
 - A roster-scoped review queue, reusing the existing Patient Roster card's own route

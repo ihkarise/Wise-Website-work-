@@ -1080,7 +1080,9 @@ building a complete audit history. Four new entities are *Designed*, not *Implem
 pattern), and `MedicationHistory`/`MedicationDecision` (the permanent record and its
 own append-only clinical-decision ledger, mirroring `InventoryItem`/
 `InventoryTransaction`'s derived-cache-from-ledger discipline, WPI-7/docs/54). Seven new
-router dispatch cases (two patient-guarded, five doctor-guarded), two new registry
+router dispatch cases (two patient-only, four doctor-only, and one — `get_medication_history`
+— dual-guarded, returning the caller's own record for a patient or a roster-scoped view
+for a doctor), two new registry
 entries (a patient-facing `holoscan` Module Registry entry and a doctor-facing
 `holoscan_review` Doctor Module Registry entry, disabled by default per new ADR-026,
 mirroring ADR-023's precedent for `ai_assistant`), and three new dashboard cards are
