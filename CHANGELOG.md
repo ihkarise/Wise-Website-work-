@@ -8,6 +8,158 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-16 — Phase 3 Batch WPI-10: AI Assistant
+
+Implements Batch WPI-10 (docs/55-WPI-10-AI-ASSISTANT-ARCHITECTURE-FREEZE.md §4–§18,
+ADR-021/022/023), separately, explicitly approved after the architecture-freeze pass
+below, per docs/53-PHASE-3-IMPLEMENTATION-RULES.md §9/§13/§15's Architecture Freeze →
+Implementation → Validation → Closeout → Release discipline. The platform's first
+AI-generated-content doctor capability, and the first WPI batch whose one new dispatch
+case (`post_ai_assistant_query`) is a genuine *write* route rather than read-only.
+**Explicitly scoped to WPI-10 only — no later batch (WPI-11 onward) is authorized by
+this change.**
+
+### Added (Apps Script)
+- **`apps-script/AIAssistantContext.gs`** (new) — the AI Assistant Capability Registry
+  (hand-ported from `shared/constants/ai-assistant-capability-registry.json`, seeded
+  with one entry, `summarize_patient_status`) and `AssistantContextBuilder`
+  (`foundationBuildAiAssistantContext_()`): roster-scoped (rejects a `patient_id`
+  outside the caller's own derived roster before any read happens),
+  capability-bounded (reads only the invoked capability's own declared
+  `context_sources`), read-only, reusing `DoctorPatientRoster.gs`'s/`CarePlan.gs`'s/
+  `CheckInResponse.gs`'s/`CalculatorResult.gs`'s/`Appointment.gs`'s existing scoped
+  readers — never a direct Sheet read (docs/55 §6).
+- **`apps-script/AIAssistantDriftCheck.gs`** (new) — `AssistantDriftCheck_()`, the
+  independent, code-level half of ADR-005's supervision pattern: a six-category
+  prohibited-phrase lexicon plus a per-sentence word-overlap traceability check,
+  structurally mirroring `Ai.gs`'s `flagDrift_()`/`DRIFT_LEXICON_`/`sentenceOverlap_()`
+  exactly, as distinctly-named, independent functions — deliberately not calling into
+  that frozen Phase 1.5 file, avoiding both a new cross-phase dependency and an Apps
+  Script namespace collision.
+- **`apps-script/AIAssistantInteraction.gs`** (new) — implements
+  `shared/schemas/ai-assistant-interaction.schema.json`. Orchestrates the full
+  `post_ai_assistant_query` pipeline: fail-closed enablement check (reusing
+  `DoctorModuleState.gs`'s existing `foundationGetDoctorModuleStates_()` — this
+  batch's own disclosed, intentional divergence from every prior WPI capability's
+  dashboard-rendering-only gating, since AI Assistant carries real per-call cost/risk,
+  docs/55 §10/§15), a per-doctor, per-UTC-day rate limit (`CacheService`, mirroring
+  `FoundationRateLimit.gs`'s own pattern, failing open on a cache error — a disclosed
+  cost-control mechanic, not this feature's actual security boundary), context assembly,
+  a model call reusing `Ai.gs`'s own `UrlFetchApp`/`OPENROUTER_API_KEY` pattern against
+  a local, decoupled config (never a read of Phase 1.5's frozen `Config.gs`), the drift
+  check, and exactly one `AIAssistantInteraction` row written, `doctor_decision` always
+  `pending`. `foundationRecordAiAssistantDecision_()` records the caller's one-way
+  decision transition (`accepted`/`edited_and_accepted`/`rejected`/`ignored`) on a row
+  they own — append-only except that single patch, never writing to any other entity
+  (ADR-022).
+- **`apps-script/AI-ASSISTANT-PROMPTS.md`** (new) — version-controlled prompt
+  specification for `summarize_patient_status` (Prompt Version 1.0), mirroring
+  `apps-script/PROMPTS.md`'s exact role: purpose, inputs/outputs, five numbered safety
+  rules, forbidden behaviours, and traceability principles.
+
+### Added (schemas, registries)
+- **`shared/schemas/ai-assistant-interaction.schema.json`** + **`.md`** (new) — the
+  audit/decision log, JSON storage policy applied to `context_snapshot` (object) and
+  `ai_output_flags` (array), mirroring `CalculatorResult.input_snapshot`'s own docs/44
+  §11.4 precedent.
+- **`shared/constants/ai-assistant-capability-registry.json`** + **`.md`** (new) — a
+  fourth kind of registry (capability menu, not a doctor-module-entry), seeded with one
+  entry; `draft_care_plan_note`/`flag_checkin_anomalies` remain named, unregistered.
+
+### Added (router, registry, dashboard)
+- **`apps-script/FoundationRouter.gs`** — three new, additive dispatch cases, all
+  doctor-guarded only (`withFoundationDoctorAuth_()`, never the patient guard):
+  `get_ai_assistant_capabilities` (read-only), `post_ai_assistant_query` (this batch's
+  one write route — the only Sheet it ever touches is `AIAssistantInteractions`),
+  `post_ai_assistant_decision` (records a decision only).
+- **`shared/constants/doctor-module-registry.json`** (1.5.0 → 1.6.0) and
+  **`apps-script/DoctorModuleRegistry.gs`** — this registry's sixth real entry,
+  `ai_assistant` (`display_order: 60`, `data_source: get_ai_assistant_capabilities`) —
+  **disabled by default for every doctor** (ADR-023), diverging deliberately from every
+  prior entry's lighter-touch rollout convention.
+- **`doctor-dashboard/dashboard.js`** — one new, registry-driven, interactive AI
+  Assistant card (the only Doctor Dashboard card that isn't a passive list): a
+  capability picker constrained to the fixed registry list (never a free-text prompt
+  box, docs/55 §7.1), a patient selector reusing the existing Patient Roster card's own
+  `get_doctor_patient_roster` route (no new patient-lookup mechanism), and a draft area
+  whose un-dismissable "AI-generated draft — not saved" banner always renders above any
+  Accept/Edit/Reject control — those three controls call `post_ai_assistant_decision`
+  only, and the UI copy explicitly tells the doctor this capability is reference-only
+  rather than implying anything was saved by Accept alone. `renderDashboard()`/
+  `dispatchLoaders()` themselves gained no new logic, only a new registry entry and a
+  new loader.
+
+### Added (validation)
+- **`validation/phase-2a-foundation/harness.js`** — `AIAssistantContext.gs`,
+  `AIAssistantDriftCheck.gs`, and `AIAssistantInteraction.gs` added to the loaded
+  `FILES` list, plus one new mock this batch actually needs: `UrlFetchApp.fetch`
+  (an injectable `urlFetchImpl`, defaulting to a canned OpenRouter-shaped success
+  response, mirroring `MailApp.sendEmail`'s own injectable-mock precedent).
+- **`validation/phase-2a-foundation/conformance.js`** — new Stage 26 (45 checks): the
+  capability registry and Doctor Module Registry hand-ports match their canonical JSON
+  exactly; fail-closed enablement rejects a disabled doctor; an unregistered
+  `capability_key`, a missing `patient_id` a patient-scoped capability requires, and a
+  `patient_id` outside the caller's own roster are all rejected before any model call;
+  a written `AIAssistantInteraction` conforms to its schema; a genuine model-call
+  failure writes no row; the rate limit rejects once its budget is exhausted;
+  `AssistantDriftCheck_()` correctly flags a known-bad, prohibited-category output and a
+  low-traceability sentence, and raises zero flags against a fully-traceable one; the
+  decision transition is proven append-only except its own single patch, one-way,
+  exactly once, and owner-scoped; and every new dispatch case rejects a real Patient
+  Session token, mirroring every earlier stage's own cross-identity-type proof.
+- **`validation/wpi-10-ai-assistant/browser-test.js`** (new, 19 checks) — fail-closed
+  rendering when disabled (the default), the picker populated from the real capability
+  list and roster, the banner present and preceding the decision controls in markup
+  order, Accept calling `post_ai_assistant_decision` only, and keyboard/accessibility
+  parity with the existing five cards.
+- **`validation/static-analysis/analyze.js`** — four new rule checks (docs/55 §18): no
+  `AIAssistant*.gs` file calls another entity's write function directly (the load-
+  bearing check behind ADR-022); the prompt spec's declared version stays locked to
+  `FOUNDATION_AI_ASSISTANT_PROMPT_VERSION_`; every new dispatch case is reachable only
+  through the doctor-guarded path; and `AIAssistantContext.gs` never bypasses an
+  existing scoped reader with a direct Sheet primitive. Also adds a third documented
+  allowlist, `REFERENCED_ONLY_AS_OBJECT_VALUES`, for functions whose only real call-site
+  is as a bare identifier value inside a dispatch-table object literal (a real usage
+  pattern the existing call-site/quoted-string detectors don't recognize) — the same
+  kind of disclosed false-positive fix this tool's header already documents twice before.
+
+### Fixed (disclosed, mechanical — not a defect, a factual-count update)
+- **Six pre-existing conformance assertions** (`validation/phase-2a-foundation/
+  conformance.js` Stage19/Stage22/Stage25) and **five matching count assertions**
+  (`validation/wpi-4-doctor-dashboard/`/`validation/wpi-5-appointment/`/
+  `validation/wpi-7-inventory/`/`validation/wpi-8-pillfill/`/`validation/wpi-9-analytics/
+  browser-test.js`) hard-coded the Doctor Module Registry's total entry count at five —
+  mechanically, disclosedly updated to six, mirroring the exact precedent Batch WPI-9
+  already set for these same assertions. `conformance.js`'s own sandbox init gained
+  `OPENROUTER_API_KEY` in its `scriptProperties` (this suite's first need for it).
+
+### What this batch deliberately does not do
+- **No Knowledge Engine.** Retrieval is bounded to the patient's own already-stored
+  structured record only (ADR-021) — this capability cannot answer general
+  clinical-knowledge questions, only "what does this patient's own record say."
+- **No free-form chat.** One fixed, bounded capability menu — no open text prompt field
+  anywhere in this batch's scope (docs/55 §7.1).
+- **No new write path into any clinical entity.** Every output is a non-persisting
+  draft; an accepted draft still requires the doctor's own, separate, existing write
+  action on the target entity's own page (ADR-022) — `summarize_patient_status` itself
+  has `target_entity_type: null`, so there is nothing to save at all for this one
+  seeded capability.
+- **No bulk/default enablement.** The `ai_assistant` registry entry is disabled by
+  default for every doctor (ADR-023) — no migration or seed script enables it for
+  anyone; enabling it is a deliberate, per-doctor, staff/administrative action.
+- **No background jobs, no triggers, no forecasts, no diagnosis, no treatment
+  recommendations, no WPI-11 (Holoscan) scope.**
+- **No modification to any frozen Foundation/Identity & Access/Patient
+  Access/PXP-1..11/WPI-1..9 file, and no modification to Phase 1.5's `Config.gs`/
+  `Ai.gs`.**
+
+### Validation
+- Static Analysis: 0 findings (63 `apps-script/*.gs` files scanned, up from 60).
+- Conformance: 734/734 checks passed (45 new in Stage 26).
+- Phase 1.5 Regression: 45/45 checks passed, untouched.
+- Browser suites: all 16 suites green, 347/347 checks passed (19 new in
+  `validation/wpi-10-ai-assistant/`).
+
 ## 2026-07-16 — WPI-10 Architecture Freeze: AI Assistant
 
 Documentation-only architecture-freeze pass, scoped to AI Assistant (WPI-10)

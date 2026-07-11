@@ -51,6 +51,20 @@
  *      (approveSelectedRowAsGenerated_, approveSelectedRowEdited_,
  *      rejectSelectedRow_) all reported as unused, even though Apps
  *      Script calls them by name at runtime.
+ * A third adjustment, made at Batch WPI-10: a function referenced only as a
+ * bare identifier *value* inside an object literal (e.g.
+ * `AIAssistantContext.gs`'s `FOUNDATION_AI_ASSISTANT_CONTEXT_SOURCE_BUILDERS_
+ * = { care_plan: foundationAiAssistantContextSourceCarePlan_, ... }`, a real
+ * dispatch-table pattern this codebase already uses elsewhere, e.g.
+ * `doctor-dashboard/dashboard.js`'s own `CAPABILITY_LOADERS`) is a real
+ * usage, not dead code — but is neither a `name(` call nor a quoted-string
+ * reference, so it fell outside both existing detectors. Rather than widen
+ * the general call-site regex (risking new false negatives elsewhere, e.g.
+ * matching a bare mention inside an unrelated comment), this is handled the
+ * same documented-allowlist way `INFRASTRUCTURE_AHEAD_OF_CONSUMER` already
+ * handles its own kind of real-but-undetected usage — see
+ * `REFERENCED_ONLY_AS_OBJECT_VALUES` below.
+ *
  * Neither adjustment can make this tool a substitute for actually running
  * the code — it narrows false positives, it does not eliminate every
  * possible one (e.g. a function referenced only via a dynamically built
@@ -131,6 +145,18 @@ var INFRASTRUCTURE_AHEAD_OF_CONSUMER = [
   'foundationGetSpecialtyForCondition_', // SpecialtyRegistry.gs — WPI-2; first real consumer expected at WPI-3/WPI-4 (patient-roster/registry specialty filtering, docs/50 §7.4)
   'foundationGetNotificationsForPatient_', // Notification.gs — WPI-6; no FoundationRouter.gs route in this batch by disclosed design (shared/schemas/notification.md's "No route in this batch", mirrors Session's own ownership model per docs/50 §9). Covered directly by Conformance Tests (Stage 22). First real consumer expected once a future dashboard "Messages" module is separately scoped.
   'foundationGetNotificationsForDoctor_' // Notification.gs — WPI-6; same disclosed reason as foundationGetNotificationsForPatient_ above
+];
+
+// Functions whose only real call-site is as a bare identifier *value* inside
+// an object-literal dispatch table (never a `name(` call, never a quoted
+// string) — see this file's own header comment, "A third adjustment." Extend
+// this list only when a new batch's own dispatch-table entry is the sole
+// reference to a function, with a comment naming the table and the batch.
+var REFERENCED_ONLY_AS_OBJECT_VALUES = [
+  'foundationAiAssistantContextSourceCarePlan_', // AIAssistantContext.gs — WPI-10; FOUNDATION_AI_ASSISTANT_CONTEXT_SOURCE_BUILDERS_'s own care_plan entry
+  'foundationAiAssistantContextSourceCheckInResponse_', // AIAssistantContext.gs — WPI-10; same table's check_in_response entry
+  'foundationAiAssistantContextSourceCalculatorResult_', // AIAssistantContext.gs — WPI-10; same table's calculator_result entry
+  'foundationAiAssistantContextSourceAppointment_' // AIAssistantContext.gs — WPI-10; same table's appointment entry
 ];
 
 function listGsFiles() {
@@ -267,7 +293,8 @@ function analyze() {
     duplicateConstants: [],
     unusedExportedHelpers: [],
     circularDependencies: [],
-    namespaceCollisions: []
+    namespaceCollisions: [],
+    aiAssistantStaticRules: []
   };
 
   // Duplicate global names / Apps Script namespace collisions.
@@ -298,6 +325,7 @@ function analyze() {
     if (RESERVED_ENTRY_POINTS.indexOf(name) !== -1) return;
     if (MANUAL_DROPDOWN_WRAPPERS.indexOf(name) !== -1) return;
     if (INFRASTRUCTURE_AHEAD_OF_CONSUMER.indexOf(name) !== -1) return;
+    if (REFERENCED_ONLY_AS_OBJECT_VALUES.indexOf(name) !== -1) return;
 
     var callPattern = new RegExp('\\b' + escapeRegExp(name) + '\\s*\\(', 'g');
     var callMatches = (allNeutralized.match(callPattern) || []).length; // includes the declaration line itself
@@ -349,6 +377,93 @@ function analyze() {
   }
   files.forEach(dfs);
 
+  // ============================================================
+  // AI Assistant static rules (Batch WPI-10, docs/55-WPI-10-AI-ASSISTANT-
+  // ARCHITECTURE-FREEZE.md §18) — a new risk class no existing check above
+  // covers: AI-generated content reaching a doctor-facing surface. Four
+  // rules, each named explicitly by docs/55 §18.
+  // ============================================================
+  var aiAssistantFiles = files.filter(function (f) { return /^AIAssistant.*\.gs$/.test(f); });
+
+  // ---- Rule 1 (docs/55 §18 item 1) — the load-bearing one behind ADR-022: ----
+  // no file matching AIAssistant*.gs may call another entity's write
+  // function (save*/create*/update*/record*/fulfill*, including this
+  // repo's actual foundationSave*/foundationCreate*/foundationUpdate*/
+  // foundationRecord*/foundationFulfill* convention) — only its own.
+  var writeCallPattern = /\b([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
+  var writeVerbPattern = /^(?:foundation)?(?:save|create|update|record|fulfill)/i;
+  aiAssistantFiles.forEach(function (file) {
+    var match;
+    writeCallPattern.lastIndex = 0;
+    while ((match = writeCallPattern.exec(neutralizedSources[file])) !== null) {
+      var calledName = match[1];
+      if (!writeVerbPattern.test(calledName)) continue;
+      var ownedByAiAssistant = declByName[calledName] && declByName[calledName].some(function (d) {
+        return aiAssistantFiles.indexOf(d.file) !== -1;
+      });
+      if (!ownedByAiAssistant) {
+        findings.aiAssistantStaticRules.push({
+          rule: 'no-foreign-write-call',
+          detail: file + ' calls "' + calledName + '(", a write-shaped function not declared in any AIAssistant*.gs file — ADR-022 requires AI Assistant to never write to any entity beyond its own AIAssistantInteraction row.'
+        });
+      }
+    }
+  });
+
+  // ---- Rule 2 (docs/55 §18 item 2) — prompt spec and code stay version-locked ----
+  var promptsMdPath = path.join(APPS_SCRIPT_DIR, 'AI-ASSISTANT-PROMPTS.md');
+  if (fs.existsSync(promptsMdPath)) {
+    var promptsMd = fs.readFileSync(promptsMdPath, 'utf8');
+    var docVersionMatch = promptsMd.match(/Prompt Version\s*\n\n`([^`]+)`/);
+    var codeVersionMatch = (rawSources['AIAssistantInteraction.gs'] || '').match(/FOUNDATION_AI_ASSISTANT_PROMPT_VERSION_\s*=\s*'([^']+)'/);
+    var docVersion = docVersionMatch && docVersionMatch[1];
+    var codeVersion = codeVersionMatch && codeVersionMatch[1];
+    if (!docVersion || !codeVersion || docVersion !== codeVersion) {
+      findings.aiAssistantStaticRules.push({
+        rule: 'prompt-version-mismatch',
+        detail: 'apps-script/AI-ASSISTANT-PROMPTS.md declares Prompt Version "' + docVersion + '" but apps-script/AIAssistantInteraction.gs\'s FOUNDATION_AI_ASSISTANT_PROMPT_VERSION_ is "' + codeVersion + '" — any prompt wording change must bump both together.'
+      });
+    }
+  }
+
+  // ---- Rule 3 (docs/55 §18 item 3) — every new dispatch case is doctor-guarded only ----
+  var routerSource = rawSources['FoundationRouter.gs'] || '';
+  ['foundationHandleGetAiAssistantCapabilities_', 'foundationHandlePostAiAssistantQuery_', 'foundationHandlePostAiAssistantDecision_'].forEach(function (handlerName) {
+    var declLineIdx = routerSource.split('\n').findIndex(function (line) {
+      return line.indexOf('function ' + handlerName + '(') === 0;
+    });
+    if (declLineIdx === -1) {
+      findings.aiAssistantStaticRules.push({ rule: 'doctor-guard-missing', detail: handlerName + ' is not declared in FoundationRouter.gs.' });
+      return;
+    }
+    var lines = routerSource.split('\n');
+    var bodyLines = [];
+    for (var li = declLineIdx + 1; li < lines.length && lines[li] !== '}'; li++) {
+      bodyLines.push(lines[li]);
+    }
+    var body = bodyLines.join('\n');
+    var usesDoctorGuard = /withFoundationDoctorAuth_\s*\(/.test(body);
+    var usesPatientGuard = /withFoundationAuth_\s*\(/.test(body);
+    if (!usesDoctorGuard || usesPatientGuard) {
+      findings.aiAssistantStaticRules.push({
+        rule: 'doctor-guard-missing',
+        detail: handlerName + ' must call withFoundationDoctorAuth_() and never withFoundationAuth_() (the patient guard) — found doctor guard: ' + usesDoctorGuard + ', patient guard present: ' + usesPatientGuard + '.'
+      });
+    }
+  });
+
+  // ---- Rule 4 (docs/55 §18 item 4) — AssistantContextBuilder never bypasses existing scoped readers ----
+  var contextSource = rawSources['AIAssistantContext.gs'] || '';
+  var forbiddenDirectPrimitives = ['SpreadsheetApp', 'foundationDsQuery_', 'foundationDsGetById_', 'foundationDsInsert_', 'foundationDsUpdateById_'];
+  forbiddenDirectPrimitives.forEach(function (primitive) {
+    if (neutralizeCommentsAndStrings(contextSource).indexOf(primitive) !== -1) {
+      findings.aiAssistantStaticRules.push({
+        rule: 'context-builder-bypasses-scoped-reader',
+        detail: 'AIAssistantContext.gs references "' + primitive + '" directly — AssistantContextBuilder may only call already-scoped reader functions (foundationGetDoctorPatientRoster_() and its siblings), never a direct Sheet primitive.'
+      });
+    }
+  });
+
   return findings;
 }
 
@@ -382,13 +497,17 @@ function report(findings) {
   section('Circular dependencies', findings.circularDependencies,
     function (cycle) { return cycle.join(' -> '); });
 
+  section('AI Assistant static rules (Batch WPI-10, docs/55 §18)', findings.aiAssistantStaticRules,
+    function (f) { return '[' + f.rule + '] ' + f.detail; });
+
   // De-duplicated problem count: duplicateFunctionNames/duplicateConstants
   // are subsets of duplicateGlobalNames, and namespaceCollisions is the
   // identical finding set under a second label — none of those three are
   // counted again here, only the three genuinely distinct root causes.
   var problems = findings.duplicateGlobalNames.length
     + findings.unusedExportedHelpers.length
-    + findings.circularDependencies.length;
+    + findings.circularDependencies.length
+    + findings.aiAssistantStaticRules.length;
 
   console.log('\n' + (problems === 0 ? 'PASS' : 'FAIL') + ' — ' + problems + ' distinct finding(s) across all checks.');
   return problems === 0;

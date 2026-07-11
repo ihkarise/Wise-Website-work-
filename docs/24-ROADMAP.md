@@ -1,5 +1,5 @@
 # 24 - Wise Product Roadmap
-## Version 1.19 — 2026-07-16
+## Version 1.20 — 2026-07-16
 
 # Phase 1 — Public Website
 Status: In Progress
@@ -603,16 +603,14 @@ underway: Batch WPI-1 (Doctor Identity & Session) shipped 2026-07-16, Batch WPI-
 backend) shipped 2026-07-16, Batch WPI-4 (Doctor Dashboard, frontend consumer)
 shipped 2026-07-16, Batch WPI-5 (Appointment) shipped 2026-07-16, Batch WPI-6
 (Notification, unification) shipped 2026-07-16, Batch WPI-7 (Inventory) shipped
-2026-07-16, Batch WPI-8 (PillFill Integration) shipped 2026-07-16, and Batch WPI-9
-(Analytics) shipped 2026-07-16, each explicitly approved and scoped to its own batch
-only. **WPI-10 (AI Assistant)'s own dedicated architecture is now frozen** (docs/55-
-WPI-10-AI-ASSISTANT-ARCHITECTURE-FREEZE.md, ADR-021/022/023, 2026-07-16) — an
-architecture-only pass, fulfilling ADR-019's own "Future Considerations" ask for AI
-Assistant specifically; **no code, schema, registry entry, router case, or dashboard
-card exists, and WPI-10 implementation is still not authorized to begin** — it requires
-its own separate, explicit approval, per docs/53 §9/§13/§15, unchanged by this freeze.
-No later batch (WPI-10 implementation itself, or WPI-11 onward) is authorized to
-begin.**
+2026-07-16, Batch WPI-8 (PillFill Integration) shipped 2026-07-16, Batch WPI-9
+(Analytics) shipped 2026-07-16, and Batch WPI-10 (AI Assistant) shipped 2026-07-16,
+each explicitly approved and scoped to its own batch only. **WPI-10's own dedicated
+architecture was frozen first** (docs/55-WPI-10-AI-ASSISTANT-ARCHITECTURE-FREEZE.md,
+ADR-021/022/023, 2026-07-16), then separately, explicitly approved for implementation,
+per docs/53 §9/§13/§15 — the same Architecture Freeze → Implementation → Validation →
+Closeout → Release sequence every prior WPI batch already followed. **No batch beyond
+WPI-10 (WPI-11 onward) is authorized to begin.**
 
 Renamed from "WiseOS" per this architecture-freeze pass (docs/49 §2) — no scope
 change from the rename itself. **Reordered ahead of Phase 2C (Health Milestones) and
@@ -646,12 +644,13 @@ infrastructure before features: WPI-1 (Doctor Identity & Session) → WPI-2 (Spe
 Registry) → WPI-3 (Doctor Module Registry, backend) → WPI-4 (Doctor Dashboard,
 frontend consumer) → WPI-5 (Appointment) → WPI-6 (Notification) → WPI-7 (Inventory) →
 WPI-8 (PillFill Integration) → WPI-9 (Analytics) → WPI-10 (AI Assistant — **architecture
-frozen** (docs/55-WPI-10-AI-ASSISTANT-ARCHITECTURE-FREEZE.md, ADR-021/022/023), **not
-implemented; implementation still not authorized**) → WPI-11 (Holoscan —
+frozen** (docs/55-WPI-10-AI-ASSISTANT-ARCHITECTURE-FREEZE.md, ADR-021/022/023),
+**implemented** — disabled by default per ADR-023, doctor-facing only, seeded with one
+capability, `summarize_patient_status`) → WPI-11 (Holoscan —
 **reserved, unscoped placeholder; no existing document defines this item's purpose at
 all**) → WPI-12 (Closeout).
 
-**No WPI batch beyond WPI-9 is authorized to begin by any of the above documents.**
+**No WPI batch beyond WPI-10 is authorized to begin by any of the above documents.**
 Each requires its own separate, explicit approval, per docs/53's per-batch gate — the
 same discipline every Phase 2B batch already passed through. Two documentation-only
 closures identified by docs/51's readiness review were resolved within this same
@@ -1010,6 +1009,51 @@ unscoped, patient-facing "Website AI Assistant" is untouched by this freeze. Zer
 modification to docs/49/50/51/52/53/54 or any code, schema, registry, or frontend file.
 **No implementation of any kind is authorized by this pass — WPI-10 implementation
 requires its own separate, explicit approval**, per docs/53 §9/§13/§15.
+
+**Batch WPI-10 (AI Assistant, implementation, docs/55-WPI-10-AI-ASSISTANT-ARCHITECTURE-
+FREEZE.md, ADR-021/022/023)** — separately, explicitly approved after the architecture
+freeze above, per docs/53 §9/§13/§15 — has now shipped, matching docs/55 §4–§18 exactly.
+`AIAssistantInteraction` (`shared/schemas/ai-assistant-interaction.schema.json`,
+`apps-script/AIAssistantInteraction.gs`) and the AI Assistant Capability Registry
+(`shared/constants/ai-assistant-capability-registry.json`,
+`apps-script/AIAssistantContext.gs`) are both real and Implemented — the registry ships
+with exactly one capability, `summarize_patient_status` (a disclosed, implementation-time
+choice among docs/55 §11.2's three named illustrative capabilities; `draft_care_plan_note`
+and `flag_checkin_anomalies` remain unregistered for a future batch). `AssistantContextBuilder`
+(`AIAssistantContext.gs`'s `foundationBuildAiAssistantContext_()`) assembles a roster- and
+capability-bounded context strictly from `CarePlan.gs`'s, `CheckInResponse.gs`'s,
+`CalculatorResult.gs`'s, and `Appointment.gs`'s existing scoped readers — never a direct
+Sheet read, statically enforced (docs/55 §18 item 4). `AssistantDriftCheck_()`
+(`AIAssistantDriftCheck.gs`) mirrors `Ai.gs`'s `flagDrift_()` structurally, as a
+distinctly-named, independent copy rather than a dependency on that frozen Phase 1.5 file.
+Three new, additive `FoundationRouter.gs` dispatch cases
+(`get_ai_assistant_capabilities`, `post_ai_assistant_query`, `post_ai_assistant_decision`)
+are doctor-guarded only, statically verified (docs/55 §18 item 3); `post_ai_assistant_query`
+is this batch's one genuinely new *write* route among every WPI-1..9 doctor-facing route,
+but the only Sheet it writes is `AIAssistantInteractions` — a grep-based static rule
+(docs/55 §18 item 1) confirms no `AIAssistant*.gs` file calls another entity's write
+function. One new, additive Doctor Module Registry entry (`ai_assistant`, `display_order:
+60`) is **disabled by default for every doctor** (ADR-023) — enabling it is a per-doctor,
+staff/administrative decision, never a bulk rollout; `apps-script/DoctorModuleState.gs`'s
+existing fail-closed mechanism is reused unmodified. A per-doctor, per-UTC-day rate limit
+(`CacheService`, mirroring `FoundationRateLimit.gs`'s own pattern — a disclosed
+implementation-time choice, docs/55 §10) bounds real per-call model cost, failing open on a
+cache error like that same precedent. The Doctor Dashboard (`doctor-dashboard/dashboard.js`)
+gains one new, registry-driven card: a capability picker constrained to the fixed list
+(never a free-text prompt box, docs/55 §7.1), a patient selector reusing the existing
+Patient Roster card's own `get_doctor_patient_roster` route (no new patient-lookup
+mechanism), and a draft area whose un-dismissable "AI-generated draft — not saved" banner
+always renders above any Accept/Edit/Reject control — Accept/Edit/Reject call
+`post_ai_assistant_decision` only, and the UI explicitly tells the doctor this capability
+is reference-only (its own `target_entity_type` is `null`) rather than implying anything
+was saved. Conformance Stage 26 (`validation/phase-2a-foundation/conformance.js`) and a new
+`validation/wpi-10-ai-assistant/browser-test.js` suite both pass cleanly, alongside a clean
+re-run of every earlier stage/suite (734 conformance checks, 0 failed; 347 browser checks
+across 16 suites, 0 failed; static analysis, 0 findings, including the four new AI
+Assistant-specific rules docs/55 §18 names). Zero modification to any frozen
+Foundation/Identity & Access/Patient Access/PXP-1..11/WPI-1..9 file, and zero modification
+to Phase 1.5's `Config.gs`/`Ai.gs` — every config/prompt/threshold this batch needs is its
+own local, decoupled definition. **No batch beyond WPI-10 is authorized by this approval.**
 
 # Guiding Principle
 Every roadmap item should support the North Star:

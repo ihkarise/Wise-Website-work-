@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wisehomeopathy.com/shared/constants/ai-assistant-capability-registry.json",
+  "title": "AI Assistant Capability Registry",
+  "version": "1.0.0",
+  "description": "The canonical, static list of AI Assistant Capability descriptors — Batch WPI-10 (docs/55-WPI-10-AI-ASSISTANT-ARCHITECTURE-FREEZE.md §11.2, ADR-021/022/023), governed by docs/53-PHASE-3-IMPLEMENTATION-RULES.md. Structurally parallel to shared/constants/calculator-registry.json's own 'availability, not enablement' framing — this file declares which AI Assistant capabilities exist at all and what each one is allowed to read (context_sources) and produce (output_shape); per-doctor enablement of the ai_assistant capability as a whole remains a separate concern (shared/constants/doctor-module-registry.json's own ai_assistant entry, DoctorModuleState, disabled by default per ADR-023). A fixed, bounded menu of capabilities, never a free-form chat surface (docs/55 §7.1) — the doctor selects one capability_key per invocation, never supplies an open text prompt. Seeded, in this batch, with exactly one of docs/55 §11.2's three named-but-unregistered illustrative capabilities: summarize_patient_status — the simplest, lowest-risk starting point (target_entity_type: null, a pure read/display capability with no downstream authoring surface to point at), a disclosed, implementation-time scope decision (docs/55 §11.2/§17: 'whether a future WPI-10 batch ships zero or one seeded entry is an implementation-time decision this freeze does not mandate'). draft_care_plan_note and flag_checkin_anomalies remain named, not registered — each becomes real by a later, separately-approved batch adding its own entry here (docs/53 §4's 'a new registry entry, never new architecture'), the same 'prove the mechanism, let a later batch supply the next instance' posture calculator-registry.json's own header comment already established. apps-script/AIAssistantContext.gs hand-ports this list into its own Foundation-prefixed array, the same convention module-registry.json's and doctor-module-registry.json's own consumers already use. See ai-assistant-capability-registry.md for the full field-by-field explanation.",
+  "capabilities": [
+    {
+      "capability_key": "summarize_patient_status",
+      "display_name": "Summarize Patient Status",
+      "description": "Drafts a short, plain-language summary of one roster patient's current care plan, recent check-ins, calculator results, and appointment history — reference only, never saved anywhere by this capability itself.",
+      "context_sources": ["care_plan", "check_in_response", "calculator_result", "appointment"],
+      "output_shape": "draft_text",
+      "target_entity_type": null,
+      "requires_knowledge_engine": false,
+      "future_ai_capable": false
+    }
+  ]
+}

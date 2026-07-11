@@ -31,13 +31,22 @@
  * §11) adds this version's fourth entry, 'pillfill_orders', backed by
  * PillFillOrder.gs's new get_pillfill_orders route. Batch WPI-9 (docs/50
  * §12) adds this version's fifth entry, 'analytics', backed by
- * Analytics.gs's new get_doctor_analytics route. Every other illustrative
- * capability docs/50 §7.1 names (condition assignment, care-plan authoring,
- * module/calculator/template enablement) remains unregistered — each is
- * added as its own registry entry by whichever later, separately-approved
- * WPI batch actually designs and builds it (docs/53 §4's "a new registry
- * entry, never new architecture") — the same disclosed precedent
- * CalculatorRegistry.gs already established for its own batch.
+ * Analytics.gs's new get_doctor_analytics route. Batch WPI-10
+ * (docs/55-WPI-10-AI-ASSISTANT-ARCHITECTURE-FREEZE.md §13, ADR-021/022/023)
+ * adds this version's sixth entry, 'ai_assistant', backed by
+ * AIAssistantContext.gs's/AIAssistantInteraction.gs's new
+ * get_ai_assistant_capabilities/post_ai_assistant_query/
+ * post_ai_assistant_decision routes — diverging from every prior entry in
+ * exactly one way (ADR-023): this entry's own DoctorModuleState must remain
+ * absent, fail-closed, for every doctor by default; enabling it is a
+ * deliberate, disclosed, per-doctor administrative decision, never a
+ * bulk/default rollout. Every other illustrative capability docs/50 §7.1
+ * names (condition assignment, care-plan authoring, module/calculator/
+ * template enablement) remains unregistered — each is added as its own
+ * registry entry by whichever later, separately-approved WPI batch actually
+ * designs and builds it (docs/53 §4's "a new registry entry, never new
+ * architecture") — the same disclosed precedent CalculatorRegistry.gs
+ * already established for its own batch.
  *
  * No dependency on any other file — leaf-level config, the same role
  * ModuleRegistry.gs/CalculatorRegistry.gs/SpecialtyRegistry.gs already
@@ -78,6 +87,13 @@ var FOUNDATION_DOCTOR_MODULE_REGISTRY_ = [
     display_name: 'Analytics',
     display_order: 50,
     data_source: 'get_doctor_analytics',
+    future_ai_capable: false
+  },
+  {
+    capability_key: 'ai_assistant',
+    display_name: 'AI Assistant',
+    display_order: 60,
+    data_source: 'get_ai_assistant_capabilities',
     future_ai_capable: false
   }
 ];

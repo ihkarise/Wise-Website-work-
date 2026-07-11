@@ -166,6 +166,21 @@
  * already-mocked read functions (the same "additive view, zero new
  * infrastructure" pattern `DoctorPatientRoster.gs` already proved out at
  * Batch WPI-4).
+ *
+ * Extended in Phase 3/WHIMS batch WPI-10 with `AIAssistantContext.gs`,
+ * `AIAssistantDriftCheck.gs`, and `AIAssistantInteraction.gs` in the FILES
+ * list, plus one new mock this batch actually needs: `UrlFetchApp.fetch` —
+ * the platform's first use of this primitive in the Foundation-family
+ * harness (Phase 1.5's own `Ai.gs`, which also calls it, is deliberately not
+ * loaded into this harness at all — see `AIAssistantDriftCheck.gs`'s own
+ * header comment for why this batch avoids any dependency on that frozen
+ * Phase 1.5 file). A single, injectable `urlFetchImpl` backs it, defaulting
+ * to a canned, OpenRouter-shaped success response — a faithful mock of a
+ * real, well-specified wire format, mirroring `MailApp.sendEmail`'s own
+ * injectable-implementation mock exactly, so `conformance.js`'s Stage 26 can
+ * exercise the real `callOpenRouterForAiAssistant_()` code path
+ * deterministically (default success) and also simulate a genuine model-call
+ * failure (via `setUrlFetchImpl()`) without any live network call.
  */
 
 var fs = require('fs');
@@ -219,6 +234,9 @@ var FILES = [
   'InventoryTransaction.gs',
   'PillFillOrder.gs',
   'Analytics.gs',
+  'AIAssistantContext.gs',
+  'AIAssistantDriftCheck.gs',
+  'AIAssistantInteraction.gs',
   'FoundationRouter.gs'
 ];
 
@@ -268,12 +286,31 @@ function buildSandbox(opts) {
   var spreadsheet = makeFakeSpreadsheet();
   var mailLog = [];
   var mailImpl = opts.mailImpl || function () { return true; };
-  // A minimal, faithful in-memory CacheService.getScriptCache() mock —
-  // ignores the TTL argument (no test in this suite needs real
-  // expiration; FoundationRateLimit.gs's own header already documents
-  // that a Cache eviction/expiry is a "fails open" scenario, not a
-  // correctness-critical one to simulate here).
+  // Default: a canned, OpenRouter-shaped success response — see this file's
+  // own header comment for why this is this harness's first UrlFetchApp mock
+  // (Batch WPI-10). Tests needing a specific draft string or a genuine
+  // failure call setUrlFetchImpl() to override.
+  var urlFetchImpl = opts.urlFetchImpl || function () {
+    return {
+      getResponseCode: function () { return 200; },
+      getContentText: function () {
+        return JSON.stringify({ choices: [{ message: { content: 'Default fake AI Assistant draft output based on the provided context.' } }] });
+      }
+    };
+  };
+  // A minimal, faithful in-memory CacheService.getScriptCache() mock.
+  // Does not simulate real time-based expiry (no test in this suite needs
+  // that; FoundationRateLimit.gs's own header already documents that a
+  // Cache eviction/expiry is a "fails open" scenario, not a
+  // correctness-critical one to simulate here) — but `put()` DOES
+  // validate `expirationInSeconds` against Apps Script's real platform
+  // ceiling (1-21600 seconds/6h, throwing `Invalid argument` outside that
+  // range, matching Google's own documented `Cache.put()` contract) and
+  // records every call in `cacheTtlLog`, so a caller passing an
+  // out-of-range TTL is caught here exactly as it would be caught by the
+  // real platform — not silently ignored.
   var cacheStore = {};
+  var cacheTtlLog = [];
   // A single, process-wide exclusive lock — a faithful mock of
   // LockService.getScriptLock()'s real contract (tryLock() returns false
   // while another caller holds the lock; releaseLock() frees it). See this
@@ -426,12 +463,21 @@ function buildSandbox(opts) {
       getScriptCache: function () {
         return {
           get: function (key) { return Object.prototype.hasOwnProperty.call(cacheStore, key) ? cacheStore[key] : null; },
-          put: function (key, value) { cacheStore[key] = String(value); }
+          put: function (key, value, expirationInSeconds) {
+            if (expirationInSeconds !== undefined && (typeof expirationInSeconds !== 'number' || !isFinite(expirationInSeconds) || expirationInSeconds < 1 || expirationInSeconds > 21600)) {
+              throw new Error('Invalid argument: expirationInSeconds must be between 1 and 21600 (Apps Script Cache.put() platform limit).');
+            }
+            cacheTtlLog.push({ key: key, expirationInSeconds: expirationInSeconds });
+            cacheStore[key] = String(value);
+          }
         };
       }
     },
     MailApp: {
       sendEmail: function (msg) { mailLog.push(msg); return mailImpl(msg); }
+    },
+    UrlFetchApp: {
+      fetch: function (url, options) { return urlFetchImpl(url, options); }
     },
     LockService: {
       getScriptLock: function () {
@@ -457,8 +503,9 @@ function buildSandbox(opts) {
   sandbox.global = sandbox;
   return {
     sandbox: sandbox, spreadsheet: spreadsheet, scriptProperties: scriptProperties,
-    executionLog: executionLog, mailLog: mailLog, cacheStore: cacheStore,
+    executionLog: executionLog, mailLog: mailLog, cacheStore: cacheStore, cacheTtlLog: cacheTtlLog,
     setMailImpl: function (fn) { mailImpl = fn; },
+    setUrlFetchImpl: function (fn) { urlFetchImpl = fn; },
     // Exposed so conformance.js can directly assert Drive-file
     // sharing/trash state (docs/42 §6/§15's named required checks) and
     // seed a "pre-existing Drive file" fixture for the staff-wrapper path
