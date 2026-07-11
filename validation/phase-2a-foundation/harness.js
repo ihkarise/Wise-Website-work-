@@ -298,12 +298,19 @@ function buildSandbox(opts) {
       }
     };
   };
-  // A minimal, faithful in-memory CacheService.getScriptCache() mock —
-  // ignores the TTL argument (no test in this suite needs real
-  // expiration; FoundationRateLimit.gs's own header already documents
-  // that a Cache eviction/expiry is a "fails open" scenario, not a
-  // correctness-critical one to simulate here).
+  // A minimal, faithful in-memory CacheService.getScriptCache() mock.
+  // Does not simulate real time-based expiry (no test in this suite needs
+  // that; FoundationRateLimit.gs's own header already documents that a
+  // Cache eviction/expiry is a "fails open" scenario, not a
+  // correctness-critical one to simulate here) — but `put()` DOES
+  // validate `expirationInSeconds` against Apps Script's real platform
+  // ceiling (1-21600 seconds/6h, throwing `Invalid argument` outside that
+  // range, matching Google's own documented `Cache.put()` contract) and
+  // records every call in `cacheTtlLog`, so a caller passing an
+  // out-of-range TTL is caught here exactly as it would be caught by the
+  // real platform — not silently ignored.
   var cacheStore = {};
+  var cacheTtlLog = [];
   // A single, process-wide exclusive lock — a faithful mock of
   // LockService.getScriptLock()'s real contract (tryLock() returns false
   // while another caller holds the lock; releaseLock() frees it). See this
@@ -456,7 +463,13 @@ function buildSandbox(opts) {
       getScriptCache: function () {
         return {
           get: function (key) { return Object.prototype.hasOwnProperty.call(cacheStore, key) ? cacheStore[key] : null; },
-          put: function (key, value) { cacheStore[key] = String(value); }
+          put: function (key, value, expirationInSeconds) {
+            if (expirationInSeconds !== undefined && (typeof expirationInSeconds !== 'number' || !isFinite(expirationInSeconds) || expirationInSeconds < 1 || expirationInSeconds > 21600)) {
+              throw new Error('Invalid argument: expirationInSeconds must be between 1 and 21600 (Apps Script Cache.put() platform limit).');
+            }
+            cacheTtlLog.push({ key: key, expirationInSeconds: expirationInSeconds });
+            cacheStore[key] = String(value);
+          }
         };
       }
     },
@@ -490,7 +503,7 @@ function buildSandbox(opts) {
   sandbox.global = sandbox;
   return {
     sandbox: sandbox, spreadsheet: spreadsheet, scriptProperties: scriptProperties,
-    executionLog: executionLog, mailLog: mailLog, cacheStore: cacheStore,
+    executionLog: executionLog, mailLog: mailLog, cacheStore: cacheStore, cacheTtlLog: cacheTtlLog,
     setMailImpl: function (fn) { mailImpl = fn; },
     setUrlFetchImpl: function (fn) { urlFetchImpl = fn; },
     // Exposed so conformance.js can directly assert Drive-file

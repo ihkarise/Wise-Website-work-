@@ -114,8 +114,24 @@ var FOUNDATION_AI_ASSISTANT_SYSTEM_PROMPTS_ = {
 
 // A deliberately small budget, mirroring FoundationRateLimit.gs's own "not a tuned
 // production value" disclaimer — revisit once real usage exists.
+// FOUNDATION_AI_ASSISTANT_RATE_LIMIT_WINDOW_SECONDS_ documents the logical
+// window this budget represents (one UTC calendar day) — the per-UTC-day cache
+// key (foundationAiAssistantRateLimitCacheKey_()) is what actually enforces
+// that window; it is never passed to CacheService.put() directly (see
+// FOUNDATION_CACHE_SERVICE_MAX_TTL_SECONDS_ below).
 var FOUNDATION_AI_ASSISTANT_RATE_LIMIT_WINDOW_SECONDS_ = 86400;
 var FOUNDATION_AI_ASSISTANT_RATE_LIMIT_MAX_PER_DAY_ = 20;
+
+// CacheService.put()'s expirationInSeconds is hard-capped by the Apps Script
+// platform itself at 21600 (6h) — a value above this throws at runtime, it is
+// not merely a soft/advisory limit. foundationCheckAndIncrementAiAssistantRateLimit_()
+// below clamps every put() to this ceiling.
+var FOUNDATION_CACHE_SERVICE_MAX_TTL_SECONDS_ = 21600;
+
+// Mirrors InventoryTransaction.gs's own FOUNDATION_INVENTORY_LOCK_TIMEOUT_MS_
+// precedent (docs/54 §7/§19) for the same reason: the rate limit counter's
+// read-modify-write (get then put) is not atomic under CacheService alone.
+var FOUNDATION_AI_ASSISTANT_RATE_LIMIT_LOCK_TIMEOUT_MS_ = 5000;
 
 // ---- Pure helpers — no Apps Script dependency, covered by Conformance Tests ----
 
@@ -218,12 +234,48 @@ function foundationAiAssistantRateLimitCacheKey_(doctorId) {
 }
 
 /**
+ * Returns how many whole seconds remain until the next UTC calendar day
+ * begins, for clamping a CacheService TTL so a per-UTC-day counter's entry
+ * never outlives the UTC day it belongs to.
+ */
+function foundationSecondsUntilUtcMidnight_() {
+  var now = new Date();
+  var nextUtcMidnight = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0);
+  return Math.ceil((nextUtcMidnight - now.getTime()) / 1000);
+}
+
+/**
  * Returns true and increments the counter if doctorId is still within today's (UTC)
- * request budget; returns false once the budget is spent. Fails open on a
- * CacheService error — see this file's own header comment for why that is the
- * disclosed, correct behavior here, mirroring FoundationRateLimit.gs's own precedent.
+ * request budget; returns false once the budget is spent.
+ *
+ * Every successful put() is clamped to whichever is smaller: the Apps Script
+ * platform's own hard 6h CacheService TTL ceiling (FOUNDATION_CACHE_SERVICE_MAX_TTL_SECONDS_),
+ * or the seconds actually remaining until UTC midnight — a value above the platform
+ * ceiling throws, so this is required for the counter to work at all, not an
+ * optimization. Because the cache key itself is already scoped to doctorId + the
+ * current UTC calendar day, the entry never needs to survive past midnight — a fresh
+ * key naturally takes over then, which is the mechanism behind the daily reset, not
+ * an explicit clear operation. As long as this doctor's calls are spaced under 6h
+ * apart (the shape of usage this ceiling exists to catch), the entry is continually
+ * refreshed and never expires mid-day; a doctor who is idle for a stretch longer than
+ * 6h and then resumes may see a fresh count for the remainder of that UTC day — an
+ * accepted consequence of this being a supplementary cost-control mechanic, not AI
+ * Assistant's actual security boundary (see this file's own header comment), and not
+ * something a code-level fix to this platform ceiling can avoid.
+ *
+ * The get-then-put sequence is wrapped in LockService (mirroring InventoryTransaction.gs's
+ * own precedent, docs/54 §7/§19) so two concurrent requests from the same doctor cannot
+ * both read the same `current` and both write `current + 1`, undercounting the budget.
+ * Fails open — on a CacheService error, or on failing to acquire the lock within
+ * FOUNDATION_AI_ASSISTANT_RATE_LIMIT_LOCK_TIMEOUT_MS_ — mirroring FoundationRateLimit.gs's
+ * own documented fail-open precedent for this same class of supplementary mechanic.
  */
 function foundationCheckAndIncrementAiAssistantRateLimit_(doctorId) {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(FOUNDATION_AI_ASSISTANT_RATE_LIMIT_LOCK_TIMEOUT_MS_)) {
+    Logger.log('AIAssistantInteraction: rate-limit lock unavailable, failing open.');
+    return true;
+  }
   try {
     var cache = CacheService.getScriptCache();
     var key = foundationAiAssistantRateLimitCacheKey_(doctorId);
@@ -232,11 +284,14 @@ function foundationCheckAndIncrementAiAssistantRateLimit_(doctorId) {
     if (current >= FOUNDATION_AI_ASSISTANT_RATE_LIMIT_MAX_PER_DAY_) {
       return false;
     }
-    cache.put(key, String(current + 1), FOUNDATION_AI_ASSISTANT_RATE_LIMIT_WINDOW_SECONDS_);
+    var ttlSeconds = Math.min(FOUNDATION_CACHE_SERVICE_MAX_TTL_SECONDS_, foundationSecondsUntilUtcMidnight_());
+    cache.put(key, String(current + 1), ttlSeconds);
     return true;
   } catch (err) {
     Logger.log('AIAssistantInteraction: CacheService error, failing open: ' + (err && err.message ? err.message : err));
     return true;
+  } finally {
+    lock.releaseLock();
   }
 }
 

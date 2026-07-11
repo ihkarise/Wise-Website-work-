@@ -4204,6 +4204,53 @@ var ctx = loadProject(h.sandbox);
   record('Stage26: an enabled doctor who has exhausted today\'s budget is rejected with FOUNDATION_AI_ASSISTANT_RATE_LIMITED before any context is assembled (a missing patient_id would otherwise be FOUNDATION_INVALID_INPUT)',
     rateLimitedQuery.status === 'error' && rateLimitedQuery.error.code === 'FOUNDATION_AI_ASSISTANT_RATE_LIMITED');
 
+  // ---- Rate limiting: CacheService TTL bound + UTC-midnight key rollover ----
+  // h's CacheService mock (harness.js) now enforces the same 1-21600s (6h) ceiling
+  // Apps Script's real Cache.put() enforces, throwing exactly as the real platform
+  // would. Before this fix, FOUNDATION_AI_ASSISTANT_RATE_LIMIT_WINDOW_SECONDS_ (86400)
+  // was passed straight to put(), which would throw on the real platform on every
+  // call; the outer try/catch turned that into a silent fail-open, so the daily
+  // ceiling never actually enforced in production even though this file's own
+  // Stage26 tests above still read PASS against the old, TTL-blind mock.
+  var ttlDoctor = ctx.foundationCreateDoctor_({ full_name: 'Stage26 TTL Doctor', role: 'physician', email: 'stage26-ttl@example.com', created_by: 'conformance-harness' });
+  var ttlDoctorId = ttlDoctor.data.doctor_id;
+  var ttlLogStartIndex = h.cacheTtlLog.length;
+  var ttlCallsAllOk = true;
+  for (var ttlI = 0; ttlI < 5; ttlI++) {
+    if (!ctx.foundationCheckAndIncrementAiAssistantRateLimit_(ttlDoctorId)) { ttlCallsAllOk = false; }
+  }
+  var ttlEntries = h.cacheTtlLog.slice(ttlLogStartIndex);
+  record('Stage26: the rate limiter never throws against the real Apps Script CacheService TTL ceiling (previously every real call did, and silently failed open)',
+    ttlCallsAllOk);
+  record('Stage26: every CacheService.put() TTL the rate limiter uses is within Apps Script\'s real 1-21600s (6h) bound',
+    ttlEntries.length === 5 && ttlEntries.every(function (e) { return e.expirationInSeconds >= 1 && e.expirationInSeconds <= 21600; }));
+
+  // Proves the daily reset is real: foundationAiAssistantRateLimitCacheKey_()'s own
+  // embedded UTC-date string rolls to a fresh value across UTC midnight, which is the
+  // actual mechanism behind "resets once per UTC day" -- never an explicit clear
+  // operation. h.sandbox.Date is swapped for these two calls only (the vm context
+  // resolves `Date` dynamically against this same sandbox object, per vm.createContext's
+  // own contract), then restored immediately after, affecting no other test in this file.
+  var RealDate = h.sandbox.Date;
+  function stage26FixedDateClass_(iso) {
+    var FixedDate = function (arg) { return arg === undefined ? new RealDate(iso) : new RealDate(arg); };
+    FixedDate.UTC = RealDate.UTC;
+    FixedDate.now = function () { return new RealDate(iso).getTime(); };
+    return FixedDate;
+  }
+  var midnightDoctor = ctx.foundationCreateDoctor_({ full_name: 'Stage26 Midnight Doctor', role: 'physician', email: 'stage26-midnight@example.com', created_by: 'conformance-harness' });
+  var midnightDoctorId = midnightDoctor.data.doctor_id;
+  h.sandbox.Date = stage26FixedDateClass_('2026-07-10T23:59:30.000Z');
+  var beforeMidnightKey = ctx.foundationAiAssistantRateLimitCacheKey_(midnightDoctorId);
+  var secondsLeftAt235930 = ctx.foundationSecondsUntilUtcMidnight_();
+  h.sandbox.Date = stage26FixedDateClass_('2026-07-11T00:00:30.000Z');
+  var afterMidnightKey = ctx.foundationAiAssistantRateLimitCacheKey_(midnightDoctorId);
+  h.sandbox.Date = RealDate;
+  record('Stage26: foundationSecondsUntilUtcMidnight_() correctly reports ~30s remaining at 23:59:30 UTC (so the TTL clamp never over- or under-shoots near a real day boundary)',
+    secondsLeftAt235930 > 0 && secondsLeftAt235930 <= 30);
+  record('Stage26: the per-doctor rate-limit cache key rolls over to a fresh value across UTC midnight for the same doctor -- the actual mechanism behind the daily reset',
+    beforeMidnightKey !== afterMidnightKey);
+
   // ---- AssistantDriftCheck_() — capability-agnostic, unit-tested directly against known contexts/outputs ----
   var cleanContext = { capability_key: 'summarize_patient_status', care_plan: { goals: 'Patient reports improved sleep and reduced itching this month.' } };
   var cleanOutput = 'Patient reports improved sleep and reduced itching this month.';

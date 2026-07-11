@@ -387,13 +387,17 @@ function analyze() {
 
   // ---- Rule 1 (docs/55 §18 item 1) — the load-bearing one behind ADR-022: ----
   // no file matching AIAssistant*.gs may call another entity's write
-  // function (save*/create*/update*/record*/fulfill*) — only its own.
-  var writePrefixPattern = /\b((?:save|create|update|record|fulfill)[A-Za-z0-9_]*)\s*\(/g;
+  // function (save*/create*/update*/record*/fulfill*, including this
+  // repo's actual foundationSave*/foundationCreate*/foundationUpdate*/
+  // foundationRecord*/foundationFulfill* convention) — only its own.
+  var writeCallPattern = /\b([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
+  var writeVerbPattern = /^(?:foundation)?(?:save|create|update|record|fulfill)/i;
   aiAssistantFiles.forEach(function (file) {
     var match;
-    writePrefixPattern.lastIndex = 0;
-    while ((match = writePrefixPattern.exec(neutralizedSources[file])) !== null) {
+    writeCallPattern.lastIndex = 0;
+    while ((match = writeCallPattern.exec(neutralizedSources[file])) !== null) {
       var calledName = match[1];
+      if (!writeVerbPattern.test(calledName)) continue;
       var ownedByAiAssistant = declByName[calledName] && declByName[calledName].some(function (d) {
         return aiAssistantFiles.indexOf(d.file) !== -1;
       });
