@@ -1,5 +1,5 @@
 # 24 - Wise Product Roadmap
-## Version 1.20 — 2026-07-16
+## Version 1.21 — 2026-07-16
 
 # Phase 1 — Public Website
 Status: In Progress
@@ -609,8 +609,13 @@ each explicitly approved and scoped to its own batch only. **WPI-10's own dedica
 architecture was frozen first** (docs/55-WPI-10-AI-ASSISTANT-ARCHITECTURE-FREEZE.md,
 ADR-021/022/023, 2026-07-16), then separately, explicitly approved for implementation,
 per docs/53 §9/§13/§15 — the same Architecture Freeze → Implementation → Validation →
-Closeout → Release sequence every prior WPI batch already followed. **No batch beyond
-WPI-10 (WPI-11 onward) is authorized to begin.**
+Closeout → Release sequence every prior WPI batch already followed. **WPI-11's own
+dedicated architecture has now also been frozen** (docs/56-WPI-11-HOLOSCAN-
+ARCHITECTURE-FREEZE.md, ADR-024/025/026, 2026-07-16) — Holoscan is now defined as the
+Patient Medication Recognition Engine, replacing its prior "reserved, unscoped
+placeholder" status. **No batch's implementation beyond WPI-10 (WPI-11 onward) is
+authorized to begin — WPI-11's own architecture freeze does not itself authorize its
+implementation, per docs/53 §9/§13/§15, unchanged.**
 
 Renamed from "WiseOS" per this architecture-freeze pass (docs/49 §2) — no scope
 change from the rename itself. **Reordered ahead of Phase 2C (Health Milestones) and
@@ -646,9 +651,10 @@ frontend consumer) → WPI-5 (Appointment) → WPI-6 (Notification) → WPI-7 (I
 WPI-8 (PillFill Integration) → WPI-9 (Analytics) → WPI-10 (AI Assistant — **architecture
 frozen** (docs/55-WPI-10-AI-ASSISTANT-ARCHITECTURE-FREEZE.md, ADR-021/022/023),
 **implemented** — disabled by default per ADR-023, doctor-facing only, seeded with one
-capability, `summarize_patient_status`) → WPI-11 (Holoscan —
-**reserved, unscoped placeholder; no existing document defines this item's purpose at
-all**) → WPI-12 (Closeout).
+capability, `summarize_patient_status`) → WPI-11 (Holoscan — **architecture frozen**
+(docs/56-WPI-11-HOLOSCAN-ARCHITECTURE-FREEZE.md, ADR-024/025/026), defined as the
+Patient Medication Recognition Engine, **not yet implemented** — a separate, explicit
+approval is required before implementation begins) → WPI-12 (Closeout).
 
 **No WPI batch beyond WPI-10 is authorized to begin by any of the above documents.**
 Each requires its own separate, explicit approval, per docs/53's per-batch gate — the
@@ -1054,6 +1060,40 @@ Assistant-specific rules docs/55 §18 names). Zero modification to any frozen
 Foundation/Identity & Access/Patient Access/PXP-1..11/WPI-1..9 file, and zero modification
 to Phase 1.5's `Config.gs`/`Ai.gs` — every config/prompt/threshold this batch needs is its
 own local, decoupled definition. **No batch beyond WPI-10 is authorized by this approval.**
+
+**WPI-11 Architecture Freeze (Holoscan, docs/56-WPI-11-HOLOSCAN-ARCHITECTURE-FREEZE.md,
+ADR-024/025/026)** — a documentation-and-architecture-only pass, fulfilling ADR-019's
+own "Future Considerations" ask for Holoscan specifically, and closing docs/49 §9's own
+"no existing document defines this item's purpose at all" gap for the first time, once
+the clinic supplied that purpose directly for this freeze — has now been produced.
+**Holoscan is defined as the Patient Medication Recognition Engine:** a patient
+photographs one or more medicines currently being taken; a vision/OCR pipeline extracts
+whatever text is visible on the packaging into draft medication candidates; a doctor
+reviews every candidate (approve / correct / reject) before anything enters the
+patient's permanent record; approval records a decision only and never itself writes
+the record, mirroring WPI-10's own non-persisting-draft discipline exactly (ADR-022,
+extended here as ADR-025); once a medicine is on record, a doctor separately marks it
+Continue / Stop / Replace / Unknown at any later time, each an append-only decision
+building a complete audit history. Four new entities are *Designed*, not *Implemented*:
+`HoloscanRecognition` and `HoloscanRecognitionItem` (the capture/draft pair, mirroring
+`AIAssistantInteraction`'s draft-then-decision shape and `Report`'s Drive file-upload
+pattern), and `MedicationHistory`/`MedicationDecision` (the permanent record and its
+own append-only clinical-decision ledger, mirroring `InventoryItem`/
+`InventoryTransaction`'s derived-cache-from-ledger discipline, WPI-7/docs/54). Seven new
+router dispatch cases (two patient-guarded, five doctor-guarded), two new registry
+entries (a patient-facing `holoscan` Module Registry entry and a doctor-facing
+`holoscan_review` Doctor Module Registry entry, disabled by default per new ADR-026,
+mirroring ADR-023's precedent for `ai_assistant`), and three new dashboard cards are
+named and specified, none built. Holoscan explicitly does not read, match against, or
+write `InventoryItem`/`InventoryTransaction`/`PillFillOrder` — clinic stock management
+is out of scope; it does not diagnose, recommend treatment, or check drug interactions
+(ADR-024); and it does not build a real Medicine Catalog, a disclosed gap mirroring
+WPI-10's own disclosed Knowledge Engine gap exactly. Validation strategy, browser-test
+strategy, conformance strategy, and five new static-analysis rules are specified for a
+future implementation batch to satisfy. Zero modification to docs/49/50/51/52/53/54/55
+or any code, schema, registry, or frontend file. **No implementation of any kind is
+authorized by this pass — WPI-11 implementation requires its own separate, explicit
+approval**, per docs/53 §9/§13/§15, identical to WPI-10's own precedent.
 
 # Guiding Principle
 Every roadmap item should support the North Star:

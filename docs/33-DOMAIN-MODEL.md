@@ -1,5 +1,5 @@
 # 33 - Domain Model
-## Version 1.21 — 2026-07-16
+## Version 1.22 — 2026-07-16
 
 > Defines every major business entity in the Wise Platform: what it means, what it
 > holds, how it relates to everything else, how it comes into being and ends, who is
@@ -1442,7 +1442,7 @@ constraint on this batch). Doctor/staff-facing only, never patient-facing; one n
 read-only `FoundationRouter.gs` route (`get_doctor_analytics`), Doctor Module
 Registry's fifth real entry, `analytics`. **Full detail:** docs/50 §12.
 
-## 7.7 AI Assistant — *Implemented (Batch WPI-10, docs/55, ADR-021/022/023)*; Holoscan — Reserved
+## 7.7 AI Assistant — *Implemented (Batch WPI-10, docs/55, ADR-021/022/023)*; Holoscan — *Designed (docs/56, ADR-024/025/026)*
 **Status update (2026-07-16, architecture freeze):** AI Assistant's architecture was
 frozen — its own separate, feature-specific technical plan (docs/55-WPI-10-AI-ASSISTANT-
 ARCHITECTURE-FREEZE.md) and three new ADRs (ADR-021 retrieval boundary, ADR-022
@@ -1497,11 +1497,83 @@ file" precedent).
 Every registry on the platform still carries the same inert AI-compatibility field
 docs/44 §7.1/§8.1/§11.5 already established, governed permanently by ADR-019 — this
 status update does not populate any of those other reserved fields; it designs one
-new, dedicated capability (AI Assistant) instead. **Holoscan remains named, not
-designed** — it has no defined scope in any existing document (docs/49 §9) and is
-deliberately not given one here, requiring its own future, separately-approved
-architecture-freeze pass before it becomes real — mirroring PXP-9's own precedent
-exactly (§6, this document's Phase 2B section).
+new, dedicated capability (AI Assistant) instead.
+
+**Status update (2026-07-16, Holoscan architecture freeze, docs/56, ADR-024/025/026):
+promoted from named-but-unscoped to *Designed*.** Holoscan's purpose — undefined by any
+document since docs/49 §9 first named it, per ADR-019's own "reserve, don't implement"
+discipline — has now been supplied by the clinic and is architecturally frozen (not
+implemented) as the **Patient Medication Recognition Engine**: a patient photographs
+medicines currently being taken; a vision/OCR pipeline extracts a draft medication
+candidate per recognized item; a doctor reviews every candidate (approve / correct /
+reject) before anything enters the patient's permanent record, mirroring AI Assistant's
+own non-persisting-draft discipline (ADR-022, extended by new ADR-025); once on record,
+a doctor separately marks a medicine Continue / Stop / Replace / Unknown at any later
+time, each an append-only decision. See §7.8 below for the full entity shape. Holoscan
+does not read, match against, or write `InventoryItem`/`InventoryTransaction`/
+`PillFillOrder` (§7.4/§7.5) — clinic stock management is out of scope; it does not
+diagnose, recommend treatment, or check drug interactions (ADR-024); and no real
+Medicine Catalog exists to match recognized text against — a disclosed gap mirroring
+§5.2's own Knowledge Engine gap, not an invented workaround. Zero code, schema,
+registry, or frontend file exists yet — **not implemented**; a separate, explicit
+approval is still required before WPI-11 implementation begins, per docs/53 §9/§13/§15,
+identical to WPI-10's own precedent.
+
+## 7.8 Holoscan Entities — *Designed, not yet implemented (docs/56, ADR-024/025/026)*
+
+**`HoloscanRecognition`** — one patient-initiated capture session (one or more uploaded
+medicine photographs), processed together. **Purpose:** the durable record of what was
+uploaded and the pipeline's own processing status — never itself a clinical fact.
+**Relationships:** belongs to one Patient Identity; produces zero or more
+`HoloscanRecognitionItem` rows. **Lifecycle:** `uploaded` → `processing` →
+`completed` \| `failed`, one-way. **Ownership:** patient-owned at creation (the upload
+act), system-owned thereafter — the patient never edits or deletes a submitted
+recognition, the same "logged, never edited" discipline Symptom Log (§3.2) already
+established. **Full detail:** docs/56 §11.1.
+
+**`HoloscanRecognitionItem`** — one candidate medicine extracted from a
+`HoloscanRecognition`'s images — the draft/audit row, structurally mirroring
+`AIAssistantInteraction`'s (§7.7) own draft-then-decision shape, applied to a vision-
+extraction pipeline instead of a text-generation one. **Purpose:** holds the model's
+raw extraction (name, strength, dosage form, manufacturer, batch, expiry — each
+independently nullable), a confidence score, reserved-but-unbacked catalog-match
+fields (§0.3/docs/56 §8, since no Medicine Catalog exists), and the doctor's own
+one-way review decision (`pending` → `approved` \| `corrected_and_approved` \|
+`rejected`). **Relationships:** many-per-`HoloscanRecognition`; produces, at most, one
+`MedicationHistory` row — created only by the doctor's own separate action, never
+automatically (ADR-025, the load-bearing boundary mirroring ADR-022 exactly).
+**Ownership:** system-generated (pipeline output); the decision fields are
+doctor/roster-owned only — the patient may read, never write, a decision. **Full
+detail:** docs/56 §11.2.
+
+**`MedicationHistory`** — the patient's permanent, doctor-authored medication record.
+**Purpose:** what a patient is verified, by photographic evidence and doctor review,
+to actually be taking — deliberately distinct from `DoctorInstruction`
+(type: `medicine`, §2.3), which records what *this clinic* prescribed; the two are not
+merged and may honestly diverge (docs/56 §0.2). **Relationships:** belongs to one
+Patient; sourced from at most one `HoloscanRecognitionItem` in this freeze's scope
+(a reserved, unimplemented `source_type: doctor_manual_entry` is named for a future,
+photo-free entry path); has many `MedicationDecision` rows, its own append-only
+ledger. **Lifecycle:** created once by a doctor's deliberate write action;
+`current_status` (`active` \| `stopped` \| `replaced` \| `unknown`) is the only field
+ever recomputed after creation — a pure, derived function of the latest
+`MedicationDecision` row, mirroring `InventoryItem.quantity_on_hand`'s own
+recompute-from-append-only-ledger discipline exactly (§7.4, WPI-7, docs/54).
+**Ownership:** doctor/staff-authored only, patient-viewable, read-only — the same
+"doctors decide" boundary `CarePlan`/`DoctorInstruction` already establish. **Full
+detail:** docs/56 §11.3.
+
+**`MedicationDecision`** — the append-only ledger of every doctor decision
+(Continue / Stop / Replace / Unknown) made against a `MedicationHistory` entry over its
+lifetime, mirroring `InventoryTransaction`'s (§7.4) own relationship to
+`InventoryItem.quantity_on_hand` precisely, applied to medication status instead of
+stock quantity. **Purpose:** the complete audit history the clinic's own brief for this
+feature explicitly required, kept as discrete, immutable events rather than a single
+mutable status field. **Relationships:** many-per-`MedicationHistory`; many-per-Patient.
+**Lifecycle:** N/A — each row is a discrete, permanent event; no update, no delete,
+ever, mirroring `InventoryTransaction.gs`'s own explicit append-only discipline
+(docs/54 §19). **Ownership:** doctor/staff-owned only, roster-scoped — never
+patient-writable. **Full detail:** docs/56 §11.4.
 
 ---
 
@@ -1531,6 +1603,8 @@ exactly (§6, this document's Phase 2B section).
 | Analytics | **Implemented (computed view — never a base table)** | 3/WHIMS (docs/50 §12, batch WPI-9 — shipped, reads across seven existing entities, bounded to a fixed trailing 30-day window, non-AI deterministic aggregation only, Doctor Module Registry's fifth real entry `analytics`) |
 | AI Assistant Interaction | **Implemented** | 3/WHIMS (docs/55 §11.1, ADR-021/022, batch WPI-10 — shipped, append-only audit/decision log except one one-way doctor_decision transition; AI Assistant never writes to any other clinical entity, statically enforced) |
 | AI Assistant Capability Registry | **Implemented — backend only** | 3/WHIMS (docs/55 §11.2, batch WPI-10 — shipped, structurally parallel to Calculator Registry, seeded with one entry, `summarize_patient_status`; disabled by default per ADR-023, a fixed, bounded menu, never a free-form chat surface) |
+| Holoscan Recognition / Holoscan Recognition Item | **Designed, not yet implemented** | 3/WHIMS (docs/56 §11.1/§11.2, ADR-024/025, Holoscan architecture freeze — the patient-initiated capture session and its draft/audit candidate rows; mirrors AIAssistantInteraction's draft-then-decision shape and Report's Drive file-upload pattern; never automatically writes Medication History) |
+| Medication History / Medication Decision | **Designed, not yet implemented** | 3/WHIMS (docs/56 §11.3/§11.4, ADR-024/025, Holoscan architecture freeze — the permanent, doctor-authored medication record and its own append-only clinical-decision ledger; current_status derived from the ledger, mirroring InventoryItem/InventoryTransaction's recompute-from-ledger discipline, WPI-7/docs/54; deliberately distinct from DoctorInstruction type: medicine, docs/56 §0.2) |
 | Knowledge Article | Conceptual | Unassigned |
 | Knowledge Engine | Conceptual (system) | Unassigned |
 | Calculator | **Implemented — backend only — Pillar 3** | 2B (docs/44 §8, batch PXP-6, Calculator Registry — shipped, registry seeded empty, no UI; see §6.8). Public variant still unassigned — roadmap gap carried forward (docs/46 Part 3). |
