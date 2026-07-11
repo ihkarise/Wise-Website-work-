@@ -1,5 +1,5 @@
 # 24 - Wise Product Roadmap
-## Version 1.21 — 2026-07-16
+## Version 1.22 — 2026-07-16
 
 # Phase 1 — Public Website
 Status: In Progress
@@ -597,8 +597,10 @@ Requires the full ADR-001/ADR-004/ADR-005 AI-supervision pattern before
 any implementation begins.
 
 # Phase 3 — WHIMS Patient Intelligence Platform (formerly "WiseOS")
-Status: **Architecture freeze complete (Version 1.0, 2026-07-16). Implementation
-underway: Batch WPI-1 (Doctor Identity & Session) shipped 2026-07-16, Batch WPI-2
+Status: **Closed (Batch WPI-12 Closeout, 2026-07-16, docs/57-PHASE-3-CLOSEOUT.md) —
+frozen except for genuine bug fixes.** Architecture freeze complete (Version 1.0,
+2026-07-16). Implementation
+history: Batch WPI-1 (Doctor Identity & Session) shipped 2026-07-16, Batch WPI-2
 (Specialty Registry) shipped 2026-07-16, Batch WPI-3 (Doctor Module Registry,
 backend) shipped 2026-07-16, Batch WPI-4 (Doctor Dashboard, frontend consumer)
 shipped 2026-07-16, Batch WPI-5 (Appointment) shipped 2026-07-16, Batch WPI-6
@@ -1096,6 +1098,39 @@ future implementation batch to satisfy. Zero modification to docs/49/50/51/52/53
 or any code, schema, registry, or frontend file. **No implementation of any kind is
 authorized by this pass — WPI-11 implementation requires its own separate, explicit
 approval**, per docs/53 §9/§13/§15, identical to WPI-10's own precedent.
+
+**Batch WPI-12 (Phase 3 Closeout, docs/57-PHASE-3-CLOSEOUT.md)** — Phase 3's own
+closeout batch, per docs/53 §15's "Closeout — a phase-level closeout document... once
+every batch in docs/50 §19 has shipped or been explicitly, disclosedly left as a
+reserved placeholder... WPI-12 (Closeout) is this phase's own closeout batch" — has now
+been produced. Documentation, repository-housekeeping, and validation only: every
+existing validation suite (static analysis, conformance, Phase 1.5 regression, and all
+16 browser-test suites) was re-run fresh, clean, with zero code changes. **WPI-1 through
+WPI-10 are fully implemented and frozen except for genuine bug fixes. WPI-11 (Holoscan)
+is architecture-frozen only (docs/56, ADR-024/025/026) — its implementation is
+explicitly, disclosedly deferred beyond Phase 3's own close, mirroring PXP-9's own
+"reserved placeholder" precedent exactly, per docs/53 §15's own anticipation of this
+outcome.** No code, schema, registry entry, router case, dashboard card, or Holoscan
+implementation of any kind was added by this batch. **Phase 3 (WHIMS Patient
+Intelligence Platform) is now closed and frozen except for genuine bug fixes.** See
+docs/57 for the full closeout record. **No batch beyond WPI-12, and no future phase, is
+authorized to begin by this document** — each requires its own separate, explicit
+approval, per docs/53 §9/§13/§15, the same discipline every prior batch already passed
+through.
+
+# Phase 4 — Not Yet Named or Scoped
+
+No existing document defines what "Phase 4" is. Nothing in this roadmap, docs/21, or
+any architecture-freeze pass names a Phase 4 vision, scope, or entity — this section
+exists only to record that fact explicitly, the same discipline ADR-019 already applies
+to naming-without-scoping (mirroring how docs/24 once named Holoscan without scoping
+it, before docs/56). **Phase 2C (Health Milestones) and Phase 2D (Digital Twin & AI
+Summaries) remain the platform's own next-named, still-unscoped-for-implementation
+phases** (see above); whether the platform's next real phase is one of those, a real
+WPI-11 (Holoscan) implementation batch, or a genuinely new "Phase 4," is not decided by
+this document. **Not started. Requires its own separate, explicit architecture-freeze
+pass and approval before any implementation begins**, per every prior phase transition's
+own precedent (docs/43, docs/48, docs/57).
 
 # Guiding Principle
 Every roadmap item should support the North Star:
