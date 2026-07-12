@@ -1,6 +1,6 @@
 # Module Registry
 
-Explains `module-registry.json` (version `1.1.0` as of Batch PXP-10, the authoritative
+Explains `module-registry.json` (version `1.2.0` as of Batch WPI-11, the authoritative
 definition — this file explains, it does not define, per `shared/README.md`'s format
 rule).
 
@@ -119,6 +119,19 @@ decision" section already used: the page is now orphaned from dashboard navigati
 but deleting a page that still serves a patient's own permanent historical data would
 be a strictly larger, unrequested change than docs/44 §22's own three-item PXP-10
 scope ("dashboard entry removed, endpoints deprecated, SymptomLogs retained") names.
+
+## Batch WPI-11 addition — `holoscan` (docs/56-WPI-11-HOLOSCAN-ARCHITECTURE-FREEZE.md §18.1)
+
+The patient-facing Holoscan photo-capture card registers its own module here — every
+earlier row is untouched. `data_source: "get_holoscan_recognitions"` mirrors `reports`'s
+own convention: the module's "preview" call is its recognition-history list; the
+dashboard card's own upload form additionally calls `submit_holoscan_recognition`
+directly, the same way the Reports card calls `upload_report` beyond its own
+`data_source`. `display_order: 20` places it between Daily Check-in (15) and Reports
+(30). Fail-closed by `PatientModuleState` absence — the same default every existing
+entry already has (ADR-010); no new ADR is required for this half (ADR-026 governs only
+the doctor-facing `holoscan_review` entry's own, heavier rollout discipline,
+`doctor-module-registry.md`).
 
 ## Fields at a glance
 

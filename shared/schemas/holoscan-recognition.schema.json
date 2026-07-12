@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wisehomeopathy.com/shared/schemas/holoscan-recognition.schema.json",
+  "title": "HoloscanRecognition",
+  "version": "1.0.0",
+  "description": "The canonical shape of a HoloscanRecognition record — docs/56-WPI-11-HOLOSCAN-ARCHITECTURE-FREEZE.md §11.1's capture-session entity, Batch WPI-11 (docs/50-PHASE-3-TECHNICAL-PLAN.md §19, ADR-024/025/026), governed by docs/53-PHASE-3-IMPLEMENTATION-RULES.md. One row per patient-initiated photo submission — the parent of zero or more HoloscanRecognitionItem candidate rows (holoscan-recognition-item.schema.json). Patient-owned at creation (the upload act), system-owned thereafter (pipeline-driven status transitions only) — the patient never edits or deletes a recognition once submitted (docs/56 §11.1's 'logged, never edited' discipline). `image_refs` follows docs/44 §11.4's JSON-storage policy exactly as CalculatorResult.input_snapshot already established: stored as a JSON-encoded string in the underlying Sheet cell, but this schema describes it as a real array value, since apps-script/HoloscanRecognition.gs's own row-to-API-shape conversion always parses it back before returning a record to any caller.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["recognition_id", "patient_id", "image_refs", "status", "model", "prompt_template_version", "submitted_at", "processed_at", "error_log"],
+  "properties": {
+    "recognition_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Server-generated UUID (generateFoundationId_()), this row's own identity — never patient-supplied."
+    },
+    "patient_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The Patient Identity who submitted this recognition (docs/56 §11.1). Always PatientSession-derived — never client-supplied. Immutable after creation."
+    },
+    "image_refs": {
+      "type": "array",
+      "description": "One entry per uploaded image, `{drive_file_id, mime_type, size_bytes}` — reuses Report.gs's own file-metadata shape (docs/33 §3.3, docs/56 §11.1), never a new file-reference convention. Immutable after creation. Stored as a JSON-encoded string in the underlying Sheet cell — an implementation-only detail; every function returning a record to a caller parses it back into this real array shape first.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["drive_file_id", "mime_type", "size_bytes"],
+        "properties": {
+          "drive_file_id": { "type": "string", "minLength": 1 },
+          "mime_type": { "type": "string", "minLength": 1 },
+          "size_bytes": { "type": "integer", "minimum": 1 }
+        }
+      }
+    },
+    "status": {
+      "type": "string",
+      "enum": ["uploaded", "processing", "completed", "failed"],
+      "description": "One-way transition, mirrors Appointment/DoctorInstruction's existing transition discipline (docs/56 §11.1). Always 'uploaded' at creation."
+    },
+    "model": {
+      "type": "string",
+      "description": "The vision-capable OpenRouter model identifier used for this recognition, mirroring AIAssistantInteraction.model's precedent. Empty-string sentinel until the pipeline actually calls the model."
+    },
+    "prompt_template_version": {
+      "type": "string",
+      "description": "Matches the version-controlled recognition-instruction prompt (apps-script/HOLOSCAN-PROMPTS.md), mirrors AIAssistantInteraction.prompt_template_version's convention. Empty-string sentinel until the pipeline actually calls the model."
+    },
+    "submitted_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Server-set (foundationNowIso_()) at creation. Never patient-editable."
+    },
+    "processed_at": {
+      "type": "string",
+      "description": "Server-set when status leaves 'processing' (either 'completed' or 'failed'). Empty-string sentinel while still 'uploaded'/'processing' — mirrors login-token.schema.json's used_at convention (a plain string type, never real null, ADR-006)."
+    },
+    "error_log": {
+      "type": "string",
+      "description": "Mirrors ConsultationSummary.error_log's own precedent (docs/56 §11.1); populated only on status: 'failed'. Empty-string sentinel otherwise."
+    }
+  }
+}

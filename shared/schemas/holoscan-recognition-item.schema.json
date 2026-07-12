@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wisehomeopathy.com/shared/schemas/holoscan-recognition-item.schema.json",
+  "title": "HoloscanRecognitionItem",
+  "version": "1.0.0",
+  "description": "The canonical shape of a HoloscanRecognitionItem record — docs/56-WPI-11-HOLOSCAN-ARCHITECTURE-FREEZE.md §11.2's candidate/draft/audit row, Batch WPI-11 (docs/50-PHASE-3-TECHNICAL-PLAN.md §19, ADR-024/025/026), governed by docs/53-PHASE-3-IMPLEMENTATION-RULES.md. One row per distinct medicine candidate a HoloscanRecognition's own vision-model call reported recognizing (holoscan-recognition.schema.json is the parent). Every extracted_*/confidence_score/check_flags field is immutable once written (the honest record of what the model actually produced) — only the single doctor_decision transition (plus its attendant fields) is ever written after creation, exactly once (docs/56 §11.2). Never gains a write path into MedicationHistory/MedicationDecision (ADR-025) — approving a candidate here never itself creates a MedicationHistory row. `check_flags`/`corrected_fields` follow docs/44 §11.4's JSON-storage policy exactly as AIAssistantInteraction.ai_output_flags already established: stored as JSON-encoded strings in the underlying Sheet cell, but this schema describes both as real array/object values, since apps-script/HoloscanRecognition.gs's own row-to-API-shape conversion always parses them back before returning a record to any caller.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["recognition_item_id", "recognition_id", "patient_id", "source_image_ref", "extracted_name", "extracted_strength", "extracted_dosage_form", "extracted_manufacturer", "extracted_batch", "extracted_expiry", "confidence_score", "check_flags", "catalog_match_status", "catalog_match_ref", "doctor_decision", "corrected_fields", "decision_notes", "decided_by", "decided_at", "created_at"],
+  "properties": {
+    "recognition_item_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Server-generated UUID (generateFoundationId_()), this row's own identity — never doctor- or patient-supplied."
+    },
+    "recognition_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "References the parent HoloscanRecognition (holoscan-recognition.schema.json)."
+    },
+    "patient_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Denormalized from the parent, the same convention CarePlan/DoctorInstruction already use for direct roster-scoped queries (docs/56 §11.2)."
+    },
+    "source_image_ref": {
+      "type": "string",
+      "description": "Which uploaded image (by drive_file_id) this candidate was extracted from, when attributable to one image. Empty-string sentinel when not attributable to a single image."
+    },
+    "extracted_name": {
+      "type": "string",
+      "description": "Raw OCR/vision-extracted medicine name. Empty-string sentinel when not legible or not present — never guessed (docs/56 §11.2/ADR-024)."
+    },
+    "extracted_strength": { "type": "string", "description": "Same nullability discipline as extracted_name." },
+    "extracted_dosage_form": { "type": "string", "description": "Same nullability discipline as extracted_name." },
+    "extracted_manufacturer": { "type": "string", "description": "Same nullability discipline as extracted_name." },
+    "extracted_batch": { "type": "string", "description": "Same nullability discipline as extracted_name." },
+    "extracted_expiry": { "type": "string", "description": "Same nullability discipline as extracted_name." },
+    "confidence_score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "The vision model's own reported confidence in its text extraction for this candidate (docs/56 §9) — extraction confidence only, never a clinical or catalog-match confidence. Passed through as-is, never recomputed."
+    },
+    "check_flags": {
+      "type": "array",
+      "description": "HoloscanRecognitionCheck_()'s advisory flags (docs/56 §10.2), an array of human-readable strings — empty array, not null, when clean. Stored as a JSON-encoded string in the underlying Sheet cell — an implementation-only detail."
+    },
+    "catalog_match_status": {
+      "type": "string",
+      "description": "Reserved, unbacked in this freeze (docs/56 §8/ADR-024) — no Medicine Catalog exists to match against. Always empty-string sentinel today."
+    },
+    "catalog_match_ref": {
+      "type": "string",
+      "description": "Reserved, unbacked in this freeze (docs/56 §8/ADR-024). Always empty-string sentinel today."
+    },
+    "doctor_decision": {
+      "type": "string",
+      "enum": ["pending", "approved", "corrected_and_approved", "rejected"],
+      "description": "Always 'pending' at creation; transitions one-way, exactly once, mirroring AIAssistantInteraction.doctor_decision's identical precedent. Recording a decision persists the decision only — it never itself writes to MedicationHistory (ADR-025)."
+    },
+    "corrected_fields": {
+      "type": "object",
+      "description": "The doctor's field-level corrections, populated only when doctor_decision: 'corrected_and_approved'. Empty object otherwise. Stored as a JSON-encoded string in the underlying Sheet cell — an implementation-only detail."
+    },
+    "decision_notes": { "type": "string", "description": "Optional doctor rationale, empty-string sentinel when not supplied." },
+    "decided_by": { "type": "string", "description": "doctor_id, DoctorSession-derived, set at decision time. Empty-string sentinel while still 'pending'." },
+    "decided_at": { "type": "string", "description": "Server-set (foundationNowIso_()) at the moment doctor_decision transitions away from 'pending'. Empty-string sentinel while still pending." },
+    "created_at": { "type": "string", "format": "date-time", "description": "Server-set at creation. Never editable." }
+  }
+}

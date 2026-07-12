@@ -145,6 +145,38 @@ var FOUNDATION_MODULE_REGISTRY_ = [
     supports_ai: false,
     supports_doctor_notes: true,
     supports_patient_input: false
+  },
+  {
+    // Batch WPI-11 (docs/56-WPI-11-HOLOSCAN-ARCHITECTURE-FREEZE.md §18.1,
+    // ADR-024/025/026) — the patient-facing Holoscan photo-capture card's own
+    // registration. data_source mirrors reports' own convention: the
+    // module's "preview" call is its recognition-history list
+    // (get_holoscan_recognitions); the card's own upload form additionally
+    // calls submit_holoscan_recognition directly, the same way the Reports
+    // card calls upload_report beyond its own data_source. Fail-closed by
+    // PatientModuleState absence — the same default every existing entry
+    // already has (ADR-010); no new ADR required for this half (ADR-026
+    // governs only the doctor-facing holoscan_review entry's own, heavier
+    // rollout discipline).
+    module_id: 'holoscan',
+    title: 'Medication Photo Scan',
+    description: 'Photograph a medicine you are currently taking so your doctor can review and confirm it as part of your medication history.',
+    icon: 'holoscan',
+    display_order: 20,
+    visibility: 'patient',
+    permissions: [],
+    data_source: 'get_holoscan_recognitions',
+    empty_state: 'nodata',
+    rendering_type: 'card',
+    future_ai_capable: false,
+    supports_notifications: false,
+    supports_history: true,
+    supports_export: false,
+    supports_badges: false,
+    supports_reminders: false,
+    supports_ai: true,
+    supports_doctor_notes: true,
+    supports_patient_input: true
   }
 ];
 

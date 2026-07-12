@@ -52,9 +52,12 @@
   // standalone Symptom History page (my-health-journey/symptoms/) remains
   // reachable directly, only its dashboard entry point is gone (see
   // shared/constants/module-registry.md's "Batch PXP-10 removal" section).
+  // Batch WPI-11 (docs/56-WPI-11-HOLOSCAN-ARCHITECTURE-FREEZE.md §18.1) adds the
+  // 'holoscan' row below — every earlier row is untouched.
   var MODULE_REGISTRY = [
     { module_id: 'timeline',        title: 'Timeline',        display_order: 10, empty_state: 'nodata', data_source: 'get_timeline' },
     { module_id: 'daily_checkin',   title: 'Daily Check-in',  display_order: 15, empty_state: 'nodata', data_source: 'get_checkin_responses' },
+    { module_id: 'holoscan',        title: 'Medication Photo Scan', display_order: 20, empty_state: 'nodata', data_source: 'get_holoscan_recognitions' },
     { module_id: 'reports',         title: 'Reports',         display_order: 30, empty_state: 'nodata', data_source: 'get_reports' },
     { module_id: 'care_plan',       title: 'Care Plan',       display_order: 40, empty_state: 'nodata', data_source: 'get_care_plan' }
   ];
@@ -301,6 +304,145 @@
     reportsBody.innerHTML = reportsFormHtml();
     wireReportForm(sessionToken);
     refreshReportsList(sessionToken);
+  }
+
+  // Batch WPI-11 (docs/56-WPI-11-HOLOSCAN-ARCHITECTURE-FREEZE.md §19.1) — the
+  // Holoscan card's write affordance: a multi-photo upload form, mirroring the
+  // Reports card's own upload-form precedent exactly (docs/44 §17's pattern
+  // reused, not reinvented), extended to `multiple` file selection since one
+  // recognition may cover several photographed packages.
+  var HOLOSCAN_ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png'];
+  var HOLOSCAN_MAX_UPLOAD_BYTES = 5242880;
+  var HOLOSCAN_ACCEPT_ATTR = '.jpg,.jpeg,.png,image/jpeg,image/png';
+
+  function holoscanFormHtml() {
+    return '<form id="holoscanForm">' +
+      '<div class="field"><label for="holoscanFiles">Choose one or more photos (JPG or PNG — up to 5 MB each)</label>' +
+      '<input id="holoscanFiles" type="file" accept="' + HOLOSCAN_ACCEPT_ATTR + '" multiple required></div>' +
+      '<button class="submit" type="submit" id="holoscanSubmitBtn">Scan medicine</button>' +
+      '<div class="status" id="holoscanStatus" role="status" aria-live="polite"></div>' +
+      '</form>' +
+      '<div id="holoscanList" style="margin-top:14px"></div>';
+  }
+
+  var HOLOSCAN_STATUS_LABELS = { uploaded: 'Uploaded', processing: 'Processing', completed: 'Reviewed by pipeline', failed: 'Could not be processed' };
+  var HOLOSCAN_DECISION_LABELS = { pending: 'Awaiting doctor review', approved: 'Approved by doctor', corrected_and_approved: 'Approved (with corrections) by doctor', rejected: 'Rejected by doctor' };
+
+  // A recognition-history list (docs/56 §19.1) — each past submission's own status,
+  // and, once reviewed, each item's own decision. Never shows a raw, un-reviewed
+  // candidate as if it were already part of the patient's medication record — only
+  // its review status.
+  function holoscanListHtml(entries) {
+    if (!entries.length) {
+      return emptyStateHtml('nodata', 'Your photographed medicines will appear here once you submit your first scan.');
+    }
+    var items = entries.slice(0, 3).map(function (r) {
+      var itemLines = (r.items || []).map(function (item) {
+        return escapeHtmlForDisplay(item.extracted_name || 'Unreadable candidate') + ' — ' +
+          escapeHtmlForDisplay(HOLOSCAN_DECISION_LABELS[item.doctor_decision] || item.doctor_decision);
+      }).join('<br>');
+      return '<li style="margin-bottom:8px;font-size:14px;color:var(--color-text-secondary)">' +
+        '<strong style="color:var(--color-brand-strong)">' + escapeHtmlForDisplay(String(r.submitted_at).slice(0, 10)) + '</strong> — ' +
+        escapeHtmlForDisplay(HOLOSCAN_STATUS_LABELS[r.status] || r.status) +
+        (itemLines ? '<br>' + itemLines : '') + '</li>';
+    }).join('');
+    return '<ul style="list-style:none;padding:0;margin:0 0 14px">' + items + '</ul>' +
+      '<a class="secondary" href="../my-health-journey/medications/">View medication history</a>';
+  }
+
+  function refreshHoloscanList(sessionToken) {
+    var listEl = document.getElementById('holoscanList');
+    if (!listEl) return;
+    fetch(WEB_APP_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ foundation_action: 'get_holoscan_recognitions', session_token: sessionToken })
+    })
+      .then(function (response) { return response.json(); })
+      .then(function (data) {
+        if (data.status === 'ok' && Array.isArray(data.data)) {
+          listEl.innerHTML = holoscanListHtml(data.data);
+        } else {
+          listEl.innerHTML = '<p class="empty-text">Could not load your scans. Check your connection and reload the page.</p>';
+        }
+      })
+      .catch(function () {
+        listEl.innerHTML = '<p class="empty-text">Could not load your scans. Check your connection and reload the page.</p>';
+      });
+  }
+
+  function wireHoloscanForm(sessionToken) {
+    var form = document.getElementById('holoscanForm');
+    var filesInput = document.getElementById('holoscanFiles');
+    var submitBtn = document.getElementById('holoscanSubmitBtn');
+    var statusBox = document.getElementById('holoscanStatus');
+
+    form.addEventListener('submit', function (event) {
+      event.preventDefault();
+      if (!form.checkValidity()) {
+        form.reportValidity();
+        return;
+      }
+      var files = Array.prototype.slice.call(filesInput.files || []);
+      if (!files.length) return;
+
+      // Client-side pre-checks are UX only (docs/29 §8) — the server performs the
+      // real, content-based validation regardless.
+      for (var i = 0; i < files.length; i++) {
+        if (files[i].size > HOLOSCAN_MAX_UPLOAD_BYTES) {
+          statusBox.className = 'status err';
+          statusBox.textContent = 'Each photo must be smaller than ' + (HOLOSCAN_MAX_UPLOAD_BYTES / (1024 * 1024)) + ' MB.';
+          return;
+        }
+        if (HOLOSCAN_ALLOWED_MIME_TYPES.indexOf(files[i].type) === -1) {
+          statusBox.className = 'status err';
+          statusBox.textContent = 'That file type is not supported. Please upload a JPG or PNG photo.';
+          return;
+        }
+      }
+
+      submitBtn.disabled = true;
+      statusBox.className = 'status loading';
+      statusBox.textContent = 'Scanning…';
+
+      Promise.all(files.map(function (file) {
+        return readFileAsBase64(file).then(function (base64) {
+          return { file_name: file.name, mime_type: file.type, file_base64: base64 };
+        });
+      }))
+        .then(function (images) {
+          return fetch(WEB_APP_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({ foundation_action: 'submit_holoscan_recognition', session_token: sessionToken, images: images })
+          });
+        })
+        .then(function (response) { return response.json(); })
+        .then(function (data) {
+          submitBtn.disabled = false;
+          if (data.status === 'ok') {
+            statusBox.className = 'status ok';
+            statusBox.textContent = 'Submitted. Your doctor will review it.';
+            form.reset();
+            refreshHoloscanList(sessionToken);
+          } else {
+            statusBox.className = 'status err';
+            statusBox.textContent = (data.error && data.error.message) || 'Something went wrong. Please try again.';
+          }
+        })
+        .catch(function () {
+          submitBtn.disabled = false;
+          statusBox.className = 'status err';
+          statusBox.textContent = 'Could not reach the server. Check your connection and try again.';
+        });
+    });
+  }
+
+  function loadHoloscanPreview(sessionToken, moduleId) {
+    var body = document.getElementById('card-' + moduleId + '-body');
+    body.innerHTML = holoscanFormHtml();
+    wireHoloscanForm(sessionToken);
+    refreshHoloscanList(sessionToken);
   }
 
   // Batch PXP-10 (docs/44 §10.1/§22, docs/47) removed the Symptom Tracker
@@ -579,10 +721,11 @@
   // Adding a new module: (i) add its registry entry above; (ii) register
   // its loader here — nothing else changes.
   var MODULE_LOADERS = {
-    'get_timeline':          loadTimelinePreview,
-    'get_checkin_responses': loadCheckInPreview,
-    'get_reports':           loadReportsPreview,
-    'get_care_plan':         loadCarePlanPreview
+    'get_timeline':               loadTimelinePreview,
+    'get_checkin_responses':      loadCheckInPreview,
+    'get_holoscan_recognitions':  loadHoloscanPreview,
+    'get_reports':                loadReportsPreview,
+    'get_care_plan':              loadCarePlanPreview
   };
 
   // Merges the per-patient state rows from get_patient_module_states with
@@ -722,6 +865,10 @@
     checkInNotAssignedHtml: checkInNotAssignedHtml,
     readCheckInAnswers: readCheckInAnswers,
     carePlanPreviewHtml: carePlanPreviewHtml,
-    carePlanNotAuthoredHtml: carePlanNotAuthoredHtml
+    carePlanNotAuthoredHtml: carePlanNotAuthoredHtml,
+    holoscanFormHtml: holoscanFormHtml,
+    holoscanListHtml: holoscanListHtml,
+    HOLOSCAN_ALLOWED_MIME_TYPES: HOLOSCAN_ALLOWED_MIME_TYPES,
+    HOLOSCAN_MAX_UPLOAD_BYTES: HOLOSCAN_MAX_UPLOAD_BYTES
   };
 })();

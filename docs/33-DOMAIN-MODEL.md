@@ -1,5 +1,5 @@
 # 33 - Domain Model
-## Version 1.23 — 2026-07-16
+## Version 1.24 — 2026-07-16
 
 > Defines every major business entity in the Wise Platform: what it means, what it
 > holds, how it relates to everything else, how it comes into being and ends, who is
@@ -1236,13 +1236,25 @@ labeled test-only fixture pushed directly into the test harness's own registry a
 
 ---
 
-# 7. Phase 3 — WHIMS Patient Intelligence Platform Entities — *Batches WPI-1 through WPI-9 Implemented, WPI-10 Implemented, WPI-11 Architecture-Frozen (not implemented) — Phase 3 Closed (WPI-12, docs/57)*
+# 7. Phase 3 — WHIMS Patient Intelligence Platform Entities — *Batches WPI-1 through WPI-10 Implemented, WPI-11 Implemented — a post-Phase-3-closure implementation batch, docs/56/ADR-024/025/026*
 
 Net-new entities named by Phase 3's architecture-freeze pass (docs/49/50, 2026-07-16).
 Doctor (§1.4), Appointment (§4.1), and Notification (§4.2) were already conceptual and
 are promoted in place above rather than restated here. Full field-level detail lives in
 docs/50 — this section records only each entity's purpose and relationships, at the
 same fidelity the rest of this document uses.
+
+**Updated 2026-07-16** for the WPI-11 implementation batch (post-Phase-3-closure, docs/56,
+ADR-024/025/026): this section's own top-level header still read *"Batches WPI-1 through
+WPI-9 Implemented, WPI-10 Implemented, WPI-11 Architecture-Frozen (not implemented) — Phase
+3 Closed (WPI-12, docs/57)"* — accurate at Phase 3's own closure (docs/57), but stale once
+this batch implemented WPI-11's already-frozen architecture. Phase 3 itself
+(WHIMS Patient Intelligence Platform, WPI-1 through WPI-10, plus the WPI-12 closeout) remains
+closed and frozen except for genuine bug fixes, per docs/57 — this batch does not reopen it;
+WPI-11 was always docs/57's own named, disclosed exception ("its slot stays reserved for a
+future, separately-approved implementation batch"), and that future batch is this one. No
+entity's shape, schema, or shipped behavior beyond this batch's own disclosed WPI-11 addition
+changed by this header correction.
 
 **Updated 2026-07-16** for Batch WPI-12 (Closeout, documentation-only, docs/57): this
 section's own top-level header still read *"Mostly Designed, Batches WPI-1/WPI-2/WPI-3/
@@ -1452,7 +1464,7 @@ constraint on this batch). Doctor/staff-facing only, never patient-facing; one n
 read-only `FoundationRouter.gs` route (`get_doctor_analytics`), Doctor Module
 Registry's fifth real entry, `analytics`. **Full detail:** docs/50 §12.
 
-## 7.7 AI Assistant — *Implemented (Batch WPI-10, docs/55, ADR-021/022/023)*; Holoscan — *Designed (docs/56, ADR-024/025/026)*
+## 7.7 AI Assistant — *Implemented (Batch WPI-10, docs/55, ADR-021/022/023)*; Holoscan — *Implemented (Batch WPI-11, docs/56, ADR-024/025/026)*
 **Status update (2026-07-16, architecture freeze):** AI Assistant's architecture was
 frozen — its own separate, feature-specific technical plan (docs/55-WPI-10-AI-ASSISTANT-
 ARCHITECTURE-FREEZE.md) and three new ADRs (ADR-021 retrieval boundary, ADR-022
@@ -1524,12 +1536,49 @@ does not read, match against, or write `InventoryItem`/`InventoryTransaction`/
 `PillFillOrder` (§7.4/§7.5) — clinic stock management is out of scope; it does not
 diagnose, recommend treatment, or check drug interactions (ADR-024); and no real
 Medicine Catalog exists to match recognized text against — a disclosed gap mirroring
-§5.2's own Knowledge Engine gap, not an invented workaround. Zero code, schema,
-registry, or frontend file exists yet — **not implemented**; a separate, explicit
-approval is still required before WPI-11 implementation begins, per docs/53 §9/§13/§15,
-identical to WPI-10's own precedent.
+§5.2's own Knowledge Engine gap, not an invented workaround.
 
-## 7.8 Holoscan Entities — *Designed, not yet implemented (docs/56, ADR-024/025/026)*
+**Status update (2026-07-16, Batch WPI-11): promoted from Designed to Implemented.**
+`HoloscanRecognition`/`HoloscanRecognitionItem` (`shared/schemas/holoscan-recognition.schema.json`/
+`holoscan-recognition-item.schema.json`, `apps-script/HoloscanRecognition.gs`) and
+`MedicationHistory`/`MedicationDecision` (`shared/schemas/medication-history.schema.json`/
+`medication-decision.schema.json`, `apps-script/MedicationHistory.gs`) have shipped,
+matching docs/56 §4–§23 exactly. The capture pipeline reuses `FoundationReports.gs`'s own
+content-based MIME detection and private-Drive-sharing enforcement unmodified (narrowed to
+JPEG/PNG only), then makes one bounded, multimodal vision-model call (reusing
+`AIAssistantInteraction.gs`'s own `UrlFetchApp`/`OPENROUTER_API_KEY` pattern), then runs
+`HoloscanRecognitionCheck_()` (`apps-script/HoloscanRecognitionCheck.gs`) — a
+Holoscan-specific, five-category lexicon check, advisory only, structurally mirroring
+`AssistantDriftCheck_()` without depending on it. `HoloscanRecognitionItem` is never
+automatically promoted to `MedicationHistory` — approving/correcting/rejecting an item
+(`post_holoscan_recognition_decision`) patches only that item's own row; the doctor's own,
+separate `create_medication_history_entry` action is the only write path into
+`MedicationHistory` (ADR-025, statically enforced by a new grep-based static-analysis rule,
+docs/56 §23 item 1). `MedicationHistory.current_status` is derived, never client-supplied
+— recomputed from the `MedicationDecision` append-only ledger inside a `LockService`
+critical section, mirroring `InventoryItem.quantity_on_hand`'s own recompute-from-ledger
+discipline exactly (§7.4, WPI-7). `get_medication_history` is this platform's one
+dual-guarded route — reachable via either a verified DoctorSession (roster-scoped) or a
+verified PatientSession (own record only), each receiving an independently-scoped slice of
+the same underlying data. Seven new, additive `FoundationRouter.gs` dispatch cases; one new
+Patient Module Registry entry (`holoscan`, normal rollout, ADR-010's existing default) and
+two new Doctor Module Registry entries (`holoscan_review`, **disabled by default for every
+doctor, per ADR-026**, mirroring `ai_assistant`'s own precedent exactly; `medication_history`,
+normal rollout, since displaying an already doctor-confirmed record is not itself a
+model-output-review surface). The "My Health Journey" dashboard gains one new,
+registry-driven Holoscan card (a multi-photo upload form, never a raw un-reviewed candidate
+shown as confirmed) plus a linked, read-only Medication History page
+(`my-health-journey/medications/`); the Doctor Dashboard gains two new cards — Holoscan
+Review (an always-visible "AI-recognized — not yet in Medication History" banner above any
+Approve/Correct/Reject control) and Medication History (Continue/Stop/Replace/Unknown
+controls calling `record_medication_decision` only). Zero modification to any frozen
+Foundation/Identity & Access/Patient Access/PXP-1..11/WPI-1..10 file, and zero modification
+to `InventoryItem.gs`/`InventoryTransaction.gs`/`PillFillOrder.gs`/`AIAssistantInteraction.gs`
+— every reused capability is called through its own existing function, never re-implemented
+(ADR-009). The Medicine Catalog gap (§0.3/ADR-024) remains open and disclosed —
+`catalog_match_status`/`catalog_match_ref` remain reserved, unbacked fields.
+
+## 7.8 Holoscan Entities — *Implemented (Batch WPI-11, docs/56, ADR-024/025/026)*
 
 **`HoloscanRecognition`** — one patient-initiated capture session (one or more uploaded
 medicine photographs), processed together. **Purpose:** the durable record of what was
@@ -1613,8 +1662,8 @@ patient-writable. **Full detail:** docs/56 §11.4.
 | Analytics | **Implemented (computed view — never a base table)** | 3/WHIMS (docs/50 §12, batch WPI-9 — shipped, reads across seven existing entities, bounded to a fixed trailing 30-day window, non-AI deterministic aggregation only, Doctor Module Registry's fifth real entry `analytics`) |
 | AI Assistant Interaction | **Implemented** | 3/WHIMS (docs/55 §11.1, ADR-021/022, batch WPI-10 — shipped, append-only audit/decision log except one one-way doctor_decision transition; AI Assistant never writes to any other clinical entity, statically enforced) |
 | AI Assistant Capability Registry | **Implemented — backend only** | 3/WHIMS (docs/55 §11.2, batch WPI-10 — shipped, structurally parallel to Calculator Registry, seeded with one entry, `summarize_patient_status`; disabled by default per ADR-023, a fixed, bounded menu, never a free-form chat surface) |
-| Holoscan Recognition / Holoscan Recognition Item | **Designed, not yet implemented** | 3/WHIMS (docs/56 §11.1/§11.2, ADR-024/025, Holoscan architecture freeze — the patient-initiated capture session and its draft/audit candidate rows; mirrors AIAssistantInteraction's draft-then-decision shape and Report's Drive file-upload pattern; never automatically writes Medication History) |
-| Medication History / Medication Decision | **Designed, not yet implemented** | 3/WHIMS (docs/56 §11.3/§11.4, ADR-024/025, Holoscan architecture freeze — the permanent, doctor-authored medication record and its own append-only clinical-decision ledger; current_status derived from the ledger, mirroring InventoryItem/InventoryTransaction's recompute-from-ledger discipline, WPI-7/docs/54; deliberately distinct from DoctorInstruction type: medicine, docs/56 §0.2) |
+| Holoscan Recognition / Holoscan Recognition Item | **Implemented** | 3/WHIMS (docs/56 §11.1/§11.2, ADR-024/025, batch WPI-11 — shipped, the patient-initiated capture session and its draft/audit candidate rows; mirrors AIAssistantInteraction's draft-then-decision shape and Report's Drive file-upload pattern; never automatically writes Medication History, statically enforced) |
+| Medication History / Medication Decision | **Implemented** | 3/WHIMS (docs/56 §11.3/§11.4, ADR-024/025, batch WPI-11 — shipped, the permanent, doctor-authored medication record and its own append-only clinical-decision ledger; current_status derived from the ledger, mirroring InventoryItem/InventoryTransaction's recompute-from-ledger discipline, WPI-7/docs/54; deliberately distinct from DoctorInstruction type: medicine, docs/56 §0.2) |
 | Knowledge Article | Conceptual | Unassigned |
 | Knowledge Engine | Conceptual (system) | Unassigned |
 | Calculator | **Implemented — backend only — Pillar 3** | 2B (docs/44 §8, batch PXP-6, Calculator Registry — shipped, registry seeded empty, no UI; see §6.8). Public variant still unassigned — roadmap gap carried forward (docs/46 Part 3). |

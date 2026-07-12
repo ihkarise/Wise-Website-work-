@@ -95,6 +95,32 @@ var FOUNDATION_DOCTOR_MODULE_REGISTRY_ = [
     display_order: 60,
     data_source: 'get_ai_assistant_capabilities',
     future_ai_capable: false
+  },
+  {
+    // Batch WPI-11 (docs/56-WPI-11-HOLOSCAN-ARCHITECTURE-FREEZE.md §18.2,
+    // ADR-024/025/026) — the platform's second AI-output-review doctor
+    // capability. Diverges from every entry except ai_assistant, per
+    // ADR-026: this entry's own DoctorModuleState must remain absent
+    // (fail-closed, ADR-010) for every doctor by default.
+    capability_key: 'holoscan_review',
+    display_name: 'Holoscan Review',
+    display_order: 70,
+    data_source: 'get_holoscan_review_queue',
+    future_ai_capable: false
+  },
+  {
+    // Batch WPI-11 (docs/56 §18.2/§19.3) — a companion card to holoscan_review,
+    // reusing DoctorPatientRoster.gs's own patient-selection route (docs/56
+    // §19.3), backed by the dual-guarded get_medication_history route
+    // (MedicationHistory.gs). A normal-rollout entry, ADR-010's existing
+    // default — not restricted by ADR-026, since this entry only ever
+    // displays an already doctor-confirmed record, never a model-generated
+    // draft awaiting review.
+    capability_key: 'medication_history',
+    display_name: 'Medication History',
+    display_order: 80,
+    data_source: 'get_medication_history',
+    future_ai_capable: false
   }
 ];
 

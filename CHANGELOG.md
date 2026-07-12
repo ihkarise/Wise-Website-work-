@@ -8,6 +8,136 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-16 — WPI-11 Implementation: Holoscan (post-Phase-3-closure batch)
+
+Implements the Patient Medication Recognition Engine against the architecture already
+frozen in Phase 3 (`docs/56-WPI-11-HOLOSCAN-ARCHITECTURE-FREEZE.md`, ADR-024/025/026)
+— a separate, explicit implementation approval, per docs/53 §9/§13/§15 and docs/57 §7/§13's
+own named exception ("its slot stays reserved for a future, separately-approved
+implementation batch"). Does not reopen Phase 3 (WPI-1 through WPI-10, plus the WPI-12
+closeout remain closed and frozen except for genuine bug fixes) and does not itself name,
+scope, or authorize a "Phase 4," Phase 2C, or Phase 2D.
+
+Preceded by a fresh, independent, adversarial re-audit of docs/56's own architecture
+(scope creep, duplicate entities, conflicting ADRs, identity/authority/write-path leaks,
+patient privacy, registry/router/dashboard consistency, validation gaps) — no defect
+found; the frozen design shipped exactly as specified.
+
+**Post-merge-candidate independent release audit (fresh, adversarial, same day) found
+two real defects in the first pushed state of this batch, both fixed before merge —
+disclosed here rather than silently folded into the "Added" section above, since both
+findings are genuine, not hypothetical:**
+1. **`validation/static-analysis/analyze.js`'s own Holoscan Rule 1 had an inverted
+   polarity bug** — it flagged a write-shaped call from a `Holoscan*.gs` file only when
+   the called function was declared *outside* `MedicationHistory.gs`, the opposite of
+   what ADR-025 requires it to catch. A direct call from `HoloscanRecognition.gs` to
+   `foundationCreateMedicationHistoryEntry_()` — the exact violation this rule exists to
+   prevent — would have passed silently. No live vulnerability existed (the shipped
+   pipeline/decision code never made that call, confirmed by direct source inspection
+   and by Stage 27's own real, correctly-polarized runtime row-count check), but the
+   *static* guarantee the code comments and this very file claimed was not real. Fixed:
+   the predicate now flags exactly when a Holoscan-file call target **is** declared in
+   `MedicationHistory.gs` — proven by injecting the real violation into a temporary copy
+   of the shipped file, observing the rule catch it, then reverting and re-confirming a
+   clean run (see this batch's own build summary for the full before/after transcript).
+2. **The Doctor Dashboard's Medication History card shipped with only three of the four
+   controls docs/56 §19.3 requires** — Continue, Stop, and Mark unknown; **Replace was
+   entirely absent from the UI**, even though the backend
+   (`foundationRecordMedicationDecision_`) fully implemented and tested it. The original
+   CHANGELOG text above additionally, incorrectly, claimed "Replace" was already
+   present. Fixed: the Medication History card now renders a fourth control, a
+   Replace button paired with an explicit `<select>` of the patient's other
+   MedicationHistory entries (never a silent/implicit choice, never auto-selected) —
+   `wireMedicationDecisionButtons_()` includes `replacement_medication_history_id` in the
+   request only when `decision_type: 'replace'`. Continue/Stop/Unknown behavior is
+   completely unchanged.
+
+### Added
+- **`HoloscanRecognition`/`HoloscanRecognitionItem`** (`shared/schemas/
+  holoscan-recognition.schema.json`/`holoscan-recognition-item.schema.json`,
+  `apps-script/HoloscanRecognition.gs`) — the patient-initiated capture session and its
+  draft/audit candidate rows. The capture pipeline reuses `FoundationReports.gs`'s own
+  content-based MIME detection and private-Drive-sharing enforcement unmodified
+  (narrowed to JPEG/PNG), then one bounded, multimodal vision-model call (reusing
+  `AIAssistantInteraction.gs`'s own `UrlFetchApp`/`OPENROUTER_API_KEY` pattern,
+  `apps-script/HOLOSCAN-PROMPTS.md`), then `HoloscanRecognitionCheck_()`
+  (`apps-script/HoloscanRecognitionCheck.gs`) — a Holoscan-specific, five-category
+  lexicon check, advisory only, never blocking. A per-patient, per-UTC-day submission
+  rate limit (`CacheService`+`LockService`) bounds real per-call model cost.
+- **`MedicationHistory`/`MedicationDecision`** (`shared/schemas/
+  medication-history.schema.json`/`medication-decision.schema.json`,
+  `apps-script/MedicationHistory.gs`) — the permanent, doctor-authored medication record
+  and its own append-only clinical-decision ledger. `current_status` is derived, never
+  client-supplied — recomputed from the ledger inside a `LockService` critical section,
+  mirroring `InventoryItem.quantity_on_hand`'s own recompute-from-ledger discipline
+  exactly (WPI-7, docs/54). Holoscan never gains a write path into either entity
+  (ADR-025, statically enforced — a new grep-based rule, docs/56 §23 item 1): approving
+  a recognition item patches only that item's own row; `create_medication_history_entry`
+  is the doctor's own, separate, deliberate write action.
+- Seven new, additive `FoundationRouter.gs` dispatch cases: `submit_holoscan_recognition`
+  / `get_holoscan_recognitions` (patient-guarded), `get_holoscan_review_queue` /
+  `post_holoscan_recognition_decision` / `create_medication_history_entry` /
+  `record_medication_decision` (doctor-guarded), and `get_medication_history` — this
+  platform's one dual-guarded route, reachable via either a verified DoctorSession
+  (roster-scoped) or a verified PatientSession (own record only), resolved entirely
+  inside `MedicationHistory.gs`'s own `foundationGetMedicationHistoryDualGuarded_()`.
+- One new Patient Module Registry entry (`holoscan`, `shared/constants/
+  module-registry.json` → 1.2.0, normal rollout, ADR-010's existing fail-closed default)
+  and two new Doctor Module Registry entries (`shared/constants/
+  doctor-module-registry.json` → 1.8.0): `holoscan_review` (**disabled by default for
+  every doctor, per new ADR-026**, mirroring `ai_assistant`'s own ADR-023 precedent
+  exactly) and `medication_history` (normal rollout — displaying an already
+  doctor-confirmed record is not itself a model-output-review surface).
+- **"My Health Journey" dashboard**: a new Holoscan card (multi-photo upload, a
+  recognition-history list that never shows a raw, un-reviewed candidate as already
+  confirmed) and a new, linked, read-only full-history page,
+  `my-health-journey/medications/` (no registry entry of its own, reached only from the
+  gated card, mirroring Reports'/Check-In's own precedent).
+- **Doctor Dashboard**: two new cards — Holoscan Review (an always-visible,
+  un-dismissable "AI-recognized — not yet in Medication History" banner above any
+  Approve/Correct/Reject control, mirroring AI Assistant's own banner precedent exactly)
+  and Medication History (a roster-patient selector reusing the Patient Roster card's
+  own route, an "Add Entry" form, and Continue/Stop/Replace/Unknown controls calling
+  `record_medication_decision` only — Replace pairs its own button with an explicit
+  `<select>` of the patient's other MedicationHistory entries, never a silent/implicit
+  replacement choice).
+- `apps-script/HOLOSCAN-PROMPTS.md` — the version-controlled recognition-prompt
+  specification, mirroring `AI-ASSISTANT-PROMPTS.md`'s exact role.
+
+### Validation
+- Static Analysis: PASS, 0 findings (66 `apps-script/*.gs` files — three new files,
+  five new Holoscan-specific static rules per docs/56 §23, mirroring docs/55 §18's
+  identical AI-risk-class rationale). Rule 1's polarity fix (above) re-verified by
+  temporarily injecting the real forbidden call into a copy of the shipped file,
+  confirming the rule now reports it, then reverting and re-confirming a clean run.
+- Conformance (`validation/phase-2a-foundation/conformance.js`): 801/801 (67 more than
+  WPI-12's own closeout figure of 738, Stage 27's own new checks — plus the mechanical,
+  disclosed updates to every earlier stage's own registry-count assertion, the same
+  "a later batch's additive registry growth updates an earlier stage's stale count"
+  discipline this file's own header comment already established for PXP-5/PXP-7).
+- Phase 1.5 Regression: 45/45.
+- Browser Tests: all 16 existing suites still pass (the five whose own hardcoded Doctor
+  Module Registry count assertion needed the same mechanical update —
+  `wpi-4-doctor-dashboard`, `wpi-5-appointment`, `wpi-7-inventory`, `wpi-8-pillfill`,
+  `wpi-9-analytics` — plus one new suite, `validation/wpi-11-holoscan/browser-test.js`,
+  now 23/23 (three new checks added: all four decision controls render, the Replace
+  select is correctly populated with only the patient's *other* entries, and clicking
+  Replace submits the correct `decision_type`/`replacement_medication_history_id` pair).
+- **801 conformance + 45 regression + 370 browser-test checks (17 suites) + 0
+  static-analysis findings — 0 failures anywhere.**
+
+### Changed (documentation)
+- `docs/33-DOMAIN-MODEL.md` (1.23 → 1.24) — Holoscan Recognition/Recognition Item and
+  Medication History/Medication Decision promoted from *Designed* to **Implemented**
+  (§7.7/§7.8, Summary Table); §7's own top-level header corrected to reflect this batch,
+  disclosed as a post-Phase-3-closure implementation, not a reopening of Phase 3 itself.
+- `docs/24-ROADMAP.md` (1.22 → 1.23) — a new WPI-11 Implementation entry added; the
+  "Phase 4 — Not Yet Named or Scoped" section updated to record that this named candidate
+  has shipped, without itself scoping, naming, or authorizing a "Phase 4," Phase 2C, or
+  Phase 2D.
+- `docs/31-ADR-INDEX.md` — reviewed, found already accurate (ADR-024/025/026 already
+  listed, Accepted, unamended by this batch); not modified.
+
 ## 2026-07-16 — Phase 3 Batch WPI-12: Closeout
 
 Phase 3's own closeout batch (docs/53 §15) — the final named slot in the twelve-batch

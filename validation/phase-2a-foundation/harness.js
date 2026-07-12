@@ -181,6 +181,16 @@
  * exercise the real `callOpenRouterForAiAssistant_()` code path
  * deterministically (default success) and also simulate a genuine model-call
  * failure (via `setUrlFetchImpl()`) without any live network call.
+ *
+ * Extended in Phase 3/WHIMS batch WPI-11 with `HoloscanRecognitionCheck.gs`,
+ * `HoloscanRecognition.gs`, and `MedicationHistory.gs` in the FILES list — no new
+ * mock needed: `HoloscanRecognition.gs` reuses this harness's own already-mocked
+ * `DriveApp`/`Utilities.base64Decode`/`UrlFetchApp.fetch`/`CacheService`/`LockService`
+ * primitives exactly (the same primitives `FoundationReports.gs`/
+ * `AIAssistantInteraction.gs`/`InventoryTransaction.gs` already exercise), and
+ * `MedicationHistory.gs` reuses `LockService`/`foundationDsQuery_`/
+ * `foundationGetDoctorPatientRoster_` — the same "additive entity, zero new
+ * infrastructure" pattern every WPI batch since WPI-4 has already proved out.
  */
 
 var fs = require('fs');
@@ -237,6 +247,9 @@ var FILES = [
   'AIAssistantContext.gs',
   'AIAssistantDriftCheck.gs',
   'AIAssistantInteraction.gs',
+  'HoloscanRecognitionCheck.gs',
+  'HoloscanRecognition.gs',
+  'MedicationHistory.gs',
   'FoundationRouter.gs'
 ];
 

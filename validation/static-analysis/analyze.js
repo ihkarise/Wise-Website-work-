@@ -159,6 +159,20 @@ var REFERENCED_ONLY_AS_OBJECT_VALUES = [
   'foundationAiAssistantContextSourceAppointment_' // AIAssistantContext.gs — WPI-10; same table's appointment entry
 ];
 
+// Batch WPI-11's own doctor-guarded dispatch handlers (Holoscan static rule 3 below) —
+// get_medication_history is deliberately excluded: it is this platform's one
+// dual-guarded route (docs/56 §17), resolved entirely inside
+// MedicationHistory.gs's own foundationGetMedicationHistoryDualGuarded_(), never via
+// withFoundationDoctorAuth_()/withFoundationAuth_() at the router level at all — a
+// disclosed, deliberate exception to rule 3's own "doctor-guard-only" check, the same
+// way this rule is scoped to every *other* new WPI-11 dispatch case.
+var FOUNDATION_HOLOSCAN_DOCTOR_GUARDED_HANDLERS_ = [
+  'foundationHandleGetHoloscanReviewQueue_',
+  'foundationHandlePostHoloscanRecognitionDecision_',
+  'foundationHandleCreateMedicationHistoryEntry_',
+  'foundationHandleRecordMedicationDecision_'
+];
+
 function listGsFiles() {
   return fs.readdirSync(APPS_SCRIPT_DIR)
     .filter(function (f) { return f.endsWith('.gs'); })
@@ -294,7 +308,8 @@ function analyze() {
     unusedExportedHelpers: [],
     circularDependencies: [],
     namespaceCollisions: [],
-    aiAssistantStaticRules: []
+    aiAssistantStaticRules: [],
+    holoscanStaticRules: []
   };
 
   // Duplicate global names / Apps Script namespace collisions.
@@ -464,6 +479,143 @@ function analyze() {
     }
   });
 
+  // ============================================================
+  // Holoscan static rules (Batch WPI-11, docs/56-WPI-11-HOLOSCAN-ARCHITECTURE-
+  // FREEZE.md §23) — the identical AI-risk-class rationale docs/55 §18 already
+  // established for AI Assistant, applied here to Holoscan's own second
+  // AI-generated-content pipeline and its own two-entity write-authority boundary
+  // (ADR-025).
+  // ============================================================
+  var holoscanFiles = files.filter(function (f) { return /^Holoscan.*\.gs$/.test(f); });
+
+  // ---- Rule 1 (docs/56 §23 item 1) — the load-bearing one behind ADR-025: ----
+  // no file matching Holoscan*.gs may call MedicationHistory's or MedicationDecision's
+  // own write function — only create_medication_history_entry's and
+  // record_medication_decision's own implementation functions (declared in
+  // MedicationHistory.gs, never a Holoscan*.gs file) may do so. The correct predicate
+  // (fixed after an audit-found polarity bug — the first shipped version flagged a
+  // call only when the called name was *not* declared in MedicationHistory.gs, which
+  // never fires for the one call this rule exists to catch, since
+  // foundationCreateMedicationHistoryEntry_/foundationRecordMedicationDecision_ *are*
+  // declared there): a write-verb-shaped call made *from* a Holoscan*.gs file *into* a
+  // function actually declared in MedicationHistory.gs is itself the forbidden call —
+  // flag exactly that condition, not its negation. No name-heuristic (e.g. matching
+  // "medication" in the called name) is needed or used — the declaration-file lookup
+  // is already the precise, authoritative signal.
+  holoscanFiles.forEach(function (file) {
+    var match;
+    writeCallPattern.lastIndex = 0;
+    while ((match = writeCallPattern.exec(neutralizedSources[file])) !== null) {
+      var calledName = match[1];
+      if (!writeVerbPattern.test(calledName)) continue;
+      var targetsMedicationEntity = declByName[calledName] && declByName[calledName].some(function (d) {
+        return d.file === 'MedicationHistory.gs';
+      });
+      if (targetsMedicationEntity) {
+        findings.holoscanStaticRules.push({
+          rule: 'no-medication-write-call',
+          detail: file + ' calls "' + calledName + '(", a write-shaped function declared in MedicationHistory.gs — ADR-025 requires Holoscan\'s own pipeline/decision code to never call MedicationHistory\'s or MedicationDecision\'s own write functions directly; only the doctor\'s own, separately-invoked create_medication_history_entry/record_medication_decision actions may.'
+        });
+      }
+    }
+  });
+
+  // ---- Rule 2 (docs/56 §23 item 2) — prompt spec and code stay version-locked ----
+  var holoscanPromptsMdPath = path.join(APPS_SCRIPT_DIR, 'HOLOSCAN-PROMPTS.md');
+  if (fs.existsSync(holoscanPromptsMdPath)) {
+    var holoscanPromptsMd = fs.readFileSync(holoscanPromptsMdPath, 'utf8');
+    var holoscanDocVersionMatch = holoscanPromptsMd.match(/Prompt Version\s*\n\n`([^`]+)`/);
+    var holoscanCodeVersionMatch = (rawSources['HoloscanRecognition.gs'] || '').match(/FOUNDATION_HOLOSCAN_PROMPT_VERSION_\s*=\s*'([^']+)'/);
+    var holoscanDocVersion = holoscanDocVersionMatch && holoscanDocVersionMatch[1];
+    var holoscanCodeVersion = holoscanCodeVersionMatch && holoscanCodeVersionMatch[1];
+    if (!holoscanDocVersion || !holoscanCodeVersion || holoscanDocVersion !== holoscanCodeVersion) {
+      findings.holoscanStaticRules.push({
+        rule: 'prompt-version-mismatch',
+        detail: 'apps-script/HOLOSCAN-PROMPTS.md declares Prompt Version "' + holoscanDocVersion + '" but apps-script/HoloscanRecognition.gs\'s FOUNDATION_HOLOSCAN_PROMPT_VERSION_ is "' + holoscanCodeVersion + '" — any prompt wording change must bump both together.'
+      });
+    }
+  }
+
+  // ---- Rule 3 (docs/56 §23 item 3) — every new doctor-only dispatch case is doctor-guarded only ----
+  FOUNDATION_HOLOSCAN_DOCTOR_GUARDED_HANDLERS_.forEach(function (handlerName) {
+    var declLineIdx = routerSource.split('\n').findIndex(function (line) {
+      return line.indexOf('function ' + handlerName + '(') === 0;
+    });
+    if (declLineIdx === -1) {
+      findings.holoscanStaticRules.push({ rule: 'doctor-guard-missing', detail: handlerName + ' is not declared in FoundationRouter.gs.' });
+      return;
+    }
+    var lines = routerSource.split('\n');
+    var bodyLines = [];
+    for (var li = declLineIdx + 1; li < lines.length && lines[li] !== '}'; li++) {
+      bodyLines.push(lines[li]);
+    }
+    var body = bodyLines.join('\n');
+    var usesDoctorGuard = /withFoundationDoctorAuth_\s*\(/.test(body);
+    var usesPatientGuard = /withFoundationAuth_\s*\(/.test(body);
+    if (!usesDoctorGuard || usesPatientGuard) {
+      findings.holoscanStaticRules.push({
+        rule: 'doctor-guard-missing',
+        detail: handlerName + ' must call withFoundationDoctorAuth_() and never withFoundationAuth_() (the patient guard) — found doctor guard: ' + usesDoctorGuard + ', patient guard present: ' + usesPatientGuard + '.'
+      });
+    }
+  });
+  // The two new patient-only handlers must use the patient guard and never the
+  // doctor guard — the mirror-image check of rule 3 above, applied to
+  // submit_holoscan_recognition/get_holoscan_recognitions.
+  ['foundationHandleSubmitHoloscanRecognition_', 'foundationHandleGetHoloscanRecognitions_'].forEach(function (handlerName) {
+    var declLineIdx = routerSource.split('\n').findIndex(function (line) {
+      return line.indexOf('function ' + handlerName + '(') === 0;
+    });
+    if (declLineIdx === -1) {
+      findings.holoscanStaticRules.push({ rule: 'patient-guard-missing', detail: handlerName + ' is not declared in FoundationRouter.gs.' });
+      return;
+    }
+    var pLines = routerSource.split('\n');
+    var pBodyLines = [];
+    for (var pli = declLineIdx + 1; pli < pLines.length && pLines[pli] !== '}'; pli++) {
+      pBodyLines.push(pLines[pli]);
+    }
+    var pBody = pBodyLines.join('\n');
+    var usesPatientGuard2 = /withFoundationAuth_\s*\(/.test(pBody);
+    var usesDoctorGuard2 = /withFoundationDoctorAuth_\s*\(/.test(pBody);
+    if (!usesPatientGuard2 || usesDoctorGuard2) {
+      findings.holoscanStaticRules.push({
+        rule: 'patient-guard-missing',
+        detail: handlerName + ' must call withFoundationAuth_() and never withFoundationDoctorAuth_() (the doctor guard) — found patient guard: ' + usesPatientGuard2 + ', doctor guard present: ' + usesDoctorGuard2 + '.'
+      });
+    }
+  });
+
+  // ---- Rule 4 (docs/56 §23 item 4) — no direct Sheet read bypasses roster/ownership scoping ----
+  holoscanFiles.concat(['MedicationHistory.gs']).forEach(function (file) {
+    if (!rawSources[file]) return;
+    if (neutralizeCommentsAndStrings(rawSources[file]).indexOf('SpreadsheetApp') !== -1) {
+      findings.holoscanStaticRules.push({
+        rule: 'roster-scope-bypass',
+        detail: file + ' references "SpreadsheetApp" directly — every read must go through foundationDsQuery_()/foundationDsGetById_() plus DoctorPatientRoster.gs\'s own foundationGetDoctorPatientRoster_(), never a direct Sheet primitive.'
+      });
+    }
+  });
+
+  // ---- Rule 5 (docs/56 §23 item 5) — no second, parallel lexicon mechanism ----
+  var holoscanCheckFile = rawSources['HoloscanRecognitionCheck.gs'] || '';
+  var holoscanLexiconDeclarationCount = (neutralizeCommentsAndStrings(holoscanCheckFile).match(/^var\s+[A-Za-z0-9_]*LEXICON[A-Za-z0-9_]*\s*=/gm) || []).length;
+  if (holoscanLexiconDeclarationCount !== 1) {
+    findings.holoscanStaticRules.push({
+      rule: 'duplicate-lexicon-mechanism',
+      detail: 'apps-script/HoloscanRecognitionCheck.gs must declare exactly one lexicon constant (found ' + holoscanLexiconDeclarationCount + ') — docs/56 §23 item 5 requires reusing/extending HoloscanRecognitionCheck_()\'s own category lexicon rather than inventing a second, parallel one.'
+    });
+  }
+  holoscanFiles.filter(function (f) { return f !== 'HoloscanRecognitionCheck.gs'; }).forEach(function (file) {
+    if (/^var\s+[A-Za-z0-9_]*LEXICON[A-Za-z0-9_]*\s*=/m.test(neutralizeCommentsAndStrings(rawSources[file]))) {
+      findings.holoscanStaticRules.push({
+        rule: 'duplicate-lexicon-mechanism',
+        detail: file + ' declares its own lexicon constant — docs/56 §23 item 5 requires exactly one Holoscan-specific lexicon mechanism, in HoloscanRecognitionCheck.gs only.'
+      });
+    }
+  });
+
   return findings;
 }
 
@@ -500,6 +652,9 @@ function report(findings) {
   section('AI Assistant static rules (Batch WPI-10, docs/55 §18)', findings.aiAssistantStaticRules,
     function (f) { return '[' + f.rule + '] ' + f.detail; });
 
+  section('Holoscan static rules (Batch WPI-11, docs/56 §23)', findings.holoscanStaticRules,
+    function (f) { return '[' + f.rule + '] ' + f.detail; });
+
   // De-duplicated problem count: duplicateFunctionNames/duplicateConstants
   // are subsets of duplicateGlobalNames, and namespaceCollisions is the
   // identical finding set under a second label — none of those three are
@@ -507,7 +662,8 @@ function report(findings) {
   var problems = findings.duplicateGlobalNames.length
     + findings.unusedExportedHelpers.length
     + findings.circularDependencies.length
-    + findings.aiAssistantStaticRules.length;
+    + findings.aiAssistantStaticRules.length
+    + findings.holoscanStaticRules.length;
 
   console.log('\n' + (problems === 0 ? 'PASS' : 'FAIL') + ' — ' + problems + ' distinct finding(s) across all checks.');
   return problems === 0;
