@@ -237,6 +237,27 @@ data_source route (`get_doctor_analytics`) — the Doctor Dashboard's fifth card
 bounded to a fixed trailing 30-day window (docs/54-SHEETS-PRODUCTION-SCALE-REVIEW.md
 §18 item 4). No other `shared/` file changed in this batch.
 
+The WPI-11 implementation batch (docs/56-WPI-11-HOLOSCAN-ARCHITECTURE-FREEZE.md,
+ADR-024/025/026, post-Phase-3-closure — Phase 3 itself, WPI-1 through WPI-10 plus the
+WPI-12 closeout, remains closed) added four new schemas: `schemas/
+holoscan-recognition.schema.json`/`holoscan-recognition-item.schema.json` (the
+patient-initiated capture session and its draft/audit candidate rows, alongside their
+first implementation, `apps-script/HoloscanRecognition.gs`) and `schemas/
+medication-history.schema.json`/`medication-decision.schema.json` (the permanent,
+doctor-authored medication record and its own append-only clinical-decision ledger,
+alongside their first implementation, `apps-script/MedicationHistory.gs`).
+`current_status` is recomputed in full from the `MedicationDecision` ledger every time
+a decision is recorded, wrapped in one `LockService` critical section — the platform's
+second use of this exact recompute-from-ledger, lock-protected pattern (WPI-7's
+`InventoryItem`/`InventoryTransaction` was the first). Holoscan never gains a write
+path into `MedicationHistory`/`MedicationDecision` (ADR-025, statically enforced).
+Bumped `constants/module-registry.json` (1.1.0 → 1.2.0) to add this registry's sixth
+entry, `holoscan` (patient-facing, normal rollout), and `constants/
+doctor-module-registry.json` (1.6.0 → 1.8.0) to add this registry's seventh and eighth
+entries, `holoscan_review` (**disabled by default for every doctor, per new ADR-026**,
+mirroring `ai_assistant`'s own ADR-023 precedent) and `medication_history` (normal
+rollout). No other `shared/` file changed in this batch.
+
 ---
 
 ## Who Implements What Against `shared/`

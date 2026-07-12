@@ -47,13 +47,17 @@
   // against its data_source in CAPABILITY_LOADERS below — nothing in
   // renderDashboard() itself changes. Update all three ports by hand if
   // the canonical list ever changes, per shared/README.md's rule.
+  // Batch WPI-11 (docs/56-WPI-11-HOLOSCAN-ARCHITECTURE-FREEZE.md §18.2) adds the
+  // 'holoscan_review'/'medication_history' rows below — every earlier row is untouched.
   var DOCTOR_MODULE_REGISTRY = [
     { capability_key: 'patient_roster', display_name: 'Patient Roster', display_order: 10, empty_state: 'nodata', data_source: 'get_doctor_patient_roster' },
     { capability_key: 'appointments', display_name: 'Appointments', display_order: 20, empty_state: 'nodata', data_source: 'get_doctor_appointments' },
     { capability_key: 'inventory', display_name: 'Inventory', display_order: 30, empty_state: 'nodata', data_source: 'get_inventory_items' },
     { capability_key: 'pillfill_orders', display_name: 'PillFill Orders', display_order: 40, empty_state: 'nodata', data_source: 'get_pillfill_orders' },
     { capability_key: 'analytics', display_name: 'Analytics', display_order: 50, empty_state: 'nodata', data_source: 'get_doctor_analytics' },
-    { capability_key: 'ai_assistant', display_name: 'AI Assistant', display_order: 60, empty_state: 'nodata', data_source: 'get_ai_assistant_capabilities' }
+    { capability_key: 'ai_assistant', display_name: 'AI Assistant', display_order: 60, empty_state: 'nodata', data_source: 'get_ai_assistant_capabilities' },
+    { capability_key: 'holoscan_review', display_name: 'Holoscan Review', display_order: 70, empty_state: 'nodata', data_source: 'get_holoscan_review_queue' },
+    { capability_key: 'medication_history', display_name: 'Medication History', display_order: 80, empty_state: 'nodata', data_source: 'get_medication_history' }
   ];
 
   function getCapabilityDescriptor(capabilityKey) {
@@ -517,6 +521,279 @@
     }
   }
 
+  // The Holoscan Review card's body (docs/56-WPI-11-HOLOSCAN-ARCHITECTURE-FREEZE.md
+  // §19.2) — every pending HoloscanRecognitionItem across the caller's own derived
+  // roster, each with an always-visible, un-dismissable "AI-recognized — not yet in
+  // Medication History" banner above its own Approve/Correct/Reject control,
+  // mirroring AI Assistant's own "AI-generated draft — not saved" banner precedent
+  // exactly (docs/55 §14) so ADR-025's boundary is visible at the point of use.
+  // Disabled by default (ADR-026) — this card renders for no doctor until a
+  // staff/administrative action explicitly enables it.
+  function holoscanCandidateSummaryHtml_(item) {
+    var fields = [
+      ['Name', item.extracted_name], ['Strength', item.extracted_strength],
+      ['Form', item.extracted_dosage_form], ['Manufacturer', item.extracted_manufacturer],
+      ['Batch', item.extracted_batch], ['Expiry', item.extracted_expiry]
+    ].filter(function (pair) { return pair[1]; })
+      .map(function (pair) { return escapeHtmlForDisplay(pair[0]) + ': ' + escapeHtmlForDisplay(pair[1]); })
+      .join(' &middot; ');
+    return fields || 'No legible fields extracted from this photo.';
+  }
+
+  function holoscanReviewQueueHtml(entries) {
+    if (!entries.length) {
+      return emptyStateHtml('nodata', 'No Holoscan submissions are awaiting your review.');
+    }
+    var items = entries.map(function (item) {
+      var flagsHtml = item.check_flags.length
+        ? '<ul class="ai-assistant-flags">' + item.check_flags.map(function (f) { return '<li>' + escapeHtmlForDisplay(f) + '</li>'; }).join('') + '</ul>'
+        : '';
+      return '<li data-holoscan-item="' + escapeHtmlForDisplay(item.recognition_item_id) + '">' +
+        '<p class="ai-assistant-banner" role="note">AI-recognized &mdash; not yet in Medication History</p>' +
+        '<div class="roster-name">' + escapeHtmlForDisplay(item.confidence_score) + ' confidence</div>' +
+        '<div class="roster-conditions">' + holoscanCandidateSummaryHtml_(item) + '</div>' +
+        flagsHtml +
+        '<div class="ai-assistant-decision-controls">' +
+        '<button type="button" data-holoscan-decision="approved">Approve</button>' +
+        '<button type="button" data-holoscan-decision="rejected">Reject</button>' +
+        '</div>' +
+        '</li>';
+    }).join('');
+    return '<ul class="roster-list">' + items + '</ul>';
+  }
+
+  // Approve/Reject controls call post_holoscan_recognition_decision only — never
+  // auto-navigating to, or silently prefilling, Medication History's own authoring
+  // form (docs/56 §19.2's disclosed restraint, mirroring docs/55 §14's identical one
+  // for AI Assistant's own Accept action).
+  function wireHoloscanDecisionButtons_(sessionToken, body, capabilityKey) {
+    body.querySelectorAll('[data-holoscan-decision]').forEach(function (btn) {
+      btn.addEventListener('click', function (evt) {
+        var li = evt.currentTarget.closest('[data-holoscan-item]');
+        var recognitionItemId = li.getAttribute('data-holoscan-item');
+        var decision = evt.currentTarget.getAttribute('data-holoscan-decision');
+        fetch(WEB_APP_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({
+            foundation_action: 'post_holoscan_recognition_decision', session_token: sessionToken,
+            recognition_item_id: recognitionItemId, doctor_decision: decision
+          })
+        })
+          .then(function (response) { return response.json(); })
+          .then(function (data) {
+            if (data.status === 'ok') {
+              li.innerHTML = '<p class="ai-assistant-decision">Decision recorded: ' + escapeHtmlForDisplay(decision) +
+                '. To add this to the patient\'s Medication History, open the Medication History card and enter it there yourself &mdash; this decision alone does not save anything.</p>';
+            }
+          });
+      });
+    });
+  }
+
+  function loadHoloscanReviewQueue(sessionToken, capabilityKey) {
+    var body = document.getElementById('card-' + capabilityKey + '-body');
+    fetch(WEB_APP_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ foundation_action: 'get_holoscan_review_queue', session_token: sessionToken })
+    })
+      .then(function (response) { return response.json(); })
+      .then(function (data) {
+        if (data.status === 'ok' && Array.isArray(data.data)) {
+          body.innerHTML = holoscanReviewQueueHtml(data.data);
+          wireHoloscanDecisionButtons_(sessionToken, body, capabilityKey);
+        } else {
+          body.innerHTML = '<p class="empty-text">Could not load the Holoscan review queue. Check your connection and reload the page.</p>';
+        }
+      })
+      .catch(function () {
+        body.innerHTML = '<p class="empty-text">Could not load the Holoscan review queue. Check your connection and reload the page.</p>';
+      });
+  }
+
+  // The Medication History card's body (docs/56 §19.3) — a roster-scoped, per-patient
+  // view (reusing the Patient Roster card's own patient-selection route, no new
+  // patient-lookup mechanism), an "Add Entry" form calling
+  // create_medication_history_entry, and Continue/Stop/Replace/Unknown controls
+  // calling record_medication_decision — never implying a status changed until the
+  // doctor's own explicit action records it.
+  var MEDICATION_STATUS_LABELS_ = { active: 'Active', stopped: 'Stopped', replaced: 'Replaced', unknown: 'Unknown' };
+  var MEDICATION_DECISION_TYPE_LABELS_ = { continue: 'Continue', stop: 'Stop', replace: 'Replace', unknown: 'Mark unknown' };
+
+  function medicationHistoryPatientPickerHtml_(rosterEntries) {
+    var options = rosterEntries.map(function (p) {
+      return '<option value="' + escapeHtmlForDisplay(p.patient_id) + '">' + escapeHtmlForDisplay(p.full_name) + '</option>';
+    }).join('');
+    return '<div class="medication-history-picker">' +
+      '<label for="mhPatientSelect">Patient</label>' +
+      '<select id="mhPatientSelect">' + (options || '<option value="">No roster patients</option>') + '</select>' +
+      '<button type="button" id="mhLoadBtn">Load</button>' +
+      '</div>' +
+      '<div id="mhResultArea"></div>';
+  }
+
+  function medicationHistoryAddEntryFormHtml_() {
+    return '<form id="mhAddEntryForm">' +
+      '<div class="field"><label for="mhMedicineName">Medicine name</label><input id="mhMedicineName" type="text" required></div>' +
+      '<div class="field"><label for="mhStrength">Strength</label><input id="mhStrength" type="text"></div>' +
+      '<div class="field"><label for="mhDosageForm">Dosage form</label><input id="mhDosageForm" type="text"></div>' +
+      '<div class="field"><label for="mhManufacturer">Manufacturer</label><input id="mhManufacturer" type="text"></div>' +
+      '<button class="submit" type="submit" id="mhAddEntrySubmitBtn">Add to Medication History</button>' +
+      '<div class="status" id="mhAddEntryStatus" role="status" aria-live="polite"></div>' +
+      '</form>';
+  }
+
+  function medicationDecisionControlsHtml_(medicationHistoryId) {
+    return '<div class="ai-assistant-decision-controls" data-mh-decision-controls="' + escapeHtmlForDisplay(medicationHistoryId) + '">' +
+      '<button type="button" data-mh-decision="continue">Continue</button>' +
+      '<button type="button" data-mh-decision="stop">Stop</button>' +
+      '<button type="button" data-mh-decision="unknown">Mark unknown</button>' +
+      '</div>';
+  }
+
+  function medicationHistoryEntryHtml_(entry) {
+    var ledgerItems = (entry.decisions || []).slice().sort(function (a, b) {
+      return a.decided_at < b.decided_at ? 1 : (a.decided_at > b.decided_at ? -1 : 0);
+    }).map(function (d) {
+      return '<li>' + escapeHtmlForDisplay(String(d.decided_at).slice(0, 10)) + ' &mdash; ' +
+        escapeHtmlForDisplay(MEDICATION_DECISION_TYPE_LABELS_[d.decision_type] || d.decision_type) + '</li>';
+    }).join('');
+    return '<li>' +
+      '<div class="roster-name">' + escapeHtmlForDisplay(entry.medicine_name) + ' &middot; ' +
+      escapeHtmlForDisplay(MEDICATION_STATUS_LABELS_[entry.current_status] || entry.current_status) + '</div>' +
+      '<div class="roster-conditions">' + escapeHtmlForDisplay(entry.strength || '') + ' ' + escapeHtmlForDisplay(entry.dosage_form || '') + '</div>' +
+      (ledgerItems ? '<ul class="mh-doctor-ledger">' + ledgerItems + '</ul>' : '') +
+      medicationDecisionControlsHtml_(entry.medication_history_id) +
+      '</li>';
+  }
+
+  function medicationHistoryListHtml_(entries) {
+    if (!entries.length) {
+      return emptyStateHtml('nodata', 'This patient has no Medication History entries yet.');
+    }
+    return '<ul class="roster-list">' + entries.map(medicationHistoryEntryHtml_).join('') + '</ul>';
+  }
+
+  function wireMedicationDecisionButtons_(sessionToken, resultArea, patientId) {
+    resultArea.querySelectorAll('[data-mh-decision]').forEach(function (btn) {
+      btn.addEventListener('click', function (evt) {
+        var controls = evt.currentTarget.closest('[data-mh-decision-controls]');
+        var medicationHistoryId = controls.getAttribute('data-mh-decision-controls');
+        var decisionType = evt.currentTarget.getAttribute('data-mh-decision');
+        fetch(WEB_APP_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({
+            foundation_action: 'record_medication_decision', session_token: sessionToken,
+            medication_history_id: medicationHistoryId, decision_type: decisionType
+          })
+        })
+          .then(function (response) { return response.json(); })
+          .then(function (data) {
+            if (data.status === 'ok') {
+              loadMedicationHistoryForPatient_(sessionToken, resultArea, patientId);
+            }
+          });
+      });
+    });
+  }
+
+  function wireMedicationAddEntryForm_(sessionToken, resultArea, patientId) {
+    var form = document.getElementById('mhAddEntryForm');
+    if (!form) return;
+    var submitBtn = document.getElementById('mhAddEntrySubmitBtn');
+    var statusBox = document.getElementById('mhAddEntryStatus');
+    form.addEventListener('submit', function (event) {
+      event.preventDefault();
+      if (!form.checkValidity()) {
+        form.reportValidity();
+        return;
+      }
+      submitBtn.disabled = true;
+      statusBox.className = 'status loading';
+      statusBox.textContent = 'Saving…';
+      fetch(WEB_APP_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          foundation_action: 'create_medication_history_entry', session_token: sessionToken, patient_id: patientId,
+          medicine_name: document.getElementById('mhMedicineName').value,
+          strength: document.getElementById('mhStrength').value,
+          dosage_form: document.getElementById('mhDosageForm').value,
+          manufacturer: document.getElementById('mhManufacturer').value
+        })
+      })
+        .then(function (response) { return response.json(); })
+        .then(function (data) {
+          submitBtn.disabled = false;
+          if (data.status === 'ok') {
+            statusBox.className = 'status ok';
+            statusBox.textContent = 'Added.';
+            form.reset();
+            loadMedicationHistoryForPatient_(sessionToken, resultArea, patientId);
+          } else {
+            statusBox.className = 'status err';
+            statusBox.textContent = (data.error && data.error.message) || 'Something went wrong. Please try again.';
+          }
+        })
+        .catch(function () {
+          submitBtn.disabled = false;
+          statusBox.className = 'status err';
+          statusBox.textContent = 'Could not reach the server. Check your connection and try again.';
+        });
+    });
+  }
+
+  function loadMedicationHistoryForPatient_(sessionToken, resultArea, patientId) {
+    resultArea.innerHTML = '<div class="skeleton"></div>';
+    fetch(WEB_APP_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ foundation_action: 'get_medication_history', session_token: sessionToken, patient_id: patientId })
+    })
+      .then(function (response) { return response.json(); })
+      .then(function (data) {
+        if (data.status !== 'ok' || !Array.isArray(data.data)) {
+          resultArea.innerHTML = '<p class="empty-text">Could not load Medication History. Check your connection and reload the page.</p>';
+          return;
+        }
+        resultArea.innerHTML = medicationHistoryListHtml_(data.data) + medicationHistoryAddEntryFormHtml_();
+        wireMedicationDecisionButtons_(sessionToken, resultArea, patientId);
+        wireMedicationAddEntryForm_(sessionToken, resultArea, patientId);
+      })
+      .catch(function () {
+        resultArea.innerHTML = '<p class="empty-text">Could not load Medication History. Check your connection and reload the page.</p>';
+      });
+  }
+
+  function loadMedicationHistoryCard(sessionToken, capabilityKey) {
+    var body = document.getElementById('card-' + capabilityKey + '-body');
+    fetch(WEB_APP_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ foundation_action: 'get_doctor_patient_roster', session_token: sessionToken })
+    })
+      .then(function (response) { return response.json(); })
+      .then(function (data) {
+        if (data.status !== 'ok') {
+          body.innerHTML = '<p class="empty-text">Could not load your patient roster. Check your connection and reload the page.</p>';
+          return;
+        }
+        body.innerHTML = medicationHistoryPatientPickerHtml_(data.data);
+        var loadBtn = document.getElementById('mhLoadBtn');
+        if (!loadBtn) return; // no roster patients — nothing further to wire
+        loadBtn.addEventListener('click', function () {
+          var patientId = document.getElementById('mhPatientSelect').value;
+          var resultArea = document.getElementById('mhResultArea');
+          if (patientId) loadMedicationHistoryForPatient_(sessionToken, resultArea, patientId);
+        });
+      })
+      .catch(function () {
+        body.innerHTML = '<p class="empty-text">Could not load your patient roster. Check your connection and reload the page.</p>';
+      });
+  }
+
   // Loader-dispatcher registry — one entry per registry data_source, the
   // same discipline my-health-journey/dashboard.js's own MODULE_LOADERS
   // already establishes.
@@ -526,7 +803,9 @@
     'get_inventory_items': loadInventoryPreview,
     'get_pillfill_orders': loadPillFillOrdersPreview,
     'get_doctor_analytics': loadAnalyticsPreview,
-    'get_ai_assistant_capabilities': loadAiAssistantCard
+    'get_ai_assistant_capabilities': loadAiAssistantCard,
+    'get_holoscan_review_queue': loadHoloscanReviewQueue,
+    'get_medication_history': loadMedicationHistoryCard
   };
 
   // Merges the per-doctor state rows from get_doctor_module_states with
@@ -656,6 +935,9 @@
     pillFillOrdersHtml: pillFillOrdersHtml,
     analyticsHtml: analyticsHtml,
     aiAssistantPickerHtml: aiAssistantPickerHtml,
-    aiAssistantDraftHtml: aiAssistantDraftHtml
+    aiAssistantDraftHtml: aiAssistantDraftHtml,
+    holoscanReviewQueueHtml: holoscanReviewQueueHtml,
+    medicationHistoryListHtml: medicationHistoryListHtml_,
+    medicationHistoryPatientPickerHtml: medicationHistoryPatientPickerHtml_
   };
 })();

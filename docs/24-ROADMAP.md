@@ -1,5 +1,5 @@
 # 24 - Wise Product Roadmap
-## Version 1.22 — 2026-07-16
+## Version 1.23 — 2026-07-16
 
 # Phase 1 — Public Website
 Status: In Progress
@@ -655,8 +655,9 @@ frozen** (docs/55-WPI-10-AI-ASSISTANT-ARCHITECTURE-FREEZE.md, ADR-021/022/023),
 **implemented** — disabled by default per ADR-023, doctor-facing only, seeded with one
 capability, `summarize_patient_status`) → WPI-11 (Holoscan — **architecture frozen**
 (docs/56-WPI-11-HOLOSCAN-ARCHITECTURE-FREEZE.md, ADR-024/025/026), defined as the
-Patient Medication Recognition Engine, **not yet implemented** — a separate, explicit
-approval is required before implementation begins) → WPI-12 (Closeout).
+Patient Medication Recognition Engine, **implemented** as a post-Phase-3-closure batch,
+disabled by default for the doctor-facing review surface per ADR-026) → WPI-12
+(Closeout).
 
 **No WPI batch beyond WPI-10 is authorized to begin by any of the above documents.**
 Each requires its own separate, explicit approval, per docs/53's per-batch gate — the
@@ -1118,6 +1119,46 @@ authorized to begin by this document** — each requires its own separate, expli
 approval, per docs/53 §9/§13/§15, the same discipline every prior batch already passed
 through.
 
+**WPI-11 Implementation (Holoscan, post-Phase-3-closure batch)** — the separate,
+explicit approval docs/57 §7/§13 named as still required, naming this specific batch,
+has now been given, and the implementation itself has shipped. Implements docs/56 §4-§23
+exactly, against the architecture already frozen (and independently, adversarially
+re-audited fresh before this batch began) in Phase 3: `HoloscanRecognition`/
+`HoloscanRecognitionItem` (`apps-script/HoloscanRecognition.gs`,
+`HoloscanRecognitionCheck.gs`) and `MedicationHistory`/`MedicationDecision`
+(`apps-script/MedicationHistory.gs`) are now real, Sheet-backed entities. The capture
+pipeline reuses `FoundationReports.gs`'s own content-based MIME detection and
+private-Drive-sharing enforcement unmodified (narrowed to JPEG/PNG), then one bounded,
+multimodal vision-model call (reusing `AIAssistantInteraction.gs`'s own
+`UrlFetchApp`/`OPENROUTER_API_KEY` pattern), then `HoloscanRecognitionCheck_()` — a
+Holoscan-specific, five-category lexicon check, advisory only. Holoscan never gains a
+write path into `MedicationHistory`/`MedicationDecision` (ADR-025, statically enforced,
+docs/56 §23 item 1) — approving a recognition item patches only that item's own row; the
+doctor's own, separate `create_medication_history_entry` action is the only way a
+`MedicationHistory` row is ever created. `MedicationHistory.current_status` is derived,
+recomputed from the `MedicationDecision` append-only ledger inside a `LockService`
+critical section, mirroring `InventoryItem.quantity_on_hand`'s own recompute-from-ledger
+discipline exactly (WPI-7, docs/54). Seven new, additive `FoundationRouter.gs` dispatch
+cases, including `get_medication_history` — this platform's one dual-guarded route,
+reachable by either a verified DoctorSession (roster-scoped) or a verified PatientSession
+(own record only). One new Patient Module Registry entry (`holoscan`, normal rollout) and
+two new Doctor Module Registry entries (`holoscan_review`, **disabled by default for
+every doctor per ADR-026**, mirroring `ai_assistant`'s own precedent; `medication_history`,
+normal rollout). The "My Health Journey" dashboard gains a Holoscan card (multi-photo
+upload, never showing a raw un-reviewed candidate as confirmed) plus a linked, read-only
+Medication History page; the Doctor Dashboard gains Holoscan Review (an always-visible
+"AI-recognized — not yet in Medication History" banner above any Approve/Correct/Reject
+control) and Medication History cards. Validation: static analysis 0 findings (66 files,
+including five new Holoscan-specific rules per docs/56 §23); conformance 801/801 (Stage
+27's own 74 new checks); Phase 1.5 regression 45/45; 17 browser suites, 367/367 checks.
+Zero modification to any frozen Foundation/Identity & Access/Patient Access/
+PXP-1..11/WPI-1..10 file, and zero modification to `InventoryItem.gs`/
+`InventoryTransaction.gs`/`PillFillOrder.gs`/`AIAssistantInteraction.gs`/`Ai.gs`/
+`Config.gs`. **This batch completes WPI-11's own reserved slot (docs/57 §7/§13) — it does
+not reopen Phase 3 itself, which remains closed and frozen except for genuine bug fixes,
+and it does not itself name, scope, or authorize a "Phase 4," Phase 2C, or Phase 2D** —
+see below.
+
 # Phase 4 — Not Yet Named or Scoped
 
 No existing document defines what "Phase 4" is. Nothing in this roadmap, docs/21, or
@@ -1126,11 +1167,14 @@ exists only to record that fact explicitly, the same discipline ADR-019 already 
 to naming-without-scoping (mirroring how docs/24 once named Holoscan without scoping
 it, before docs/56). **Phase 2C (Health Milestones) and Phase 2D (Digital Twin & AI
 Summaries) remain the platform's own next-named, still-unscoped-for-implementation
-phases** (see above); whether the platform's next real phase is one of those, a real
-WPI-11 (Holoscan) implementation batch, or a genuinely new "Phase 4," is not decided by
-this document. **Not started. Requires its own separate, explicit architecture-freeze
-pass and approval before any implementation begins**, per every prior phase transition's
-own precedent (docs/43, docs/48, docs/57).
+phases** (see above). **The WPI-11 (Holoscan) implementation batch this document names
+above has now shipped** — one of the four candidates this section originally named as
+equally unscoped/undecided is therefore resolved, but this does not itself define,
+scope, or authorize a "Phase 4": whether the platform's next real phase is Phase 2C,
+Phase 2D, or a genuinely new "Phase 4" remains exactly as undecided as before. **Not
+started. Requires its own separate, explicit architecture-freeze pass and approval
+before any implementation begins**, per every prior phase transition's own precedent
+(docs/43, docs/48, docs/57).
 
 # Guiding Principle
 Every roadmap item should support the North Star:

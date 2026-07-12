@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wisehomeopathy.com/shared/schemas/medication-decision.schema.json",
+  "title": "MedicationDecision",
+  "version": "1.0.0",
+  "description": "The canonical shape of a MedicationDecision record — docs/56-WPI-11-HOLOSCAN-ARCHITECTURE-FREEZE.md §11.4's append-only clinical-status ledger, Batch WPI-11 (docs/50-PHASE-3-TECHNICAL-PLAN.md §19, ADR-024/025/026), governed by docs/53-PHASE-3-IMPLEMENTATION-RULES.md. Every Continue/Stop/Replace/Unknown action against a MedicationHistory row (medication-history.schema.json) is its own doctor-authored MedicationDecision row — strictly append-only, mirroring InventoryTransaction.gs's own explicit discipline exactly (docs/54 §19). MedicationHistory.current_status is a pure function of the most recent MedicationDecision row for that medication.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["decision_id", "medication_history_id", "patient_id", "decision_type", "replacement_medication_history_id", "notes", "decided_by", "decided_at"],
+  "properties": {
+    "decision_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Server-generated UUID (generateFoundationId_()), this row's own identity — never doctor-supplied."
+    },
+    "medication_history_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "References the parent MedicationHistory (medication-history.schema.json)."
+    },
+    "patient_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Denormalized, the same CarePlan/DoctorInstruction convention."
+    },
+    "decision_type": {
+      "type": "string",
+      "enum": ["continue", "stop", "replace", "unknown"],
+      "description": "docs/56 §11.4."
+    },
+    "replacement_medication_history_id": {
+      "type": "string",
+      "description": "Populated only when decision_type: 'replace' — references a different, already-existing MedicationHistory row that replaces this one. Disclosed boundary (docs/56 §11.4): the replacement medication must already exist as its own MedicationHistory row before it can be referenced here. Empty-string sentinel otherwise."
+    },
+    "notes": { "type": "string", "description": "Optional doctor rationale, empty-string sentinel when not supplied." },
+    "decided_by": {
+      "type": "string",
+      "minLength": 1,
+      "description": "doctor_id, DoctorSession-derived."
+    },
+    "decided_at": { "type": "string", "format": "date-time", "description": "Server-set at creation. Never editable." }
+  }
+}

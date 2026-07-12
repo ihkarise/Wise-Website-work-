@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Medication History | My Health Journey | Wise Homeopathy</title>
+<meta name="description" content="Your own medication history, confirmed by your doctor.">
+<link rel="canonical" href="https://www.wisehomeopathy.com/my-health-journey/medications/">
+<link rel="icon" href="../../assets/favicon.ico">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/site.css">
+<style>
+/* Page-specific layout — duplicated from my-health-journey/reports/index.html
+   (docs/29 §14 F2's own per-page CSS convention). mh-status is this page's
+   own one small addition, a status-badge pill for MedicationHistory's own
+   current_status enum. */
+.wrap{max-width:820px}
+body{background:var(--color-surface)}
+
+.dash-header{position:sticky;top:0;z-index:10;background:var(--color-surface-base);border-bottom:1px solid var(--color-line)}
+.dash-header-inner{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding-top:16px;padding-bottom:16px}
+.dash-brand{display:flex;align-items:center;gap:10px}
+.dash-brand img{height:30px;width:auto}
+.dash-brand .dash-logo-mark{display:none;height:30px;width:30px;border-radius:50%;background:var(--color-brand);color:#fff;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:600}
+.dash-title{font-size:18px;color:var(--color-brand-strong);margin:0;text-align:left}
+.dash-user{display:flex;align-items:center;gap:14px}
+.dash-greeting{font-size:14px;color:var(--color-text-secondary)}
+.dash-greeting .skeleton{display:inline-block;width:110px;vertical-align:middle;margin:0}
+.dash-signout{background:transparent;border:1px solid var(--color-line);color:var(--color-brand-strong);font:600 13.5px var(--font-body);padding:9px 16px;border-radius:var(--radius-md);cursor:pointer;transition:background .15s ease,border-color .15s ease}
+.dash-signout:hover{background:var(--color-surface);border-color:var(--color-brand)}
+
+.tl-main{padding-top:clamp(20px,4vw,32px)}
+.tl-page-title{font-family:var(--font-display);font-size:22px;color:var(--color-brand-strong);margin-bottom:6px;text-align:left}
+.tl-back{display:inline-block;margin-bottom:20px;font-size:13.5px;color:var(--color-brand);text-decoration:none;font-weight:500}
+.tl-back:hover{text-decoration:underline}
+
+.tl-track{position:relative;max-width:720px}
+.tl-item{position:relative;display:flex;gap:16px;padding-bottom:26px}
+.tl-item:last-child{padding-bottom:0}
+.tl-item::before{content:'';position:absolute;left:9px;top:22px;bottom:0;width:2px;background:var(--color-line)}
+.tl-item:last-child::before{display:none}
+.tl-dot{flex:none;width:20px;height:20px;border-radius:50%;background:var(--color-brand);margin-top:2px}
+.tl-body{background:var(--color-surface-base);border:1px solid var(--color-line);border-radius:var(--radius-md);padding:14px 16px;flex:1}
+.tl-body h3{font-family:var(--font-display);font-size:16px;color:var(--color-brand-strong);margin-bottom:4px}
+.mh-status{display:inline-block;font-size:11.5px;font-weight:600;letter-spacing:.02em;text-transform:uppercase;padding:3px 9px;border-radius:999px;background:var(--color-surface);color:var(--color-text-secondary);border:1px solid var(--color-line);margin-bottom:8px}
+.mh-meta{font-size:13.5px;color:var(--color-text-secondary);margin-bottom:6px}
+.mh-ledger{list-style:none;padding:0;margin:8px 0 0;font-size:13px;color:var(--color-text-secondary)}
+.mh-ledger li{padding:4px 0;border-top:1px solid var(--color-line)}
+
+@media(max-width:640px){.dash-header-inner{justify-content:center;text-align:center}.dash-user{width:100%;justify-content:space-between}}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to main content</a>
+
+<header class="dash-header">
+  <div class="wrap dash-header-inner">
+    <div class="dash-brand">
+      <img src="../../assets/logo.svg" alt="Wise Homeopathy Multispeciality Center" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+      <span class="dash-logo-mark" aria-hidden="true">W</span>
+      <h1 class="dash-title serif">My Health Journey</h1>
+    </div>
+    <div class="dash-user">
+      <span class="dash-greeting" id="greeting" aria-live="polite"><span class="skeleton"></span></span>
+      <button class="dash-signout" type="button" id="signOutBtn">Sign out</button>
+    </div>
+  </div>
+</header>
+
+<main id="main" class="wrap tl-main">
+  <a class="tl-back" href="../../my-health-journey/">&larr; Back to Dashboard</a>
+  <h2 class="tl-page-title serif">Medication History</h2>
+
+  <div id="mhContent" aria-busy="true">
+    <div class="card" style="max-width:720px">
+      <div class="skeleton" style="width:60%"></div>
+      <div class="skeleton" style="width:85%"></div>
+      <div class="skeleton" style="width:70%"></div>
+    </div>
+  </div>
+</main>
+
+<script src="../../my-health-journey/session-guard.js"></script>
+<script src="../../my-health-journey/medications/medications.js"></script>
+</body>
+</html>

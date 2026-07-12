@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wisehomeopathy.com/shared/schemas/medication-history.schema.json",
+  "title": "MedicationHistory",
+  "version": "1.0.0",
+  "description": "The canonical shape of a MedicationHistory record — docs/56-WPI-11-HOLOSCAN-ARCHITECTURE-FREEZE.md §11.3's permanent, doctor-authored medication record, Batch WPI-11 (docs/50-PHASE-3-TECHNICAL-PLAN.md §19, ADR-024/025/026), governed by docs/53-PHASE-3-IMPLEMENTATION-RULES.md. Created only by a doctor's own deliberate create_medication_history_entry action (ADR-025) — never automatically by Holoscan's recognition pipeline. `current_status` is derived, never client-supplied — recomputed from the latest MedicationDecision row (medication-decision.schema.json) every time one is recorded, mirroring InventoryItem.quantity_on_hand's own recompute-from-ledger discipline exactly (WPI-7, docs/54). Deliberately distinct from DoctorInstruction (type: 'medicine') — docs/56 §0.2's disambiguation; the two entities carry no structural reference to one another.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["medication_history_id", "patient_id", "medicine_name", "strength", "dosage_form", "manufacturer", "source_type", "source_recognition_item_id", "current_status", "created_at", "created_by"],
+  "properties": {
+    "medication_history_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Server-generated UUID (generateFoundationId_()), this row's own identity — never doctor-supplied."
+    },
+    "patient_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Roster-validated at creation (reuses DoctorPatientRoster.gs, never a new derivation)."
+    },
+    "medicine_name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The doctor-confirmed final name (equal to extracted_name, or the doctor's corrected_fields value, if corrected_and_approved)."
+    },
+    "strength": { "type": "string", "description": "Same provenance discipline as medicine_name. Empty-string sentinel if not applicable." },
+    "dosage_form": { "type": "string", "description": "Same provenance discipline as medicine_name. Empty-string sentinel if not applicable." },
+    "manufacturer": { "type": "string", "description": "Same provenance discipline as medicine_name. Empty-string sentinel if not applicable." },
+    "source_type": {
+      "type": "string",
+      "enum": ["holoscan_recognition", "doctor_manual_entry"],
+      "description": "'holoscan_recognition' is the only value this freeze populates. 'doctor_manual_entry' is a reserved, unimplemented enum value for a future, separately-scoped batch (docs/56 §11.3)."
+    },
+    "source_recognition_item_id": {
+      "type": "string",
+      "description": "References the originating HoloscanRecognitionItem (holoscan-recognition-item.schema.json) when source_type: 'holoscan_recognition'. Purely observational provenance — never a live foreign key this entity enforces beyond validation at creation time, mirrors AIAssistantInteraction.target_entity_id's own precedent exactly. Empty-string sentinel otherwise."
+    },
+    "current_status": {
+      "type": "string",
+      "enum": ["active", "stopped", "replaced", "unknown"],
+      "description": "Derived, never client-supplied — recomputed from the latest MedicationDecision row every time one is recorded, defaulting to 'active' at creation with no MedicationDecision row required to establish that initial state (docs/56 §11.3)."
+    },
+    "created_at": { "type": "string", "format": "date-time", "description": "Server-set at creation. Never editable." },
+    "created_by": {
+      "type": "string",
+      "minLength": 1,
+      "description": "doctor_id, DoctorSession-derived — the doctor who took the separate, deliberate create_medication_history_entry action (ADR-025)."
+    }
+  }
+}

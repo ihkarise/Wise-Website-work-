@@ -283,6 +283,61 @@
  *     Notification.gs — AI Assistant only reads each through its own existing,
  *     already-scoped reader function.
  *
+ *   - submit_holoscan_recognition / get_holoscan_recognitions —
+ *     Batch WPI-11 additions (docs/56-WPI-11-HOLOSCAN-ARCHITECTURE-FREEZE.md
+ *     §6/§17, ADR-024/025/026), the platform's first patient-initiated,
+ *     image-input AI capability (HoloscanRecognition.gs, registered as
+ *     shared/constants/module-registry.json's `holoscan` entry). Both are
+ *     patient-guarded only — patient_id is always PatientSession-derived,
+ *     never client-supplied. submit_holoscan_recognition is a write route:
+ *     it uploads image(s) via Report's own existing Drive mechanism
+ *     (reused, never a new one), then runs the capture/recognition
+ *     pipeline, writing exactly one HoloscanRecognition row plus zero or
+ *     more HoloscanRecognitionItem rows — it never writes to
+ *     MedicationHistory or MedicationDecision (ADR-025). get_holoscan_recognitions
+ *     is read-only, returning the caller's own recognition history plus each
+ *     item's own draft/review status.
+ *
+ *   - get_holoscan_review_queue / post_holoscan_recognition_decision —
+ *     Batch WPI-11 additions (docs/56 §17), the Doctor Dashboard's seventh
+ *     capability (HoloscanRecognition.gs, registered as shared/constants/
+ *     doctor-module-registry.json's `holoscan_review` entry, disabled by
+ *     default per ADR-026, mirroring `ai_assistant`'s own precedent
+ *     exactly). Both are doctor-guarded only — doctor_id is always
+ *     DoctorSession-derived, never client-supplied. get_holoscan_review_queue
+ *     is read-only, returning pending HoloscanRecognitionItem rows across the
+ *     caller's own derived roster (DoctorPatientRoster.gs, reused, never
+ *     re-derived). post_holoscan_recognition_decision is a write route, audit
+ *     only — it records the caller's one-way decision (approve/
+ *     corrected-and-approve/reject) on ONE HoloscanRecognitionItem row the
+ *     caller has roster access to; it never writes to any other entity's
+ *     Sheet (ADR-025, statically enforced per docs/56 §23 item 1).
+ *
+ *   - get_medication_history — Batch WPI-11 addition (docs/56 §17), this
+ *     platform's one dual-guarded route: reachable via either a verified
+ *     DoctorSession (roster-scoped, any patient on the caller's own roster)
+ *     or a verified PatientSession (own record only, patient_id always
+ *     session-derived) — MedicationHistory.gs's own
+ *     foundationGetMedicationHistoryDualGuarded_() resolves which identity
+ *     type presented the token; this router never re-derives or re-verifies
+ *     the session itself. Read-only — returns one patient's MedicationHistory
+ *     rows plus each row's own MedicationDecision ledger.
+ *
+ *   - create_medication_history_entry / record_medication_decision — Batch
+ *     WPI-11 additions (docs/56 §10.3/§10.4/§17, ADR-025), the doctor's own,
+ *     separate write paths into MedicationHistory/MedicationDecision — never
+ *     called by HoloscanRecognition.gs's own pipeline or decision route.
+ *     Both are doctor-guarded only — doctor_id is always DoctorSession-derived,
+ *     never client-supplied. create_medication_history_entry creates one
+ *     MedicationHistory row, optionally using an approved
+ *     HoloscanRecognitionItem as pre-fill/provenance only (MedicationHistory.gs
+ *     itself validates that reference, never a live foreign key it enforces
+ *     beyond creation time). record_medication_decision creates one new,
+ *     append-only MedicationDecision row (continue/stop/replace/unknown)
+ *     and deterministically recomputes MedicationHistory.current_status from
+ *     the full ledger, inside a LockService critical section mirroring
+ *     InventoryTransaction.gs's own precedent exactly (WPI-7, docs/54 §19).
+ *
  * A disclosed, additive exception, same category as Code.gs's own
  * one-line dispatch shim (IA-2): this file was previously listed among
  * Identity & Access's six files "frozen except for bug fixes"
@@ -313,7 +368,8 @@
  * TrustedDevice.gs, DoctorIdentity.gs, DoctorSession.gs, DoctorLoginTokens.gs,
  * DoctorEmail.gs, DoctorLoginFlow.gs, DoctorRouteGuard.gs,
  * DoctorModuleRegistry.gs, DoctorModuleState.gs, DoctorPatientRoster.gs,
- * Appointment.gs, InventoryItem.gs, AIAssistantContext.gs, AIAssistantInteraction.gs.
+ * Appointment.gs, InventoryItem.gs, AIAssistantContext.gs, AIAssistantInteraction.gs,
+ * HoloscanRecognition.gs, HoloscanRecognitionCheck.gs, MedicationHistory.gs.
  */
 
 /**
@@ -825,6 +881,111 @@ function foundationHandlePostAiAssistantDecision_(input) {
 }
 
 /**
+ * Batch WPI-11: submits one Holoscan photo capture for the caller — patient_id is always
+ * PatientSession-derived, never client-supplied. Every other field (images) comes from the
+ * request body and is validated, decoded, and content-type-checked by
+ * foundationCreateHoloscanRecognition_() itself before any Drive write or model call
+ * happens.
+ */
+function foundationHandleSubmitHoloscanRecognition_(input) {
+  return withFoundationAuth_(input && input.session_token, function (patientId) {
+    return foundationCreateHoloscanRecognition_({
+      patient_id: patientId,
+      images: input && input.images
+    });
+  });
+}
+
+/**
+ * Batch WPI-11: returns the caller's own Holoscan recognition history, including each
+ * item's own extraction and review status. patient_id is always session-derived, never
+ * client-supplied.
+ */
+function foundationHandleGetHoloscanRecognitions_(input) {
+  return withFoundationAuth_(input && input.session_token, function (patientId) {
+    return foundationGetPatientHoloscanRecognitions_(patientId);
+  });
+}
+
+/**
+ * Batch WPI-11: returns the caller's own Holoscan review queue (HoloscanRecognition.gs) —
+ * the Doctor Dashboard's seventh capability this batch registers (`holoscan_review`,
+ * doctor-module-registry.json, disabled by default per ADR-026). doctor_id is always
+ * DoctorSession-derived, never client-supplied. Read-only — pending HoloscanRecognitionItem
+ * rows across the caller's own derived roster.
+ */
+function foundationHandleGetHoloscanReviewQueue_(input) {
+  return withFoundationDoctorAuth_(input && input.session_token, function (doctorId) {
+    return foundationGetHoloscanReviewQueueForDoctor_(doctorId);
+  });
+}
+
+/**
+ * Batch WPI-11: records the caller doctor's one-way decision (approve/corrected-and-approve/
+ * reject) on one HoloscanRecognitionItem row they have roster access to. doctor_id is always
+ * DoctorSession-derived, never client-supplied. Never writes to MedicationHistory or
+ * MedicationDecision (ADR-025).
+ */
+function foundationHandlePostHoloscanRecognitionDecision_(input) {
+  return withFoundationDoctorAuth_(input && input.session_token, function (doctorId) {
+    return foundationRecordHoloscanRecognitionDecision_({
+      doctor_id: doctorId,
+      recognition_item_id: input && input.recognition_item_id,
+      doctor_decision: input && input.doctor_decision,
+      corrected_fields: input && input.corrected_fields,
+      decision_notes: input && input.decision_notes
+    });
+  });
+}
+
+/**
+ * Batch WPI-11: this platform's one dual-guarded route (docs/56 §17) — reachable via
+ * either a verified DoctorSession or a verified PatientSession.
+ * MedicationHistory.gs's own foundationGetMedicationHistoryDualGuarded_() resolves which
+ * identity type presented the token and returns the correspondingly-scoped slice; this
+ * handler never derives patient_id or doctor_id itself.
+ */
+function foundationHandleGetMedicationHistory_(input) {
+  return foundationGetMedicationHistoryDualGuarded_(input && input.session_token, input && input.patient_id);
+}
+
+/**
+ * Batch WPI-11: the doctor's own, separate write action creating one MedicationHistory row
+ * (docs/56 §10.3/ADR-025) — never called by HoloscanRecognition.gs's own pipeline. doctor_id
+ * is always DoctorSession-derived, never client-supplied.
+ */
+function foundationHandleCreateMedicationHistoryEntry_(input) {
+  return withFoundationDoctorAuth_(input && input.session_token, function (doctorId) {
+    return foundationCreateMedicationHistoryEntry_({
+      doctor_id: doctorId,
+      patient_id: input && input.patient_id,
+      medicine_name: input && input.medicine_name,
+      strength: input && input.strength,
+      dosage_form: input && input.dosage_form,
+      manufacturer: input && input.manufacturer,
+      source_recognition_item_id: input && input.source_recognition_item_id
+    });
+  });
+}
+
+/**
+ * Batch WPI-11: creates one new, append-only MedicationDecision row (continue/stop/replace/
+ * unknown) and deterministically recomputes MedicationHistory.current_status from the full
+ * ledger (docs/56 §10.4). doctor_id is always DoctorSession-derived, never client-supplied.
+ */
+function foundationHandleRecordMedicationDecision_(input) {
+  return withFoundationDoctorAuth_(input && input.session_token, function (doctorId) {
+    return foundationRecordMedicationDecision_({
+      doctor_id: doctorId,
+      medication_history_id: input && input.medication_history_id,
+      decision_type: input && input.decision_type,
+      replacement_medication_history_id: input && input.replacement_medication_history_id,
+      notes: input && input.notes
+    });
+  });
+}
+
+/**
  * Serializes a response-envelope-shaped value to the wire. Apps Script
  * Web Apps cannot set a real HTTP status code (every response transports
  * as HTTP 200 regardless — the same platform fact Code.gs's own
@@ -955,6 +1116,27 @@ function handleFoundationRequest_(input) {
       break;
     case 'post_ai_assistant_decision':
       envelope = foundationHandlePostAiAssistantDecision_(input);
+      break;
+    case 'submit_holoscan_recognition':
+      envelope = foundationHandleSubmitHoloscanRecognition_(input);
+      break;
+    case 'get_holoscan_recognitions':
+      envelope = foundationHandleGetHoloscanRecognitions_(input);
+      break;
+    case 'get_holoscan_review_queue':
+      envelope = foundationHandleGetHoloscanReviewQueue_(input);
+      break;
+    case 'post_holoscan_recognition_decision':
+      envelope = foundationHandlePostHoloscanRecognitionDecision_(input);
+      break;
+    case 'get_medication_history':
+      envelope = foundationHandleGetMedicationHistory_(input);
+      break;
+    case 'create_medication_history_entry':
+      envelope = foundationHandleCreateMedicationHistoryEntry_(input);
+      break;
+    case 'record_medication_decision':
+      envelope = foundationHandleRecordMedicationDecision_(input);
       break;
     default:
       envelope = buildFoundationErrorEnvelope_('FOUNDATION_UNKNOWN_ACTION', 'Unknown request.');

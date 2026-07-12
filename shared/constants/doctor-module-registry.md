@@ -1,6 +1,6 @@
 # Doctor Module Registry
 
-Explains `doctor-module-registry.json` (version `1.6.0`, the authoritative definition —
+Explains `doctor-module-registry.json` (version `1.8.0`, the authoritative definition —
 this file explains, it does not define, per `shared/README.md`'s format rule).
 
 ## Scope: Batch WPI-3 (docs/50-PHASE-3-TECHNICAL-PLAN.md §7.1/§19/§22, ADR-020)
@@ -83,6 +83,26 @@ the same "prove the mechanism, let a later batch supply the first real instance"
 posture `calculator-registry.json`'s own header comment already used for its own
 not-yet-built calculators.
 
+## Batch WPI-11 additions — `holoscan_review` and `medication_history` (docs/56-WPI-11-HOLOSCAN-ARCHITECTURE-FREEZE.md §18.2)
+
+Adds this registry's seventh entry, `holoscan_review` — the platform's second
+AI-output-review doctor capability (the first is `ai_assistant`, WPI-10), backed by a new,
+real, authenticated route, `HoloscanRecognition.gs`'s `get_holoscan_review_queue`
+(`FoundationRouter.gs`). **Diverges from every entry except `ai_assistant`, per
+ADR-026:** this entry's own `DoctorModuleState` must remain absent (fail-closed,
+ADR-010) for every doctor by default — enabling it is a deliberate, disclosed,
+per-doctor administrative decision, never a bulk/default rollout.
+
+Adds this registry's eighth entry, `medication_history` — a companion card to
+`holoscan_review` (docs/56 §18.2/§19.3), reusing the Patient Roster card's own
+patient-selection route for patient context (no new patient-lookup mechanism), backed
+by `MedicationHistory.gs`'s dual-guarded `get_medication_history` route. Unlike
+`holoscan_review`, this entry follows every other entry's own lighter-touch, normal
+rollout convention (ADR-010's existing default only) — displaying an already
+doctor-confirmed `MedicationHistory` record is not itself a model-output-review
+surface, even though the record may have originated from an approved Holoscan
+recognition.
+
 ## Doctor Module Registry vs. Module Registry — two registries, one job, two audiences
 
 Module Registry governs which capability a *patient* sees at all. Doctor Module
@@ -128,10 +148,12 @@ precedent already proven on the patient side.
 
 ## Versioning
 
-Version `1.6.0` (bumped from `1.0.0` → `1.1.0` at Batch WPI-4 to add `patient_roster`;
+Version `1.8.0` (bumped from `1.0.0` → `1.1.0` at Batch WPI-4 to add `patient_roster`;
 → `1.2.0` at Batch WPI-5 to add `appointments`; → `1.3.0` at Batch WPI-7 to add
 `inventory`; → `1.4.0` at Batch WPI-8 to add `pillfill_orders`; → `1.5.0` at Batch
-WPI-9 to add `analytics`; → `1.6.0` at Batch WPI-10 to add `ai_assistant`). Adding a
+WPI-9 to add `analytics`; → `1.6.0` at Batch WPI-10 to add `ai_assistant`; → `1.8.0` at
+Batch WPI-11 to add both `holoscan_review` and `medication_history` in the same batch, a
+disclosed two-entries-in-one-version-bump). Adding a
 new capability (a new `capability_key` row)
 requires a new version here first, then a subsequent update to
 `apps-script/DoctorModuleRegistry.gs`'s hand-ported copy — never the reverse, per
