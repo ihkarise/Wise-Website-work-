@@ -105,12 +105,24 @@ function recognitionFixture() {
   };
 }
 function medicationHistoryFixture() {
-  return [{
-    medication_history_id: 'mh1', patient_id: 'p1', medicine_name: 'Arnica Montana 30C', strength: '30C',
-    dosage_form: 'pellets', manufacturer: '', source_type: 'holoscan_recognition', source_recognition_item_id: 'ri1',
-    current_status: 'active', created_at: '2026-07-16T00:00:00.000Z', created_by: 'd1',
-    decisions: []
-  }];
+  // Two entries for the same patient — the second exists specifically so the first has
+  // a real Replace target to select (record_medication_decision's own
+  // replacement_medication_history_id must reference a different, existing
+  // MedicationHistory row for the same patient, docs/56 §11.4).
+  return [
+    {
+      medication_history_id: 'mh1', patient_id: 'p1', medicine_name: 'Arnica Montana 30C', strength: '30C',
+      dosage_form: 'pellets', manufacturer: '', source_type: 'holoscan_recognition', source_recognition_item_id: 'ri1',
+      current_status: 'active', created_at: '2026-07-16T00:00:00.000Z', created_by: 'd1',
+      decisions: []
+    },
+    {
+      medication_history_id: 'mh2', patient_id: 'p1', medicine_name: 'Belladonna 200C', strength: '200C',
+      dosage_form: 'pellets', manufacturer: '', source_type: 'doctor_manual_entry', source_recognition_item_id: '',
+      current_status: 'active', created_at: '2026-07-15T00:00:00.000Z', created_by: 'd1',
+      decisions: []
+    }
+  ];
 }
 
 async function mockFoundation(page, opts) {
@@ -126,11 +138,14 @@ async function mockFoundation(page, opts) {
     decisionEnvelope: null
   }, opts || {});
   const calls = [];
+  const bodies = [];
+  calls.bodies = bodies; // exposed as calls.bodies so existing call sites need no signature change
   await page.route('**/macros/s/**/exec', async (route) => {
     let body = {};
     try { body = JSON.parse(route.request().postData()); } catch (e) { /* not JSON */ }
     const action = body.foundation_action;
     calls.push(action);
+    bodies.push(body);
     const envelopeFor = {
       get_doctor_profile: options.doctorProfileEnvelope,
       get_profile: options.patientProfileEnvelope,
@@ -151,7 +166,17 @@ async function mockFoundation(page, opts) {
       return;
     }
     if (action === 'record_medication_decision') {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'ok', data: { decision_id: 'dec1', medication_history_id: 'mh1', patient_id: 'p1', decision_type: body.decision_type, replacement_medication_history_id: '', notes: '', decided_by: 'd1', decided_at: '2026-07-16T00:10:00.000Z' } }) });
+      await route.fulfill({
+        status: 200, contentType: 'application/json',
+        body: JSON.stringify({
+          status: 'ok',
+          data: {
+            decision_id: 'dec1', medication_history_id: body.medication_history_id, patient_id: 'p1',
+            decision_type: body.decision_type, replacement_medication_history_id: body.replacement_medication_history_id || '',
+            notes: '', decided_by: 'd1', decided_at: '2026-07-16T00:10:00.000Z'
+          }
+        })
+      });
       return;
     }
     if (envelopeFor[action]) {
@@ -256,7 +281,7 @@ async function main() {
       await context.close();
     }
 
-    // ---- 4. Medication History card — Continue/Stop/Unknown controls never imply a change before confirmation ----
+    // ---- 4. Medication History card — Continue/Stop/Replace/Unknown controls never imply a change before confirmation ----
     {
       const context = await browser.newContext();
       await blockExternalFonts(context);
@@ -270,15 +295,41 @@ async function main() {
       await page.waitForSelector('#mhAddEntryForm');
 
       const beforeText = await page.textContent('#mhResultArea');
-      check('Doctor Dashboard: Medication History lists the loaded patient\'s own entry before any decision is recorded', /Arnica Montana/.test(beforeText));
+      check('Doctor Dashboard: Medication History lists the loaded patient\'s own entries (both fixture medicines) before any decision is recorded',
+        /Arnica Montana/.test(beforeText) && /Belladonna/.test(beforeText));
 
-      const decisionButtonsBefore = await page.$$('[data-mh-decision]');
-      check('Doctor Dashboard: Continue/Stop/Mark unknown controls are present, no status change implied until clicked', decisionButtonsBefore.length === 3);
+      // Fixture has two entries for this patient (mh1, mh2), so each entry's own
+      // controls have a real Replace target available — scope every action to mh1's
+      // own controls container specifically, since both entries render a full control
+      // set and an unscoped selector would match more than one element.
+      const mh1Controls = '[data-mh-decision-controls="mh1"]';
+      const decisionButtons = await page.$$(`${mh1Controls} [data-mh-decision]`);
+      check('Doctor Dashboard: Continue/Stop/Replace/Mark unknown controls are all four present, no status change implied until clicked',
+        decisionButtons.length === 4);
+      const decisionLabels = await page.$$eval(`${mh1Controls} [data-mh-decision]`, (els) => els.map((e) => e.getAttribute('data-mh-decision')));
+      check('Doctor Dashboard: the four controls are exactly continue/stop/replace/unknown, matching docs/56 §19.3',
+        JSON.stringify(decisionLabels.slice().sort()) === JSON.stringify(['continue', 'replace', 'stop', 'unknown']));
 
-      await page.click('[data-mh-decision="continue"]');
+      const replaceSelectOptions = await page.$$eval(`${mh1Controls} [data-mh-replace-select] option`, (els) => els.map((e) => ({ value: e.value, text: e.textContent })));
+      check('Doctor Dashboard: the Replace control\'s own select is populated with the patient\'s other MedicationHistory entry (mh2, Belladonna), never itself (mh1)',
+        replaceSelectOptions.length === 1 && replaceSelectOptions[0].value === 'mh2' && /Belladonna/.test(replaceSelectOptions[0].text));
+
+      await page.click(`${mh1Controls} [data-mh-decision="continue"]`);
       await page.waitForFunction(() => !document.querySelector('#mhResultArea .skeleton'));
-      const decisionCalls = calls.filter((a) => a === 'record_medication_decision').length;
-      check('Doctor Dashboard: clicking Continue calls record_medication_decision exactly once, only after the explicit click', decisionCalls === 1);
+      check('Doctor Dashboard: clicking Continue calls record_medication_decision exactly once, only after the explicit click, decision_type "continue"',
+        calls.filter((a) => a === 'record_medication_decision').length === 1 &&
+        calls.bodies[calls.bodies.length - 1].decision_type === 'continue');
+
+      // Re-select the replacement target and click Replace (the list re-rendered after
+      // the Continue click above, so mh1's controls are queried fresh).
+      await page.selectOption(`${mh1Controls} [data-mh-replace-select]`, 'mh2');
+      await page.click(`${mh1Controls} [data-mh-decision="replace"]`);
+      await page.waitForFunction(() => !document.querySelector('#mhResultArea .skeleton'));
+      const replaceCallBody = calls.bodies[calls.bodies.length - 1];
+      check('Doctor Dashboard: clicking Replace (with a target selected) calls record_medication_decision with decision_type "replace" and the selected replacement_medication_history_id',
+        calls.filter((a) => a === 'record_medication_decision').length === 2 &&
+        replaceCallBody.decision_type === 'replace' && replaceCallBody.medication_history_id === 'mh1' &&
+        replaceCallBody.replacement_medication_history_id === 'mh2');
 
       await context.close();
     }

@@ -489,24 +489,32 @@ function analyze() {
   var holoscanFiles = files.filter(function (f) { return /^Holoscan.*\.gs$/.test(f); });
 
   // ---- Rule 1 (docs/56 §23 item 1) — the load-bearing one behind ADR-025: ----
-  // no file matching Holoscan*.gs may call MedicationHistory's or
-  // MedicationDecision's own write function — only create_medication_history_entry's
-  // and record_medication_decision's own implementation functions (declared in
-  // MedicationHistory.gs, never a Holoscan*.gs file) may do so.
+  // no file matching Holoscan*.gs may call MedicationHistory's or MedicationDecision's
+  // own write function — only create_medication_history_entry's and
+  // record_medication_decision's own implementation functions (declared in
+  // MedicationHistory.gs, never a Holoscan*.gs file) may do so. The correct predicate
+  // (fixed after an audit-found polarity bug — the first shipped version flagged a
+  // call only when the called name was *not* declared in MedicationHistory.gs, which
+  // never fires for the one call this rule exists to catch, since
+  // foundationCreateMedicationHistoryEntry_/foundationRecordMedicationDecision_ *are*
+  // declared there): a write-verb-shaped call made *from* a Holoscan*.gs file *into* a
+  // function actually declared in MedicationHistory.gs is itself the forbidden call —
+  // flag exactly that condition, not its negation. No name-heuristic (e.g. matching
+  // "medication" in the called name) is needed or used — the declaration-file lookup
+  // is already the precise, authoritative signal.
   holoscanFiles.forEach(function (file) {
     var match;
     writeCallPattern.lastIndex = 0;
     while ((match = writeCallPattern.exec(neutralizedSources[file])) !== null) {
       var calledName = match[1];
       if (!writeVerbPattern.test(calledName)) continue;
-      if (!/medication/i.test(calledName)) continue; // scoped to this rule's own target entities only
-      var ownedByMedicationHistory = declByName[calledName] && declByName[calledName].some(function (d) {
+      var targetsMedicationEntity = declByName[calledName] && declByName[calledName].some(function (d) {
         return d.file === 'MedicationHistory.gs';
       });
-      if (!ownedByMedicationHistory) {
+      if (targetsMedicationEntity) {
         findings.holoscanStaticRules.push({
           rule: 'no-medication-write-call',
-          detail: file + ' calls "' + calledName + '(", a MedicationHistory/MedicationDecision write function not declared in MedicationHistory.gs — ADR-025 requires Holoscan\'s own pipeline/decision code to never write either entity directly.'
+          detail: file + ' calls "' + calledName + '(", a write-shaped function declared in MedicationHistory.gs — ADR-025 requires Holoscan\'s own pipeline/decision code to never call MedicationHistory\'s or MedicationDecision\'s own write functions directly; only the doctor\'s own, separately-invoked create_medication_history_entry/record_medication_decision actions may.'
         });
       }
     }

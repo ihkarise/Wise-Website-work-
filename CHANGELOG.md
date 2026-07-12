@@ -23,6 +23,35 @@ Preceded by a fresh, independent, adversarial re-audit of docs/56's own architec
 patient privacy, registry/router/dashboard consistency, validation gaps) — no defect
 found; the frozen design shipped exactly as specified.
 
+**Post-merge-candidate independent release audit (fresh, adversarial, same day) found
+two real defects in the first pushed state of this batch, both fixed before merge —
+disclosed here rather than silently folded into the "Added" section above, since both
+findings are genuine, not hypothetical:**
+1. **`validation/static-analysis/analyze.js`'s own Holoscan Rule 1 had an inverted
+   polarity bug** — it flagged a write-shaped call from a `Holoscan*.gs` file only when
+   the called function was declared *outside* `MedicationHistory.gs`, the opposite of
+   what ADR-025 requires it to catch. A direct call from `HoloscanRecognition.gs` to
+   `foundationCreateMedicationHistoryEntry_()` — the exact violation this rule exists to
+   prevent — would have passed silently. No live vulnerability existed (the shipped
+   pipeline/decision code never made that call, confirmed by direct source inspection
+   and by Stage 27's own real, correctly-polarized runtime row-count check), but the
+   *static* guarantee the code comments and this very file claimed was not real. Fixed:
+   the predicate now flags exactly when a Holoscan-file call target **is** declared in
+   `MedicationHistory.gs` — proven by injecting the real violation into a temporary copy
+   of the shipped file, observing the rule catch it, then reverting and re-confirming a
+   clean run (see this batch's own build summary for the full before/after transcript).
+2. **The Doctor Dashboard's Medication History card shipped with only three of the four
+   controls docs/56 §19.3 requires** — Continue, Stop, and Mark unknown; **Replace was
+   entirely absent from the UI**, even though the backend
+   (`foundationRecordMedicationDecision_`) fully implemented and tested it. The original
+   CHANGELOG text above additionally, incorrectly, claimed "Replace" was already
+   present. Fixed: the Medication History card now renders a fourth control, a
+   Replace button paired with an explicit `<select>` of the patient's other
+   MedicationHistory entries (never a silent/implicit choice, never auto-selected) —
+   `wireMedicationDecisionButtons_()` includes `replacement_medication_history_id` in the
+   request only when `decision_type: 'replace'`. Continue/Stop/Unknown behavior is
+   completely unchanged.
+
 ### Added
 - **`HoloscanRecognition`/`HoloscanRecognitionItem`** (`shared/schemas/
   holoscan-recognition.schema.json`/`holoscan-recognition-item.schema.json`,
@@ -69,14 +98,18 @@ found; the frozen design shipped exactly as specified.
   Approve/Correct/Reject control, mirroring AI Assistant's own banner precedent exactly)
   and Medication History (a roster-patient selector reusing the Patient Roster card's
   own route, an "Add Entry" form, and Continue/Stop/Replace/Unknown controls calling
-  `record_medication_decision` only).
+  `record_medication_decision` only — Replace pairs its own button with an explicit
+  `<select>` of the patient's other MedicationHistory entries, never a silent/implicit
+  replacement choice).
 - `apps-script/HOLOSCAN-PROMPTS.md` — the version-controlled recognition-prompt
   specification, mirroring `AI-ASSISTANT-PROMPTS.md`'s exact role.
 
 ### Validation
 - Static Analysis: PASS, 0 findings (66 `apps-script/*.gs` files — three new files,
   five new Holoscan-specific static rules per docs/56 §23, mirroring docs/55 §18's
-  identical AI-risk-class rationale).
+  identical AI-risk-class rationale). Rule 1's polarity fix (above) re-verified by
+  temporarily injecting the real forbidden call into a copy of the shipped file,
+  confirming the rule now reports it, then reverting and re-confirming a clean run.
 - Conformance (`validation/phase-2a-foundation/conformance.js`): 801/801 (67 more than
   WPI-12's own closeout figure of 738, Stage 27's own new checks — plus the mechanical,
   disclosed updates to every earlier stage's own registry-count assertion, the same
@@ -86,9 +119,11 @@ found; the frozen design shipped exactly as specified.
 - Browser Tests: all 16 existing suites still pass (the five whose own hardcoded Doctor
   Module Registry count assertion needed the same mechanical update —
   `wpi-4-doctor-dashboard`, `wpi-5-appointment`, `wpi-7-inventory`, `wpi-8-pillfill`,
-  `wpi-9-analytics` — plus one new suite, `validation/wpi-11-holoscan/browser-test.js`
-  (20/20).
-- **801 conformance + 45 regression + 367 browser-test checks (17 suites) + 0
+  `wpi-9-analytics` — plus one new suite, `validation/wpi-11-holoscan/browser-test.js`,
+  now 23/23 (three new checks added: all four decision controls render, the Replace
+  select is correctly populated with only the patient's *other* entries, and clicking
+  Replace submits the correct `decision_type`/`replacement_medication_history_id` pair).
+- **801 conformance + 45 regression + 370 browser-test checks (17 suites) + 0
   static-analysis findings — 0 failures anywhere.**
 
 ### Changed (documentation)

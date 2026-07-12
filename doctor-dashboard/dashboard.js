@@ -644,27 +644,50 @@
       '</form>';
   }
 
-  function medicationDecisionControlsHtml_(medicationHistoryId) {
+  // "Replace" needs a second, explicit choice beyond the button itself — which other
+  // MedicationHistory entry for this same patient replaces this one
+  // (record_medication_decision's own replacement_medication_history_id, docs/56 §11.4's
+  // disclosed boundary: it must reference a different, already-existing row for the same
+  // patient). `otherEntries` is every entry for this patient except this one; rendered as
+  // a plain <select> alongside the Replace button, never a silent/implicit choice.
+  function medicationDecisionControlsHtml_(medicationHistoryId, otherEntries) {
+    var replaceControl;
+    if (otherEntries.length) {
+      var replaceOptions = otherEntries.map(function (e) {
+        return '<option value="' + escapeHtmlForDisplay(e.medication_history_id) + '">' + escapeHtmlForDisplay(e.medicine_name) + '</option>';
+      }).join('');
+      replaceControl =
+        '<select data-mh-replace-select aria-label="Replacement medicine">' + replaceOptions + '</select>' +
+        '<button type="button" data-mh-decision="replace">Replace</button>';
+    } else {
+      // No other MedicationHistory entry exists yet for this patient to replace with —
+      // named, disclosed limitation (docs/56 §11.4: "this freeze names no mechanism for
+      // recording a replacement medication that was never itself photographed and
+      // recognized"), never a silently-hidden or broken control.
+      replaceControl = '<span class="mh-replace-unavailable">No other medication on record yet to replace with</span>';
+    }
     return '<div class="ai-assistant-decision-controls" data-mh-decision-controls="' + escapeHtmlForDisplay(medicationHistoryId) + '">' +
       '<button type="button" data-mh-decision="continue">Continue</button>' +
       '<button type="button" data-mh-decision="stop">Stop</button>' +
+      replaceControl +
       '<button type="button" data-mh-decision="unknown">Mark unknown</button>' +
       '</div>';
   }
 
-  function medicationHistoryEntryHtml_(entry) {
+  function medicationHistoryEntryHtml_(entry, allEntries) {
     var ledgerItems = (entry.decisions || []).slice().sort(function (a, b) {
       return a.decided_at < b.decided_at ? 1 : (a.decided_at > b.decided_at ? -1 : 0);
     }).map(function (d) {
       return '<li>' + escapeHtmlForDisplay(String(d.decided_at).slice(0, 10)) + ' &mdash; ' +
         escapeHtmlForDisplay(MEDICATION_DECISION_TYPE_LABELS_[d.decision_type] || d.decision_type) + '</li>';
     }).join('');
+    var otherEntries = allEntries.filter(function (e) { return e.medication_history_id !== entry.medication_history_id; });
     return '<li>' +
       '<div class="roster-name">' + escapeHtmlForDisplay(entry.medicine_name) + ' &middot; ' +
       escapeHtmlForDisplay(MEDICATION_STATUS_LABELS_[entry.current_status] || entry.current_status) + '</div>' +
       '<div class="roster-conditions">' + escapeHtmlForDisplay(entry.strength || '') + ' ' + escapeHtmlForDisplay(entry.dosage_form || '') + '</div>' +
       (ledgerItems ? '<ul class="mh-doctor-ledger">' + ledgerItems + '</ul>' : '') +
-      medicationDecisionControlsHtml_(entry.medication_history_id) +
+      medicationDecisionControlsHtml_(entry.medication_history_id, otherEntries) +
       '</li>';
   }
 
@@ -672,7 +695,7 @@
     if (!entries.length) {
       return emptyStateHtml('nodata', 'This patient has no Medication History entries yet.');
     }
-    return '<ul class="roster-list">' + entries.map(medicationHistoryEntryHtml_).join('') + '</ul>';
+    return '<ul class="roster-list">' + entries.map(function (entry) { return medicationHistoryEntryHtml_(entry, entries); }).join('') + '</ul>';
   }
 
   function wireMedicationDecisionButtons_(sessionToken, resultArea, patientId) {
@@ -681,13 +704,21 @@
         var controls = evt.currentTarget.closest('[data-mh-decision-controls]');
         var medicationHistoryId = controls.getAttribute('data-mh-decision-controls');
         var decisionType = evt.currentTarget.getAttribute('data-mh-decision');
+        var requestBody = {
+          foundation_action: 'record_medication_decision', session_token: sessionToken,
+          medication_history_id: medicationHistoryId, decision_type: decisionType
+        };
+        if (decisionType === 'replace') {
+          var select = controls.querySelector('[data-mh-replace-select]');
+          // No target selected (or none exists) — nothing to submit; the doctor's own
+          // explicit selection is required, never a default/implicit choice.
+          if (!select || !select.value) return;
+          requestBody.replacement_medication_history_id = select.value;
+        }
         fetch(WEB_APP_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({
-            foundation_action: 'record_medication_decision', session_token: sessionToken,
-            medication_history_id: medicationHistoryId, decision_type: decisionType
-          })
+          body: JSON.stringify(requestBody)
         })
           .then(function (response) { return response.json(); })
           .then(function (data) {
