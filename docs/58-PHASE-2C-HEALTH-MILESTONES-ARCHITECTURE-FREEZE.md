@@ -24,6 +24,30 @@
 
 # Version History
 
+## v1.1 (2026-07-16) — Implementation note (this freeze remains the authoritative architecture; not re-opened)
+- Batch PXP-11 implemented this architecture exactly as frozen (docs/33 §8's own
+  Designed→Implemented status update records the shipped surface). This document is
+  **not** re-opened or amended — it remains the authoritative architecture; this entry only
+  records that implementation happened and lists the implementation-time decisions §22
+  deliberately left open, now resolved:
+  - **Grace window (§7/§22):** a milestone point reads `due` for **14 days** after its target
+    date, then `overdue` (`FOUNDATION_MILESTONE_DUE_GRACE_DAYS_`).
+  - **Post-publish correction (§10.3/§22):** publish is **terminal** in this batch — a
+    published review's content is frozen (no edit, no versioning); a future batch may add a
+    correction discipline under its own decision.
+  - **`milestone_review` enforcement (§14/§18.2):** as a **normal-rollout** doctor entry, its
+    read route (`get_patient_milestones`) guards by **session + roster only**, exactly like
+    every other normal doctor entry (appointments/inventory/analytics/medication_history) —
+    backend `DoctorModuleState` enforcement is reserved for the disabled-by-default AI
+    features (ai_assistant/holoscan_review); fail-closed enablement for a normal entry is a
+    dashboard-render concern (the card does not render when the state is absent/disabled),
+    proven by the batch's browser suite. This is a clarification of §20's generic wording, not
+    an architecture change.
+  - **Batch name:** **PXP-11** — Phase 2C's first (and, as scoped, only) implementation batch,
+    continuing the `PXP-` "Patient Experience Platform" batch sequence from Phase 2B (which
+    ended at PXP-10).
+  - **Page path (§19.1):** `my-health-journey/milestones/`.
+
 ## v1.0 (2026-07-16)
 - Initial Phase 2C Health Milestones Architecture Freeze.
 

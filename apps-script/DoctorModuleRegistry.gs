@@ -121,6 +121,21 @@ var FOUNDATION_DOCTOR_MODULE_REGISTRY_ = [
     display_order: 80,
     data_source: 'get_medication_history',
     future_ai_capable: false
+  },
+  {
+    // Batch PXP-11 (Phase 2C — Health Milestones, docs/58 §18.2/§19.2, ADR-027) — the
+    // doctor-facing Milestone Review card's own registration, backed by the roster-scoped
+    // get_patient_milestones route. NORMAL rollout — deliberately NOT disabled-by-default
+    // (contrast ai_assistant/ADR-023, holoscan_review/ADR-026): this entry reviews
+    // doctor-authored content, never model output, so it carries no model-output-review
+    // risk to gate more tightly. Fail-closed by DoctorModuleState absence, ADR-010's
+    // existing default, exactly like patient_roster/appointments/inventory/analytics/
+    // medication_history. No new ADR required (ADR-027 governs the non-AI boundary).
+    capability_key: 'milestone_review',
+    display_name: 'Milestone Review',
+    display_order: 90,
+    data_source: 'get_patient_milestones',
+    future_ai_capable: false
   }
 ];
 

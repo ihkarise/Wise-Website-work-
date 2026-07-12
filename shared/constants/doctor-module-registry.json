@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://wisehomeopathy.com/shared/constants/doctor-module-registry.json",
   "title": "Doctor Module Registry",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "description": "The canonical, static list of Doctor Module Registry descriptors — Phase 3/WHIMS Batch WPI-3 (docs/50-PHASE-3-TECHNICAL-PLAN.md §7.1/§19, ADR-020, docs/53-PHASE-3-IMPLEMENTATION-RULES.md) shipped empty; Batch WPI-4 (docs/50 §7.3/§7.4/§19) added this registry's first real entry, patient_roster; Batch WPI-5 (docs/50 §8/§19) added this registry's second entry, appointments; Batch WPI-7 (docs/50 §10/§19) added this registry's third entry, inventory; Batch WPI-8 (docs/50 §11/§19) added this registry's fourth entry, pillfill_orders; Batch WPI-9 (docs/50 §12/§19) added this registry's fifth entry, analytics; Batch WPI-10 (docs/55-WPI-10-AI-ASSISTANT-ARCHITECTURE-FREEZE.md §13, ADR-021/022/023) added this registry's sixth entry, ai_assistant; Batch WPI-11 (docs/56-WPI-11-HOLOSCAN-ARCHITECTURE-FREEZE.md §18.2, ADR-024/025/026) adds this version's seventh and eighth entries, holoscan_review and medication_history, in the same batch/commit (a disclosed two-entries-in-one-version-bump, since both ship together as one batch's own registration, docs/56 §18.2's own 'either shape satisfies ADR-020's registry-driven requirement equally' naming a companion Medication History card as an equally-valid presentation choice to a single combined card). Phase 3/WHIMS's Pillar 2 (docs/49 §4) — the platform's only mechanism for expressing which doctor-facing capabilities exist at all (availability), structurally parallel to shared/constants/module-registry.json's own 'availability, not enablement' framing, applied to a separate registry for a separate identity type (Doctor Identity, ADR-017) — never merged with the patient-facing registry (ADR-020). Per-doctor enablement is a separate, Sheet-backed concern (shared/schemas/doctor-module-state.schema.json). Batch WPI-10 registered 'ai_assistant' (docs/55 §13) — the platform's first AI-generated-content doctor capability. Batch WPI-11 registers 'holoscan_review' (docs/56 §18.2) — the platform's second AI-output-review doctor capability (HoloscanRecognition.gs), backed by a new, real, authenticated data_source route (get_holoscan_review_queue; post_holoscan_recognition_decision is this same batch's additional write route, not this entry's own data_source) — and 'medication_history' (docs/56 §18.2/§19.3, MedicationHistory.gs), a normal-rollout entry (ADR-010's existing default, no ADR-026-style restriction — viewing an already doctor-confirmed record is not itself an AI-output-review surface) backed by the dual-guarded get_medication_history route (create_medication_history_entry/record_medication_decision are this same batch's additional write routes, not this entry's own data_source). Both 'ai_assistant' and 'holoscan_review' diverge from every other entry in exactly one way, per ADR-023/ADR-026: each entry's own DoctorModuleState must remain absent (fail-closed, ADR-010) for every doctor by default, and enabling either is a deliberate, disclosed, per-doctor administrative decision — never a bulk/default rollout, unlike every other entry's own lighter-touch enablement convention. Every other illustrative capability docs/50 §7.1 names (condition assignment, care-plan authoring, module/calculator/template enablement) remains unregistered — each is added as its own registry entry by whichever later, separately-approved WPI batch actually builds a real doctor-facing data_source route for it (docs/53 §4's 'a new registry entry, never new architecture'), the same discipline module-registry.json's and calculator-registry.json's own header comments already established for their own not-yet-built capabilities. apps-script/DoctorModuleRegistry.gs hand-ports this list into its own Foundation-prefixed array, the same convention module-registry.json's and calculator-registry.json's own consumers already use. See doctor-module-registry.md for the full field-by-field explanation and this batch's own disclosed scope decisions.",
   "capabilities": [
     {
@@ -59,6 +59,13 @@
       "display_name": "Medication History",
       "display_order": 80,
       "data_source": "get_medication_history",
+      "future_ai_capable": false
+    },
+    {
+      "capability_key": "milestone_review",
+      "display_name": "Milestone Review",
+      "display_order": 90,
+      "data_source": "get_patient_milestones",
       "future_ai_capable": false
     }
   ]

@@ -191,6 +191,13 @@
  * `MedicationHistory.gs` reuses `LockService`/`foundationDsQuery_`/
  * `foundationGetDoctorPatientRoster_` — the same "additive entity, zero new
  * infrastructure" pattern every WPI batch since WPI-4 has already proved out.
+ *
+ * Extended in Phase 2C batch PXP-11 with `MilestoneTrack.gs` and `MilestoneReview.gs`
+ * in the FILES list — no new mock needed: both are non-AI, Sheets-only entities that
+ * reuse `foundationDsQuery_`/`foundationDsInsert_`/`foundationDsUpdateById_`/
+ * `foundationGetDoctorPatientRoster_` and pure date arithmetic (the computed milestone
+ * schedule, docs/58 §7) — the same "additive entity, zero new infrastructure" pattern,
+ * and notably the first Phase 2C batch to make no model/UrlFetchApp call at all (ADR-027).
  */
 
 var fs = require('fs');
@@ -250,6 +257,8 @@ var FILES = [
   'HoloscanRecognitionCheck.gs',
   'HoloscanRecognition.gs',
   'MedicationHistory.gs',
+  'MilestoneTrack.gs',
+  'MilestoneReview.gs',
   'FoundationRouter.gs'
 ];
 

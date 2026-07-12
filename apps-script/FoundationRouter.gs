@@ -986,6 +986,80 @@ function foundationHandleRecordMedicationDecision_(input) {
 }
 
 /**
+ * Batch PXP-11 (Phase 2C — Health Milestones, docs/58 §17): sets/updates the caller's own
+ * roster patient's single MilestoneTrack care-start anchor (upsert). doctor_id is always
+ * DoctorSession-derived, never client-supplied. Non-AI (ADR-027).
+ */
+function foundationHandleSetMilestoneTrack_(input) {
+  return withFoundationDoctorAuth_(input && input.session_token, function (doctorId) {
+    return foundationSetMilestoneTrack_({
+      doctor_id: doctorId,
+      patient_id: input && input.patient_id,
+      care_start_date: input && input.care_start_date,
+      status: input && input.status
+    });
+  });
+}
+
+/**
+ * Batch PXP-11 (docs/58 §17): returns one roster patient's MilestoneTrack, the
+ * deterministically-computed schedule, and every MilestoneReview including drafts.
+ * Read-only, roster-scoped. doctor_id is always DoctorSession-derived, never client-supplied.
+ */
+function foundationHandleGetPatientMilestones_(input) {
+  return withFoundationDoctorAuth_(input && input.session_token, function (doctorId) {
+    return foundationGetPatientMilestonesForDoctor_(doctorId, input && input.patient_id);
+  });
+}
+
+/**
+ * Batch PXP-11 (docs/58 §17): creates or updates one draft MilestoneReview for a roster
+ * patient + milestone_type — doctor-authored, never AI-generated (ADR-027). doctor_id is
+ * always DoctorSession-derived, never client-supplied.
+ */
+function foundationHandleSaveMilestoneReview_(input) {
+  return withFoundationDoctorAuth_(input && input.session_token, function (doctorId) {
+    return foundationSaveMilestoneReview_({
+      doctor_id: doctorId,
+      patient_id: input && input.patient_id,
+      milestone_type: input && input.milestone_type,
+      progress_summary: input && input.progress_summary,
+      improvements: input && input.improvements,
+      medicines_review: input && input.medicines_review,
+      investigations: input && input.investigations,
+      recommendations: input && input.recommendations,
+      next_goals: input && input.next_goals
+    });
+  });
+}
+
+/**
+ * Batch PXP-11 (docs/58 §17): the one-way draft->published transition that makes a
+ * MilestoneReview patient-visible (docs/58 §10.2). doctor_id is always DoctorSession-derived,
+ * never client-supplied.
+ */
+function foundationHandlePublishMilestoneReview_(input) {
+  return withFoundationDoctorAuth_(input && input.session_token, function (doctorId) {
+    return foundationPublishMilestoneReview_({
+      doctor_id: doctorId,
+      review_id: input && input.review_id
+    });
+  });
+}
+
+/**
+ * Batch PXP-11 (docs/58 §17): returns the caller's OWN computed milestone schedule and only
+ * their PUBLISHED reviews — own record only, patient_id always PatientSession-derived, never
+ * a draft, never a roster-wide view. Not dual-guarded (docs/58 §4) — the doctor's own
+ * roster-scoped view is the separate get_patient_milestones route.
+ */
+function foundationHandleGetHealthMilestones_(input) {
+  return withFoundationAuth_(input && input.session_token, function (patientId) {
+    return foundationGetHealthMilestonesForPatient_(patientId);
+  });
+}
+
+/**
  * Serializes a response-envelope-shaped value to the wire. Apps Script
  * Web Apps cannot set a real HTTP status code (every response transports
  * as HTTP 200 regardless — the same platform fact Code.gs's own
@@ -1137,6 +1211,21 @@ function handleFoundationRequest_(input) {
       break;
     case 'record_medication_decision':
       envelope = foundationHandleRecordMedicationDecision_(input);
+      break;
+    case 'set_milestone_track':
+      envelope = foundationHandleSetMilestoneTrack_(input);
+      break;
+    case 'get_patient_milestones':
+      envelope = foundationHandleGetPatientMilestones_(input);
+      break;
+    case 'save_milestone_review':
+      envelope = foundationHandleSaveMilestoneReview_(input);
+      break;
+    case 'publish_milestone_review':
+      envelope = foundationHandlePublishMilestoneReview_(input);
+      break;
+    case 'get_health_milestones':
+      envelope = foundationHandleGetHealthMilestones_(input);
       break;
     default:
       envelope = buildFoundationErrorEnvelope_('FOUNDATION_UNKNOWN_ACTION', 'Unknown request.');

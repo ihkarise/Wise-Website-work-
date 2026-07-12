@@ -1,6 +1,6 @@
 # Doctor Module Registry
 
-Explains `doctor-module-registry.json` (version `1.8.0`, the authoritative definition —
+Explains `doctor-module-registry.json` (version `1.9.0`, the authoritative definition —
 this file explains, it does not define, per `shared/README.md`'s format rule).
 
 ## Scope: Batch WPI-3 (docs/50-PHASE-3-TECHNICAL-PLAN.md §7.1/§19/§22, ADR-020)
@@ -102,6 +102,18 @@ rollout convention (ADR-010's existing default only) — displaying an already
 doctor-confirmed `MedicationHistory` record is not itself a model-output-review
 surface, even though the record may have originated from an approved Holoscan
 recognition.
+
+## Batch PXP-11 addition — `milestone_review` (docs/58-PHASE-2C-HEALTH-MILESTONES-ARCHITECTURE-FREEZE.md §18.2)
+
+Adds this registry's ninth entry, `milestone_review` — the doctor-facing Health
+Milestones authoring surface, reusing the Patient Roster card's own patient-selection
+route for patient context (no new patient-lookup mechanism), backed by
+`MilestoneReview.gs`'s roster-scoped `get_patient_milestones` route. Like
+`medication_history` (and unlike `ai_assistant`/`holoscan_review`), this entry follows
+every other entry's own **normal rollout** convention (ADR-010's existing
+fail-closed-by-absence default only, `display_order: 90`) — it reviews **doctor-authored**
+content, never model output, so there is no model-output-review risk to gate more tightly.
+The feature is **non-AI** end to end (ADR-027); no new ADR governs this entry's rollout.
 
 ## Doctor Module Registry vs. Module Registry — two registries, one job, two audiences
 

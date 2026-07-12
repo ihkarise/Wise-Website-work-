@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wisehomeopathy.com/shared/schemas/milestone-track.schema.json",
+  "title": "MilestoneTrack",
+  "version": "1.0.0",
+  "description": "The canonical shape of a MilestoneTrack record — docs/58-PHASE-2C-HEALTH-MILESTONES-ARCHITECTURE-FREEZE.md §11.1's per-patient, doctor-set care-start anchor, Batch PXP-11 (Phase 2C — Health Milestones, ADR-027), governed by docs/53-PHASE-3-IMPLEMENTATION-RULES.md's reused per-batch process. One active row per patient (upsert-style, mirroring PatientProfile). The 30/90/180/365-day Health Milestone schedule (a deterministic computed view, never a stored entity — docs/58 §7) counts from `care_start_date`. Non-AI (ADR-027): no field is AI-generated, and the schedule is a pure function of this anchor. Doctor/staff-authored only — the patient never sets, edits, or pauses a track.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["track_id", "patient_id", "care_start_date", "status", "created_by", "created_at", "updated_at"],
+  "properties": {
+    "track_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Server-generated UUID (generateFoundationId_()), this row's own identity — never doctor-supplied."
+    },
+    "patient_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Roster-validated at write (reuses DoctorPatientRoster.gs, never a new derivation). One active MilestoneTrack row per patient."
+    },
+    "care_start_date": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+      "description": "The doctor-chosen anchor (YYYY-MM-DD) the milestone schedule counts from — typically the patient's first consultation / start of treatment. Never patient-supplied, never silently derived from Patient.created_at (docs/58 §0.3/§6). Editable by a deliberate doctor upsert; the computed schedule always re-dates from the current value."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["active", "paused"],
+      "description": "'active' surfaces the computed schedule; 'paused' stops surfacing it (e.g. a patient on hold) without deleting any already-published review history (docs/58 §11.1). Defaults to 'active' at creation."
+    },
+    "created_by": {
+      "type": "string",
+      "minLength": 1,
+      "description": "doctor_id, DoctorSession-derived — the doctor who first set the anchor."
+    },
+    "created_at": { "type": "string", "format": "date-time", "description": "Server-set at first creation. Never editable." },
+    "updated_at": {
+      "type": "string",
+      "description": "Server-set on each upsert edit of care_start_date/status. Empty-string sentinel until the first edit after creation."
+    }
+  }
+}

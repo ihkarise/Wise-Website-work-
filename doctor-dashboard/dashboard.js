@@ -57,7 +57,8 @@
     { capability_key: 'analytics', display_name: 'Analytics', display_order: 50, empty_state: 'nodata', data_source: 'get_doctor_analytics' },
     { capability_key: 'ai_assistant', display_name: 'AI Assistant', display_order: 60, empty_state: 'nodata', data_source: 'get_ai_assistant_capabilities' },
     { capability_key: 'holoscan_review', display_name: 'Holoscan Review', display_order: 70, empty_state: 'nodata', data_source: 'get_holoscan_review_queue' },
-    { capability_key: 'medication_history', display_name: 'Medication History', display_order: 80, empty_state: 'nodata', data_source: 'get_medication_history' }
+    { capability_key: 'medication_history', display_name: 'Medication History', display_order: 80, empty_state: 'nodata', data_source: 'get_medication_history' },
+    { capability_key: 'milestone_review', display_name: 'Milestone Review', display_order: 90, empty_state: 'nodata', data_source: 'get_patient_milestones' }
   ];
 
   function getCapabilityDescriptor(capabilityKey) {
@@ -825,6 +826,214 @@
       });
   }
 
+  // ---- Milestone Review card (Batch PXP-11, docs/58 §19.2) ----
+  // A roster-scoped, per-patient Health Milestones authoring surface: a patient picker
+  // (reusing the same get_doctor_patient_roster route the Patient Roster card already
+  // returns — no new patient-lookup mechanism), a care-start-anchor control
+  // (set_milestone_track), and, per milestone point, a six-dimension authoring form
+  // (save_milestone_review) plus an explicit Publish control (publish_milestone_review).
+  // Non-AI (ADR-027): every field is doctor-typed, nothing is model-generated. The UI
+  // makes plain that a review is a PRIVATE DRAFT until published, and that publishing is
+  // what makes it visible to the patient (docs/58 §10.2/§19.2).
+  var MILESTONE_LABELS_ = { '30_day': '30 Days', '90_day': '90 Days', '6_month': '6 Months', '1_year': '1 Year' };
+  var MILESTONE_STATE_LABELS_ = { upcoming: 'Upcoming', due: 'Due', overdue: 'Overdue', completed: 'Completed' };
+  var MILESTONE_REVIEW_DIMENSIONS_ = [
+    { key: 'progress_summary', label: 'Progress', required: true },
+    { key: 'improvements', label: 'Improvements', required: false },
+    { key: 'medicines_review', label: 'Medicines', required: false },
+    { key: 'investigations', label: 'Investigations', required: false },
+    { key: 'recommendations', label: 'Recommendations', required: false },
+    { key: 'next_goals', label: 'Next goals', required: false }
+  ];
+
+  function milestonePatientPickerHtml_(rosterEntries) {
+    var options = rosterEntries.map(function (p) {
+      return '<option value="' + escapeHtmlForDisplay(p.patient_id) + '">' + escapeHtmlForDisplay(p.full_name) + '</option>';
+    }).join('');
+    return '<div class="milestone-review-picker">' +
+      '<label for="msPatientSelect">Patient</label>' +
+      '<select id="msPatientSelect">' + (options || '<option value="">No roster patients</option>') + '</select>' +
+      '<button type="button" id="msLoadBtn">Load</button>' +
+      '</div>' +
+      '<div id="msResultArea"></div>';
+  }
+
+  function milestoneAnchorFormHtml_(track) {
+    var current = track && track.care_start_date ? track.care_start_date : '';
+    var statusLine = track
+      ? '<p class="ms-anchor-status">Care start date set to <strong>' + escapeHtmlForDisplay(track.care_start_date) + '</strong> (' + escapeHtmlForDisplay(track.status) + ').</p>'
+      : '<p class="ms-anchor-status">No care-start date set yet — set one to start this patient\'s milestone schedule.</p>';
+    return '<form id="msAnchorForm" class="ms-anchor-form">' +
+      statusLine +
+      '<div class="field"><label for="msCareStartDate">Care start date</label>' +
+      '<input id="msCareStartDate" type="date" value="' + escapeHtmlForDisplay(current) + '" required></div>' +
+      '<button class="submit" type="submit" id="msAnchorSubmitBtn">' + (track ? 'Update care-start date' : 'Set care-start date') + '</button>' +
+      '<div class="status" id="msAnchorStatus" role="status" aria-live="polite"></div>' +
+      '</form>';
+  }
+
+  // One milestone point's authoring block: the point's state, its published/draft
+  // visibility, the six-dimension form, a Save-draft button and (for an unpublished
+  // review) an explicit Publish button. The draft-vs-published visibility boundary is
+  // stated in words, never implied.
+  function milestonePointBlockHtml_(point, review) {
+    var label = MILESTONE_LABELS_[point.milestone_type] || point.milestone_type;
+    var isPublished = review && review.status === 'published';
+    var visibilityBanner = isPublished
+      ? '<p class="ms-visibility ms-visibility-published" data-ms-visibility="published">Published &mdash; visible to the patient.</p>'
+      : '<p class="ms-visibility ms-visibility-draft" data-ms-visibility="draft">Draft &mdash; private to you. The patient sees nothing until you press Publish.</p>';
+    var fields = MILESTONE_REVIEW_DIMENSIONS_.map(function (dim) {
+      var value = review && review[dim.key] ? review[dim.key] : '';
+      return '<div class="field"><label for="ms-' + point.milestone_type + '-' + dim.key + '">' + escapeHtmlForDisplay(dim.label) +
+        (dim.required ? ' *' : '') + '</label>' +
+        '<textarea id="ms-' + point.milestone_type + '-' + dim.key + '" data-ms-field="' + dim.key + '"' +
+        (isPublished ? ' readonly' : '') + (dim.required ? ' required' : '') + ' rows="2">' + escapeHtmlForDisplay(value) + '</textarea></div>';
+    }).join('');
+    var actions = isPublished
+      ? '<p class="ms-published-note">This review is published and can no longer be edited.</p>'
+      : '<button type="button" class="submit" data-ms-save="' + point.milestone_type + '">Save draft</button>' +
+        (review ? '<button type="button" class="ms-publish-btn" data-ms-publish="' + escapeHtmlForDisplay(review.review_id) + '">Publish to patient</button>' : '');
+    return '<div class="ms-point" data-ms-point="' + point.milestone_type + '">' +
+      '<h4>' + escapeHtmlForDisplay(label) + ' &middot; <span class="ms-state">' + escapeHtmlForDisplay(MILESTONE_STATE_LABELS_[point.state] || point.state) + '</span>' +
+      (point.target_date ? ' &middot; <span class="ms-target">Target ' + escapeHtmlForDisplay(point.target_date) + '</span>' : '') + '</h4>' +
+      visibilityBanner +
+      '<form data-ms-review-form="' + point.milestone_type + '">' + fields + '<div class="ms-actions">' + actions + '</div>' +
+      '<div class="status" data-ms-status="' + point.milestone_type + '" role="status" aria-live="polite"></div></form>' +
+      '</div>';
+  }
+
+  function milestoneResultHtml_(payload) {
+    var track = payload && payload.track;
+    var schedule = (payload && payload.schedule) || [];
+    var reviews = (payload && payload.reviews) || [];
+    var reviewsByType = {};
+    reviews.forEach(function (r) { reviewsByType[r.milestone_type] = r; });
+    var anchorHtml = milestoneAnchorFormHtml_(track);
+    if (!track) {
+      return anchorHtml;
+    }
+    // If the track is paused, the computed schedule is empty; still let the doctor see
+    // the anchor form (to un-pause) — reviews are keyed by type via the schedule below.
+    if (!schedule.length) {
+      return anchorHtml + '<p class="empty-text">This patient\'s milestone schedule is paused. Set the care-start date to active to resume it.</p>';
+    }
+    var points = schedule.map(function (p) { return milestonePointBlockHtml_(p, reviewsByType[p.milestone_type]); }).join('');
+    return anchorHtml + '<div class="ms-points">' + points + '</div>';
+  }
+
+  function wireMilestoneAnchorForm_(sessionToken, resultArea, patientId) {
+    var form = document.getElementById('msAnchorForm');
+    if (!form) return;
+    var submitBtn = document.getElementById('msAnchorSubmitBtn');
+    var statusBox = document.getElementById('msAnchorStatus');
+    form.addEventListener('submit', function (event) {
+      event.preventDefault();
+      if (!form.checkValidity()) { form.reportValidity(); return; }
+      submitBtn.disabled = true;
+      statusBox.className = 'status loading';
+      statusBox.textContent = 'Saving…';
+      fetch(WEB_APP_URL, {
+        method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ foundation_action: 'set_milestone_track', session_token: sessionToken, patient_id: patientId, care_start_date: document.getElementById('msCareStartDate').value })
+      })
+        .then(function (response) { return response.json(); })
+        .then(function (data) {
+          submitBtn.disabled = false;
+          if (data.status === 'ok') { loadMilestonesForPatient_(sessionToken, resultArea, patientId); }
+          else { statusBox.className = 'status err'; statusBox.textContent = (data.error && data.error.message) || 'Something went wrong.'; }
+        })
+        .catch(function () { submitBtn.disabled = false; statusBox.className = 'status err'; statusBox.textContent = 'Could not reach the server.'; });
+    });
+  }
+
+  function wireMilestoneReviewForms_(sessionToken, resultArea, patientId) {
+    resultArea.querySelectorAll('[data-ms-save]').forEach(function (btn) {
+      btn.addEventListener('click', function (evt) {
+        var milestoneType = evt.currentTarget.getAttribute('data-ms-save');
+        var pointEl = evt.currentTarget.closest('[data-ms-point]');
+        var statusBox = pointEl.querySelector('[data-ms-status]');
+        var body = { foundation_action: 'save_milestone_review', session_token: sessionToken, patient_id: patientId, milestone_type: milestoneType };
+        pointEl.querySelectorAll('[data-ms-field]').forEach(function (ta) { body[ta.getAttribute('data-ms-field')] = ta.value; });
+        if (!body.progress_summary || !body.progress_summary.trim()) {
+          statusBox.className = 'status err'; statusBox.textContent = 'Progress is required.'; return;
+        }
+        statusBox.className = 'status loading'; statusBox.textContent = 'Saving draft…';
+        fetch(WEB_APP_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body) })
+          .then(function (response) { return response.json(); })
+          .then(function (data) {
+            if (data.status === 'ok') { loadMilestonesForPatient_(sessionToken, resultArea, patientId); }
+            else { statusBox.className = 'status err'; statusBox.textContent = (data.error && data.error.message) || 'Something went wrong.'; }
+          })
+          .catch(function () { statusBox.className = 'status err'; statusBox.textContent = 'Could not reach the server.'; });
+      });
+    });
+    resultArea.querySelectorAll('[data-ms-publish]').forEach(function (btn) {
+      btn.addEventListener('click', function (evt) {
+        var reviewId = evt.currentTarget.getAttribute('data-ms-publish');
+        var pointEl = evt.currentTarget.closest('[data-ms-point]');
+        var statusBox = pointEl.querySelector('[data-ms-status]');
+        statusBox.className = 'status loading'; statusBox.textContent = 'Publishing…';
+        fetch(WEB_APP_URL, {
+          method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ foundation_action: 'publish_milestone_review', session_token: sessionToken, review_id: reviewId })
+        })
+          .then(function (response) { return response.json(); })
+          .then(function (data) {
+            if (data.status === 'ok') { loadMilestonesForPatient_(sessionToken, resultArea, patientId); }
+            else { statusBox.className = 'status err'; statusBox.textContent = (data.error && data.error.message) || 'Something went wrong.'; }
+          })
+          .catch(function () { statusBox.className = 'status err'; statusBox.textContent = 'Could not reach the server.'; });
+      });
+    });
+  }
+
+  function loadMilestonesForPatient_(sessionToken, resultArea, patientId) {
+    resultArea.innerHTML = '<div class="skeleton"></div>';
+    fetch(WEB_APP_URL, {
+      method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ foundation_action: 'get_patient_milestones', session_token: sessionToken, patient_id: patientId })
+    })
+      .then(function (response) { return response.json(); })
+      .then(function (data) {
+        if (data.status !== 'ok' || !data.data) {
+          resultArea.innerHTML = '<p class="empty-text">Could not load milestones. Check your connection and reload the page.</p>';
+          return;
+        }
+        resultArea.innerHTML = milestoneResultHtml_(data.data);
+        wireMilestoneAnchorForm_(sessionToken, resultArea, patientId);
+        wireMilestoneReviewForms_(sessionToken, resultArea, patientId);
+      })
+      .catch(function () {
+        resultArea.innerHTML = '<p class="empty-text">Could not load milestones. Check your connection and reload the page.</p>';
+      });
+  }
+
+  function loadMilestoneReviewCard(sessionToken, capabilityKey) {
+    var body = document.getElementById('card-' + capabilityKey + '-body');
+    fetch(WEB_APP_URL, {
+      method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ foundation_action: 'get_doctor_patient_roster', session_token: sessionToken })
+    })
+      .then(function (response) { return response.json(); })
+      .then(function (data) {
+        if (data.status !== 'ok') {
+          body.innerHTML = '<p class="empty-text">Could not load your patient roster. Check your connection and reload the page.</p>';
+          return;
+        }
+        body.innerHTML = milestonePatientPickerHtml_(data.data);
+        var loadBtn = document.getElementById('msLoadBtn');
+        if (!loadBtn) return;
+        loadBtn.addEventListener('click', function () {
+          var patientId = document.getElementById('msPatientSelect').value;
+          var resultArea = document.getElementById('msResultArea');
+          if (patientId) loadMilestonesForPatient_(sessionToken, resultArea, patientId);
+        });
+      })
+      .catch(function () {
+        body.innerHTML = '<p class="empty-text">Could not load your patient roster. Check your connection and reload the page.</p>';
+      });
+  }
+
   // Loader-dispatcher registry — one entry per registry data_source, the
   // same discipline my-health-journey/dashboard.js's own MODULE_LOADERS
   // already establishes.
@@ -836,7 +1045,8 @@
     'get_doctor_analytics': loadAnalyticsPreview,
     'get_ai_assistant_capabilities': loadAiAssistantCard,
     'get_holoscan_review_queue': loadHoloscanReviewQueue,
-    'get_medication_history': loadMedicationHistoryCard
+    'get_medication_history': loadMedicationHistoryCard,
+    'get_patient_milestones': loadMilestoneReviewCard
   };
 
   // Merges the per-doctor state rows from get_doctor_module_states with
@@ -969,6 +1179,10 @@
     aiAssistantDraftHtml: aiAssistantDraftHtml,
     holoscanReviewQueueHtml: holoscanReviewQueueHtml,
     medicationHistoryListHtml: medicationHistoryListHtml_,
-    medicationHistoryPatientPickerHtml: medicationHistoryPatientPickerHtml_
+    medicationHistoryPatientPickerHtml: medicationHistoryPatientPickerHtml_,
+    milestonePatientPickerHtml: milestonePatientPickerHtml_,
+    milestoneResultHtml: milestoneResultHtml_,
+    milestonePointBlockHtml: milestonePointBlockHtml_,
+    milestoneAnchorFormHtml: milestoneAnchorFormHtml_
   };
 })();

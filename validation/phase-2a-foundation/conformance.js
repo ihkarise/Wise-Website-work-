@@ -280,6 +280,8 @@ var holoscanRecognitionSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR,
 var holoscanRecognitionItemSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/holoscan-recognition-item.schema.json'), 'utf8'));
 var medicationHistorySchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/medication-history.schema.json'), 'utf8'));
 var medicationDecisionSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/medication-decision.schema.json'), 'utf8'));
+var milestoneTrackSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/milestone-track.schema.json'), 'utf8'));
+var milestoneReviewSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/milestone-review.schema.json'), 'utf8'));
 var moduleRegistryConstant = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'constants/module-registry.json'), 'utf8'));
 
 var results = [];
@@ -1479,14 +1481,14 @@ var ctx = loadProject(h.sandbox);
   // PXP-3-authored assertion this stage still makes (see this file's own
   // header comment).
   var registry = ctx.foundationGetModuleRegistry_();
-  record('Stage12: foundationGetModuleRegistry_() returns the five seeded modules (timeline, daily_checkin, holoscan, reports, care_plan) — symptom_tracker retired by Batch PXP-10, holoscan added by Batch WPI-11 (Stage27)',
-    registry.length === 5 && registry.map(function (m) { return m.module_id; }).sort().join(',') === 'care_plan,daily_checkin,holoscan,reports,timeline');
+  record('Stage12: foundationGetModuleRegistry_() returns the six seeded modules (timeline, daily_checkin, holoscan, reports, care_plan, health_milestones) — symptom_tracker retired by Batch PXP-10, holoscan added by Batch WPI-11 (Stage27), health_milestones added by Batch PXP-11 (Stage28)',
+    registry.length === 6 && registry.map(function (m) { return m.module_id; }).sort().join(',') === 'care_plan,daily_checkin,health_milestones,holoscan,reports,timeline');
 
   // ---- Fail-closed default: no PatientModuleState row exists yet for either patient ----
   var defaultStatesA = ctx.foundationGetPatientModuleStates_(patientA.data.patient_id);
   record('Stage12: foundationGetPatientModuleStates_() succeeds even with zero persisted rows', defaultStatesA.status === 'ok');
   record('Stage12: every module defaults to enabled=false when no row has ever been written — fail-closed (ADR-010)',
-    defaultStatesA.data.length === 5 && defaultStatesA.data.every(function (row) { return row.enabled === false && row.enabled_by === '' && row.enabled_at === ''; }));
+    defaultStatesA.data.length === 6 && defaultStatesA.data.every(function (row) { return row.enabled === false && row.enabled_by === '' && row.enabled_at === ''; }));
 
   // ---- Validation rejections ----
   var missingPatientId = ctx.foundationSetModuleState_({ module_id: 'timeline', enabled: true, enabled_by: 'dr-rao' });
@@ -1534,7 +1536,7 @@ var ctx = loadProject(h.sandbox);
   // ---- foundationGetPatientModuleStates_() — merges real rows with fail-closed synthesized defaults ----
   var statesA = ctx.foundationGetPatientModuleStates_(patientA.data.patient_id);
   record('Stage12: foundationGetPatientModuleStates_() returns exactly one entry per registered module, real rows merged with synthesized defaults',
-    statesA.data.length === 5);
+    statesA.data.length === 6);
   var timelineStateA = statesA.data.filter(function (row) { return row.module_id === 'timeline'; })[0];
   var reportsStateA = statesA.data.filter(function (row) { return row.module_id === 'reports'; })[0];
   // Batch PXP-10 retired 'symptom_tracker' from the registry — this
@@ -1557,14 +1559,14 @@ var ctx = loadProject(h.sandbox);
   // ---- Cross-patient isolation: patient B's own states are untouched by patient A's writes ----
   var statesB = ctx.foundationGetPatientModuleStates_(patientB.data.patient_id);
   record('Stage12: patient B\'s module states are all still fail-closed defaults, unaffected by patient A\'s writes',
-    statesB.data.length === 5 && statesB.data.every(function (row) { return row.enabled === false && row.enabled_by === ''; }));
+    statesB.data.length === 6 && statesB.data.every(function (row) { return row.enabled === false && row.enabled_by === ''; }));
 
   // ---- FoundationRouter.gs — the one new, read-only dispatch case, end to end ----
   var sessionA = ctx.foundationIssueSessionToken_(patientA.data.patient_id);
   var getStatesHttp = ctx.handleFoundationRequest_({ foundation_action: 'get_patient_module_states', session_token: sessionA });
   var getStatesBody = JSON.parse(getStatesHttp._text);
   record('Stage12: get_patient_module_states (real HTTP dispatch) resolves the caller\'s own module states from a valid session',
-    getStatesBody.status === 'ok' && getStatesBody.data.length === 5);
+    getStatesBody.status === 'ok' && getStatesBody.data.length === 6);
   record('Stage12: get_patient_module_states derives patient_id only from the verified session, never from a client-supplied field',
     (function () {
       var spoofed = ctx.handleFoundationRequest_({
@@ -2734,8 +2736,8 @@ var ctx = loadProject(h.sandbox);
     ctx.foundationGetSpecialtyForCondition_(undefined) === 'homeopathy');
 
   // ---- Zero-lines-touched proof (docs/50 §3): every existing registry this batch does not touch is unchanged ----
-  record('Stage18: Module Registry is untouched by this batch — still the same five modules Stage 12/Stage27 already proved',
-    ctx.foundationGetModuleRegistry_().length === 5);
+  record('Stage18: Module Registry is untouched by this batch — still the same six modules Stage 12/Stage27/Stage28 already proved',
+    ctx.foundationGetModuleRegistry_().length === 6);
   record('Stage18: Calculator Registry is untouched by this batch — still seeded empty, per Stage 14',
     ctx.FOUNDATION_CALCULATOR_REGISTRY_.length === 0);
   record('Stage18: neither Module Registry nor Calculator Registry entries carry a specialty_scope field — this batch adds no scoped entry to either',
@@ -2784,12 +2786,12 @@ var ctx = loadProject(h.sandbox);
   // cross-doctor isolation, cross-identity-type rejection) are untouched,
   // still WPI-3's own scope.
   var registry = ctx.foundationGetDoctorModuleRegistry_();
-  record('Stage19: foundationGetDoctorModuleRegistry_() now has eight entries (patient_roster added at Batch WPI-4, appointments added at Batch WPI-5, inventory added at Batch WPI-7, pillfill_orders added at Batch WPI-8, analytics added at Batch WPI-9, ai_assistant added at Batch WPI-10, holoscan_review/medication_history added at Batch WPI-11 — see Stage20/Stage21/Stage23/Stage24/Stage25/Stage26/Stage27)',
-    registry.length === 8);
+  record('Stage19: foundationGetDoctorModuleRegistry_() now has nine entries (patient_roster added at Batch WPI-4, appointments added at Batch WPI-5, inventory added at Batch WPI-7, pillfill_orders added at Batch WPI-8, analytics added at Batch WPI-9, ai_assistant added at Batch WPI-10, holoscan_review/medication_history added at Batch WPI-11, milestone_review added at Batch PXP-11 — see Stage20/Stage21/Stage23/Stage24/Stage25/Stage26/Stage27/Stage28)',
+    registry.length === 9);
   record('Stage19: the hand-ported FOUNDATION_DOCTOR_MODULE_REGISTRY_ matches shared/constants/doctor-module-registry.json exactly',
     JSON.stringify(registry) === JSON.stringify(doctorModuleRegistryConstant.capabilities));
-  record('Stage19: foundationGetRegisteredDoctorCapabilityKeys_() returns exactly eight allowlisted capability_keys (patient_roster, appointments, inventory, pillfill_orders, analytics, ai_assistant, holoscan_review, medication_history) as of Batch WPI-11',
-    ctx.foundationGetRegisteredDoctorCapabilityKeys_().length === 8 &&
+  record('Stage19: foundationGetRegisteredDoctorCapabilityKeys_() returns exactly nine allowlisted capability_keys (patient_roster, appointments, inventory, pillfill_orders, analytics, ai_assistant, holoscan_review, medication_history, milestone_review) as of Batch PXP-11',
+    ctx.foundationGetRegisteredDoctorCapabilityKeys_().length === 9 &&
     ctx.foundationGetRegisteredDoctorCapabilityKeys_().indexOf('patient_roster') !== -1 &&
     ctx.foundationGetRegisteredDoctorCapabilityKeys_().indexOf('appointments') !== -1 &&
     ctx.foundationGetRegisteredDoctorCapabilityKeys_().indexOf('inventory') !== -1 &&
@@ -2797,7 +2799,8 @@ var ctx = loadProject(h.sandbox);
     ctx.foundationGetRegisteredDoctorCapabilityKeys_().indexOf('analytics') !== -1 &&
     ctx.foundationGetRegisteredDoctorCapabilityKeys_().indexOf('ai_assistant') !== -1 &&
     ctx.foundationGetRegisteredDoctorCapabilityKeys_().indexOf('holoscan_review') !== -1 &&
-    ctx.foundationGetRegisteredDoctorCapabilityKeys_().indexOf('medication_history') !== -1);
+    ctx.foundationGetRegisteredDoctorCapabilityKeys_().indexOf('medication_history') !== -1 &&
+    ctx.foundationGetRegisteredDoctorCapabilityKeys_().indexOf('milestone_review') !== -1);
 
   // ---- foundationGetDoctorModuleStates_() synthesizes one fail-closed entry per registered capability ----
   // Updated at Batch WPI-7 (docs/50 §10/§19): now three registered
@@ -2813,8 +2816,8 @@ var ctx = loadProject(h.sandbox);
   // a real, registered entry — 'condition_assignment' remains a genuinely
   // unregistered docs/50 §7.1 illustrative example.
   var defaultStatesA = ctx.foundationGetDoctorModuleStates_(doctorIdA);
-  record('Stage19: foundationGetDoctorModuleStates_() succeeds with zero persisted rows, synthesizing one fail-closed (enabled: false) entry per registered capability (now eight, as of Batch WPI-11)',
-    defaultStatesA.status === 'ok' && defaultStatesA.data.length === 8 && defaultStatesA.data.every(function (row) { return row.enabled === false; }));
+  record('Stage19: foundationGetDoctorModuleStates_() succeeds with zero persisted rows, synthesizing one fail-closed (enabled: false) entry per registered capability (now nine, as of Batch PXP-11)',
+    defaultStatesA.status === 'ok' && defaultStatesA.data.length === 9 && defaultStatesA.data.every(function (row) { return row.enabled === false; }));
 
   // ---- Validation rejections ----
   var missingDoctorId = ctx.foundationSetDoctorModuleState_({ capability_key: 'condition_assignment', enabled: true, enabled_by: 'staff-1' });
@@ -2848,7 +2851,7 @@ var ctx = loadProject(h.sandbox);
   var getStatesHttp = ctx.handleFoundationRequest_({ foundation_action: 'get_doctor_module_states', session_token: doctorSessionA });
   var getStatesBody = JSON.parse(getStatesHttp._text);
   record('Stage19: get_doctor_module_states (real HTTP dispatch) resolves the caller\'s own, fail-closed-by-default capability-state list from a valid DoctorSession',
-    getStatesBody.status === 'ok' && getStatesBody.data.length === 8 && getStatesBody.data.every(function (row) { return row.enabled === false; }));
+    getStatesBody.status === 'ok' && getStatesBody.data.length === 9 && getStatesBody.data.every(function (row) { return row.enabled === false; }));
 
   var getStatesUnauthed = JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'get_doctor_module_states', session_token: 'not-a-real-session-token' })._text);
   record('Stage19: get_doctor_module_states rejects an invalid session_token with FOUNDATION_UNAUTHORIZED, never leaking any data',
@@ -2867,11 +2870,11 @@ var ctx = loadProject(h.sandbox);
   var doctorSessionB = ctx.foundationIssueDoctorSessionToken_(doctorIdB);
   var getStatesB = JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'get_doctor_module_states', session_token: doctorSessionB })._text);
   record('Stage19: doctor B\'s own capability-state list resolves independently of doctor A\'s session — cross-doctor isolation, even though both are fail-closed-disabled today',
-    getStatesB.status === 'ok' && getStatesB.data.length === 8 && getStatesB.data.every(function (row) { return row.enabled === false; }));
+    getStatesB.status === 'ok' && getStatesB.data.length === 9 && getStatesB.data.every(function (row) { return row.enabled === false; }));
 
   // ---- Zero-lines-touched proof (docs/50 §3): every existing registry/entity this batch does not touch is unchanged ----
-  record('Stage19: Module Registry is untouched by this batch — still the same five modules Stage 12/Stage27 already proved',
-    ctx.foundationGetModuleRegistry_().length === 5);
+  record('Stage19: Module Registry is untouched by this batch — still the same six modules Stage 12/Stage27/Stage28 already proved',
+    ctx.foundationGetModuleRegistry_().length === 6);
   record('Stage19: Calculator Registry is untouched by this batch — still seeded empty, per Stage 14',
     ctx.FOUNDATION_CALCULATOR_REGISTRY_.length === 0);
   record('Stage19: Specialty Registry is untouched by this batch — still the one seeded homeopathy entry, per Stage 18',
@@ -2916,7 +2919,7 @@ var ctx = loadProject(h.sandbox);
   // a fifth entry, `analytics` (see Stage25) — the same mechanical,
   // disclosed update.
   record('Stage20: shared/constants/doctor-module-registry.json carries patient_roster as its first entry, data_source get_doctor_patient_roster',
-    doctorModuleRegistryConstant.capabilities.length === 8 &&
+    doctorModuleRegistryConstant.capabilities.length === 9 &&
     doctorModuleRegistryConstant.capabilities[0].capability_key === 'patient_roster' &&
     doctorModuleRegistryConstant.capabilities[0].data_source === 'get_doctor_patient_roster');
 
@@ -2997,8 +3000,8 @@ var ctx = loadProject(h.sandbox);
   // ---- Zero-lines-touched proof (docs/50 §3): existing entities this batch does not touch are unchanged ----
   record('Stage20: DoctorAssignedCondition.gs/its schema are untouched by this batch — read only, via the existing foundationDsQuery_ primitive',
     ctx.foundationGetPatientConditionAssignments_(patientAlice.data.patient_id).status === 'ok');
-  record('Stage20: Module Registry is untouched by this batch — still the same five modules Stage 12/Stage27 already proved',
-    ctx.foundationGetModuleRegistry_().length === 5);
+  record('Stage20: Module Registry is untouched by this batch — still the same six modules Stage 12/Stage27/Stage28 already proved',
+    ctx.foundationGetModuleRegistry_().length === 6);
 })();
 
 // ============================================================
@@ -3040,7 +3043,7 @@ var ctx = loadProject(h.sandbox);
   // WPI-9 (docs/50 §12/§19): the registry now carries a fifth entry,
   // `analytics` (see Stage25) — the same mechanical, disclosed update.
   record('Stage21: shared/constants/doctor-module-registry.json now carries appointments as its second entry, data_source get_doctor_appointments',
-    doctorModuleRegistryConstant.capabilities.length === 8 &&
+    doctorModuleRegistryConstant.capabilities.length === 9 &&
     doctorModuleRegistryConstant.capabilities[1].capability_key === 'appointments' &&
     doctorModuleRegistryConstant.capabilities[1].data_source === 'get_doctor_appointments');
 
@@ -3329,7 +3332,7 @@ var ctx = loadProject(h.sandbox);
   // at Batch WPI-10 (docs/55 §13): a sixth entry (ai_assistant) was added by
   // the later Batch WPI-10 (Stage26) — the same mechanical, disclosed update.
   record('Stage22: shared/constants/doctor-module-registry.json was untouched by Batch WPI-6 itself — still exactly two entries as of Stage 21, a third (inventory) added only by the later Batch WPI-7 (Stage23), a fourth (pillfill_orders) added only by the later Batch WPI-8 (Stage24), a fifth (analytics) added only by the later Batch WPI-9 (Stage25), a sixth (ai_assistant) added only by the later Batch WPI-10 (Stage26)',
-    doctorModuleRegistryConstant.capabilities.length === 8);
+    doctorModuleRegistryConstant.capabilities.length === 9);
 })();
 
 // ============================================================
@@ -3371,7 +3374,7 @@ var ctx = loadProject(h.sandbox);
   // Batch WPI-9 (docs/50 §12/§19): the registry now carries a fifth entry,
   // `analytics` (see Stage25) — the same mechanical, disclosed update.
   record('Stage23: shared/constants/doctor-module-registry.json now carries inventory as its third entry, data_source get_inventory_items',
-    doctorModuleRegistryConstant.capabilities.length === 8 &&
+    doctorModuleRegistryConstant.capabilities.length === 9 &&
     doctorModuleRegistryConstant.capabilities[2].capability_key === 'inventory' &&
     doctorModuleRegistryConstant.capabilities[2].data_source === 'get_inventory_items');
   record('Stage23: the hand-ported FOUNDATION_DOCTOR_MODULE_REGISTRY_ matches shared/constants/doctor-module-registry.json exactly, including this batch\'s addition',
@@ -3644,7 +3647,7 @@ var ctx = loadProject(h.sandbox);
   // to this stage's own stale total-count assertion, mirroring
   // Stage20/21/22/23's own updates at this same batch's hands.
   record('Stage24: shared/constants/doctor-module-registry.json now carries pillfill_orders as its fourth entry, data_source get_pillfill_orders',
-    doctorModuleRegistryConstant.capabilities.length === 8 &&
+    doctorModuleRegistryConstant.capabilities.length === 9 &&
     doctorModuleRegistryConstant.capabilities[3].capability_key === 'pillfill_orders' &&
     doctorModuleRegistryConstant.capabilities[3].data_source === 'get_pillfill_orders');
   record('Stage24: the hand-ported FOUNDATION_DOCTOR_MODULE_REGISTRY_ matches shared/constants/doctor-module-registry.json exactly, including this batch\'s addition',
@@ -3910,7 +3913,7 @@ var ctx = loadProject(h.sandbox);
 
   // ---- Doctor Module Registry carries this batch's fifth entry ----
   record('Stage25: shared/constants/doctor-module-registry.json now carries analytics as its fifth entry, data_source get_doctor_analytics',
-    doctorModuleRegistryConstant.capabilities.length === 8 &&
+    doctorModuleRegistryConstant.capabilities.length === 9 &&
     doctorModuleRegistryConstant.capabilities[4].capability_key === 'analytics' &&
     doctorModuleRegistryConstant.capabilities[4].data_source === 'get_doctor_analytics');
   record('Stage25: the hand-ported FOUNDATION_DOCTOR_MODULE_REGISTRY_ matches shared/constants/doctor-module-registry.json exactly, including this batch\'s addition',
@@ -4098,7 +4101,7 @@ var ctx = loadProject(h.sandbox);
 
   // ---- Doctor Module Registry carries this batch's sixth entry, disabled by default ----
   record('Stage26: shared/constants/doctor-module-registry.json now carries ai_assistant as its sixth entry, data_source get_ai_assistant_capabilities',
-    doctorModuleRegistryConstant.capabilities.length === 8 &&
+    doctorModuleRegistryConstant.capabilities.length === 9 &&
     doctorModuleRegistryConstant.capabilities[5].capability_key === 'ai_assistant' &&
     doctorModuleRegistryConstant.capabilities[5].data_source === 'get_ai_assistant_capabilities');
   record('Stage26: the hand-ported FOUNDATION_DOCTOR_MODULE_REGISTRY_ matches shared/constants/doctor-module-registry.json exactly, including this batch\'s addition',
@@ -4391,8 +4394,8 @@ var ctx = loadProject(h.sandbox);
   var fakePdfBytes = Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2D, 0x31, 0x2E, 0x34]); // '%PDF-1.4'
 
   // ---- Patient Module Registry carries this batch's fifth entry ----
-  record('Stage27: shared/constants/module-registry.json now carries holoscan as its fifth entry, data_source get_holoscan_recognitions',
-    moduleRegistryConstant.modules.length === 5 &&
+  record('Stage27: shared/constants/module-registry.json carries holoscan as its fifth entry, data_source get_holoscan_recognitions (a sixth entry, health_milestones, is added by Batch PXP-11 — Stage28)',
+    moduleRegistryConstant.modules.length === 6 &&
     moduleRegistryConstant.modules[4].module_id === 'holoscan' &&
     moduleRegistryConstant.modules[4].data_source === 'get_holoscan_recognitions');
   record('Stage27: the hand-ported FOUNDATION_MODULE_REGISTRY_ matches shared/constants/module-registry.json exactly, including this batch\'s addition',
@@ -4400,7 +4403,7 @@ var ctx = loadProject(h.sandbox);
 
   // ---- Doctor Module Registry carries this batch's seventh and eighth entries ----
   record('Stage27: shared/constants/doctor-module-registry.json now carries holoscan_review as its seventh entry and medication_history as its eighth, with the correct data_source routes',
-    doctorModuleRegistryConstant.capabilities.length === 8 &&
+    doctorModuleRegistryConstant.capabilities.length === 9 &&
     doctorModuleRegistryConstant.capabilities[6].capability_key === 'holoscan_review' &&
     doctorModuleRegistryConstant.capabilities[6].data_source === 'get_holoscan_review_queue' &&
     doctorModuleRegistryConstant.capabilities[7].capability_key === 'medication_history' &&
@@ -4762,6 +4765,189 @@ var ctx = loadProject(h.sandbox);
   record('Stage27: Holoscan never reads, matches against, or writes InventoryItem/InventoryTransaction/PillFillOrder (docs/56 §0.2) — no real call (comments/strings neutralized first) into any of those entities\' own functions appears anywhere in HoloscanRecognition.gs/MedicationHistory.gs',
     !inventoryPillFillCallPattern.test(staticAnalyzer.neutralizeCommentsAndStrings(require('fs').readFileSync(require('path').join(harness.APPS_SCRIPT_DIR, 'HoloscanRecognition.gs'), 'utf8'))) &&
     !inventoryPillFillCallPattern.test(staticAnalyzer.neutralizeCommentsAndStrings(require('fs').readFileSync(require('path').join(harness.APPS_SCRIPT_DIR, 'MedicationHistory.gs'), 'utf8'))));
+})();
+
+// ============================================================
+// Stage 28 — Phase 2C Batch PXP-11: Health Milestones
+// docs/58-PHASE-2C-HEALTH-MILESTONES-ARCHITECTURE-FREEZE.md §4-§23, ADR-027,
+// apps-script/MilestoneTrack.gs, MilestoneReview.gs. This stage's highest-priority
+// checks are: the schedule is a deterministic, computed-on-read function of the
+// doctor-set care_start_date, never a stored table (docs/58 §7); a milestone reads
+// "completed" only when a *published* review exists, never on elapsed time alone
+// (ADR-027); a patient sees only *published* reviews via get_health_milestones,
+// never a draft; save/publish are doctor-authored, one-way (draft->published,
+// exactly once); the anchor is a true per-patient upsert; every doctor route
+// rejects a PatientSession and the patient route rejects a DoctorSession
+// (get_health_milestones is deliberately NOT dual-guarded, docs/58 §4); and no
+// Milestone*.gs code path makes any AI/model/UrlFetchApp call at all (ADR-027,
+// docs/58 §23 item 1) — proven at the source level, not merely asserted.
+// milestone_review is a NORMAL-rollout doctor entry (docs/58 §18.2), so its read
+// route guards by session+roster only (like appointments/inventory/care_plan),
+// never by DoctorModuleState — backend module-state enforcement is reserved for the
+// disabled-by-default AI features (ai_assistant/holoscan_review); enablement is a
+// dashboard-render, fail-closed concern for normal entries.
+// ============================================================
+(function stage28_healthMilestones() {
+  // ---- Patient Module Registry carries this batch's sixth entry ----
+  record('Stage28: shared/constants/module-registry.json now carries health_milestones as its sixth entry, data_source get_health_milestones, supports_ai false (non-AI, ADR-027)',
+    moduleRegistryConstant.modules.length === 6 &&
+    moduleRegistryConstant.modules[5].module_id === 'health_milestones' &&
+    moduleRegistryConstant.modules[5].data_source === 'get_health_milestones' &&
+    moduleRegistryConstant.modules[5].supports_ai === false &&
+    moduleRegistryConstant.modules[5].future_ai_capable === false);
+  record('Stage28: the hand-ported FOUNDATION_MODULE_REGISTRY_ matches shared/constants/module-registry.json exactly, including this batch\'s addition',
+    JSON.stringify(ctx.foundationGetModuleRegistry_()) === JSON.stringify(moduleRegistryConstant.modules));
+
+  // ---- Doctor Module Registry carries this batch's ninth entry (NORMAL rollout, docs/58 §18.2) ----
+  record('Stage28: shared/constants/doctor-module-registry.json now carries milestone_review as its ninth entry, data_source get_patient_milestones, a normal-rollout (not disabled-by-default) entry',
+    doctorModuleRegistryConstant.capabilities.length === 9 &&
+    doctorModuleRegistryConstant.capabilities[8].capability_key === 'milestone_review' &&
+    doctorModuleRegistryConstant.capabilities[8].data_source === 'get_patient_milestones' &&
+    doctorModuleRegistryConstant.capabilities[8].future_ai_capable === false);
+  record('Stage28: the hand-ported FOUNDATION_DOCTOR_MODULE_REGISTRY_ matches shared/constants/doctor-module-registry.json exactly, including this batch\'s addition',
+    JSON.stringify(ctx.foundationGetDoctorModuleRegistry_()) === JSON.stringify(doctorModuleRegistryConstant.capabilities));
+
+  // ---- The schedule is a pure, deterministic computation (docs/58 §7, ADR-027) ----
+  record('Stage28: foundationMilestoneTargetDate_() computes 30/90-day points as exact day offsets and 6-month/1-year points as calendar offsets from the anchor',
+    ctx.foundationMilestoneTargetDate_('2026-01-01', '30_day') === '2026-01-31' &&
+    ctx.foundationMilestoneTargetDate_('2026-01-01', '90_day') === '2026-04-01' &&
+    ctx.foundationMilestoneTargetDate_('2026-01-01', '6_month') === '2026-07-01' &&
+    ctx.foundationMilestoneTargetDate_('2026-01-01', '1_year') === '2027-01-01');
+  record('Stage28: foundationMilestoneTargetDate_() returns null for an unrecognized milestone_type — never guessed',
+    ctx.foundationMilestoneTargetDate_('2026-01-01', 'not_a_real_point') === null);
+  var scheduleUpcoming = ctx.foundationComputeMilestoneSchedule_('2026-01-01', ['30_day'], '2026-02-15');
+  record('Stage28: foundationComputeMilestoneSchedule_() returns the four fixed points, marks a point with a published review "completed", and a not-yet-due point "upcoming"',
+    scheduleUpcoming.length === 4 &&
+    scheduleUpcoming[0].milestone_type === '30_day' && scheduleUpcoming[0].state === 'completed' &&
+    scheduleUpcoming[1].milestone_type === '90_day' && scheduleUpcoming[1].state === 'upcoming');
+  record('Stage28: a not-yet-reviewed point within the grace window after its target reads "due"; well past it reads "overdue" — a computed, presentational state only',
+    ctx.foundationComputeMilestoneSchedule_('2026-01-01', [], '2026-04-05')[1].state === 'due' &&
+    ctx.foundationComputeMilestoneSchedule_('2026-01-01', [], '2026-05-01')[1].state === 'overdue');
+  record('Stage28: elapsed time alone never marks a point "completed" — only a published review does (ADR-027, docs/58 §5 item 3)',
+    ctx.foundationComputeMilestoneSchedule_('2020-01-01', [], '2026-07-12').every(function (p) { return p.state === 'overdue'; }) &&
+    ctx.foundationComputeMilestoneSchedule_('2020-01-01', ['30_day'], '2026-07-12')[0].state === 'completed');
+
+  // ---- Setup: two doctors (same specialty => same derived roster), a roster patient and an off-roster patient ----
+  var docA28 = ctx.foundationCreateDoctor_({ full_name: 'Stage28 Doctor A', role: 'physician', email: 'stage28-doctor-a@example.com', specialty_slug: 'homeopathy', created_by: 'conformance-harness' });
+  var docB28 = ctx.foundationCreateDoctor_({ full_name: 'Stage28 Doctor B', role: 'physician', email: 'stage28-doctor-b@example.com', specialty_slug: 'homeopathy', created_by: 'conformance-harness' });
+  record('Stage28: setup — two independent doctors exist', docA28.status === 'ok' && docB28.status === 'ok');
+  var docA28Id = docA28.data.doctor_id;
+  var patientOn28 = ctx.foundationCreatePatient_({ full_name: 'Stage28 Patient On Roster', email: 'stage28-on@example.com', condition_slug: 'mcas', created_by: 'conformance-harness' });
+  var patientNoTrack28 = ctx.foundationCreatePatient_({ full_name: 'Stage28 Patient No Track', email: 'stage28-notrack@example.com', condition_slug: 'mcas', created_by: 'conformance-harness' });
+  var patientOff28 = ctx.foundationCreatePatient_({ full_name: 'Stage28 Patient Off Roster', email: 'stage28-off@example.com', condition_slug: 'mcas', created_by: 'conformance-harness' });
+  ctx.foundationAssignCondition_({ patient_id: patientOn28.data.patient_id, condition_slug: 'mcas', assigned_by: docA28Id });
+  ctx.foundationAssignCondition_({ patient_id: patientNoTrack28.data.patient_id, condition_slug: 'mcas', assigned_by: docA28Id });
+  record('Stage28: setup — two roster patients and one off-roster patient (no active DoctorAssignedCondition)',
+    patientOn28.status === 'ok' && patientNoTrack28.status === 'ok' && patientOff28.status === 'ok');
+
+  // ---- set_milestone_track — input validation, roster scope, upsert ----
+  record('Stage28: foundationSetMilestoneTrack_() rejects a malformed care_start_date, FOUNDATION_INVALID_INPUT',
+    ctx.foundationSetMilestoneTrack_({ doctor_id: docA28Id, patient_id: patientOn28.data.patient_id, care_start_date: 'not-a-date' }).error.code === 'FOUNDATION_INVALID_INPUT');
+  record('Stage28: foundationSetMilestoneTrack_() rejects a patient outside the caller\'s own roster',
+    ctx.foundationSetMilestoneTrack_({ doctor_id: docA28Id, patient_id: patientOff28.data.patient_id, care_start_date: '2020-01-01' }).error.code === 'FOUNDATION_INVALID_INPUT');
+  var trackCreate = ctx.foundationSetMilestoneTrack_({ doctor_id: docA28Id, patient_id: patientOn28.data.patient_id, care_start_date: '2020-01-01' });
+  record('Stage28: foundationSetMilestoneTrack_() creates a MilestoneTrack (status active) conforming to milestone-track.schema.json',
+    trackCreate.status === 'ok' && trackCreate.data.status === 'active' && validate(milestoneTrackSchema, trackCreate.data).valid === true, JSON.stringify(validate(milestoneTrackSchema, trackCreate.data).errors));
+  var tracksAfterCreate = h.spreadsheet.getSheetByName('MilestoneTracks')._debug().rows.length;
+  var trackUpsert = ctx.foundationSetMilestoneTrack_({ doctor_id: docA28Id, patient_id: patientOn28.data.patient_id, care_start_date: '2020-02-01', status: 'active' });
+  var tracksAfterUpsert = h.spreadsheet.getSheetByName('MilestoneTracks')._debug().rows.length;
+  record('Stage28: a second set_milestone_track for the same patient UPSERTS the one row (stable track_id, updated care_start_date), never inserting a second — mirrors PatientProfile',
+    trackUpsert.status === 'ok' && trackUpsert.data.track_id === trackCreate.data.track_id && trackUpsert.data.care_start_date === '2020-02-01' &&
+    trackUpsert.data.updated_at !== '' && tracksAfterUpsert === tracksAfterCreate);
+
+  // ---- save_milestone_review — validation, no-track guard, roster scope, one draft per (patient, type) ----
+  record('Stage28: foundationSaveMilestoneReview_() rejects an unrecognized milestone_type',
+    ctx.foundationSaveMilestoneReview_({ doctor_id: docA28Id, patient_id: patientOn28.data.patient_id, milestone_type: 'nope', progress_summary: 'x' }).error.code === 'FOUNDATION_INVALID_INPUT');
+  record('Stage28: foundationSaveMilestoneReview_() rejects a missing progress_summary (the one required review dimension)',
+    ctx.foundationSaveMilestoneReview_({ doctor_id: docA28Id, patient_id: patientOn28.data.patient_id, milestone_type: '30_day', progress_summary: '   ' }).error.code === 'FOUNDATION_INVALID_INPUT');
+  record('Stage28: foundationSaveMilestoneReview_() rejects a patient who has no MilestoneTrack anchor yet — a review needs a schedule to belong to (docs/58 §6)',
+    ctx.foundationSaveMilestoneReview_({ doctor_id: docA28Id, patient_id: patientNoTrack28.data.patient_id, milestone_type: '30_day', progress_summary: 'Good progress.' }).error.code === 'FOUNDATION_INVALID_INPUT');
+  record('Stage28: foundationSaveMilestoneReview_() rejects a patient outside the caller\'s own roster',
+    ctx.foundationSaveMilestoneReview_({ doctor_id: docA28Id, patient_id: patientOff28.data.patient_id, milestone_type: '30_day', progress_summary: 'x' }).error.code === 'FOUNDATION_INVALID_INPUT');
+  var reviewDraft = ctx.foundationSaveMilestoneReview_({
+    doctor_id: docA28Id, patient_id: patientOn28.data.patient_id, milestone_type: '30_day',
+    progress_summary: 'Sleeping better; itching much reduced.', improvements: 'Energy up.', next_goals: 'Maintain routine.'
+  });
+  record('Stage28: foundationSaveMilestoneReview_() creates a draft review conforming to milestone-review.schema.json, status draft, target_date server-computed from the anchor',
+    reviewDraft.status === 'ok' && reviewDraft.data.status === 'draft' && reviewDraft.data.target_date === '2020-03-02' &&
+    validate(milestoneReviewSchema, reviewDraft.data).valid === true, JSON.stringify(validate(milestoneReviewSchema, reviewDraft.data).errors));
+  var reviewsAfterCreate = h.spreadsheet.getSheetByName('MilestoneReviews')._debug().rows.length;
+  var reviewDraftEdit = ctx.foundationSaveMilestoneReview_({
+    doctor_id: docA28Id, patient_id: patientOn28.data.patient_id, milestone_type: '30_day', progress_summary: 'Edited: continued improvement.'
+  });
+  var reviewsAfterEdit = h.spreadsheet.getSheetByName('MilestoneReviews')._debug().rows.length;
+  record('Stage28: a second save for the same (patient, milestone_type) UPDATES the one draft (stable review_id, updated content), never a second row',
+    reviewDraftEdit.status === 'ok' && reviewDraftEdit.data.review_id === reviewDraft.data.review_id &&
+    reviewDraftEdit.data.progress_summary === 'Edited: continued improvement.' && reviewDraftEdit.data.updated_at !== '' && reviewsAfterEdit === reviewsAfterCreate);
+
+  // ---- Patient does NOT yet see the draft (published-only visibility, docs/58 §10.2) ----
+  var patientViewBeforePublish = ctx.foundationGetHealthMilestonesForPatient_(patientOn28.data.patient_id);
+  record('Stage28: get_health_milestones returns the caller\'s own computed schedule but ZERO reviews while the only review is still a draft — a patient never sees a draft',
+    patientViewBeforePublish.status === 'ok' && patientViewBeforePublish.data.reviews.length === 0 &&
+    patientViewBeforePublish.data.schedule.length === 4 &&
+    patientViewBeforePublish.data.schedule.filter(function (p) { return p.milestone_type === '30_day'; })[0].state === 'overdue');
+
+  // ---- Doctor DOES see the draft (get_patient_milestones, includeDrafts) ----
+  var doctorViewBeforePublish = ctx.foundationGetPatientMilestonesForDoctor_(docA28Id, patientOn28.data.patient_id);
+  record('Stage28: get_patient_milestones returns the doctor\'s roster patient\'s track, computed schedule, and the draft review (drafts included for the authoring doctor)',
+    doctorViewBeforePublish.status === 'ok' && doctorViewBeforePublish.data.track.track_id === trackCreate.data.track_id &&
+    doctorViewBeforePublish.data.reviews.length === 1 && doctorViewBeforePublish.data.reviews[0].status === 'draft');
+  record('Stage28: get_patient_milestones rejects a patient outside the caller\'s own roster',
+    ctx.foundationGetPatientMilestonesForDoctor_(docA28Id, patientOff28.data.patient_id).error.code === 'FOUNDATION_INVALID_INPUT');
+
+  // ---- publish_milestone_review — one-way draft->published, roster-scoped ----
+  record('Stage28: foundationPublishMilestoneReview_() rejects an unknown review_id',
+    ctx.foundationPublishMilestoneReview_({ doctor_id: docA28Id, review_id: 'not-a-real-id' }).error.code === 'FOUNDATION_INVALID_INPUT');
+  var publishResult = ctx.foundationPublishMilestoneReview_({ doctor_id: docA28Id, review_id: reviewDraft.data.review_id });
+  record('Stage28: foundationPublishMilestoneReview_() transitions draft->published, stamping published_at',
+    publishResult.status === 'ok' && publishResult.data.status === 'published' && publishResult.data.published_at !== '');
+  record('Stage28: a second publish of the same review is rejected — one-way, exactly once, never reverted',
+    ctx.foundationPublishMilestoneReview_({ doctor_id: docA28Id, review_id: reviewDraft.data.review_id }).error.code === 'FOUNDATION_INVALID_INPUT');
+  record('Stage28: save_milestone_review refuses to edit an already-published review\'s content (docs/58 §10.3)',
+    ctx.foundationSaveMilestoneReview_({ doctor_id: docA28Id, patient_id: patientOn28.data.patient_id, milestone_type: '30_day', progress_summary: 'Trying to edit after publish.' }).error.code === 'FOUNDATION_INVALID_INPUT');
+
+  // ---- After publish, the patient sees it, and its point reads "completed" ----
+  var patientViewAfterPublish = ctx.foundationGetHealthMilestonesForPatient_(patientOn28.data.patient_id);
+  record('Stage28: after publish, get_health_milestones returns exactly the one published review, and its milestone point reads "completed" in the computed schedule',
+    patientViewAfterPublish.data.reviews.length === 1 && patientViewAfterPublish.data.reviews[0].status === 'published' &&
+    patientViewAfterPublish.data.schedule.filter(function (p) { return p.milestone_type === '30_day'; })[0].state === 'completed');
+
+  // ---- A paused track stops surfacing the schedule, but keeps published history (docs/58 §11.1) ----
+  ctx.foundationSetMilestoneTrack_({ doctor_id: docA28Id, patient_id: patientOn28.data.patient_id, care_start_date: '2020-02-01', status: 'paused' });
+  var patientViewPaused = ctx.foundationGetHealthMilestonesForPatient_(patientOn28.data.patient_id);
+  record('Stage28: a paused MilestoneTrack yields an empty computed schedule while already-published reviews remain visible history',
+    patientViewPaused.data.schedule.length === 0 && patientViewPaused.data.reviews.length === 1);
+  ctx.foundationSetMilestoneTrack_({ doctor_id: docA28Id, patient_id: patientOn28.data.patient_id, care_start_date: '2020-02-01', status: 'active' });
+
+  // ---- Audit trail ----
+  record('Stage28: the batch wrote its own milestone_track_created / milestone_review_created / milestone_review_published AuditLog rows',
+    auditRowsOf(h, 'milestone_track_created').length >= 1 && auditRowsOf(h, 'milestone_review_created').length >= 1 && auditRowsOf(h, 'milestone_review_published').length >= 1);
+
+  // ---- HTTP dispatch — every new route, correct guard, cross-identity-type rejection ----
+  var docSessionA28 = ctx.foundationIssueDoctorSessionToken_(docA28Id);
+  var patientSessionOn28 = ctx.foundationIssueSessionToken_(patientOn28.data.patient_id);
+
+  record('Stage28: set_milestone_track (real HTTP dispatch) succeeds for a DoctorSession, roster-scoped',
+    JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'set_milestone_track', session_token: docSessionA28, patient_id: patientOn28.data.patient_id, care_start_date: '2020-02-01' })._text).status === 'ok');
+  record('Stage28: set_milestone_track rejects a real PatientSession token with FOUNDATION_UNAUTHORIZED — patients never set the anchor',
+    JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'set_milestone_track', session_token: patientSessionOn28, patient_id: patientOn28.data.patient_id, care_start_date: '2020-02-01' })._text).error.code === 'FOUNDATION_UNAUTHORIZED');
+  record('Stage28: get_patient_milestones rejects a real PatientSession token with FOUNDATION_UNAUTHORIZED',
+    JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'get_patient_milestones', session_token: patientSessionOn28, patient_id: patientOn28.data.patient_id })._text).error.code === 'FOUNDATION_UNAUTHORIZED');
+  record('Stage28: save_milestone_review rejects a real PatientSession token with FOUNDATION_UNAUTHORIZED — patients never author a review',
+    JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'save_milestone_review', session_token: patientSessionOn28, patient_id: patientOn28.data.patient_id, milestone_type: '90_day', progress_summary: 'x' })._text).error.code === 'FOUNDATION_UNAUTHORIZED');
+  record('Stage28: publish_milestone_review rejects a real PatientSession token with FOUNDATION_UNAUTHORIZED',
+    JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'publish_milestone_review', session_token: patientSessionOn28, review_id: reviewDraft.data.review_id })._text).error.code === 'FOUNDATION_UNAUTHORIZED');
+  record('Stage28: get_health_milestones (real HTTP dispatch) succeeds for a PatientSession, own record only',
+    JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'get_health_milestones', session_token: patientSessionOn28 })._text).status === 'ok');
+  record('Stage28: get_health_milestones rejects a real DoctorSession token with FOUNDATION_UNAUTHORIZED — NOT dual-guarded, unlike get_medication_history (docs/58 §4)',
+    JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'get_health_milestones', session_token: docSessionA28 })._text).error.code === 'FOUNDATION_UNAUTHORIZED');
+
+  // ---- ADR-027 as a code-level fact: no Milestone*.gs makes any AI/model/outbound call (docs/58 §23 item 1) ----
+  var aiCallPattern = /UrlFetchApp\.|callOpenRouter[A-Za-z_]*\(|foundationBuildAiAssistantContext_\(|foundationCreateAiAssistantInteraction_\(|foundationCreateHoloscanRecognition_\(/;
+  var staticAnalyzer28 = require('../static-analysis/analyze.js');
+  record('Stage28: no Milestone*.gs code path makes any AI/model/UrlFetchApp/AI-feature call — ADR-027 proven at the source level (comments/strings neutralized first), not merely asserted',
+    !aiCallPattern.test(staticAnalyzer28.neutralizeCommentsAndStrings(require('fs').readFileSync(require('path').join(harness.APPS_SCRIPT_DIR, 'MilestoneTrack.gs'), 'utf8'))) &&
+    !aiCallPattern.test(staticAnalyzer28.neutralizeCommentsAndStrings(require('fs').readFileSync(require('path').join(harness.APPS_SCRIPT_DIR, 'MilestoneReview.gs'), 'utf8'))));
 })();
 
 function auditRowsOf(h, eventType) {
