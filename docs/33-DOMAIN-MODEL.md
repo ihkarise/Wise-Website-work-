@@ -1,5 +1,5 @@
 # 33 - Domain Model
-## Version 1.24 — 2026-07-16
+## Version 1.25 — 2026-07-16
 
 > Defines every major business entity in the Wise Platform: what it means, what it
 > holds, how it relates to everything else, how it comes into being and ends, who is
@@ -592,8 +592,10 @@ patient sees it, per ADR-005 — no exception for this being "just a summary of 
 data."
 
 **Future evolution:** Phase 2D (per docs/32's recommended roadmap split) — deliberately
-separated from the non-AI Health Milestones work (Phase 2C) because of its materially
-higher AI-safety requirements.
+separated from the non-AI Health Milestones work (Phase 2C, now architecturally frozen —
+§8, docs/58, ADR-027) because of its materially higher AI-safety requirements. A published
+Health Milestone review (§8.2) is a natural future *input* to this computed view, named in
+docs/58 §12.4, not built.
 
 ---
 
@@ -1636,6 +1638,71 @@ patient-writable. **Full detail:** docs/56 §11.4.
 
 ---
 
+# 8. Phase 2C — Health Milestones Entities — *Designed (docs/58-PHASE-2C-HEALTH-MILESTONES-ARCHITECTURE-FREEZE.md, ADR-027)*
+
+> **Placement note (additive, not a phase-ordering claim):** this section follows §7
+> (Phase 3) for a purely additive, non-renumbering reason — exactly as §4.1 Appointment
+> (a Phase 3 entity) already sits under "Scheduling & Communication" rather than in strict
+> phase order. Phase 2C is numerically earlier than Phase 3, but its architecture was
+> frozen later (2026-07-16, after Phase 3 shipped and was closed), on the dependency
+> grounds docs/24/docs/58 §1 record. These entities are **Designed, not Implemented** — no
+> schema file, no Apps Script module, no registry entry exists yet; Phase 2C implementation
+> requires its own separate, explicit approval (docs/58 §26/§29).
+
+**Status update (2026-07-16, Phase 2C architecture freeze, docs/58, ADR-027): the
+long-named-but-unscoped "Health Milestones" (docs/21's "Health Milestone Review,"
+docs/23's "Health Milestone Reviews," §3.5's own "the non-AI Health Milestones work (Phase
+2C)") is now architecturally frozen (not implemented).** Health Milestones is the
+**scheduled, non-AI, doctor-authored progress-review feature of "My Health Journey"**: at
+four fixed care-start-anchored points — 30 Days, 90 Days, 6 Months, 1 Year (docs/21) — a
+doctor authors and publishes a short structured review (progress, improvements, medicines,
+investigations, recommendations, next goals) that the patient then sees, read-only and
+celebratory. **No AI is used anywhere in this feature** (ADR-027) — that is the defining
+boundary docs/24/§3.5 used to separate Phase 2C from Phase 2D (Digital Twin & AI Summaries).
+The schedule of the four points is a **deterministic computed view** (never a stored entity,
+mirroring Analytics §7.6 and Digital Twin §3.5), derived from a single doctor-set care-start
+anchor; a milestone reads `completed` only when a doctor has published its review, never on
+elapsed time alone. See docs/58 §4–§23 for the full entity shape, router/registry/dashboard
+additions, and validation strategy.
+
+**Disambiguation from `CarePlan.next_review_date` (§3.4):** a Health Milestone is one of four
+**fixed, care-start-anchored celebration points**, not `CarePlan`'s single rolling
+"when to next see this patient" date. The two are deliberately distinct and carry no
+structural reference to one another (docs/58 §0.2) — the identical anti-conflation treatment
+§7.7/§7.8 applied to `MedicationHistory` vs. `DoctorInstruction`(type: `medicine`).
+
+## 8.1 `MilestoneTrack` — *Designed (docs/58 §11.1, ADR-027)*
+The per-patient **care-start anchor**: one row per patient, doctor-set, recording the
+`care_start_date` the 30/90/180/365-day schedule counts from, plus a `status`
+(`active`/`paused`). **Purpose:** to establish the schedule's anchor explicitly rather than
+silently overloading a frozen Foundation field (`Patient.created_at` is onboarding, not
+clinical care-start; Consultation §2.1 is Conceptual) — docs/58 §0.3. Upsert-style, one
+active row per patient, mirroring Patient Profile's (§6.1) own upsert discipline.
+**Ownership:** doctor/staff-authored, roster-scoped; the patient never sets or edits it.
+**Lifecycle:** created and edited by deliberate doctor upsert (`set_milestone_track`); the
+computed schedule always re-dates from the current anchor. **Full detail:** docs/58 §11.1.
+
+## 8.2 `MilestoneReview` — *Designed (docs/58 §11.2, ADR-027)*
+One doctor-authored progress review for one `(patient, milestone_type)` — the six
+free-text review dimensions docs/21 names, plus `status` (`draft`/`published`). **Purpose:**
+the doctor's own words celebrating and recording progress at a milestone point; entirely
+doctor-typed, never AI-generated or auto-inferred (ADR-027). **Ownership:** doctor/staff-authored,
+patient-viewable **read-only and only when `published`** — mirrors Care Plan's (§3.4)
+"doctor-authored / patient-viewable" ownership exactly. **Lifecycle:** created `draft`
+(private to roster doctors), one-way `draft` → `published` transition
+(`publish_milestone_review`) as the sole patient-visibility boundary; a published review
+makes its milestone point read `completed` in the computed schedule. **Full detail:** docs/58 §11.2.
+
+## 8.3 Milestone Schedule — *Designed as a computed view — never a base table (docs/58 §7/§11.3, ADR-027)*
+Not a stored entity — mirrors Analytics' (§7.6) and Digital Twin's (§3.5) own "computed
+view, never a base table" discipline. For a patient with a known `MilestoneTrack.care_start_date`,
+a future implementation deterministically derives the four milestone points and each point's
+state (`upcoming`/`due`/`completed`/`overdue`) on read, from the anchor + today + whether a
+published `MilestoneReview` exists. Stores nothing; therefore cannot drift. **Full detail:**
+docs/58 §7.
+
+---
+
 # Summary Table
 
 | Entity | Status | Phase (if any) |
@@ -1664,6 +1731,9 @@ patient-writable. **Full detail:** docs/56 §11.4.
 | AI Assistant Capability Registry | **Implemented — backend only** | 3/WHIMS (docs/55 §11.2, batch WPI-10 — shipped, structurally parallel to Calculator Registry, seeded with one entry, `summarize_patient_status`; disabled by default per ADR-023, a fixed, bounded menu, never a free-form chat surface) |
 | Holoscan Recognition / Holoscan Recognition Item | **Implemented** | 3/WHIMS (docs/56 §11.1/§11.2, ADR-024/025, batch WPI-11 — shipped, the patient-initiated capture session and its draft/audit candidate rows; mirrors AIAssistantInteraction's draft-then-decision shape and Report's Drive file-upload pattern; never automatically writes Medication History, statically enforced) |
 | Medication History / Medication Decision | **Implemented** | 3/WHIMS (docs/56 §11.3/§11.4, ADR-024/025, batch WPI-11 — shipped, the permanent, doctor-authored medication record and its own append-only clinical-decision ledger; current_status derived from the ledger, mirroring InventoryItem/InventoryTransaction's recompute-from-ledger discipline, WPI-7/docs/54; deliberately distinct from DoctorInstruction type: medicine, docs/56 §0.2) |
+| Milestone Track | **Designed** | 2C (docs/58 §11.1, ADR-027 — the per-patient doctor-set care-start anchor the 30/90/180/365-day schedule counts from; upsert-style, one active row per patient, mirroring Patient Profile; non-AI, doctor-authored) |
+| Milestone Review | **Designed** | 2C (docs/58 §11.2, ADR-027 — one doctor-authored, patient-viewable-when-published progress review per (patient, milestone_type); six free-text dimensions per docs/21; draft→published one-way; no AI, mirrors Care Plan's doctor-authored/patient-viewable ownership) |
+| Milestone Schedule | **Designed (computed view — never a base table)** | 2C (docs/58 §7/§11.3, ADR-027 — the four milestone points and their states derived deterministically on read from the anchor + published reviews; stored nowhere, mirrors Analytics/Digital Twin) |
 | Knowledge Article | Conceptual | Unassigned |
 | Knowledge Engine | Conceptual (system) | Unassigned |
 | Calculator | **Implemented — backend only — Pillar 3** | 2B (docs/44 §8, batch PXP-6, Calculator Registry — shipped, registry seeded empty, no UI; see §6.8). Public variant still unassigned — roadmap gap carried forward (docs/46 Part 3). |
