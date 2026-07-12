@@ -1,5 +1,5 @@
 # 31 - Architectural Decision Record Index
-## Version 1.7 — 2026-07-16
+## Version 1.8 — 2026-07-16
 
 > This is the canonical index of every Architectural Decision Record (ADR) for the
 > Wise Platform. Full records live in `/adr/`. This index is the entry point — check
@@ -59,13 +59,14 @@ deprecates any ADR.
 | ADR-024 | Holoscan Recognition Is Grounded Only in Uploaded Image Content, Never External Medical Inference, Diagnosis, or Treatment Recommendation | Accepted — extends ADR-001/ADR-004 for Holoscan specifically, amends neither | `/adr/ADR-024-holoscan-grounded-in-image-content-only.md` |
 | ADR-025 | Holoscan Recognition Output Is Always a Non-Persisting Draft Requiring Doctor Approval Through Medication History's Own Existing Write Path | Accepted — extends ADR-004/ADR-005/ADR-022 for Holoscan specifically, amends none | `/adr/ADR-025-holoscan-non-persisting-draft-doctor-approval.md` |
 | ADR-026 | The Doctor Module Registry's `holoscan_review` Entry Is Disabled by Default, Mirroring ADR-023's Rollout Discipline | Accepted — extends ADR-020/ADR-010, follows ADR-023's precedent for the `holoscan_review` entry specifically, amends none | `/adr/ADR-026-holoscan-review-registry-entry-disabled-by-default.md` |
+| ADR-027 | Health Milestones Are Doctor-Authored Reviews on a Deterministically-Computed Schedule, Never AI-Generated or Auto-Inferred | Accepted — governs Phase 2C (docs/58); extends ADR-004/ADR-005 by keeping Phase 2C outside AI, follows Analytics/Digital Twin's computed-view precedent, amends none | `/adr/ADR-027-health-milestones-doctor-authored-computed-schedule.md` |
 
 ---
 
 # Grouped by Concern
 
 **Identity & Access** — ADR-002, ADR-003, ADR-010, ADR-015, ADR-017 (ADR-011, ADR-014 superseded)
-**AI & Clinical Authority** — ADR-001, ADR-004, ADR-005, ADR-013, ADR-019, ADR-021, ADR-022, ADR-023, ADR-024, ADR-025, ADR-026
+**AI & Clinical Authority** — ADR-001, ADR-004, ADR-005, ADR-013, ADR-019, ADR-021, ADR-022, ADR-023, ADR-024, ADR-025, ADR-026, ADR-027 (ADR-027 by *absence* of AI — it keeps Phase 2C entirely outside the AI gate)
 **Data & Storage** — ADR-002, ADR-006
 **Modularity & Delivery** — ADR-008, ADR-009, ADR-012, ADR-016, ADR-018, ADR-020
 **Governance & Documentation** — ADR-007
@@ -100,6 +101,11 @@ deprecates any ADR.
   Considerations" ask for Holoscan specifically, the identical role docs/55 plays for
   ADR-021/022/023 — a dedicated, feature-scoped architecture freeze, not an amendment
   to docs/49/50/55 or ADR-019 itself.
+- `docs/58-PHASE-2C-HEALTH-MILESTONES-ARCHITECTURE-FREEZE.md` (Version 1.0) is the first
+  implementation plan built against ADR-027 — the dedicated, feature-scoped architecture
+  freeze for Phase 2C (Health Milestones), the identical single-feature-freeze role
+  docs/55/56 play for the AI features, adapted for a **non-AI**, patient-facing feature.
+  Additive to docs/24/49/50 and every prior freeze; amends none of them.
 
 ---
 

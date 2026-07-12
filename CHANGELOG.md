@@ -8,6 +8,66 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-16 — Phase 2C Architecture Freeze: Health Milestones
+
+Documentation-only architecture-freeze pass, scoped to Phase 2C (Health Milestones)
+specifically, authorized explicitly and separately. Performs the dedicated, feature-scoped
+architecture-freeze pass docs/24/docs/48 §1/§7 required ("fully open, unscoped… each still
+requires its own separate architecture-freeze pass whenever next taken up") before Phase 2C
+could be taken up — the identical single-feature-freeze discipline docs/55 (AI Assistant) and
+docs/56 (Holoscan) already followed, adapted here for a **non-AI, patient-facing** feature.
+No `apps-script/*.gs` file, no `shared/schemas/*.schema.json` file, no `shared/constants/*.json`
+registry file, and no patient-facing or doctor-facing page was touched — no implementation of
+any kind. Phase 2A, Phase 2B, and Phase 3 (WPI-1 through WPI-12, including the WPI-11 Holoscan
+implementation) all remain shipped and frozen except for genuine bug fixes; docs/49/50/51/52/53/54/55/56/57
+are not reopened, edited, or contradicted — this pass is additive to all of them.
+**Phase 2C implementation is not authorized to begin** — it requires its own separate, explicit
+approval, mirroring docs/53 §9/§13/§15, unchanged.
+
+### Added (documentation)
+- **`docs/58-PHASE-2C-HEALTH-MILESTONES-ARCHITECTURE-FREEZE.md`** (new) — full technical
+  architecture for Health Milestones, defined as the **scheduled, non-AI, doctor-authored
+  progress-review feature of "My Health Journey"**: four fixed care-start-anchored points
+  (30/90/180/365 days, per docs/21) at which a doctor authors and publishes a short structured
+  review (the six dimensions docs/21 names) that the patient then sees, read-only and
+  celebratory. Introduces one small, explicit, doctor-set care-start anchor rather than
+  overloading a frozen Foundation field, and computes the entire schedule deterministically
+  from it as a view, never a stored table (reusing Analytics/Digital Twin's computed-view
+  discipline). Two new *Designed* (not *Implemented*) entities (`MilestoneTrack`,
+  `MilestoneReview`) plus one computed Milestone Schedule; five named router dispatch cases
+  (four doctor, one patient; none dual-guarded); two named registry entries; two named
+  dashboard cards; and validation/browser-test/conformance/static-analysis requirements for a
+  future implementation batch. Self-contained sections cover the Architecture Readiness Review
+  (§24), Risk Analysis (§25), Dependency Analysis (§26), Validation Impact (§27), and
+  Repository Consistency Review (§28), folded into the one freeze doc as docs/55/56 did.
+  Explicitly out of scope: any AI/model call, any auto-generated content, any notification/
+  reminder pipeline, any `TimelineEvent` emission, and `CarePlan.next_review_date`.
+- **`adr/ADR-027-health-milestones-doctor-authored-computed-schedule.md`** (new) — Health
+  Milestones generates no AI content, makes no model call, auto-infers no review content, and
+  marks a milestone `completed` only when a doctor publishes its review (never on elapsed time
+  alone); the schedule is a deterministic computed view, never a stored/drifting table.
+  Permanently protects the Phase 2C/2D separation and is enforced statically (docs/58 §23
+  item 1). Extends ADR-004/ADR-005 by keeping Phase 2C outside the AI gate; follows Analytics/
+  Digital Twin's computed-view precedent; amends none.
+
+### Changed (documentation)
+- **`docs/31-ADR-INDEX.md`** bumped to Version 1.8 — ADR-027 added to the index, the
+  Grouped-by-Concern section, and the Relationship-to-Other-Documents section.
+- **`docs/33-DOMAIN-MODEL.md`** bumped to Version 1.25 — a new §8 (Phase 2C — Health
+  Milestones Entities) adds `MilestoneTrack`, `MilestoneReview`, and the computed Milestone
+  Schedule, all *Designed*, with an explicit disambiguation from `CarePlan.next_review_date`;
+  three Summary Table rows added; §3.5's forward reference to "the non-AI Health Milestones
+  work (Phase 2C)" now resolves to the frozen docs/58.
+- **`docs/24-ROADMAP.md`** bumped to Version 1.24 — the Phase 2C — Health Milestones block
+  updated to disclose the architecture freeze (docs/58, ADR-027), the two designed entities and
+  computed schedule, the non-AI boundary, and the named-but-unbuilt future integrations —
+  explicitly still not authorizing implementation.
+
+### Not authorized by this pass
+No code, schema, registry entry, router case, or dashboard card was added. Phase 2C
+implementation is not authorized to begin by this document or any document it references — a
+separate, explicit approval is still required.
+
 ## 2026-07-16 — WPI-11 Implementation: Holoscan (post-Phase-3-closure batch)
 
 Implements the Patient Medication Recognition Engine against the architecture already
