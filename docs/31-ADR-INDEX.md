@@ -1,5 +1,5 @@
 # 31 - Architectural Decision Record Index
-## Version 1.8 — 2026-07-16
+## Version 1.9 — 2026-07-16
 
 > This is the canonical index of every Architectural Decision Record (ADR) for the
 > Wise Platform. Full records live in `/adr/`. This index is the entry point — check
@@ -60,13 +60,16 @@ deprecates any ADR.
 | ADR-025 | Holoscan Recognition Output Is Always a Non-Persisting Draft Requiring Doctor Approval Through Medication History's Own Existing Write Path | Accepted — extends ADR-004/ADR-005/ADR-022 for Holoscan specifically, amends none | `/adr/ADR-025-holoscan-non-persisting-draft-doctor-approval.md` |
 | ADR-026 | The Doctor Module Registry's `holoscan_review` Entry Is Disabled by Default, Mirroring ADR-023's Rollout Discipline | Accepted — extends ADR-020/ADR-010, follows ADR-023's precedent for the `holoscan_review` entry specifically, amends none | `/adr/ADR-026-holoscan-review-registry-entry-disabled-by-default.md` |
 | ADR-027 | Health Milestones Are Doctor-Authored Reviews on a Deterministically-Computed Schedule, Never AI-Generated or Auto-Inferred | Accepted — governs Phase 2C (docs/58); extends ADR-004/ADR-005 by keeping Phase 2C outside AI, follows Analytics/Digital Twin's computed-view precedent, amends none | `/adr/ADR-027-health-milestones-doctor-authored-computed-schedule.md` |
+| ADR-028 | The Digital Twin / AI Summary Is a Patient-Facing AI Narrative Requiring Doctor Approval Before the Patient Ever Sees It, and the Digital Twin View Itself Is Never a Stored Base Table | Accepted — governs Phase 2D (docs/59); extends ADR-004/ADR-005/ADR-022 for the patient-facing Digital Twin specifically, amends none | `/adr/ADR-028-digital-twin-patient-facing-narrative-doctor-approved.md` |
+| ADR-029 | Digital Twin Retrieval Is Grounded Only in the Patient's Own Already-Stored Structured Record, Never an Unstructured Knowledge Base, Until a Real Knowledge Engine Exists | Accepted — governs Phase 2D (docs/59); extends ADR-001/ADR-021 for the Digital Twin specifically, amends neither | `/adr/ADR-029-digital-twin-grounded-in-patient-record-only.md` |
+| ADR-030 | The Doctor Module Registry's `digital_twin_review` Entry Is Disabled by Default, Following ADR-023/ADR-026's Rollout Discipline | Accepted — governs Phase 2D (docs/59); extends ADR-020/ADR-010, follows ADR-023/ADR-026's precedent for the `digital_twin_review` entry specifically, amends none | `/adr/ADR-030-digital-twin-review-registry-entry-disabled-by-default.md` |
 
 ---
 
 # Grouped by Concern
 
 **Identity & Access** — ADR-002, ADR-003, ADR-010, ADR-015, ADR-017 (ADR-011, ADR-014 superseded)
-**AI & Clinical Authority** — ADR-001, ADR-004, ADR-005, ADR-013, ADR-019, ADR-021, ADR-022, ADR-023, ADR-024, ADR-025, ADR-026, ADR-027 (ADR-027 by *absence* of AI — it keeps Phase 2C entirely outside the AI gate)
+**AI & Clinical Authority** — ADR-001, ADR-004, ADR-005, ADR-013, ADR-019, ADR-021, ADR-022, ADR-023, ADR-024, ADR-025, ADR-026, ADR-027 (ADR-027 by *absence* of AI — it keeps Phase 2C entirely outside the AI gate), ADR-028, ADR-029, ADR-030 (Phase 2D — the platform's first patient-facing AI content, under the full ADR-004/005 gate)
 **Data & Storage** — ADR-002, ADR-006
 **Modularity & Delivery** — ADR-008, ADR-009, ADR-012, ADR-016, ADR-018, ADR-020
 **Governance & Documentation** — ADR-007
@@ -106,6 +109,11 @@ deprecates any ADR.
   freeze for Phase 2C (Health Milestones), the identical single-feature-freeze role
   docs/55/56 play for the AI features, adapted for a **non-AI**, patient-facing feature.
   Additive to docs/24/49/50 and every prior freeze; amends none of them.
+- `docs/59-PHASE-2D-DIGITAL-TWIN-ARCHITECTURE-FREEZE.md` (Version 1.0) is the first
+  implementation plan built against ADR-028/029/030 — the dedicated, feature-scoped
+  architecture freeze for Phase 2D (Wise Digital Twin & AI Summaries), the platform's **first
+  patient-facing AI-generated-content feature**, under the full ADR-004/ADR-005 gate proven by
+  Phase 1.5's Consultation Summary. Additive to docs/24 and every prior freeze; amends none.
 
 ---
 

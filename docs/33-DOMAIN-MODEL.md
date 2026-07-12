@@ -1,5 +1,5 @@
 # 33 - Domain Model
-## Version 1.26 — 2026-07-16
+## Version 1.27 — 2026-07-16
 
 > Defines every major business entity in the Wise Platform: what it means, what it
 > holds, how it relates to everything else, how it comes into being and ends, who is
@@ -572,11 +572,12 @@ update.
 
 ---
 
-## 3.5 Digital Twin — *Conceptual (computed view)*
+## 3.5 Digital Twin — *Designed (Phase 2D architecture freeze, docs/59-PHASE-2D-DIGITAL-TWIN-ARCHITECTURE-FREEZE.md, ADR-028/029/030); still a computed view, never a stored base table*
 
 **Purpose:** The patient's "living health story" (docs/21) — never a stored entity of
 its own, always a computed, read-only view aggregating Timeline Event, Consultation
-Summary, Symptom Log, Report, and (once it exists) Care Plan data into one narrative.
+Summary, Symptom Log, Report, Care Plan, Check-In, Calculator Result, Medication History,
+and (published) Health Milestone data into one narrative.
 Bound permanently by ADR-004: never generates diagnosis or treatment.
 
 **Attributes:** None of its own — a view/aggregate, not a base table.
@@ -596,6 +597,43 @@ separated from the non-AI Health Milestones work (Phase 2C, now architecturally 
 §8, docs/58, ADR-027) because of its materially higher AI-safety requirements. A published
 Health Milestone review (§8.2) is a natural future *input* to this computed view, named in
 docs/58 §12.4, not built.
+
+**Status update (2026-07-16, Phase 2D architecture freeze, docs/59, ADR-028/029/030):
+architecturally frozen (not implemented).** Phase 2D is the platform's **first patient-facing
+AI-generated-content feature** — three sub-features: a **Health Story** (an AI-narrated
+summary of the patient's own recorded history), **AI Summaries** (the same shape at a coarser
+cadence, distinguished by `narrative_type`), and a deterministic, non-AI **Progress
+Analytics** view (the patient-facing counterpart to WPI-9's doctor-facing Analytics, computed
+on read, no model call). The Digital Twin view and the Progress Analytics view remain
+**computed views, never stored base tables** (ADR-004/ADR-028); only the AI narrative
+audit/decision/delivery record and its doctor-approved published text are stored (§3.6
+`DigitalTwinNarrative`, below). **Every narrative is doctor-approved before the patient ever
+sees it** (ADR-005/ADR-028) — the identical three-part gate (prompt constraint + independent
+drift check + mandatory doctor review) Phase 1.5's Consultation Summary (§2.2) already proved,
+applied to an aggregated narrative; `get_health_story` returns only `approved`/
+`edited_and_approved` narratives to a patient, never a pending or rejected draft. Retrieval is
+grounded in the patient's own already-stored structured record only, until a real Knowledge
+Engine exists (ADR-029, mirroring ADR-021/024). Five new router dispatch cases (three doctor
+roster-scoped, two patient own-record; none dual-guarded), one new Patient Module Registry
+entry (`health_story`, fail-closed by absence) and one new Doctor Module Registry entry
+(`digital_twin_review`, **disabled by default per ADR-030** — the platform's third and
+highest-risk AI-output-review surface). See docs/59 §4–§18 for the full design; all *Designed*,
+none implemented — Phase 2D implementation requires its own separate, explicit approval.
+
+## 3.6 Digital Twin Narrative — *Designed (Phase 2D architecture freeze, docs/59 §11.1, ADR-028/029)*
+The Sheet-backed audit/decision/delivery record for one AI-generated Digital Twin narrative
+(`narrative_type`: `health_story` or `ai_summary`). **Purpose:** to store what the model
+produced (`ai_output`, immutable), the assembled context it was grounded in
+(`context_snapshot`, for traceability), the independent drift check's advisory flags
+(`ai_output_flags`), the doctor's one-way review decision (`review_status`: `pending` →
+`approved`/`edited_and_approved`/`rejected`), and the doctor-approved text the patient
+actually sees (`published_output`, set only on approval). Mirrors Phase 1.5's Consultation
+Summary (§2.2) ownership exactly (AI-produced, doctor-reviewed, patient-received) and
+AIAssistantInteraction's (§7.7) draft-then-decision shape. **Ownership:** doctor/staff-generated,
+doctor-reviewed; the patient reads only `published_output` for `approved`/`edited_and_approved`
+rows, never a draft. **Lifecycle:** created `pending`, one-way `review_status` transition
+(exactly once) as the sole gate to patient visibility (ADR-028); every other field immutable.
+**Full detail:** docs/59 §11.1.
 
 ---
 
@@ -1748,7 +1786,9 @@ docs/58 §7.
 | Symptom Log | Implemented, **dashboard entry retired (Batch PXP-10)** | 2A (Batch PA-4) — dashboard entry removed and endpoints deprecated (docs/44 §10.1, §22 batch PXP-10, shipped); `SymptomLogs` rows and their standalone history page remain, schema/Apps Script file unchanged |
 | Report | Implemented | 2A (Batch PA-5) |
 | Care Plan | **Implemented** | 2B (docs/44 §12, batch PXP-7 — shipped, one evolving plan per patient, append-only versioned, Timeline Event emission deliberately deferred — see §3.4's own status update) |
-| Digital Twin | Conceptual (view) | Recommended 2D — future consumer of Timeline, Reports, Check-ins, Care Plans, Calculators (docs/44 §16), not tightly coupled to Phase 2B |
+| Digital Twin | **Designed (computed view — never a base table)** | 2D (docs/59 §6.1, ADR-004/028/029 — architecture frozen; the patient's living health story, a computed read-only aggregation of the patient's own record, AI-narrated and doctor-approved before the patient sees it; never a stored entity) |
+| Digital Twin Narrative | **Designed** | 2D (docs/59 §11.1, ADR-028/029 — the Sheet-backed audit/decision/delivery record for one AI narrative (health_story/ai_summary); pending→approved/edited_and_approved/rejected one-way; patient sees only approved published_output; mirrors Consultation Summary's doctor-review gate) |
+| Progress Analytics | **Designed (computed view — never a base table)** | 2D (docs/59 §6.3, ADR-004 — a deterministic, non-AI, patient-scoped trend aggregation, the patient-facing counterpart to WPI-9 Analytics; computed on read, no model call, no doctor gate needed) |
 | Appointment | **Implemented** | 3/WHIMS (docs/50 §8, batch WPI-5 — shipped, staff/doctor-facing only, nullable patient_id/doctor_id, server-derived specialty_slug, one-way requested→confirmed→completed/cancelled lifecycle, one read-only `get_doctor_appointments` route, Doctor Module Registry's second real entry `appointments`) |
 | Notification | **Implemented** | 3/WHIMS (docs/50 §9, batch WPI-6 — shipped, a shared record of what was sent, never a new delivery pipeline; nullable patient_id/doctor_id, disclosed additive recipient_email fallback; system-generated only, zero FoundationRouter.gs dispatch case) |
 | Specialty | **Implemented** | 3/WHIMS (docs/50 §6, ADR-018, batch WPI-2 — shipped, seeded with one specialty (homeopathy), plus the additive Condition-to-Specialty Map; no populated `specialty_scope` entry added to Module/Calculator/Template Registry, none needs one yet, docs/53 §4) |
