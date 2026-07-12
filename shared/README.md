@@ -258,6 +258,23 @@ entries, `holoscan_review` (**disabled by default for every doctor, per new ADR-
 mirroring `ai_assistant`'s own ADR-023 precedent) and `medication_history` (normal
 rollout). No other `shared/` file changed in this batch.
 
+The Phase 2C Batch PXP-11 implementation (docs/58-PHASE-2C-HEALTH-MILESTONES-ARCHITECTURE-FREEZE.md,
+ADR-027 — Health Milestones, the platform's first non-AI-by-design patient-progress
+feature) added `schemas/milestone-track.schema.json` (the per-patient, doctor-set
+care-start anchor the 30/90/180/365-day schedule counts from, one row per patient
+upsert-style, alongside its first implementation `apps-script/MilestoneTrack.gs`) and
+`schemas/milestone-review.schema.json` (one doctor-authored progress review per
+`(patient, milestone_type)`, created `draft` and made patient-visible only by a one-way
+`published` transition, alongside its first implementation `apps-script/MilestoneReview.gs`).
+The milestone **schedule** itself has no schema — it is a computed view derived on read
+from `care_start_date`, never a stored table (mirroring `Analytics`/Digital Twin). **No AI
+is used anywhere** in this feature (ADR-027, statically enforced). Bumped
+`constants/module-registry.json` (1.2.0 → 1.3.0) to add this registry's `health_milestones`
+entry (patient-facing, normal rollout) and `constants/doctor-module-registry.json`
+(1.8.0 → 1.9.0) to add its ninth entry, `milestone_review` (**normal rollout — not
+disabled-by-default**, since it reviews doctor-authored content, never model output). No
+other `shared/` file changed in this batch.
+
 ---
 
 ## Who Implements What Against `shared/`

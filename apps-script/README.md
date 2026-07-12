@@ -714,6 +714,37 @@ form and recent-uploads list, and the new Reports full-history page with a real,
 session-gated file download). `assets/site.css` itself was not touched — the file
 input reuses `.field input` unchanged.
 
+## Phase 2C Patient Access modules — Batch PXP-11 (Health Milestones)
+
+Phase 2C (Health Milestones, docs/58-PHASE-2C-HEALTH-MILESTONES-ARCHITECTURE-FREEZE.md,
+ADR-027) adds two new, additive Sheet-backed modules and one computed view — the
+platform's first **non-AI-by-design** patient-progress feature (docs/24/docs/33 §3.5
+deliberately separate it from Phase 2D's AI-narrated Digital Twin).
+
+- **`MilestoneTrack.gs`** — the per-patient, doctor-set care-start anchor (one row per
+  patient, upsert-style, mirroring `FoundationPatientProfile.gs`). Also houses the pure,
+  deterministic **milestone schedule** computation (`foundationComputeMilestoneSchedule_`):
+  the four fixed points (30/90/180/365 days) and each point's `upcoming`/`due`/`overdue`/
+  `completed` state are derived on read from `care_start_date` — never stored, mirroring
+  `Analytics.gs`'s "computed view, never a base table" discipline. Reuses
+  `CarePlan.gs`'s `foundationIsValidCalendarDate_()` (not re-declared) and
+  `DoctorPatientRoster.gs`'s roster derivation unchanged.
+- **`MilestoneReview.gs`** — one doctor-authored progress review per
+  `(patient, milestone_type)`, created `draft` and made patient-visible only by the
+  one-way `publish_milestone_review` transition. Every field is doctor-typed; the
+  assembled reader returns published reviews only to a patient (`get_health_milestones`)
+  and all reviews including drafts to the roster-scoped doctor (`get_patient_milestones`).
+- **Router** — five additive `FoundationRouter.gs` dispatch cases: `set_milestone_track`,
+  `get_patient_milestones`, `save_milestone_review`, `publish_milestone_review` (doctor,
+  roster-scoped), and `get_health_milestones` (patient, own record, published only — **not**
+  dual-guarded, unlike Holoscan's `get_medication_history`).
+- **Registries** — one Patient Module Registry entry (`health_milestones`, normal rollout)
+  and one Doctor Module Registry entry (`milestone_review`, **normal rollout — not
+  disabled-by-default**, since it reviews doctor-authored content, not model output).
+- **No AI, ever** (ADR-027): neither module makes any `UrlFetchApp`/model call — enforced
+  by `validation/static-analysis/analyze.js`'s new Health Milestones static rule 1 and
+  proven at runtime by `conformance.js`'s Stage 28.
+
 ## Foundation/Phase 1.5 dispatch boundary (IA-2)
 
 Google Apps Script permits exactly one global `doPost()` per project, and docs/29 §14

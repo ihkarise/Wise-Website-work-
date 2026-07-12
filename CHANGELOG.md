@@ -8,6 +8,69 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-16 — Phase 2C Batch PXP-11: Health Milestones
+
+Implements Health Milestones (docs/58-PHASE-2C-HEALTH-MILESTONES-ARCHITECTURE-FREEZE.md
+§4–§23, ADR-027), separately and explicitly approved after the architecture-freeze pass
+below, per the Architecture Freeze → Implementation → Validation discipline docs/53 §15
+defines. The platform's first **non-AI-by-design** patient-progress feature: at four fixed
+care-start-anchored points (30 Days / 90 Days / 6 Months / 1 Year, per docs/21) a doctor
+authors and **publishes** a short structured review that the patient then sees, read-only
+and celebratory. Does not reopen Phase 2A/2B/3 (all remain frozen except genuine bug fixes)
+and does not name, scope, or authorize Phase 2D.
+
+### Added
+- **`apps-script/MilestoneTrack.gs`** — the per-patient, doctor-set care-start anchor
+  (one row per patient, upsert-style, mirroring `FoundationPatientProfile.gs`), plus the
+  pure, deterministic milestone-schedule computation (`foundationComputeMilestoneSchedule_`):
+  the four points and their `upcoming`/`due`/`overdue`/`completed` states are derived on
+  read from `care_start_date` — never stored, mirroring `Analytics.gs`'s computed-view
+  discipline. Reuses `CarePlan.gs`'s `foundationIsValidCalendarDate_()` (not re-declared)
+  and `DoctorPatientRoster.gs`'s roster derivation unchanged.
+- **`apps-script/MilestoneReview.gs`** — one doctor-authored review per
+  `(patient, milestone_type)`, created `draft` and made patient-visible only by the one-way
+  `publish_milestone_review` transition. Every field is doctor-typed. `get_health_milestones`
+  returns published reviews only to a patient; `get_patient_milestones` returns all reviews
+  including drafts to the roster-scoped doctor.
+- **`shared/schemas/milestone-track.schema.json`/`.md`** and
+  **`milestone-review.schema.json`/`.md`** (version 1.0.0).
+- Five additive `FoundationRouter.gs` dispatch cases (`set_milestone_track`,
+  `get_patient_milestones`, `save_milestone_review`, `publish_milestone_review` — doctor,
+  roster-scoped; `get_health_milestones` — patient, own record, published only, **not**
+  dual-guarded).
+- One Patient Module Registry entry (`health_milestones`, normal rollout) and one Doctor
+  Module Registry entry (`milestone_review`, **normal rollout — not disabled-by-default**,
+  since it reviews doctor-authored content, not model output) — in both the `.gs` registries
+  and their `shared/constants/*.json`/`.md` canonical copies.
+- Patient **Health Milestones card** + read-only `my-health-journey/milestones/` page
+  (`index.html` + `milestones.js`); Doctor **Milestone Review card** (care-start-anchor
+  control + per-point authoring + an explicit Publish control whose copy makes the
+  draft-vs-published visibility boundary plain).
+- **`adr/ADR-027`**'s non-AI boundary is now enforced as a code-level fact: a new
+  `validation/static-analysis/analyze.js` Health Milestones static rule (no `UrlFetchApp`/
+  model call, no cross-entity auto-fill, correct session guards, no direct `SpreadsheetApp`),
+  `conformance.js`'s **Stage 28** (39 checks), and a new
+  `validation/phase-2c-milestones/browser-test.js` suite (22 checks).
+
+### Validation
+- Static Analysis: **PASS, 0 findings** (68 `.gs` files; new Health Milestones rule class).
+- Conformance: **PASS, 840/840** (was 801; +39 Stage 28, incl. registry-count updates).
+- Phase 1.5 Regression: **PASS, 45/45** (untouched).
+- Browser: **PASS, 18 suites / 392 checks** (was 370; +22 phase-2c; doctor-registry count
+  assertions in wpi-4/5/7/8/9 bumped 8→9).
+
+### Disclosed implementation-time decisions (docs/58 §22)
+- `due`→`overdue` grace window = 14 days; publish is terminal (no post-publish edit/version
+  this batch); `milestone_review` guards by session+roster only (normal-rollout pattern —
+  backend `DoctorModuleState` enforcement is reserved for the disabled-by-default AI
+  features; enablement fail-closes at the dashboard-render layer). Batch named **PXP-11**.
+
+### Frozen-file exceptions
+None. Only additive extension points were touched: `FoundationRouter.gs` (new dispatch
+cases), `ModuleRegistry.gs`/`DoctorModuleRegistry.gs` (new entries), and the two dashboards
+(new cards/loaders). Zero modification to any Foundation core, Phase 1.5, or previously-shipped
+entity file (verified by `git status`).
+
 ## 2026-07-16 — Phase 2C Architecture Freeze: Health Milestones
 
 Documentation-only architecture-freeze pass, scoped to Phase 2C (Health Milestones)

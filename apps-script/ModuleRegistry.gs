@@ -177,6 +177,37 @@ var FOUNDATION_MODULE_REGISTRY_ = [
     supports_ai: true,
     supports_doctor_notes: true,
     supports_patient_input: true
+  },
+  {
+    // Batch PXP-11 (Phase 2C — Health Milestones,
+    // docs/58-PHASE-2C-HEALTH-MILESTONES-ARCHITECTURE-FREEZE.md §18.1, ADR-027) — the
+    // patient-facing Health Milestones card's own registration. data_source is the
+    // read-only get_health_milestones route (the caller's own computed schedule +
+    // published reviews only). Read-only for the patient: no anchor/authoring/publish
+    // control (those are doctor-only, docs/58 §19.1). Fail-closed by PatientModuleState
+    // absence — the same default every existing entry already has (ADR-010/012); no new
+    // ADR required (ADR-027 governs the non-AI boundary, not this entry's rollout).
+    // supports_ai is deliberately false — Health Milestones is the platform's non-AI
+    // patient-progress feature (ADR-027, docs/33 §3.5's Phase 2C/2D separation).
+    module_id: 'health_milestones',
+    title: 'Health Milestones',
+    description: 'Your doctor-authored progress reviews at 30 days, 90 days, 6 months, and 1 year — celebrating how far you have come.',
+    icon: 'milestones',
+    display_order: 45,
+    visibility: 'patient',
+    permissions: [],
+    data_source: 'get_health_milestones',
+    empty_state: 'nodata',
+    rendering_type: 'card',
+    future_ai_capable: false,
+    supports_notifications: false,
+    supports_history: true,
+    supports_export: false,
+    supports_badges: false,
+    supports_reminders: false,
+    supports_ai: false,
+    supports_doctor_notes: true,
+    supports_patient_input: false
   }
 ];
 

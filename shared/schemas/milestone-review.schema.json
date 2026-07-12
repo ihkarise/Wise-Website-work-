@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wisehomeopathy.com/shared/schemas/milestone-review.schema.json",
+  "title": "MilestoneReview",
+  "version": "1.0.0",
+  "description": "The canonical shape of a MilestoneReview record — docs/58-PHASE-2C-HEALTH-MILESTONES-ARCHITECTURE-FREEZE.md §11.2's one doctor-authored progress review per (patient, milestone_type), Batch PXP-11 (Phase 2C — Health Milestones, ADR-027). Non-AI (ADR-027): every review field is doctor-typed — never AI-generated, never auto-inferred from Symptom Log/Check-In/Calculator/Care Plan data (docs/58 §5 item 2). Doctor-authored/patient-viewable, mirroring CarePlan's ownership: created `draft` (private to roster doctors), one-way `draft`->`published` transition (publish_milestone_review) as the sole patient-visibility boundary. A published review makes its milestone point read `completed` in the computed schedule; a draft never does (docs/58 §5 item 3).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["review_id", "patient_id", "track_id", "milestone_type", "target_date", "progress_summary", "improvements", "medicines_review", "investigations", "recommendations", "next_goals", "status", "authored_by", "created_at", "updated_at", "published_at"],
+  "properties": {
+    "review_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Server-generated UUID (generateFoundationId_()), this row's own identity — never doctor-supplied."
+    },
+    "patient_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Roster-validated at write (reuses DoctorPatientRoster.gs). At most one review per (patient_id, milestone_type)."
+    },
+    "track_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "References the parent MilestoneTrack (milestone-track.schema.json) — the anchor this review's milestone point counts from."
+    },
+    "milestone_type": {
+      "type": "string",
+      "enum": ["30_day", "90_day", "6_month", "1_year"],
+      "description": "The fixed milestone point (docs/21, docs/58 §7) this review documents. The enum is deliberately closed to these four."
+    },
+    "target_date": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+      "description": "The point's computed target date (care_start_date + the point's offset, docs/58 §7), server-computed at authoring — never client-supplied. Denormalized here for an honest audit of what the schedule showed when the doctor wrote the review; the live schedule recomputes it for display."
+    },
+    "progress_summary": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Doctor-typed. The 'Progress' review dimension (docs/21). Required."
+    },
+    "improvements": { "type": "string", "description": "Doctor-typed. The 'Improvements' dimension. Empty-string sentinel if omitted." },
+    "medicines_review": { "type": "string", "description": "Doctor-typed free-text commentary. The 'Medicines' dimension — NOT a structural reference to DoctorInstruction/MedicationHistory (docs/58 §0.2). Empty-string sentinel if omitted." },
+    "investigations": { "type": "string", "description": "Doctor-typed. The 'Investigations' dimension. Empty-string sentinel if omitted." },
+    "recommendations": { "type": "string", "description": "Doctor-typed. The 'Recommendations' dimension. Empty-string sentinel if omitted." },
+    "next_goals": { "type": "string", "description": "Doctor-typed. The 'Next goals' dimension. Empty-string sentinel if omitted." },
+    "status": {
+      "type": "string",
+      "enum": ["draft", "published"],
+      "description": "Always 'draft' at creation; transitions one-way to 'published' exactly once (docs/58 §10.2/§10.3). Only a 'published' review is ever returned to a patient."
+    },
+    "authored_by": {
+      "type": "string",
+      "minLength": 1,
+      "description": "doctor_id, DoctorSession-derived — the authoring doctor."
+    },
+    "created_at": { "type": "string", "format": "date-time", "description": "Server-set at creation. Never editable." },
+    "updated_at": { "type": "string", "description": "Server-set on each draft edit. Empty-string sentinel until the first edit." },
+    "published_at": { "type": "string", "description": "Server-set at the moment status transitions to 'published'. Empty-string sentinel while still a draft." }
+  }
+}

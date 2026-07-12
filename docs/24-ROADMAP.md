@@ -1,5 +1,5 @@
 # 24 - Wise Product Roadmap
-## Version 1.24 — 2026-07-16
+## Version 1.25 — 2026-07-16
 
 # Phase 1 — Public Website
 Status: In Progress
@@ -584,13 +584,16 @@ unclaimed roadmap gap (docs/46 Part 3) — only the Patient variant is
 claimed by this phase (and only its backend, Batch PXP-6).
 
 # Phase 2C — Health Milestones
-Status: **Architecture frozen (2026-07-16, docs/58-PHASE-2C-HEALTH-MILESTONES-ARCHITECTURE-FREEZE.md,
-Version 1.0; ADR-027) — implementation NOT yet authorized.** The dedicated, feature-scoped
-architecture-freeze pass docs/24/docs/48 §1/§7 required before Phase 2C could be taken up
-has now been performed, the identical single-feature-freeze discipline docs/55 (AI Assistant)
-and docs/56 (Holoscan) already followed, adapted here for a **non-AI, patient-facing** feature.
-**The freeze does not authorize implementation** — a separate, explicit approval naming the
-Phase 2C batch is still required, mirroring docs/53 §9/§13/§15 exactly.
+Status: **Implemented (Batch PXP-11, 2026-07-16) — architecture frozen the same day
+(docs/58-PHASE-2C-HEALTH-MILESTONES-ARCHITECTURE-FREEZE.md, Version 1.1; ADR-027), then
+separately, explicitly approved for implementation.** The dedicated, feature-scoped
+architecture-freeze pass docs/24/docs/48 §1/§7 required was performed (the identical
+single-feature-freeze discipline docs/55 (AI Assistant) and docs/56 (Holoscan) already
+followed, adapted here for a **non-AI, patient-facing** feature), and Batch PXP-11 then shipped
+it against that frozen architecture — the same Architecture Freeze → (separate approval) →
+Implementation → Validation sequence docs/53 §15 defines. Phase 2C is now **frozen except for
+genuine bug fixes**; Phase 2D (Digital Twin & AI Summaries) remains fully open and unscoped,
+requiring its own separate architecture-freeze pass.
 
 - Scheduled progress reviews (30/90 days, 6 months, 1 year, per docs/21) — now defined as
   four fixed **care-start-anchored** points, each a **doctor-authored, patient-viewable-when-
@@ -598,18 +601,25 @@ Phase 2C batch is still required, mirroring docs/53 §9/§13/§15 exactly.
   medicines, investigations, recommendations, next goals). docs/58 §11 designs two new
   Sheet-backed entities (`MilestoneTrack`, the per-patient doctor-set care-start anchor;
   `MilestoneReview`, the doctor-authored review) plus one **computed** Milestone Schedule
-  (never a stored table, mirroring Analytics/Digital Twin) — all *Designed*, none implemented.
+  (never a stored table, mirroring Analytics/Digital Twin) — all now **implemented** (Batch
+  PXP-11): `apps-script/MilestoneTrack.gs`/`MilestoneReview.gs`, `shared/schemas/milestone-track.schema.json`/
+  `milestone-review.schema.json`.
 - No AI required — deliberately separated from Phase 2D, which carries the
   platform's AI-supervised work. **ADR-027 makes this permanent and statically enforced**:
   Health Milestones generates no AI content, makes no model call, and marks a milestone
   `completed` only when a doctor publishes its review, never on elapsed time alone.
-- Named-but-unbuilt future integrations (docs/58 §12), each requiring its own separate
+- Shipped (Batch PXP-11): five new `FoundationRouter.gs` dispatch cases
+  (`set_milestone_track`, `get_patient_milestones`, `save_milestone_review`,
+  `publish_milestone_review`, `get_health_milestones`), two new registry entries (patient
+  `health_milestones`; doctor `milestone_review`, **normal rollout — not disabled-by-default**,
+  since it reviews doctor-authored content, not model output), a patient Health Milestones card
+  + read-only `my-health-journey/milestones/` page, and a doctor Milestone Review card
+  (docs/58 §17–§19). Validated: Static Analysis (new no-AI rule), Conformance Stage 28,
+  Phase 1.5 Regression, and a new `validation/phase-2c-milestones/` browser suite.
+- Named-but-unbuilt **future** integrations (docs/58 §12), each still requiring its own separate
   approval: a `TimelineEvent:milestone` source (the same frozen-`entry_type`-enum deferral
   Care Plan and Holoscan already made), a `Notification` "milestone due" prompt, and a Digital
-  Twin (Phase 2D) input. Five new router dispatch cases, two new registry entries (patient
-  `health_milestones`; doctor `milestone_review`, **normal rollout — not disabled-by-default**,
-  since it reviews doctor-authored content, not model output), and two new dashboard cards are
-  named, none built (docs/58 §17–§19).
+  Twin (Phase 2D) input.
 
 # Phase 2D — Wise Digital Twin & AI Summaries
 - Health Story

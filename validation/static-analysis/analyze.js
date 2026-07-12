@@ -309,7 +309,8 @@ function analyze() {
     circularDependencies: [],
     namespaceCollisions: [],
     aiAssistantStaticRules: [],
-    holoscanStaticRules: []
+    holoscanStaticRules: [],
+    milestoneStaticRules: []
   };
 
   // Duplicate global names / Apps Script namespace collisions.
@@ -616,6 +617,102 @@ function analyze() {
     }
   });
 
+  // ============================================================
+  // Health Milestones static rules (Batch PXP-11, docs/58-PHASE-2C-HEALTH-
+  // MILESTONES-ARCHITECTURE-FREEZE.md §23) — enforcing ADR-027's non-AI boundary as a
+  // code-level fact. Where the AI-feature rules above BOUND an AI pipeline, these FORBID
+  // AI entirely: Health Milestones is the platform's deliberately non-AI patient-progress
+  // feature (docs/24/docs/33 §3.5's Phase 2C/2D separation).
+  // ============================================================
+  var milestoneFiles = files.filter(function (f) { return /^Milestone.*\.gs$/.test(f); });
+
+  // ---- Rule 1 (docs/58 §23 item 1) — the load-bearing one behind ADR-027: ----
+  // no Milestone*.gs may make any AI/model/outbound call, or call any AI-feature function.
+  var milestoneAiCallPattern = /UrlFetchApp\.|callOpenRouter[A-Za-z_]*\(|foundationBuildAiAssistantContext_\(|foundationCreateAiAssistantInteraction_\(|foundationRecordAiAssistantDecision_\(|foundationCreateHoloscanRecognition_\(/;
+  milestoneFiles.forEach(function (file) {
+    var m1 = neutralizedSources[file].match(milestoneAiCallPattern);
+    if (m1) {
+      findings.milestoneStaticRules.push({
+        rule: 'no-ai-call',
+        detail: file + ' references "' + m1[0] + '" — ADR-027 requires Health Milestones to make no AI/model/outbound call of any kind; it is the platform\'s non-AI patient-progress feature.'
+      });
+    }
+  });
+
+  // ---- Rule 2 (docs/58 §23 item 2) — no review field auto-filled from another entity's data ----
+  // A review is doctor-typed, never inferred from Symptom Log / Check-In / Calculator /
+  // Care Plan / Report data (docs/58 §5 item 2). Flag any Milestone*.gs reference to
+  // another entity's patient-data reader.
+  var crossEntityReaders = [
+    'foundationGetCurrentCarePlanForPatient_', 'foundationGetPatientDoctorInstructions_',
+    'foundationGetPatientSymptomLogs_', 'foundationGetPatientCheckInResponses_',
+    'foundationGetCurrentCheckInTemplateForPatient_', 'foundationGetPatientCalculatorResults_',
+    'foundationGetPatientReports_', 'foundationGetReportById_'
+  ];
+  milestoneFiles.forEach(function (file) {
+    crossEntityReaders.forEach(function (readerName) {
+      if (neutralizedSources[file].indexOf(readerName + '(') !== -1) {
+        findings.milestoneStaticRules.push({
+          rule: 'no-auto-fill-from-other-entity',
+          detail: file + ' calls "' + readerName + '(" — ADR-027 requires every milestone review field to be doctor-typed, never auto-filled or inferred from another entity\'s data.'
+        });
+      }
+    });
+  });
+
+  // ---- Rule 3 (docs/58 §23 item 3) — every new doctor-only dispatch case is doctor-guarded only ----
+  var FOUNDATION_MILESTONE_DOCTOR_GUARDED_HANDLERS_ = [
+    'foundationHandleSetMilestoneTrack_', 'foundationHandleGetPatientMilestones_',
+    'foundationHandleSaveMilestoneReview_', 'foundationHandlePublishMilestoneReview_'
+  ];
+  FOUNDATION_MILESTONE_DOCTOR_GUARDED_HANDLERS_.forEach(function (handlerName) {
+    var lines = routerSource.split('\n');
+    var declLineIdx = lines.findIndex(function (line) { return line.indexOf('function ' + handlerName + '(') === 0; });
+    if (declLineIdx === -1) {
+      findings.milestoneStaticRules.push({ rule: 'doctor-guard-missing', detail: handlerName + ' is not declared in FoundationRouter.gs.' });
+      return;
+    }
+    var bodyLines = [];
+    for (var li = declLineIdx + 1; li < lines.length && lines[li] !== '}'; li++) { bodyLines.push(lines[li]); }
+    var body = bodyLines.join('\n');
+    if (!/withFoundationDoctorAuth_\s*\(/.test(body) || /withFoundationAuth_\s*\(/.test(body)) {
+      findings.milestoneStaticRules.push({
+        rule: 'doctor-guard-missing',
+        detail: handlerName + ' must call withFoundationDoctorAuth_() and never withFoundationAuth_() (the patient guard).'
+      });
+    }
+  });
+  // The one new patient-only handler must use the patient guard and never the doctor guard
+  // — get_health_milestones is deliberately NOT dual-guarded (docs/58 §4).
+  (function () {
+    var handlerName = 'foundationHandleGetHealthMilestones_';
+    var lines = routerSource.split('\n');
+    var declLineIdx = lines.findIndex(function (line) { return line.indexOf('function ' + handlerName + '(') === 0; });
+    if (declLineIdx === -1) {
+      findings.milestoneStaticRules.push({ rule: 'patient-guard-missing', detail: handlerName + ' is not declared in FoundationRouter.gs.' });
+      return;
+    }
+    var bodyLines = [];
+    for (var li = declLineIdx + 1; li < lines.length && lines[li] !== '}'; li++) { bodyLines.push(lines[li]); }
+    var body = bodyLines.join('\n');
+    if (!/withFoundationAuth_\s*\(/.test(body) || /withFoundationDoctorAuth_\s*\(/.test(body)) {
+      findings.milestoneStaticRules.push({
+        rule: 'patient-guard-missing',
+        detail: handlerName + ' must call withFoundationAuth_() and never withFoundationDoctorAuth_() (the doctor guard).'
+      });
+    }
+  })();
+
+  // ---- Rule 4 (docs/58 §23 item 4) — no direct Sheet read bypasses roster/ownership scoping ----
+  milestoneFiles.forEach(function (file) {
+    if (neutralizeCommentsAndStrings(rawSources[file]).indexOf('SpreadsheetApp') !== -1) {
+      findings.milestoneStaticRules.push({
+        rule: 'roster-scope-bypass',
+        detail: file + ' references "SpreadsheetApp" directly — every read must go through foundationDsQuery_()/foundationDsGetById_() plus DoctorPatientRoster.gs\'s own foundationGetDoctorPatientRoster_(), never a direct Sheet primitive.'
+      });
+    }
+  });
+
   return findings;
 }
 
@@ -655,6 +752,9 @@ function report(findings) {
   section('Holoscan static rules (Batch WPI-11, docs/56 §23)', findings.holoscanStaticRules,
     function (f) { return '[' + f.rule + '] ' + f.detail; });
 
+  section('Health Milestones static rules (Batch PXP-11, docs/58 §23)', findings.milestoneStaticRules,
+    function (f) { return '[' + f.rule + '] ' + f.detail; });
+
   // De-duplicated problem count: duplicateFunctionNames/duplicateConstants
   // are subsets of duplicateGlobalNames, and namespaceCollisions is the
   // identical finding set under a second label — none of those three are
@@ -663,7 +763,8 @@ function report(findings) {
     + findings.unusedExportedHelpers.length
     + findings.circularDependencies.length
     + findings.aiAssistantStaticRules.length
-    + findings.holoscanStaticRules.length;
+    + findings.holoscanStaticRules.length
+    + findings.milestoneStaticRules.length;
 
   console.log('\n' + (problems === 0 ? 'PASS' : 'FAIL') + ' — ' + problems + ' distinct finding(s) across all checks.');
   return problems === 0;

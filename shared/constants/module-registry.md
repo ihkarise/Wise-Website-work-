@@ -1,6 +1,6 @@
 # Module Registry
 
-Explains `module-registry.json` (version `1.2.0` as of Batch WPI-11, the authoritative
+Explains `module-registry.json` (version `1.3.0` as of Batch PXP-11, the authoritative
 definition — this file explains, it does not define, per `shared/README.md`'s format
 rule).
 
@@ -132,6 +132,18 @@ directly, the same way the Reports card calls `upload_report` beyond its own
 entry already has (ADR-010); no new ADR is required for this half (ADR-026 governs only
 the doctor-facing `holoscan_review` entry's own, heavier rollout discipline,
 `doctor-module-registry.md`).
+
+## Batch PXP-11 addition — `health_milestones` (docs/58-PHASE-2C-HEALTH-MILESTONES-ARCHITECTURE-FREEZE.md §18.1)
+
+The patient-facing Health Milestones card registers its own module here — every earlier
+row is untouched. `data_source: "get_health_milestones"` returns the caller's own computed
+milestone schedule plus published reviews only (read-only — the card has no write
+affordance at all, like `care_plan`). `display_order: 45` places it just after Care Plan
+(40). Fail-closed by `PatientModuleState` absence — the same default every existing entry
+already has (ADR-010); no new ADR is required (ADR-027 governs the feature's non-AI
+boundary, not this entry's rollout). `supports_ai: false` — Health Milestones is the
+platform's deliberately **non-AI** patient-progress feature (ADR-027, docs/33 §3.5's Phase
+2C/2D separation).
 
 ## Fields at a glance
 

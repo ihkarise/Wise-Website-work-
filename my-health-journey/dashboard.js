@@ -59,7 +59,8 @@
     { module_id: 'daily_checkin',   title: 'Daily Check-in',  display_order: 15, empty_state: 'nodata', data_source: 'get_checkin_responses' },
     { module_id: 'holoscan',        title: 'Medication Photo Scan', display_order: 20, empty_state: 'nodata', data_source: 'get_holoscan_recognitions' },
     { module_id: 'reports',         title: 'Reports',         display_order: 30, empty_state: 'nodata', data_source: 'get_reports' },
-    { module_id: 'care_plan',       title: 'Care Plan',       display_order: 40, empty_state: 'nodata', data_source: 'get_care_plan' }
+    { module_id: 'care_plan',       title: 'Care Plan',       display_order: 40, empty_state: 'nodata', data_source: 'get_care_plan' },
+    { module_id: 'health_milestones', title: 'Health Milestones', display_order: 45, empty_state: 'nodata', data_source: 'get_health_milestones' }
   ];
 
   function getModuleDescriptor(moduleId) {
@@ -715,6 +716,62 @@
       });
   }
 
+  // Batch PXP-11 (docs/58-PHASE-2C-HEALTH-MILESTONES-ARCHITECTURE-FREEZE.md §19.1) —
+  // the Health Milestones card's read-only, celebratory preview. Doctor-authored only
+  // (docs/58 §10) — like the Care Plan card, this one has no form and no write
+  // affordance at all: no anchor control, no authoring control, no publish control
+  // (those are doctor-only). Non-AI (ADR-027) — nothing here is model-generated.
+  var MILESTONE_LABELS = { '30_day': '30 Days', '90_day': '90 Days', '6_month': '6 Months', '1_year': '1 Year' };
+  var MILESTONE_STATE_LABELS = { upcoming: 'Upcoming', due: 'Due', overdue: 'Due', completed: 'Celebrated' };
+
+  function milestonesNotStartedHtml() {
+    return '<p class="empty-text">Your milestone journey hasn\'t started yet. Once your treatment begins, your doctor will set your milestones — 30 days, 90 days, 6 months, and 1 year — and celebrate your progress here.</p>';
+  }
+
+  // A short preview only: how many milestones have been celebrated, the next one
+  // still ahead, and a link to the full page — the same "bare summary, link to the
+  // full page" scope every other history-backed card already applies. Only PUBLISHED
+  // reviews are ever present in `reviews` (server-enforced, docs/58 §10.2) — the card
+  // never shows a draft.
+  function milestonesPreviewHtml(payload) {
+    var schedule = (payload && payload.schedule) || [];
+    if (!schedule.length) {
+      return milestonesNotStartedHtml();
+    }
+    var completed = schedule.filter(function (p) { return p.state === 'completed'; }).length;
+    var nextPoint = schedule.filter(function (p) { return p.state !== 'completed'; })[0];
+    var celebratedLine = '<p style="margin:0 0 8px;font-size:14px;color:var(--color-text-secondary);line-height:1.5">' +
+      '<strong style="color:var(--color-brand-strong)">' + completed + ' of ' + schedule.length + '</strong> milestones celebrated so far.</p>';
+    var nextLine = nextPoint
+      ? '<p style="margin:0 0 8px;font-size:13.5px;color:var(--color-text-secondary)">' +
+        '<strong style="color:var(--color-brand-strong)">Next</strong> — ' +
+        escapeHtmlForDisplay(MILESTONE_LABELS[nextPoint.milestone_type] || nextPoint.milestone_type) +
+        ' (' + escapeHtmlForDisplay(MILESTONE_STATE_LABELS[nextPoint.state] || nextPoint.state) + ')</p>'
+      : '<p style="margin:0 0 8px;font-size:13.5px;color:var(--color-brand-strong)">All milestones celebrated — wonderful progress.</p>';
+    return celebratedLine + nextLine +
+      '<a class="secondary" href="../my-health-journey/milestones/">View your milestones</a>';
+  }
+
+  function loadHealthMilestonesPreview(sessionToken, moduleId) {
+    var body = document.getElementById('card-' + moduleId + '-body');
+    fetch(WEB_APP_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ foundation_action: 'get_health_milestones', session_token: sessionToken })
+    })
+      .then(function (response) { return response.json(); })
+      .then(function (data) {
+        if (data.status !== 'ok') {
+          body.innerHTML = '<p class="empty-text">Could not load your milestones. Check your connection and reload the page.</p>';
+          return;
+        }
+        body.innerHTML = milestonesPreviewHtml(data.data);
+      })
+      .catch(function () {
+        body.innerHTML = '<p class="empty-text">Could not load your milestones. Check your connection and reload the page.</p>';
+      });
+  }
+
   // Loader-dispatcher registry — one entry per registry data_source. The
   // registry entry declares data_source; the dashboard resolves that string
   // to a loader function here. renderDashboard() never learns the mapping.
@@ -725,7 +782,8 @@
     'get_checkin_responses':      loadCheckInPreview,
     'get_holoscan_recognitions':  loadHoloscanPreview,
     'get_reports':                loadReportsPreview,
-    'get_care_plan':              loadCarePlanPreview
+    'get_care_plan':              loadCarePlanPreview,
+    'get_health_milestones':      loadHealthMilestonesPreview
   };
 
   // Merges the per-patient state rows from get_patient_module_states with
@@ -869,6 +927,8 @@
     holoscanFormHtml: holoscanFormHtml,
     holoscanListHtml: holoscanListHtml,
     HOLOSCAN_ALLOWED_MIME_TYPES: HOLOSCAN_ALLOWED_MIME_TYPES,
-    HOLOSCAN_MAX_UPLOAD_BYTES: HOLOSCAN_MAX_UPLOAD_BYTES
+    HOLOSCAN_MAX_UPLOAD_BYTES: HOLOSCAN_MAX_UPLOAD_BYTES,
+    milestonesPreviewHtml: milestonesPreviewHtml,
+    milestonesNotStartedHtml: milestonesNotStartedHtml
   };
 })();

@@ -265,7 +265,7 @@ async function main() {
       // mirroring the same update validation/wpi-4-doctor-dashboard/
       // browser-test.js already received in each of those same changes.
       const registryLength = await page.evaluate(() => window.WiseDoctorDashboard.DOCTOR_MODULE_REGISTRY.length);
-      check('Doctor Dashboard: the hand-ported DOCTOR_MODULE_REGISTRY now carries eight entries (patient_roster, appointments, inventory, pillfill_orders, analytics, ai_assistant, holoscan_review, medication_history)', registryLength === 8);
+      check('Doctor Dashboard: the hand-ported DOCTOR_MODULE_REGISTRY now carries nine entries (patient_roster, appointments, inventory, pillfill_orders, analytics, ai_assistant, holoscan_review, medication_history, milestone_review)', registryLength === 9);
 
       const html = await page.evaluate(() => window.WiseDoctorDashboard.appointmentsHtml([]));
       check('Doctor Dashboard: appointmentsHtml([]) returns the "nodata" empty state directly, matching the live rendering above',
