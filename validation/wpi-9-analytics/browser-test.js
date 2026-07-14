@@ -288,7 +288,7 @@ async function main() {
       await page.waitForSelector('#dashEmptyState');
 
       const registryLength = await page.evaluate(() => window.WiseDoctorDashboard.DOCTOR_MODULE_REGISTRY.length);
-      check('Doctor Dashboard: the hand-ported DOCTOR_MODULE_REGISTRY now carries nine entries (patient_roster, appointments, inventory, pillfill_orders, analytics, ai_assistant, holoscan_review, medication_history, milestone_review)', registryLength === 9);
+      check('Doctor Dashboard: the hand-ported DOCTOR_MODULE_REGISTRY now carries ten entries (patient_roster, appointments, inventory, pillfill_orders, analytics, ai_assistant, holoscan_review, medication_history, milestone_review, digital_twin_review)', registryLength === 10);
 
       const nullHtml = await page.evaluate(() => window.WiseDoctorDashboard.analyticsHtml(null));
       check('Doctor Dashboard: analyticsHtml(null) returns the "nodata" empty state directly — the one defensive branch a real report envelope never reaches',

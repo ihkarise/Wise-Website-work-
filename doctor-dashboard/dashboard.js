@@ -58,7 +58,8 @@
     { capability_key: 'ai_assistant', display_name: 'AI Assistant', display_order: 60, empty_state: 'nodata', data_source: 'get_ai_assistant_capabilities' },
     { capability_key: 'holoscan_review', display_name: 'Holoscan Review', display_order: 70, empty_state: 'nodata', data_source: 'get_holoscan_review_queue' },
     { capability_key: 'medication_history', display_name: 'Medication History', display_order: 80, empty_state: 'nodata', data_source: 'get_medication_history' },
-    { capability_key: 'milestone_review', display_name: 'Milestone Review', display_order: 90, empty_state: 'nodata', data_source: 'get_patient_milestones' }
+    { capability_key: 'milestone_review', display_name: 'Milestone Review', display_order: 90, empty_state: 'nodata', data_source: 'get_patient_milestones' },
+    { capability_key: 'digital_twin_review', display_name: 'Digital Twin Review', display_order: 100, empty_state: 'nodata', data_source: 'get_patient_digital_twin' }
   ];
 
   function getCapabilityDescriptor(capabilityKey) {
@@ -1034,6 +1035,179 @@
       });
   }
 
+  // ---- Digital Twin Review card (Batch PXP-12, docs/59 §14.2) ----
+  // The platform's highest-risk AI surface: a doctor generates a patient-facing narrative and
+  // approves it before the patient ever sees it (ADR-028). Disabled by default (ADR-030) — this
+  // card renders for no doctor until a staff/administrative action explicitly enables it. A
+  // roster-scoped patient picker (reusing get_doctor_patient_roster), a narrative-type generate
+  // control (generate_digital_twin_narrative), and, per narrative, an always-visible,
+  // un-dismissable "AI-generated draft — not yet visible to the patient" banner above any
+  // Approve/Edit/Reject control (review_digital_twin_narrative) — so the ADR-028 boundary is
+  // visible at the point of use. Approve publishes the model's text; Edit & Approve publishes the
+  // doctor's own words; Reject shows the patient nothing.
+  var DIGITAL_TWIN_STATUS_LABELS_ = { pending: 'Pending review', approved: 'Approved', edited_and_approved: 'Edited & approved', rejected: 'Rejected' };
+
+  function digitalTwinPatientPickerHtml_(rosterEntries) {
+    var options = rosterEntries.map(function (p) {
+      return '<option value="' + escapeHtmlForDisplay(p.patient_id) + '">' + escapeHtmlForDisplay(p.full_name) + '</option>';
+    }).join('');
+    return '<div class="digital-twin-picker">' +
+      '<label for="dtPatientSelect">Patient</label>' +
+      '<select id="dtPatientSelect">' + (options || '<option value="">No roster patients</option>') + '</select>' +
+      '<button type="button" id="dtLoadBtn">Load</button>' +
+      '</div>' +
+      '<div id="dtResultArea"></div>';
+  }
+
+  function digitalTwinGenerateControlHtml_(narrativeTypes) {
+    var options = (narrativeTypes || []).map(function (n) {
+      return '<option value="' + escapeHtmlForDisplay(n.narrative_type) + '">' + escapeHtmlForDisplay(n.display_name) + '</option>';
+    }).join('');
+    return '<div class="dt-generate">' +
+      '<label for="dtNarrativeType">Narrative type</label>' +
+      '<select id="dtNarrativeType">' + (options || '<option value="">None available</option>') + '</select>' +
+      '<button type="button" id="dtGenerateBtn">Generate draft</button>' +
+      '<div class="status" id="dtGenerateStatus" role="status" aria-live="polite"></div>' +
+      '</div>';
+  }
+
+  // One narrative: the mandatory, un-dismissable ADR-028 banner (naming PATIENT VISIBILITY as
+  // what approval unlocks) always precedes any decision control, for a pending draft; a
+  // reviewed narrative shows its recorded decision and the published text (if any), read-only.
+  function digitalTwinNarrativeHtml_(narrative) {
+    var flagsHtml = (narrative.ai_output_flags && narrative.ai_output_flags.length)
+      ? '<ul class="ai-assistant-flags">' + narrative.ai_output_flags.map(function (f) { return '<li>' + escapeHtmlForDisplay(f) + '</li>'; }).join('') + '</ul>'
+      : '';
+    var typeLabel = escapeHtmlForDisplay(narrative.narrative_type);
+    if (narrative.review_status === 'pending') {
+      return '<li data-dt-narrative="' + escapeHtmlForDisplay(narrative.narrative_id) + '">' +
+        '<p class="ai-assistant-banner" role="note" data-dt-visibility="draft">AI-generated draft &mdash; not yet visible to the patient. Approving is what makes it visible.</p>' +
+        '<div class="roster-name">' + typeLabel + '</div>' +
+        '<p class="ai-assistant-output" data-dt-output>' + escapeHtmlForDisplay(narrative.ai_output) + '</p>' +
+        flagsHtml +
+        '<textarea data-dt-edit rows="3" aria-label="Edited narrative">' + escapeHtmlForDisplay(narrative.ai_output) + '</textarea>' +
+        '<div class="ai-assistant-decision-controls">' +
+        '<button type="button" data-dt-decision="approved">Approve</button>' +
+        '<button type="button" data-dt-decision="edited_and_approved">Edit &amp; Approve</button>' +
+        '<button type="button" data-dt-decision="rejected">Reject</button>' +
+        '</div>' +
+        '<div class="status" data-dt-status role="status" aria-live="polite"></div>' +
+        '</li>';
+    }
+    var visibilityLine = (narrative.review_status === 'approved' || narrative.review_status === 'edited_and_approved')
+      ? '<p class="ms-visibility ms-visibility-published" data-dt-visibility="published">Approved &mdash; visible to the patient.</p>'
+      : '<p class="ms-visibility ms-visibility-draft" data-dt-visibility="rejected">Rejected &mdash; the patient sees nothing.</p>';
+    return '<li data-dt-narrative="' + escapeHtmlForDisplay(narrative.narrative_id) + '">' +
+      '<div class="roster-name">' + typeLabel + ' &middot; ' + escapeHtmlForDisplay(DIGITAL_TWIN_STATUS_LABELS_[narrative.review_status] || narrative.review_status) + '</div>' +
+      visibilityLine +
+      (narrative.published_output ? '<p class="ai-assistant-output">' + escapeHtmlForDisplay(narrative.published_output) + '</p>' : '') +
+      '</li>';
+  }
+
+  function digitalTwinResultHtml_(payload) {
+    var view = payload.digital_twin || {};
+    var narratives = payload.narratives || [];
+    var summary = '<div class="dt-summary"><div class="roster-conditions">' +
+      escapeHtmlForDisplay(view.check_in_count || 0) + ' check-ins &middot; ' +
+      escapeHtmlForDisplay(view.calculator_result_count || 0) + ' calculator results &middot; ' +
+      escapeHtmlForDisplay(view.milestones_celebrated || 0) + ' of ' + escapeHtmlForDisplay(view.milestones_total || 0) + ' milestones celebrated' +
+      '</div></div>';
+    var generate = digitalTwinGenerateControlHtml_(payload.narrative_types);
+    var list = narratives.length
+      ? '<ul class="roster-list">' + narratives.map(digitalTwinNarrativeHtml_).join('') + '</ul>'
+      : '<p class="empty-text">No narratives generated for this patient yet.</p>';
+    return summary + generate + list;
+  }
+
+  function wireDigitalTwinControls_(sessionToken, resultArea, patientId) {
+    var generateBtn = document.getElementById('dtGenerateBtn');
+    if (generateBtn) {
+      generateBtn.addEventListener('click', function () {
+        var narrativeType = document.getElementById('dtNarrativeType').value;
+        var statusBox = document.getElementById('dtGenerateStatus');
+        if (!narrativeType) { statusBox.className = 'status err'; statusBox.textContent = 'Choose a narrative type.'; return; }
+        statusBox.className = 'status loading'; statusBox.textContent = 'Generating…';
+        fetch(WEB_APP_URL, {
+          method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ foundation_action: 'generate_digital_twin_narrative', session_token: sessionToken, patient_id: patientId, narrative_type: narrativeType })
+        })
+          .then(function (response) { return response.json(); })
+          .then(function (data) {
+            if (data.status === 'ok') { loadDigitalTwinForPatient_(sessionToken, resultArea, patientId); }
+            else { statusBox.className = 'status err'; statusBox.textContent = (data.error && data.error.message) || 'Something went wrong.'; }
+          })
+          .catch(function () { statusBox.className = 'status err'; statusBox.textContent = 'Could not reach the server.'; });
+      });
+    }
+    resultArea.querySelectorAll('[data-dt-decision]').forEach(function (btn) {
+      btn.addEventListener('click', function (evt) {
+        var li = evt.currentTarget.closest('[data-dt-narrative]');
+        var narrativeId = li.getAttribute('data-dt-narrative');
+        var decision = evt.currentTarget.getAttribute('data-dt-decision');
+        var statusBox = li.querySelector('[data-dt-status]');
+        var requestBody = { foundation_action: 'review_digital_twin_narrative', session_token: sessionToken, narrative_id: narrativeId, review_status: decision };
+        if (decision === 'edited_and_approved') {
+          var edit = li.querySelector('[data-dt-edit]');
+          requestBody.edited_output = edit ? edit.value : '';
+        }
+        statusBox.className = 'status loading'; statusBox.textContent = 'Recording…';
+        fetch(WEB_APP_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(requestBody) })
+          .then(function (response) { return response.json(); })
+          .then(function (data) {
+            if (data.status === 'ok') { loadDigitalTwinForPatient_(sessionToken, resultArea, patientId); }
+            else { statusBox.className = 'status err'; statusBox.textContent = (data.error && data.error.message) || 'Something went wrong.'; }
+          })
+          .catch(function () { statusBox.className = 'status err'; statusBox.textContent = 'Could not reach the server.'; });
+      });
+    });
+  }
+
+  function loadDigitalTwinForPatient_(sessionToken, resultArea, patientId) {
+    resultArea.innerHTML = '<div class="skeleton"></div>';
+    fetch(WEB_APP_URL, {
+      method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ foundation_action: 'get_patient_digital_twin', session_token: sessionToken, patient_id: patientId })
+    })
+      .then(function (response) { return response.json(); })
+      .then(function (data) {
+        if (data.status !== 'ok' || !data.data) {
+          resultArea.innerHTML = '<p class="empty-text">Could not load the Digital Twin. Check your connection and reload the page.</p>';
+          return;
+        }
+        resultArea.innerHTML = digitalTwinResultHtml_(data.data);
+        wireDigitalTwinControls_(sessionToken, resultArea, patientId);
+      })
+      .catch(function () {
+        resultArea.innerHTML = '<p class="empty-text">Could not load the Digital Twin. Check your connection and reload the page.</p>';
+      });
+  }
+
+  function loadDigitalTwinReviewCard(sessionToken, capabilityKey) {
+    var body = document.getElementById('card-' + capabilityKey + '-body');
+    fetch(WEB_APP_URL, {
+      method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ foundation_action: 'get_doctor_patient_roster', session_token: sessionToken })
+    })
+      .then(function (response) { return response.json(); })
+      .then(function (data) {
+        if (data.status !== 'ok') {
+          body.innerHTML = '<p class="empty-text">Could not load your patient roster. Check your connection and reload the page.</p>';
+          return;
+        }
+        body.innerHTML = digitalTwinPatientPickerHtml_(data.data);
+        var loadBtn = document.getElementById('dtLoadBtn');
+        if (!loadBtn) return;
+        loadBtn.addEventListener('click', function () {
+          var patientId = document.getElementById('dtPatientSelect').value;
+          var resultArea = document.getElementById('dtResultArea');
+          if (patientId) loadDigitalTwinForPatient_(sessionToken, resultArea, patientId);
+        });
+      })
+      .catch(function () {
+        body.innerHTML = '<p class="empty-text">Could not load your patient roster. Check your connection and reload the page.</p>';
+      });
+  }
+
   // Loader-dispatcher registry — one entry per registry data_source, the
   // same discipline my-health-journey/dashboard.js's own MODULE_LOADERS
   // already establishes.
@@ -1046,7 +1220,8 @@
     'get_ai_assistant_capabilities': loadAiAssistantCard,
     'get_holoscan_review_queue': loadHoloscanReviewQueue,
     'get_medication_history': loadMedicationHistoryCard,
-    'get_patient_milestones': loadMilestoneReviewCard
+    'get_patient_milestones': loadMilestoneReviewCard,
+    'get_patient_digital_twin': loadDigitalTwinReviewCard
   };
 
   // Merges the per-doctor state rows from get_doctor_module_states with
@@ -1183,6 +1358,9 @@
     milestonePatientPickerHtml: milestonePatientPickerHtml_,
     milestoneResultHtml: milestoneResultHtml_,
     milestonePointBlockHtml: milestonePointBlockHtml_,
-    milestoneAnchorFormHtml: milestoneAnchorFormHtml_
+    milestoneAnchorFormHtml: milestoneAnchorFormHtml_,
+    digitalTwinPatientPickerHtml: digitalTwinPatientPickerHtml_,
+    digitalTwinResultHtml: digitalTwinResultHtml_,
+    digitalTwinNarrativeHtml: digitalTwinNarrativeHtml_
   };
 })();

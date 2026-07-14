@@ -156,7 +156,13 @@ var REFERENCED_ONLY_AS_OBJECT_VALUES = [
   'foundationAiAssistantContextSourceCarePlan_', // AIAssistantContext.gs — WPI-10; FOUNDATION_AI_ASSISTANT_CONTEXT_SOURCE_BUILDERS_'s own care_plan entry
   'foundationAiAssistantContextSourceCheckInResponse_', // AIAssistantContext.gs — WPI-10; same table's check_in_response entry
   'foundationAiAssistantContextSourceCalculatorResult_', // AIAssistantContext.gs — WPI-10; same table's calculator_result entry
-  'foundationAiAssistantContextSourceAppointment_' // AIAssistantContext.gs — WPI-10; same table's appointment entry
+  'foundationAiAssistantContextSourceAppointment_', // AIAssistantContext.gs — WPI-10; same table's appointment entry
+  'foundationDigitalTwinContextSourceCarePlan_', // DigitalTwinContext.gs — PXP-12; FOUNDATION_DIGITAL_TWIN_CONTEXT_SOURCE_BUILDERS_'s own care_plan entry
+  'foundationDigitalTwinContextSourceCheckInResponse_', // DigitalTwinContext.gs — PXP-12; same table's check_in_response entry
+  'foundationDigitalTwinContextSourceCalculatorResult_', // DigitalTwinContext.gs — PXP-12; same table's calculator_result entry
+  'foundationDigitalTwinContextSourceSymptomLog_', // DigitalTwinContext.gs — PXP-12; same table's symptom_log entry
+  'foundationDigitalTwinContextSourceMedicationHistory_', // DigitalTwinContext.gs — PXP-12; same table's medication_history entry
+  'foundationDigitalTwinContextSourceHealthMilestone_' // DigitalTwinContext.gs — PXP-12; same table's health_milestone entry
 ];
 
 // Batch WPI-11's own doctor-guarded dispatch handlers (Holoscan static rule 3 below) —
@@ -310,7 +316,8 @@ function analyze() {
     namespaceCollisions: [],
     aiAssistantStaticRules: [],
     holoscanStaticRules: [],
-    milestoneStaticRules: []
+    milestoneStaticRules: [],
+    digitalTwinStaticRules: []
   };
 
   // Duplicate global names / Apps Script namespace collisions.
@@ -713,6 +720,135 @@ function analyze() {
     }
   });
 
+  // ============================================================
+  // Digital Twin static rules (Batch PXP-12, docs/59-PHASE-2D-DIGITAL-TWIN-
+  // ARCHITECTURE-FREEZE.md §18) — the platform's HIGHEST AI-risk class: patient-facing
+  // AI-generated content. Six rules, the identical AI-risk-class rationale docs/55 §18 /
+  // docs/56 §23 established, extended for the patient-visibility gate (ADR-028), the grounding
+  // boundary (ADR-029), and the provably-AI-free Progress Analytics half (ADR-004).
+  // ============================================================
+  var digitalTwinFiles = files.filter(function (f) { return /^DigitalTwin.*\.gs$/.test(f); });
+
+  // ---- Rule 1 (docs/59 §18 item 1) — the load-bearing one behind ADR-028: ----
+  // no DigitalTwin*.gs may call another entity's write function (save*/create*/update*/
+  // record*/fulfill*) — only its own (all declared in a DigitalTwin*.gs file). This is the
+  // code-level guarantee that generation/review never writes any entity beyond
+  // DigitalTwinNarrative itself.
+  digitalTwinFiles.forEach(function (file) {
+    var match;
+    writeCallPattern.lastIndex = 0;
+    while ((match = writeCallPattern.exec(neutralizedSources[file])) !== null) {
+      var calledName = match[1];
+      if (!writeVerbPattern.test(calledName)) continue;
+      var ownedByDigitalTwin = declByName[calledName] && declByName[calledName].some(function (d) {
+        return digitalTwinFiles.indexOf(d.file) !== -1;
+      });
+      if (!ownedByDigitalTwin) {
+        findings.digitalTwinStaticRules.push({
+          rule: 'no-foreign-write-call',
+          detail: file + ' calls "' + calledName + '(", a write-shaped function not declared in any DigitalTwin*.gs file — ADR-028 requires the Digital Twin to never write to any entity beyond its own DigitalTwinNarrative row.'
+        });
+      }
+    }
+  });
+
+  // ---- Rule 2 (docs/59 §18 item 2) — prompt spec and code stay version-locked ----
+  var dtPromptsMdPath = path.join(APPS_SCRIPT_DIR, 'DIGITAL-TWIN-PROMPTS.md');
+  if (fs.existsSync(dtPromptsMdPath)) {
+    var dtPromptsMd = fs.readFileSync(dtPromptsMdPath, 'utf8');
+    var dtDocVersionMatch = dtPromptsMd.match(/Prompt Version\s*\n\n`([^`]+)`/);
+    var dtCodeVersionMatch = (rawSources['DigitalTwinNarrative.gs'] || '').match(/FOUNDATION_DIGITAL_TWIN_PROMPT_VERSION_\s*=\s*'([^']+)'/);
+    var dtDocVersion = dtDocVersionMatch && dtDocVersionMatch[1];
+    var dtCodeVersion = dtCodeVersionMatch && dtCodeVersionMatch[1];
+    if (!dtDocVersion || !dtCodeVersion || dtDocVersion !== dtCodeVersion) {
+      findings.digitalTwinStaticRules.push({
+        rule: 'prompt-version-mismatch',
+        detail: 'apps-script/DIGITAL-TWIN-PROMPTS.md declares Prompt Version "' + dtDocVersion + '" but apps-script/DigitalTwinNarrative.gs\'s FOUNDATION_DIGITAL_TWIN_PROMPT_VERSION_ is "' + dtCodeVersion + '" — any prompt wording change must bump both together.'
+      });
+    }
+  }
+
+  // ---- Rule 3 (docs/59 §18 item 3) — correct session guard on each new handler ----
+  // Three doctor-only routes are doctor-guarded only; two patient-only routes are
+  // patient-guarded only. None is dual-guarded (docs/59 §4).
+  var FOUNDATION_DIGITAL_TWIN_DOCTOR_GUARDED_HANDLERS_ = [
+    'foundationHandleGetPatientDigitalTwin_', 'foundationHandleGenerateDigitalTwinNarrative_',
+    'foundationHandleReviewDigitalTwinNarrative_'
+  ];
+  FOUNDATION_DIGITAL_TWIN_DOCTOR_GUARDED_HANDLERS_.forEach(function (handlerName) {
+    var lines = routerSource.split('\n');
+    var declLineIdx = lines.findIndex(function (line) { return line.indexOf('function ' + handlerName + '(') === 0; });
+    if (declLineIdx === -1) {
+      findings.digitalTwinStaticRules.push({ rule: 'doctor-guard-missing', detail: handlerName + ' is not declared in FoundationRouter.gs.' });
+      return;
+    }
+    var bodyLines = [];
+    for (var li = declLineIdx + 1; li < lines.length && lines[li] !== '}'; li++) { bodyLines.push(lines[li]); }
+    var body = bodyLines.join('\n');
+    if (!/withFoundationDoctorAuth_\s*\(/.test(body) || /withFoundationAuth_\s*\(/.test(body)) {
+      findings.digitalTwinStaticRules.push({
+        rule: 'doctor-guard-missing',
+        detail: handlerName + ' must call withFoundationDoctorAuth_() and never withFoundationAuth_() (the patient guard).'
+      });
+    }
+  });
+  ['foundationHandleGetHealthStory_', 'foundationHandleGetProgressAnalytics_'].forEach(function (handlerName) {
+    var lines = routerSource.split('\n');
+    var declLineIdx = lines.findIndex(function (line) { return line.indexOf('function ' + handlerName + '(') === 0; });
+    if (declLineIdx === -1) {
+      findings.digitalTwinStaticRules.push({ rule: 'patient-guard-missing', detail: handlerName + ' is not declared in FoundationRouter.gs.' });
+      return;
+    }
+    var bodyLines = [];
+    for (var li = declLineIdx + 1; li < lines.length && lines[li] !== '}'; li++) { bodyLines.push(lines[li]); }
+    var body = bodyLines.join('\n');
+    if (!/withFoundationAuth_\s*\(/.test(body) || /withFoundationDoctorAuth_\s*\(/.test(body)) {
+      findings.digitalTwinStaticRules.push({
+        rule: 'patient-guard-missing',
+        detail: handlerName + ' must call withFoundationAuth_() and never withFoundationDoctorAuth_() (the doctor guard).'
+      });
+    }
+  });
+
+  // ---- Rule 4 (docs/59 §18 item 4) — the context builder never bypasses existing scoped
+  // readers (ADR-029): no direct Sheet primitive in DigitalTwinContext.gs. ----
+  var dtContextSource = rawSources['DigitalTwinContext.gs'] || '';
+  ['SpreadsheetApp', 'foundationDsQuery_', 'foundationDsGetById_', 'foundationDsInsert_', 'foundationDsUpdateById_'].forEach(function (primitive) {
+    if (neutralizeCommentsAndStrings(dtContextSource).indexOf(primitive) !== -1) {
+      findings.digitalTwinStaticRules.push({
+        rule: 'context-builder-bypasses-scoped-reader',
+        detail: 'DigitalTwinContext.gs references "' + primitive + '" directly — the context builder and computed views may only call already-scoped reader functions (foundationGet*ForPatient_() and its siblings), never a direct Sheet primitive (ADR-029).'
+      });
+    }
+  });
+
+  // ---- Rule 5 (docs/59 §18 item 5) — no second, parallel lexicon mechanism ----
+  var dtCheckFile = rawSources['DigitalTwinDriftCheck.gs'] || '';
+  var dtLexiconDeclarationCount = (neutralizeCommentsAndStrings(dtCheckFile).match(/^var\s+[A-Za-z0-9_]*LEXICON[A-Za-z0-9_]*\s*=/gm) || []).length;
+  if (dtLexiconDeclarationCount !== 1) {
+    findings.digitalTwinStaticRules.push({
+      rule: 'duplicate-lexicon-mechanism',
+      detail: 'apps-script/DigitalTwinDriftCheck.gs must declare exactly one lexicon constant (found ' + dtLexiconDeclarationCount + ') — docs/59 §18 item 5 requires reusing/extending DigitalTwinDriftCheck_()\'s own category lexicon rather than inventing a second, parallel one.'
+    });
+  }
+  digitalTwinFiles.filter(function (f) { return f !== 'DigitalTwinDriftCheck.gs'; }).forEach(function (file) {
+    if (/^var\s+[A-Za-z0-9_]*LEXICON[A-Za-z0-9_]*\s*=/m.test(neutralizeCommentsAndStrings(rawSources[file]))) {
+      findings.digitalTwinStaticRules.push({
+        rule: 'duplicate-lexicon-mechanism',
+        detail: file + ' declares its own lexicon constant — docs/59 §18 item 5 requires exactly one Digital Twin lexicon mechanism, in DigitalTwinDriftCheck.gs only.'
+      });
+    }
+  });
+
+  // ---- Rule 6 (docs/59 §18 item 6) — Progress Analytics (and all of DigitalTwinContext.gs)
+  // makes no model/outbound call: the always-safe deterministic half is provably AI-free. ----
+  if (/UrlFetchApp\.|callOpenRouter[A-Za-z_]*\(/.test(neutralizeCommentsAndStrings(dtContextSource))) {
+    findings.digitalTwinStaticRules.push({
+      rule: 'progress-analytics-not-ai-free',
+      detail: 'DigitalTwinContext.gs references a model/outbound call (UrlFetchApp/callOpenRouter) — docs/59 §18 item 6 requires the deterministic Digital Twin view + Progress Analytics path to make no model call at all; the model call belongs only in DigitalTwinNarrative.gs.'
+    });
+  }
+
   return findings;
 }
 
@@ -755,6 +891,9 @@ function report(findings) {
   section('Health Milestones static rules (Batch PXP-11, docs/58 §23)', findings.milestoneStaticRules,
     function (f) { return '[' + f.rule + '] ' + f.detail; });
 
+  section('Digital Twin static rules (Batch PXP-12, docs/59 §18)', findings.digitalTwinStaticRules,
+    function (f) { return '[' + f.rule + '] ' + f.detail; });
+
   // De-duplicated problem count: duplicateFunctionNames/duplicateConstants
   // are subsets of duplicateGlobalNames, and namespaceCollisions is the
   // identical finding set under a second label — none of those three are
@@ -764,7 +903,8 @@ function report(findings) {
     + findings.circularDependencies.length
     + findings.aiAssistantStaticRules.length
     + findings.holoscanStaticRules.length
-    + findings.milestoneStaticRules.length;
+    + findings.milestoneStaticRules.length
+    + findings.digitalTwinStaticRules.length;
 
   console.log('\n' + (problems === 0 ? 'PASS' : 'FAIL') + ' — ' + problems + ' distinct finding(s) across all checks.');
   return problems === 0;

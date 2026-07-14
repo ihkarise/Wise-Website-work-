@@ -745,6 +745,45 @@ deliberately separate it from Phase 2D's AI-narrated Digital Twin).
   by `validation/static-analysis/analyze.js`'s new Health Milestones static rule 1 and
   proven at runtime by `conformance.js`'s Stage 28.
 
+## Phase 2D Patient Access modules — Batch PXP-12 (Wise Digital Twin & AI Summaries)
+
+Phase 2D (docs/59-PHASE-2D-DIGITAL-TWIN-ARCHITECTURE-FREEZE.md, ADR-028/029/030) adds the
+platform's **first patient-facing AI-generated-content feature**: a doctor generates a
+plain-language narrative of one roster patient's own recorded history, and **no narrative
+reaches the patient until that doctor approves it** (ADR-028) — the identical three-part gate
+Phase 1.5's Consultation Summary proved (prompt constraint + independent drift check + mandatory
+doctor review), applied here to *patient visibility*.
+
+- **`DigitalTwinContext.gs`** — the narrative-type registry (hand-ported from
+  `shared/constants/digital-twin-narrative-registry.json`), the `DigitalTwinContextBuilder`
+  (grounded in the patient's own record only via each entity's existing scoped reader, ADR-029),
+  and the two **computed views** (Digital Twin view §6.1, Progress Analytics §6.3) — computed on
+  read, never stored, mirroring `Analytics.gs`. Makes **no** model/`UrlFetchApp` call of any kind
+  — the deterministic, always-safe half, enforced by static rule 6.
+- **`DigitalTwinDriftCheck.gs`** — the independent, code-level drift check
+  (`DigitalTwinDriftCheck_`), structurally identical to `AIAssistantDriftCheck.gs`: a single
+  category lexicon (diagnosis/recommendation/medicine/investigation/reassurance/prognosis/
+  conclusion) + per-sentence traceability. Advisory, never blocking.
+- **`DigitalTwinNarrative.gs`** — the `DigitalTwinNarrative` entity + the generation pipeline
+  (fail-closed enablement per ADR-030 → roster scope → per-doctor daily rate limit, reusing
+  `AIAssistantInteraction.gs`'s own CacheService helpers → context assembly → model call, via a
+  local, decoupled config → drift check → one `pending` row) + the one-way review/approval gate
+  (`approved`/`edited_and_approved`/`rejected`, setting `published_output` — the sole gate to
+  patient visibility) + the read functions. The only Sheet it writes is `DigitalTwinNarratives`,
+  enforced by static rule 1.
+- **`DIGITAL-TWIN-PROMPTS.md`** — the version-locked prompt spec (static rule 2).
+- **Router** — five additive dispatch cases: `get_patient_digital_twin`,
+  `generate_digital_twin_narrative`, `review_digital_twin_narrative` (doctor, roster-scoped,
+  gated by the disabled-by-default `digital_twin_review` capability), and `get_health_story`,
+  `get_progress_analytics` (patient, own record — `get_health_story` returns approved
+  `published_output` only, never a draft or the raw `ai_output`). **None dual-guarded** (docs/59 §4).
+- **Registries** — one Patient Module Registry entry (`health_story`, normal rollout, the first
+  patient-facing entry with `supports_ai: true`) and one Doctor Module Registry entry
+  (`digital_twin_review`, **disabled by default** per ADR-030 — the platform's third and
+  highest-risk AI-output-review surface).
+- Six new `validation/static-analysis/analyze.js` Digital Twin static rules; `conformance.js`
+  Stage 29; and `validation/phase-2d-digital-twin/`'s browser suite.
+
 ## Foundation/Phase 1.5 dispatch boundary (IA-2)
 
 Google Apps Script permits exactly one global `doPost()` per project, and docs/29 §14

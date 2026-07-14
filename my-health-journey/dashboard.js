@@ -60,7 +60,8 @@
     { module_id: 'holoscan',        title: 'Medication Photo Scan', display_order: 20, empty_state: 'nodata', data_source: 'get_holoscan_recognitions' },
     { module_id: 'reports',         title: 'Reports',         display_order: 30, empty_state: 'nodata', data_source: 'get_reports' },
     { module_id: 'care_plan',       title: 'Care Plan',       display_order: 40, empty_state: 'nodata', data_source: 'get_care_plan' },
-    { module_id: 'health_milestones', title: 'Health Milestones', display_order: 45, empty_state: 'nodata', data_source: 'get_health_milestones' }
+    { module_id: 'health_milestones', title: 'Health Milestones', display_order: 45, empty_state: 'nodata', data_source: 'get_health_milestones' },
+    { module_id: 'health_story',      title: 'Health Story',      display_order: 50, empty_state: 'nodata', data_source: 'get_health_story' }
   ];
 
   function getModuleDescriptor(moduleId) {
@@ -777,13 +778,63 @@
   // to a loader function here. renderDashboard() never learns the mapping.
   // Adding a new module: (i) add its registry entry above; (ii) register
   // its loader here — nothing else changes.
+  // Batch PXP-12 (Phase 2D, docs/59 §14.1) — the Health Story card's read-only, doctor-approved
+  // preview. Doctor-generated + doctor-approved-before-visible only (ADR-028): like the Care Plan
+  // and Health Milestones cards, this one has no form and no write affordance at all. The patient
+  // only ever sees narratives their doctor has already approved (published_output); a pending or
+  // rejected draft, and the raw model output, are never returned to the patient by any route.
+  function healthStoryNotReadyHtml() {
+    return '<p class="empty-text">Your health story is being prepared. Once your doctor reviews and approves a summary of your recorded journey, you\'ll be able to read it here.</p>';
+  }
+
+  // A short preview only: how many approved narratives exist, the most recent one's opening, and
+  // a link to the full page — the same "bare summary, link to the full page" scope every other
+  // history-backed card already applies. Only APPROVED narratives are ever present (server-enforced).
+  function healthStoryPreviewHtml(payload) {
+    var narratives = (payload && payload.narratives) || [];
+    if (!narratives.length) {
+      return healthStoryNotReadyHtml();
+    }
+    var latest = narratives[0];
+    var opening = String(latest.published_output || '').slice(0, 160);
+    if (String(latest.published_output || '').length > 160) opening += '…';
+    var countLine = '<p style="margin:0 0 8px;font-size:14px;color:var(--color-text-secondary);line-height:1.5">' +
+      '<strong style="color:var(--color-brand-strong)">' + narratives.length + '</strong> approved ' +
+      (narratives.length === 1 ? 'summary' : 'summaries') + ' from your doctor.</p>';
+    var previewLine = '<p style="margin:0 0 8px;font-size:13.5px;color:var(--color-text-secondary);line-height:1.5">' +
+      escapeHtmlForDisplay(opening) + '</p>';
+    return countLine + previewLine +
+      '<a class="secondary" href="../my-health-journey/health-story/">Read your health story</a>';
+  }
+
+  function loadHealthStoryPreview(sessionToken, moduleId) {
+    var body = document.getElementById('card-' + moduleId + '-body');
+    fetch(WEB_APP_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ foundation_action: 'get_health_story', session_token: sessionToken })
+    })
+      .then(function (response) { return response.json(); })
+      .then(function (data) {
+        if (data.status !== 'ok') {
+          body.innerHTML = '<p class="empty-text">Could not load your health story. Check your connection and reload the page.</p>';
+          return;
+        }
+        body.innerHTML = healthStoryPreviewHtml(data.data);
+      })
+      .catch(function () {
+        body.innerHTML = '<p class="empty-text">Could not load your health story. Check your connection and reload the page.</p>';
+      });
+  }
+
   var MODULE_LOADERS = {
     'get_timeline':               loadTimelinePreview,
     'get_checkin_responses':      loadCheckInPreview,
     'get_holoscan_recognitions':  loadHoloscanPreview,
     'get_reports':                loadReportsPreview,
     'get_care_plan':              loadCarePlanPreview,
-    'get_health_milestones':      loadHealthMilestonesPreview
+    'get_health_milestones':      loadHealthMilestonesPreview,
+    'get_health_story':           loadHealthStoryPreview
   };
 
   // Merges the per-patient state rows from get_patient_module_states with

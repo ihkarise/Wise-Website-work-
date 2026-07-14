@@ -208,6 +208,39 @@ var FOUNDATION_MODULE_REGISTRY_ = [
     supports_ai: false,
     supports_doctor_notes: true,
     supports_patient_input: false
+  },
+  {
+    // Batch PXP-12 (Phase 2D — Wise Digital Twin & AI Summaries,
+    // docs/59-PHASE-2D-DIGITAL-TWIN-ARCHITECTURE-FREEZE.md §13.1, ADR-028/029/030) — the
+    // patient-facing Health Story card's own registration, the platform's first
+    // patient-facing entry for which supports_ai is genuinely true. data_source is the
+    // read-only get_health_story route (the caller's own computed Digital Twin view +
+    // only doctor-approved narratives' published_output — never a pending or rejected
+    // draft, ADR-028). Read-only for the patient: no generate/approve/edit control (those
+    // are doctor-only, docs/59 §14.1). Fail-closed by PatientModuleState absence — the
+    // same default every existing entry already has (ADR-010/012); no new ADR required
+    // for this half (ADR-030 governs only the doctor-facing digital_twin_review entry's
+    // own disabled-by-default discipline), and even when enabled the card shows nothing
+    // until a doctor approves a narrative.
+    module_id: 'health_story',
+    title: 'Health Story',
+    description: 'An AI-narrated summary of your own recorded health history, written for you and reviewed and approved by your doctor before you ever see it.',
+    icon: 'healthstory',
+    display_order: 50,
+    visibility: 'patient',
+    permissions: [],
+    data_source: 'get_health_story',
+    empty_state: 'nodata',
+    rendering_type: 'card',
+    future_ai_capable: false,
+    supports_notifications: false,
+    supports_history: true,
+    supports_export: false,
+    supports_badges: false,
+    supports_reminders: false,
+    supports_ai: true,
+    supports_doctor_notes: true,
+    supports_patient_input: false
   }
 ];
 

@@ -1,5 +1,5 @@
 # 33 - Domain Model
-## Version 1.27 — 2026-07-16
+## Version 1.28 — 2026-07-16
 
 > Defines every major business entity in the Wise Platform: what it means, what it
 > holds, how it relates to everything else, how it comes into being and ends, who is
@@ -572,7 +572,7 @@ update.
 
 ---
 
-## 3.5 Digital Twin — *Designed (Phase 2D architecture freeze, docs/59-PHASE-2D-DIGITAL-TWIN-ARCHITECTURE-FREEZE.md, ADR-028/029/030); still a computed view, never a stored base table*
+## 3.5 Digital Twin — *Implemented (Phase 2D, Batch PXP-12, docs/59-PHASE-2D-DIGITAL-TWIN-ARCHITECTURE-FREEZE.md, ADR-028/029/030); a computed view, never a stored base table*
 
 **Purpose:** The patient's "living health story" (docs/21) — never a stored entity of
 its own, always a computed, read-only view aggregating Timeline Event, Consultation
@@ -620,7 +620,7 @@ entry (`health_story`, fail-closed by absence) and one new Doctor Module Registr
 highest-risk AI-output-review surface). See docs/59 §4–§18 for the full design; all *Designed*,
 none implemented — Phase 2D implementation requires its own separate, explicit approval.
 
-## 3.6 Digital Twin Narrative — *Designed (Phase 2D architecture freeze, docs/59 §11.1, ADR-028/029)*
+## 3.6 Digital Twin Narrative — *Implemented (Phase 2D, Batch PXP-12, docs/59 §11.1, ADR-028/029; shared/schemas/digital-twin-narrative.schema.json v1.0.0)*
 The Sheet-backed audit/decision/delivery record for one AI-generated Digital Twin narrative
 (`narrative_type`: `health_story` or `ai_summary`). **Purpose:** to store what the model
 produced (`ai_output`, immutable), the assembled context it was grounded in
@@ -1786,9 +1786,9 @@ docs/58 §7.
 | Symptom Log | Implemented, **dashboard entry retired (Batch PXP-10)** | 2A (Batch PA-4) — dashboard entry removed and endpoints deprecated (docs/44 §10.1, §22 batch PXP-10, shipped); `SymptomLogs` rows and their standalone history page remain, schema/Apps Script file unchanged |
 | Report | Implemented | 2A (Batch PA-5) |
 | Care Plan | **Implemented** | 2B (docs/44 §12, batch PXP-7 — shipped, one evolving plan per patient, append-only versioned, Timeline Event emission deliberately deferred — see §3.4's own status update) |
-| Digital Twin | **Designed (computed view — never a base table)** | 2D (docs/59 §6.1, ADR-004/028/029 — architecture frozen; the patient's living health story, a computed read-only aggregation of the patient's own record, AI-narrated and doctor-approved before the patient sees it; never a stored entity) |
-| Digital Twin Narrative | **Designed** | 2D (docs/59 §11.1, ADR-028/029 — the Sheet-backed audit/decision/delivery record for one AI narrative (health_story/ai_summary); pending→approved/edited_and_approved/rejected one-way; patient sees only approved published_output; mirrors Consultation Summary's doctor-review gate) |
-| Progress Analytics | **Designed (computed view — never a base table)** | 2D (docs/59 §6.3, ADR-004 — a deterministic, non-AI, patient-scoped trend aggregation, the patient-facing counterpart to WPI-9 Analytics; computed on read, no model call, no doctor gate needed) |
+| Digital Twin | **Implemented (computed view — never a base table)** | 2D (Batch PXP-12, docs/59 §6.1, ADR-004/028/029 — architecture frozen; the patient's living health story, a computed read-only aggregation of the patient's own record, AI-narrated and doctor-approved before the patient sees it; never a stored entity) |
+| Digital Twin Narrative | **Implemented** | 2D (Batch PXP-12, docs/59 §11.1, ADR-028/029 — the Sheet-backed audit/decision/delivery record for one AI narrative (health_story/ai_summary); pending→approved/edited_and_approved/rejected one-way; patient sees only approved published_output; mirrors Consultation Summary's doctor-review gate) |
+| Progress Analytics | **Implemented (computed view — never a base table)** | 2D (Batch PXP-12, docs/59 §6.3, ADR-004 — a deterministic, non-AI, patient-scoped trend aggregation, the patient-facing counterpart to WPI-9 Analytics; computed on read, no model call, no doctor gate needed) |
 | Appointment | **Implemented** | 3/WHIMS (docs/50 §8, batch WPI-5 — shipped, staff/doctor-facing only, nullable patient_id/doctor_id, server-derived specialty_slug, one-way requested→confirmed→completed/cancelled lifecycle, one read-only `get_doctor_appointments` route, Doctor Module Registry's second real entry `appointments`) |
 | Notification | **Implemented** | 3/WHIMS (docs/50 §9, batch WPI-6 — shipped, a shared record of what was sent, never a new delivery pipeline; nullable patient_id/doctor_id, disclosed additive recipient_email fallback; system-generated only, zero FoundationRouter.gs dispatch case) |
 | Specialty | **Implemented** | 3/WHIMS (docs/50 §6, ADR-018, batch WPI-2 — shipped, seeded with one specialty (homeopathy), plus the additive Condition-to-Specialty Map; no populated `specialty_scope` entry added to Module/Calculator/Template Registry, none needs one yet, docs/53 §4) |
