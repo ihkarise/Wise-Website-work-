@@ -8,6 +8,69 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-16 — Phase 2D Architecture Freeze: Wise Digital Twin & AI Summaries
+
+Documentation-only architecture-freeze pass, scoped to Phase 2D specifically, authorized
+explicitly and separately. Performs the dedicated, feature-scoped freeze this phase always
+required ("the full ADR-001/ADR-004/ADR-005 AI-supervision pattern before any implementation
+begins") — the identical single-feature-freeze discipline docs/55 (AI Assistant), docs/56
+(Holoscan), and docs/58 (Health Milestones) already followed, here for the platform's **first
+patient-facing AI-generated-content feature**. No `apps-script/*.gs` file, no
+`shared/schemas/*.schema.json` file, no `shared/constants/*.json` registry file, and no
+patient-facing or doctor-facing page was touched — no implementation of any kind. Phase 2A,
+Phase 2B, Phase 2C, and Phase 3 all remain shipped and frozen except for genuine bug fixes;
+docs/49/50/51/52/53/54/55/56/57/58 are not reopened, edited, or contradicted — this pass is
+additive to all of them. **Phase 2D implementation is not authorized to begin** — a separate,
+explicit approval is still required, mirroring docs/53 §9/§13/§15, unchanged.
+
+### Added (documentation)
+- **`docs/59-PHASE-2D-DIGITAL-TWIN-ARCHITECTURE-FREEZE.md`** (new) — full technical
+  architecture for the Wise Digital Twin & AI Summaries: a **Health Story** and **AI
+  Summaries** (an AI-narrated summary of the patient's own recorded history, two
+  `narrative_type`s sharing one pipeline) and a deterministic, non-AI **Progress Analytics**
+  view. Every narrative is **doctor-approved before the patient ever sees it** — the identical
+  three-part gate (prompt constraint + independent code-level drift check + mandatory doctor
+  review) Phase 1.5's Consultation Summary proved and ADR-005 declares the reference
+  implementation, applied to an aggregated narrative. The Digital Twin and Progress Analytics
+  are **computed views, never stored base tables**; only the AI narrative audit/decision/
+  delivery record (`DigitalTwinNarrative`) and its doctor-approved published text are stored.
+  Retrieval is grounded in the patient's own already-stored structured record only (ADR-029);
+  never diagnosis, treatment, prognosis, or reassurance (ADR-004). One new *Designed* entity,
+  two computed views, five router dispatch cases, two registry entries, and two dashboard
+  cards — all specified, none built — plus Architecture Readiness Review (§19), Risk Analysis
+  (§20), Dependency Analysis (§21), Validation Impact (§22), and Repository Consistency Review
+  (§23) folded into the one freeze doc.
+- **`adr/ADR-028-digital-twin-patient-facing-narrative-doctor-approved.md`** (new) — a Digital
+  Twin narrative requires doctor approval before the patient ever sees it (`get_health_story`
+  returns only approved narratives, server-enforced); the Digital Twin view itself is never a
+  stored base table; extends ADR-004/ADR-005/ADR-022, amends none.
+- **`adr/ADR-029-digital-twin-grounded-in-patient-record-only.md`** (new) — Digital Twin
+  retrieval is grounded only in the patient's own already-stored structured record, never an
+  unstructured knowledge base, until a real Knowledge Engine exists; extends ADR-001/ADR-021,
+  amends neither.
+- **`adr/ADR-030-digital-twin-review-registry-entry-disabled-by-default.md`** (new) — the
+  future `digital_twin_review` Doctor Module Registry entry is disabled by default for every
+  doctor, following ADR-023/ADR-026's precedent (the patient-facing `health_story` entry needs
+  no such ADR — the existing fail-closed-by-absence default covers it); extends ADR-020/ADR-010,
+  amends none.
+
+### Changed (documentation)
+- **`docs/31-ADR-INDEX.md`** bumped to Version 1.9 — ADR-028 through ADR-030 added to the
+  index, the Grouped-by-Concern section, and the Relationship-to-Other-Documents section.
+- **`docs/33-DOMAIN-MODEL.md`** bumped to Version 1.27 — §3.5 Digital Twin promoted from
+  *Conceptual* to *Designed* with a Phase 2D status update; a new §3.6 adds `DigitalTwinNarrative`
+  (*Designed*); three Summary Table rows added/updated (Digital Twin, Digital Twin Narrative,
+  Progress Analytics).
+- **`docs/24-ROADMAP.md`** bumped to Version 1.26 — the Phase 2D block updated to disclose the
+  architecture freeze (docs/59, ADR-028/029/030), the designed entity + two computed views, the
+  patient-facing doctor-approval gate, and the disabled-by-default doctor review entry —
+  explicitly still not authorizing implementation.
+
+### Not authorized by this pass
+No code, schema, registry entry, router case, or dashboard card was added. Phase 2D
+implementation is not authorized to begin by this document or any document it references — a
+separate, explicit approval is still required.
+
 ## 2026-07-16 — Phase 2C Batch PXP-11: Health Milestones
 
 Implements Health Milestones (docs/58-PHASE-2C-HEALTH-MILESTONES-ARCHITECTURE-FREEZE.md

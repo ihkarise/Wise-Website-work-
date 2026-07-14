@@ -1,5 +1,5 @@
 # 24 - Wise Product Roadmap
-## Version 1.25 — 2026-07-16
+## Version 1.26 — 2026-07-16
 
 # Phase 1 — Public Website
 Status: In Progress
@@ -622,12 +622,32 @@ requiring its own separate architecture-freeze pass.
   Twin (Phase 2D) input.
 
 # Phase 2D — Wise Digital Twin & AI Summaries
-- Health Story
-- AI Summaries
-- Progress Analytics
+Status: **Architecture frozen (2026-07-16, docs/59-PHASE-2D-DIGITAL-TWIN-ARCHITECTURE-FREEZE.md,
+Version 1.0; ADR-028/029/030) — implementation NOT yet authorized.** The dedicated,
+feature-scoped architecture-freeze pass this phase required — "the full ADR-001/ADR-004/ADR-005
+AI-supervision pattern before any implementation begins" — has now been performed, the
+identical single-feature-freeze discipline docs/55 (AI Assistant), docs/56 (Holoscan), and
+docs/58 (Health Milestones) already followed, here for the platform's **first patient-facing
+AI-generated-content feature**. **The freeze does not authorize implementation** — a separate,
+explicit approval naming the Phase 2D batch is still required, mirroring docs/53 §9/§13/§15.
 
-Requires the full ADR-001/ADR-004/ADR-005 AI-supervision pattern before
-any implementation begins.
+- **Health Story** + **AI Summaries** — an AI-narrated summary of the patient's own recorded
+  history (two `narrative_type`s sharing one pipeline), **doctor-approved before the patient
+  ever sees it** (ADR-005/ADR-028 — the identical three-part gate Phase 1.5's Consultation
+  Summary proved: prompt constraint + independent drift check + mandatory doctor review).
+  Grounded in the patient's own already-stored structured record only, until a real Knowledge
+  Engine exists (ADR-029). Never diagnosis, treatment, prognosis, or reassurance (ADR-004).
+- **Progress Analytics** — a **deterministic, non-AI**, patient-scoped trend view (the
+  patient-facing counterpart to WPI-9's doctor-facing Analytics), computed on read, no model
+  call, no doctor gate needed.
+- Designed (none implemented): one new Sheet-backed entity (`DigitalTwinNarrative`, the AI
+  narrative audit/decision/delivery record) plus two **computed** views (Digital Twin, Progress
+  Analytics — never stored base tables, ADR-004/ADR-028). Five new router dispatch cases (three
+  doctor roster-scoped, two patient own-record; none dual-guarded), one new Patient Module
+  Registry entry (`health_story`, fail-closed by absence) and one new Doctor Module Registry
+  entry (`digital_twin_review`, **disabled by default per ADR-030** — the platform's third and
+  highest-risk AI-output-review surface), and two new dashboard cards — all named, none built
+  (docs/59 §11–§14). This is the last of the Phase 2 family; no phase beyond Phase 2D is scoped.
 
 # Phase 3 — WHIMS Patient Intelligence Platform (formerly "WiseOS")
 Status: **Closed (Batch WPI-12 Closeout, 2026-07-16, docs/57-PHASE-3-CLOSEOUT.md) —
