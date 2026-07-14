@@ -8,6 +8,58 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 Nothing pending.
 
+## 2026-07-16 — Phase 2D Implementation (Batch PXP-12): Wise Digital Twin & AI Summaries
+
+Implements Phase 2D exactly as frozen in `docs/59-PHASE-2D-DIGITAL-TWIN-ARCHITECTURE-FREEZE.md`
+and ADR-028/029/030 — the platform's **first patient-facing AI-generated-content feature**. A
+doctor generates a plain-language **Health Story** / **AI Summary** narrating one of their own
+roster patients' already-recorded history, an independent code-level drift check flags it, and
+**no narrative reaches the patient until that doctor approves it** (ADR-028) — the same
+three-part supervision gate Phase 1.5's Consultation Summary proved, applied to patient
+visibility. Plus a deterministic, **non-AI Progress Analytics** view served directly to the
+patient. Additive only: no frozen `apps-script/*.gs`, schema, or registry entry was restructured
+— five new dispatch cases, one new Sheet-backed entity, two computed views, two registry entries,
+and two dashboard cards.
+
+### Added (implementation)
+- **`apps-script/DigitalTwinContext.gs`** — the narrative-type registry, the
+  `DigitalTwinContextBuilder` (grounded in the patient's own record only, ADR-029), and the two
+  deterministic computed views (Digital Twin view §6.1, Progress Analytics §6.3). Makes no
+  model/outbound call of any kind.
+- **`apps-script/DigitalTwinDriftCheck.gs`** — the independent category-lexicon + per-sentence
+  traceability check (§8.2), advisory, never blocking.
+- **`apps-script/DigitalTwinNarrative.gs`** — the `DigitalTwinNarrative` entity + the generation
+  pipeline (fail-closed enablement per ADR-030, roster scope, per-doctor daily rate limit,
+  context assembly, model call, drift check) + the one-way review/approval gate + the three read
+  functions. The only Sheet it writes is `DigitalTwinNarratives`.
+- **`apps-script/DIGITAL-TWIN-PROMPTS.md`** — the version-locked prompt specification.
+- **`shared/schemas/digital-twin-narrative.schema.json`** / `.md` (new entity, version 1.0.0).
+- **`shared/constants/digital-twin-narrative-registry.json`** / `.md` (new config list).
+- Five new `FoundationRouter.gs` dispatch cases: `get_patient_digital_twin`,
+  `generate_digital_twin_narrative`, `review_digital_twin_narrative` (doctor-guarded),
+  `get_health_story`, `get_progress_analytics` (patient-guarded). None dual-guarded.
+- **Patient Health Story card + `my-health-journey/health-story/` page** — read-only, only
+  doctor-approved `published_output`, plus Progress Analytics.
+- **Doctor Digital Twin Review card** — a roster patient picker, a narrative-type generate
+  control, and an always-visible "AI-generated draft — not yet visible to the patient" banner
+  above each Approve/Edit/Reject control.
+
+### Changed (documentation)
+- `shared/constants/module-registry.json` (v1.4.0) — adds the `health_story` entry (first
+  patient-facing entry with `supports_ai: true`).
+- `shared/constants/doctor-module-registry.json` (v1.10.0) — adds the `digital_twin_review`
+  entry, **disabled by default** (ADR-030).
+- `docs/33-DOMAIN-MODEL.md` (v1.28) — Digital Twin (§3.5) and `DigitalTwinNarrative` (§3.6)
+  *Designed → Implemented*.
+- `docs/24-ROADMAP.md` — Phase 2D status: implemented.
+- `apps-script/README.md` — new Digital Twin section.
+
+### Validation
+- Static Analysis — **PASS, 0 findings** (71 `.gs` files; six new Digital Twin static rules).
+- Conformance — **PASS, 875/875** (Stage 29 added).
+- Phase 1.5 Regression — **PASS, 45/45**.
+- Browser suites — **PASS, 19 suites** (new `validation/phase-2d-digital-twin/`, 18 checks).
+
 ## 2026-07-16 — Phase 2D Architecture Freeze: Wise Digital Twin & AI Summaries
 
 Documentation-only architecture-freeze pass, scoped to Phase 2D specifically, authorized

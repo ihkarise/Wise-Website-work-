@@ -622,14 +622,20 @@ requiring its own separate architecture-freeze pass.
   Twin (Phase 2D) input.
 
 # Phase 2D — Wise Digital Twin & AI Summaries
-Status: **Architecture frozen (2026-07-16, docs/59-PHASE-2D-DIGITAL-TWIN-ARCHITECTURE-FREEZE.md,
-Version 1.0; ADR-028/029/030) — implementation NOT yet authorized.** The dedicated,
-feature-scoped architecture-freeze pass this phase required — "the full ADR-001/ADR-004/ADR-005
-AI-supervision pattern before any implementation begins" — has now been performed, the
-identical single-feature-freeze discipline docs/55 (AI Assistant), docs/56 (Holoscan), and
-docs/58 (Health Milestones) already followed, here for the platform's **first patient-facing
-AI-generated-content feature**. **The freeze does not authorize implementation** — a separate,
-explicit approval naming the Phase 2D batch is still required, mirroring docs/53 §9/§13/§15.
+Status: **Implemented (2026-07-16, Batch PXP-12) — architecture frozen at
+docs/59-PHASE-2D-DIGITAL-TWIN-ARCHITECTURE-FREEZE.md Version 1.0, ADR-028/029/030.** The
+dedicated, feature-scoped architecture freeze this phase required — "the full
+ADR-001/ADR-004/ADR-005 AI-supervision pattern before any implementation begins" — was performed
+first (the identical single-feature discipline docs/55/56/58 followed), then implemented under a
+separate, explicit approval naming the Phase 2D batch (docs/53 §9/§13/§15). The platform's
+**first patient-facing AI-generated-content feature** now ships: `apps-script/DigitalTwinContext.gs`,
+`DigitalTwinDriftCheck.gs`, `DigitalTwinNarrative.gs`, `DIGITAL-TWIN-PROMPTS.md`; the
+`DigitalTwinNarrative` entity (shared/schemas/digital-twin-narrative.schema.json v1.0.0) + two
+computed views; five router dispatch cases; the `health_story` (patient) and `digital_twin_review`
+(doctor, disabled-by-default per ADR-030) registry entries; the patient Health Story card + page
+and the doctor Digital Twin Review card; Conformance Stage 29; and
+`validation/phase-2d-digital-twin/`'s browser suite. Phase 2D is the last of the Phase 2 family;
+no phase beyond it is scoped.
 
 - **Health Story** + **AI Summaries** — an AI-narrated summary of the patient's own recorded
   history (two `narrative_type`s sharing one pipeline), **doctor-approved before the patient

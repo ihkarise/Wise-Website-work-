@@ -282,6 +282,8 @@ var medicationHistorySchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, '
 var medicationDecisionSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/medication-decision.schema.json'), 'utf8'));
 var milestoneTrackSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/milestone-track.schema.json'), 'utf8'));
 var milestoneReviewSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/milestone-review.schema.json'), 'utf8'));
+var digitalTwinNarrativeSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/digital-twin-narrative.schema.json'), 'utf8'));
+var digitalTwinNarrativeRegistryConstant = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'constants/digital-twin-narrative-registry.json'), 'utf8'));
 var moduleRegistryConstant = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'constants/module-registry.json'), 'utf8'));
 
 var results = [];
@@ -1481,14 +1483,14 @@ var ctx = loadProject(h.sandbox);
   // PXP-3-authored assertion this stage still makes (see this file's own
   // header comment).
   var registry = ctx.foundationGetModuleRegistry_();
-  record('Stage12: foundationGetModuleRegistry_() returns the six seeded modules (timeline, daily_checkin, holoscan, reports, care_plan, health_milestones) — symptom_tracker retired by Batch PXP-10, holoscan added by Batch WPI-11 (Stage27), health_milestones added by Batch PXP-11 (Stage28)',
-    registry.length === 6 && registry.map(function (m) { return m.module_id; }).sort().join(',') === 'care_plan,daily_checkin,health_milestones,holoscan,reports,timeline');
+  record('Stage12: foundationGetModuleRegistry_() returns the seven seeded modules (timeline, daily_checkin, holoscan, reports, care_plan, health_milestones, health_story) — health_story added by Batch PXP-12 (Stage29)',
+    registry.length === 7 && registry.map(function (m) { return m.module_id; }).sort().join(',') === 'care_plan,daily_checkin,health_milestones,health_story,holoscan,reports,timeline');
 
   // ---- Fail-closed default: no PatientModuleState row exists yet for either patient ----
   var defaultStatesA = ctx.foundationGetPatientModuleStates_(patientA.data.patient_id);
   record('Stage12: foundationGetPatientModuleStates_() succeeds even with zero persisted rows', defaultStatesA.status === 'ok');
   record('Stage12: every module defaults to enabled=false when no row has ever been written — fail-closed (ADR-010)',
-    defaultStatesA.data.length === 6 && defaultStatesA.data.every(function (row) { return row.enabled === false && row.enabled_by === '' && row.enabled_at === ''; }));
+    defaultStatesA.data.length === 7 && defaultStatesA.data.every(function (row) { return row.enabled === false && row.enabled_by === '' && row.enabled_at === ''; }));
 
   // ---- Validation rejections ----
   var missingPatientId = ctx.foundationSetModuleState_({ module_id: 'timeline', enabled: true, enabled_by: 'dr-rao' });
@@ -1536,7 +1538,7 @@ var ctx = loadProject(h.sandbox);
   // ---- foundationGetPatientModuleStates_() — merges real rows with fail-closed synthesized defaults ----
   var statesA = ctx.foundationGetPatientModuleStates_(patientA.data.patient_id);
   record('Stage12: foundationGetPatientModuleStates_() returns exactly one entry per registered module, real rows merged with synthesized defaults',
-    statesA.data.length === 6);
+    statesA.data.length === 7);
   var timelineStateA = statesA.data.filter(function (row) { return row.module_id === 'timeline'; })[0];
   var reportsStateA = statesA.data.filter(function (row) { return row.module_id === 'reports'; })[0];
   // Batch PXP-10 retired 'symptom_tracker' from the registry — this
@@ -1559,14 +1561,14 @@ var ctx = loadProject(h.sandbox);
   // ---- Cross-patient isolation: patient B's own states are untouched by patient A's writes ----
   var statesB = ctx.foundationGetPatientModuleStates_(patientB.data.patient_id);
   record('Stage12: patient B\'s module states are all still fail-closed defaults, unaffected by patient A\'s writes',
-    statesB.data.length === 6 && statesB.data.every(function (row) { return row.enabled === false && row.enabled_by === ''; }));
+    statesB.data.length === 7 && statesB.data.every(function (row) { return row.enabled === false && row.enabled_by === ''; }));
 
   // ---- FoundationRouter.gs — the one new, read-only dispatch case, end to end ----
   var sessionA = ctx.foundationIssueSessionToken_(patientA.data.patient_id);
   var getStatesHttp = ctx.handleFoundationRequest_({ foundation_action: 'get_patient_module_states', session_token: sessionA });
   var getStatesBody = JSON.parse(getStatesHttp._text);
   record('Stage12: get_patient_module_states (real HTTP dispatch) resolves the caller\'s own module states from a valid session',
-    getStatesBody.status === 'ok' && getStatesBody.data.length === 6);
+    getStatesBody.status === 'ok' && getStatesBody.data.length === 7);
   record('Stage12: get_patient_module_states derives patient_id only from the verified session, never from a client-supplied field',
     (function () {
       var spoofed = ctx.handleFoundationRequest_({
@@ -2736,8 +2738,8 @@ var ctx = loadProject(h.sandbox);
     ctx.foundationGetSpecialtyForCondition_(undefined) === 'homeopathy');
 
   // ---- Zero-lines-touched proof (docs/50 §3): every existing registry this batch does not touch is unchanged ----
-  record('Stage18: Module Registry is untouched by this batch — still the same six modules Stage 12/Stage27/Stage28 already proved',
-    ctx.foundationGetModuleRegistry_().length === 6);
+  record('Stage18: Module Registry is untouched by this batch — still the same seven modules Stage 12/Stage27/Stage28/Stage29 already proved',
+    ctx.foundationGetModuleRegistry_().length === 7);
   record('Stage18: Calculator Registry is untouched by this batch — still seeded empty, per Stage 14',
     ctx.FOUNDATION_CALCULATOR_REGISTRY_.length === 0);
   record('Stage18: neither Module Registry nor Calculator Registry entries carry a specialty_scope field — this batch adds no scoped entry to either',
@@ -2787,11 +2789,11 @@ var ctx = loadProject(h.sandbox);
   // still WPI-3's own scope.
   var registry = ctx.foundationGetDoctorModuleRegistry_();
   record('Stage19: foundationGetDoctorModuleRegistry_() now has nine entries (patient_roster added at Batch WPI-4, appointments added at Batch WPI-5, inventory added at Batch WPI-7, pillfill_orders added at Batch WPI-8, analytics added at Batch WPI-9, ai_assistant added at Batch WPI-10, holoscan_review/medication_history added at Batch WPI-11, milestone_review added at Batch PXP-11 — see Stage20/Stage21/Stage23/Stage24/Stage25/Stage26/Stage27/Stage28)',
-    registry.length === 9);
+    registry.length === 10);
   record('Stage19: the hand-ported FOUNDATION_DOCTOR_MODULE_REGISTRY_ matches shared/constants/doctor-module-registry.json exactly',
     JSON.stringify(registry) === JSON.stringify(doctorModuleRegistryConstant.capabilities));
   record('Stage19: foundationGetRegisteredDoctorCapabilityKeys_() returns exactly nine allowlisted capability_keys (patient_roster, appointments, inventory, pillfill_orders, analytics, ai_assistant, holoscan_review, medication_history, milestone_review) as of Batch PXP-11',
-    ctx.foundationGetRegisteredDoctorCapabilityKeys_().length === 9 &&
+    ctx.foundationGetRegisteredDoctorCapabilityKeys_().length === 10 &&
     ctx.foundationGetRegisteredDoctorCapabilityKeys_().indexOf('patient_roster') !== -1 &&
     ctx.foundationGetRegisteredDoctorCapabilityKeys_().indexOf('appointments') !== -1 &&
     ctx.foundationGetRegisteredDoctorCapabilityKeys_().indexOf('inventory') !== -1 &&
@@ -2817,7 +2819,7 @@ var ctx = loadProject(h.sandbox);
   // unregistered docs/50 §7.1 illustrative example.
   var defaultStatesA = ctx.foundationGetDoctorModuleStates_(doctorIdA);
   record('Stage19: foundationGetDoctorModuleStates_() succeeds with zero persisted rows, synthesizing one fail-closed (enabled: false) entry per registered capability (now nine, as of Batch PXP-11)',
-    defaultStatesA.status === 'ok' && defaultStatesA.data.length === 9 && defaultStatesA.data.every(function (row) { return row.enabled === false; }));
+    defaultStatesA.status === 'ok' && defaultStatesA.data.length === 10 && defaultStatesA.data.every(function (row) { return row.enabled === false; }));
 
   // ---- Validation rejections ----
   var missingDoctorId = ctx.foundationSetDoctorModuleState_({ capability_key: 'condition_assignment', enabled: true, enabled_by: 'staff-1' });
@@ -2851,7 +2853,7 @@ var ctx = loadProject(h.sandbox);
   var getStatesHttp = ctx.handleFoundationRequest_({ foundation_action: 'get_doctor_module_states', session_token: doctorSessionA });
   var getStatesBody = JSON.parse(getStatesHttp._text);
   record('Stage19: get_doctor_module_states (real HTTP dispatch) resolves the caller\'s own, fail-closed-by-default capability-state list from a valid DoctorSession',
-    getStatesBody.status === 'ok' && getStatesBody.data.length === 9 && getStatesBody.data.every(function (row) { return row.enabled === false; }));
+    getStatesBody.status === 'ok' && getStatesBody.data.length === 10 && getStatesBody.data.every(function (row) { return row.enabled === false; }));
 
   var getStatesUnauthed = JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'get_doctor_module_states', session_token: 'not-a-real-session-token' })._text);
   record('Stage19: get_doctor_module_states rejects an invalid session_token with FOUNDATION_UNAUTHORIZED, never leaking any data',
@@ -2870,11 +2872,11 @@ var ctx = loadProject(h.sandbox);
   var doctorSessionB = ctx.foundationIssueDoctorSessionToken_(doctorIdB);
   var getStatesB = JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'get_doctor_module_states', session_token: doctorSessionB })._text);
   record('Stage19: doctor B\'s own capability-state list resolves independently of doctor A\'s session — cross-doctor isolation, even though both are fail-closed-disabled today',
-    getStatesB.status === 'ok' && getStatesB.data.length === 9 && getStatesB.data.every(function (row) { return row.enabled === false; }));
+    getStatesB.status === 'ok' && getStatesB.data.length === 10 && getStatesB.data.every(function (row) { return row.enabled === false; }));
 
   // ---- Zero-lines-touched proof (docs/50 §3): every existing registry/entity this batch does not touch is unchanged ----
-  record('Stage19: Module Registry is untouched by this batch — still the same six modules Stage 12/Stage27/Stage28 already proved',
-    ctx.foundationGetModuleRegistry_().length === 6);
+  record('Stage19: Module Registry is untouched by this batch — still the same seven modules Stage 12/Stage27/Stage28/Stage29 already proved',
+    ctx.foundationGetModuleRegistry_().length === 7);
   record('Stage19: Calculator Registry is untouched by this batch — still seeded empty, per Stage 14',
     ctx.FOUNDATION_CALCULATOR_REGISTRY_.length === 0);
   record('Stage19: Specialty Registry is untouched by this batch — still the one seeded homeopathy entry, per Stage 18',
@@ -2919,7 +2921,7 @@ var ctx = loadProject(h.sandbox);
   // a fifth entry, `analytics` (see Stage25) — the same mechanical,
   // disclosed update.
   record('Stage20: shared/constants/doctor-module-registry.json carries patient_roster as its first entry, data_source get_doctor_patient_roster',
-    doctorModuleRegistryConstant.capabilities.length === 9 &&
+    doctorModuleRegistryConstant.capabilities.length === 10 &&
     doctorModuleRegistryConstant.capabilities[0].capability_key === 'patient_roster' &&
     doctorModuleRegistryConstant.capabilities[0].data_source === 'get_doctor_patient_roster');
 
@@ -3000,8 +3002,8 @@ var ctx = loadProject(h.sandbox);
   // ---- Zero-lines-touched proof (docs/50 §3): existing entities this batch does not touch are unchanged ----
   record('Stage20: DoctorAssignedCondition.gs/its schema are untouched by this batch — read only, via the existing foundationDsQuery_ primitive',
     ctx.foundationGetPatientConditionAssignments_(patientAlice.data.patient_id).status === 'ok');
-  record('Stage20: Module Registry is untouched by this batch — still the same six modules Stage 12/Stage27/Stage28 already proved',
-    ctx.foundationGetModuleRegistry_().length === 6);
+  record('Stage20: Module Registry is untouched by this batch — still the same seven modules Stage 12/Stage27/Stage28/Stage29 already proved',
+    ctx.foundationGetModuleRegistry_().length === 7);
 })();
 
 // ============================================================
@@ -3043,7 +3045,7 @@ var ctx = loadProject(h.sandbox);
   // WPI-9 (docs/50 §12/§19): the registry now carries a fifth entry,
   // `analytics` (see Stage25) — the same mechanical, disclosed update.
   record('Stage21: shared/constants/doctor-module-registry.json now carries appointments as its second entry, data_source get_doctor_appointments',
-    doctorModuleRegistryConstant.capabilities.length === 9 &&
+    doctorModuleRegistryConstant.capabilities.length === 10 &&
     doctorModuleRegistryConstant.capabilities[1].capability_key === 'appointments' &&
     doctorModuleRegistryConstant.capabilities[1].data_source === 'get_doctor_appointments');
 
@@ -3332,7 +3334,7 @@ var ctx = loadProject(h.sandbox);
   // at Batch WPI-10 (docs/55 §13): a sixth entry (ai_assistant) was added by
   // the later Batch WPI-10 (Stage26) — the same mechanical, disclosed update.
   record('Stage22: shared/constants/doctor-module-registry.json was untouched by Batch WPI-6 itself — still exactly two entries as of Stage 21, a third (inventory) added only by the later Batch WPI-7 (Stage23), a fourth (pillfill_orders) added only by the later Batch WPI-8 (Stage24), a fifth (analytics) added only by the later Batch WPI-9 (Stage25), a sixth (ai_assistant) added only by the later Batch WPI-10 (Stage26)',
-    doctorModuleRegistryConstant.capabilities.length === 9);
+    doctorModuleRegistryConstant.capabilities.length === 10);
 })();
 
 // ============================================================
@@ -3374,7 +3376,7 @@ var ctx = loadProject(h.sandbox);
   // Batch WPI-9 (docs/50 §12/§19): the registry now carries a fifth entry,
   // `analytics` (see Stage25) — the same mechanical, disclosed update.
   record('Stage23: shared/constants/doctor-module-registry.json now carries inventory as its third entry, data_source get_inventory_items',
-    doctorModuleRegistryConstant.capabilities.length === 9 &&
+    doctorModuleRegistryConstant.capabilities.length === 10 &&
     doctorModuleRegistryConstant.capabilities[2].capability_key === 'inventory' &&
     doctorModuleRegistryConstant.capabilities[2].data_source === 'get_inventory_items');
   record('Stage23: the hand-ported FOUNDATION_DOCTOR_MODULE_REGISTRY_ matches shared/constants/doctor-module-registry.json exactly, including this batch\'s addition',
@@ -3647,7 +3649,7 @@ var ctx = loadProject(h.sandbox);
   // to this stage's own stale total-count assertion, mirroring
   // Stage20/21/22/23's own updates at this same batch's hands.
   record('Stage24: shared/constants/doctor-module-registry.json now carries pillfill_orders as its fourth entry, data_source get_pillfill_orders',
-    doctorModuleRegistryConstant.capabilities.length === 9 &&
+    doctorModuleRegistryConstant.capabilities.length === 10 &&
     doctorModuleRegistryConstant.capabilities[3].capability_key === 'pillfill_orders' &&
     doctorModuleRegistryConstant.capabilities[3].data_source === 'get_pillfill_orders');
   record('Stage24: the hand-ported FOUNDATION_DOCTOR_MODULE_REGISTRY_ matches shared/constants/doctor-module-registry.json exactly, including this batch\'s addition',
@@ -3913,7 +3915,7 @@ var ctx = loadProject(h.sandbox);
 
   // ---- Doctor Module Registry carries this batch's fifth entry ----
   record('Stage25: shared/constants/doctor-module-registry.json now carries analytics as its fifth entry, data_source get_doctor_analytics',
-    doctorModuleRegistryConstant.capabilities.length === 9 &&
+    doctorModuleRegistryConstant.capabilities.length === 10 &&
     doctorModuleRegistryConstant.capabilities[4].capability_key === 'analytics' &&
     doctorModuleRegistryConstant.capabilities[4].data_source === 'get_doctor_analytics');
   record('Stage25: the hand-ported FOUNDATION_DOCTOR_MODULE_REGISTRY_ matches shared/constants/doctor-module-registry.json exactly, including this batch\'s addition',
@@ -4101,7 +4103,7 @@ var ctx = loadProject(h.sandbox);
 
   // ---- Doctor Module Registry carries this batch's sixth entry, disabled by default ----
   record('Stage26: shared/constants/doctor-module-registry.json now carries ai_assistant as its sixth entry, data_source get_ai_assistant_capabilities',
-    doctorModuleRegistryConstant.capabilities.length === 9 &&
+    doctorModuleRegistryConstant.capabilities.length === 10 &&
     doctorModuleRegistryConstant.capabilities[5].capability_key === 'ai_assistant' &&
     doctorModuleRegistryConstant.capabilities[5].data_source === 'get_ai_assistant_capabilities');
   record('Stage26: the hand-ported FOUNDATION_DOCTOR_MODULE_REGISTRY_ matches shared/constants/doctor-module-registry.json exactly, including this batch\'s addition',
@@ -4395,7 +4397,7 @@ var ctx = loadProject(h.sandbox);
 
   // ---- Patient Module Registry carries this batch's fifth entry ----
   record('Stage27: shared/constants/module-registry.json carries holoscan as its fifth entry, data_source get_holoscan_recognitions (a sixth entry, health_milestones, is added by Batch PXP-11 — Stage28)',
-    moduleRegistryConstant.modules.length === 6 &&
+    moduleRegistryConstant.modules.length === 7 &&
     moduleRegistryConstant.modules[4].module_id === 'holoscan' &&
     moduleRegistryConstant.modules[4].data_source === 'get_holoscan_recognitions');
   record('Stage27: the hand-ported FOUNDATION_MODULE_REGISTRY_ matches shared/constants/module-registry.json exactly, including this batch\'s addition',
@@ -4403,7 +4405,7 @@ var ctx = loadProject(h.sandbox);
 
   // ---- Doctor Module Registry carries this batch's seventh and eighth entries ----
   record('Stage27: shared/constants/doctor-module-registry.json now carries holoscan_review as its seventh entry and medication_history as its eighth, with the correct data_source routes',
-    doctorModuleRegistryConstant.capabilities.length === 9 &&
+    doctorModuleRegistryConstant.capabilities.length === 10 &&
     doctorModuleRegistryConstant.capabilities[6].capability_key === 'holoscan_review' &&
     doctorModuleRegistryConstant.capabilities[6].data_source === 'get_holoscan_review_queue' &&
     doctorModuleRegistryConstant.capabilities[7].capability_key === 'medication_history' &&
@@ -4790,7 +4792,7 @@ var ctx = loadProject(h.sandbox);
 (function stage28_healthMilestones() {
   // ---- Patient Module Registry carries this batch's sixth entry ----
   record('Stage28: shared/constants/module-registry.json now carries health_milestones as its sixth entry, data_source get_health_milestones, supports_ai false (non-AI, ADR-027)',
-    moduleRegistryConstant.modules.length === 6 &&
+    moduleRegistryConstant.modules.length === 7 &&
     moduleRegistryConstant.modules[5].module_id === 'health_milestones' &&
     moduleRegistryConstant.modules[5].data_source === 'get_health_milestones' &&
     moduleRegistryConstant.modules[5].supports_ai === false &&
@@ -4800,7 +4802,7 @@ var ctx = loadProject(h.sandbox);
 
   // ---- Doctor Module Registry carries this batch's ninth entry (NORMAL rollout, docs/58 §18.2) ----
   record('Stage28: shared/constants/doctor-module-registry.json now carries milestone_review as its ninth entry, data_source get_patient_milestones, a normal-rollout (not disabled-by-default) entry',
-    doctorModuleRegistryConstant.capabilities.length === 9 &&
+    doctorModuleRegistryConstant.capabilities.length === 10 &&
     doctorModuleRegistryConstant.capabilities[8].capability_key === 'milestone_review' &&
     doctorModuleRegistryConstant.capabilities[8].data_source === 'get_patient_milestones' &&
     doctorModuleRegistryConstant.capabilities[8].future_ai_capable === false);
@@ -4948,6 +4950,153 @@ var ctx = loadProject(h.sandbox);
   record('Stage28: no Milestone*.gs code path makes any AI/model/UrlFetchApp/AI-feature call — ADR-027 proven at the source level (comments/strings neutralized first), not merely asserted',
     !aiCallPattern.test(staticAnalyzer28.neutralizeCommentsAndStrings(require('fs').readFileSync(require('path').join(harness.APPS_SCRIPT_DIR, 'MilestoneTrack.gs'), 'utf8'))) &&
     !aiCallPattern.test(staticAnalyzer28.neutralizeCommentsAndStrings(require('fs').readFileSync(require('path').join(harness.APPS_SCRIPT_DIR, 'MilestoneReview.gs'), 'utf8'))));
+})();
+
+(function stage29_digitalTwin() {
+  // ---- Registries carry this batch's new entries ----
+  record('Stage29: shared/constants/digital-twin-narrative-registry.json defines exactly health_story and ai_summary, both requires_knowledge_engine false (ADR-029)',
+    digitalTwinNarrativeRegistryConstant.narrative_types.length === 2 &&
+    digitalTwinNarrativeRegistryConstant.narrative_types[0].narrative_type === 'health_story' &&
+    digitalTwinNarrativeRegistryConstant.narrative_types[1].narrative_type === 'ai_summary' &&
+    digitalTwinNarrativeRegistryConstant.narrative_types.every(function (n) { return n.requires_knowledge_engine === false; }));
+  record('Stage29: the hand-ported FOUNDATION_DIGITAL_TWIN_NARRATIVE_REGISTRY_ matches the canonical JSON exactly',
+    JSON.stringify(ctx.foundationGetDigitalTwinNarrativeRegistry_()) === JSON.stringify(digitalTwinNarrativeRegistryConstant.narrative_types));
+  record('Stage29: module-registry.json now carries health_story as its seventh entry, data_source get_health_story, supports_ai true (first patient-facing AI entry)',
+    moduleRegistryConstant.modules.length === 7 &&
+    moduleRegistryConstant.modules[6].module_id === 'health_story' &&
+    moduleRegistryConstant.modules[6].data_source === 'get_health_story' &&
+    moduleRegistryConstant.modules[6].supports_ai === true);
+  record('Stage29: the hand-ported FOUNDATION_MODULE_REGISTRY_ matches module-registry.json exactly, including health_story',
+    JSON.stringify(ctx.foundationGetModuleRegistry_()) === JSON.stringify(moduleRegistryConstant.modules));
+  record('Stage29: doctor-module-registry.json now carries digital_twin_review as its tenth entry, data_source get_patient_digital_twin (disabled by default, ADR-030)',
+    doctorModuleRegistryConstant.capabilities.length === 10 &&
+    doctorModuleRegistryConstant.capabilities[9].capability_key === 'digital_twin_review' &&
+    doctorModuleRegistryConstant.capabilities[9].data_source === 'get_patient_digital_twin');
+  record('Stage29: the hand-ported FOUNDATION_DOCTOR_MODULE_REGISTRY_ matches doctor-module-registry.json exactly, including digital_twin_review',
+    JSON.stringify(ctx.foundationGetDoctorModuleRegistry_()) === JSON.stringify(doctorModuleRegistryConstant.capabilities));
+
+  // ---- DigitalTwinDriftCheck_ is a pure, independent code-level check (docs/59 §8.2) ----
+  var driftContext = { care_plan: { goals: 'you have been sleeping better and your itching has reduced' }, check_in_response: [{ severity: 3 }] };
+  record('Stage29: DigitalTwinDriftCheck_ returns no flags for a fully-traceable narrative',
+    ctx.DigitalTwinDriftCheck_(driftContext, 'You have been sleeping better and your itching has reduced.').length === 0);
+  record('Stage29: DigitalTwinDriftCheck_ flags a prohibited category (diagnosis) not present in the assembled context',
+    ctx.DigitalTwinDriftCheck_(driftContext, 'This means you have lupus, a serious condition.').some(function (f) { return /diagnosis/.test(f); }));
+  record('Stage29: DigitalTwinDriftCheck_ flags a prognosis phrase — the patient-facing category ADR-004 names explicitly',
+    ctx.DigitalTwinDriftCheck_(driftContext, 'You will recover completely within three weeks for certain.').some(function (f) { return /prognosis/.test(f); }));
+
+  // ---- Setup: two same-specialty doctors (one roster), a roster patient + an off-roster one ----
+  var docA29 = ctx.foundationCreateDoctor_({ full_name: 'Stage29 Doctor A', role: 'physician', email: 'stage29-doctor-a@example.com', specialty_slug: 'homeopathy', created_by: 'conformance-harness' });
+  var docB29 = ctx.foundationCreateDoctor_({ full_name: 'Stage29 Doctor B', role: 'physician', email: 'stage29-doctor-b@example.com', specialty_slug: 'homeopathy', created_by: 'conformance-harness' });
+  var docA29Id = docA29.data.doctor_id;
+  var patientOn29 = ctx.foundationCreatePatient_({ full_name: 'Stage29 Patient On', email: 'stage29-on@example.com', condition_slug: 'mcas', created_by: 'conformance-harness' });
+  var patientOff29 = ctx.foundationCreatePatient_({ full_name: 'Stage29 Patient Off', email: 'stage29-off@example.com', condition_slug: 'mcas', created_by: 'conformance-harness' });
+  ctx.foundationAssignCondition_({ patient_id: patientOn29.data.patient_id, condition_slug: 'mcas', assigned_by: docA29Id });
+  record('Stage29: setup — two doctors, one roster patient, one off-roster patient',
+    docA29.status === 'ok' && docB29.status === 'ok' && patientOn29.status === 'ok' && patientOff29.status === 'ok');
+
+  // ---- Fail-closed enablement (ADR-030) — disabled by default, generation rejected ----
+  record('Stage29: generate_digital_twin_narrative is rejected FOUNDATION_UNAUTHORIZED while digital_twin_review is disabled (fail-closed, ADR-030)',
+    ctx.foundationGenerateDigitalTwinNarrative_({ doctor_id: docA29Id, patient_id: patientOn29.data.patient_id, narrative_type: 'health_story' }).error.code === 'FOUNDATION_UNAUTHORIZED');
+  ctx.foundationSetDoctorModuleState_({ doctor_id: docA29Id, capability_key: 'digital_twin_review', enabled: true, enabled_by: 'conformance-harness' });
+
+  // ---- Generation — validation, roster scope, one pending row ----
+  record('Stage29: generate rejects an unrecognized narrative_type',
+    ctx.foundationGenerateDigitalTwinNarrative_({ doctor_id: docA29Id, patient_id: patientOn29.data.patient_id, narrative_type: 'nope' }).error.code === 'FOUNDATION_INVALID_INPUT');
+  record('Stage29: generate rejects a patient outside the caller\'s own roster',
+    ctx.foundationGenerateDigitalTwinNarrative_({ doctor_id: docA29Id, patient_id: patientOff29.data.patient_id, narrative_type: 'health_story' }).error.code === 'FOUNDATION_INVALID_INPUT');
+  var gen1 = ctx.foundationGenerateDigitalTwinNarrative_({ doctor_id: docA29Id, patient_id: patientOn29.data.patient_id, narrative_type: 'health_story' });
+  record('Stage29: generate writes one DigitalTwinNarrative row conforming to the schema, review_status pending, published_output empty, ai_output present',
+    gen1.status === 'ok' && gen1.data.review_status === 'pending' && gen1.data.published_output === '' && gen1.data.ai_output.length > 0 &&
+    validate(digitalTwinNarrativeSchema, gen1.data).valid === true, JSON.stringify(validate(digitalTwinNarrativeSchema, gen1.data).errors));
+
+  // ---- ADR-028's central guarantee: a patient NEVER sees a pending draft ----
+  var patientStoryBefore = ctx.foundationGetHealthStoryForPatient_(patientOn29.data.patient_id);
+  record('Stage29: get_health_story returns ZERO narratives while the only narrative is still pending — a patient never sees a draft (ADR-028)',
+    patientStoryBefore.status === 'ok' && patientStoryBefore.data.narratives.length === 0 && !!patientStoryBefore.data.digital_twin);
+
+  // ---- Doctor DOES see the pending draft (get_patient_digital_twin) ----
+  var doctorView = ctx.foundationGetPatientDigitalTwinForDoctor_(docA29Id, patientOn29.data.patient_id);
+  record('Stage29: get_patient_digital_twin returns the computed view + progress analytics + the pending narrative (full shape) + the narrative-type menu',
+    doctorView.status === 'ok' && doctorView.data.narratives.length === 1 && doctorView.data.narratives[0].review_status === 'pending' &&
+    !!doctorView.data.digital_twin && !!doctorView.data.progress_analytics && doctorView.data.narrative_types.length === 2);
+  record('Stage29: get_patient_digital_twin rejects a patient outside the caller\'s own roster',
+    ctx.foundationGetPatientDigitalTwinForDoctor_(docA29Id, patientOff29.data.patient_id).error.code === 'FOUNDATION_INVALID_INPUT');
+
+  // ---- Review — validation, one-way transition, published_output gating ----
+  record('Stage29: review rejects an unknown narrative_id',
+    ctx.foundationReviewDigitalTwinNarrative_({ doctor_id: docA29Id, narrative_id: 'not-real', review_status: 'approved' }).error.code === 'FOUNDATION_INVALID_INPUT');
+  record('Stage29: review rejects edited_and_approved with no edited_output',
+    ctx.foundationReviewDigitalTwinNarrative_({ doctor_id: docA29Id, narrative_id: gen1.data.narrative_id, review_status: 'edited_and_approved' }).error.code === 'FOUNDATION_INVALID_INPUT');
+  var approve1 = ctx.foundationReviewDigitalTwinNarrative_({ doctor_id: docA29Id, narrative_id: gen1.data.narrative_id, review_status: 'approved' });
+  record('Stage29: approving sets published_output = ai_output and stamps reviewed_at/reviewed_by (ADR-028)',
+    approve1.status === 'ok' && approve1.data.review_status === 'approved' && approve1.data.published_output === gen1.data.ai_output &&
+    approve1.data.reviewed_by === docA29Id && approve1.data.reviewed_at !== '');
+  record('Stage29: a second review of the same narrative is rejected — one-way, exactly once',
+    ctx.foundationReviewDigitalTwinNarrative_({ doctor_id: docA29Id, narrative_id: gen1.data.narrative_id, review_status: 'rejected' }).error.code === 'FOUNDATION_INVALID_INPUT');
+
+  // ---- After approval, the patient sees exactly the published_output, in the patient-safe shape ----
+  var patientStoryAfter = ctx.foundationGetHealthStoryForPatient_(patientOn29.data.patient_id);
+  record('Stage29: after approval get_health_story returns exactly one narrative, its published_output, and NEVER exposes ai_output/context_snapshot to the patient',
+    patientStoryAfter.data.narratives.length === 1 &&
+    patientStoryAfter.data.narratives[0].published_output === gen1.data.ai_output &&
+    patientStoryAfter.data.narratives[0].ai_output === undefined && patientStoryAfter.data.narratives[0].context_snapshot === undefined);
+
+  // ---- edited_and_approved retains the original ai_output; rejected is never patient-visible ----
+  var gen2 = ctx.foundationGenerateDigitalTwinNarrative_({ doctor_id: docA29Id, patient_id: patientOn29.data.patient_id, narrative_type: 'ai_summary' });
+  var edit2 = ctx.foundationReviewDigitalTwinNarrative_({ doctor_id: docA29Id, narrative_id: gen2.data.narrative_id, review_status: 'edited_and_approved', edited_output: 'Doctor-edited summary of your recent progress.' });
+  record('Stage29: edited_and_approved sets published_output to the doctor\'s text while retaining the original ai_output as an honest audit (ADR-028)',
+    edit2.status === 'ok' && edit2.data.published_output === 'Doctor-edited summary of your recent progress.' && edit2.data.ai_output === gen2.data.ai_output);
+  var gen3 = ctx.foundationGenerateDigitalTwinNarrative_({ doctor_id: docA29Id, patient_id: patientOn29.data.patient_id, narrative_type: 'health_story' });
+  ctx.foundationReviewDigitalTwinNarrative_({ doctor_id: docA29Id, narrative_id: gen3.data.narrative_id, review_status: 'rejected' });
+  var patientStoryFinal = ctx.foundationGetHealthStoryForPatient_(patientOn29.data.patient_id);
+  record('Stage29: a rejected narrative is never returned to the patient, and yields no published_output (only the two approved narratives are visible)',
+    patientStoryFinal.data.narratives.length === 2 &&
+    patientStoryFinal.data.narratives.every(function (n) { return n.published_output && n.published_output.length > 0; }));
+
+  // ---- Progress Analytics — deterministic, patient-served, no doctor gate ----
+  var analytics = ctx.foundationGetProgressAnalyticsForPatient_(patientOn29.data.patient_id);
+  record('Stage29: get_progress_analytics returns a deterministic, non-AI view directly to the patient (no doctor gate)',
+    analytics.status === 'ok' && !!analytics.data.check_in_engagement && !!analytics.data.milestone_progress && !!analytics.data.symptom_trend);
+
+  // ---- Rate limit actually rejects once the ceiling is reached (docs/59 §10/§15) ----
+  var rlDoc = ctx.foundationCreateDoctor_({ full_name: 'Stage29 RL Doctor', role: 'physician', email: 'stage29-rl@example.com', specialty_slug: 'homeopathy', created_by: 'conformance-harness' });
+  var rlDocId = rlDoc.data.doctor_id;
+  ctx.foundationSetDoctorModuleState_({ doctor_id: rlDocId, capability_key: 'digital_twin_review', enabled: true, enabled_by: 'conformance-harness' });
+  var rlPatient = ctx.foundationCreatePatient_({ full_name: 'Stage29 RL Patient', email: 'stage29-rl-p@example.com', condition_slug: 'mcas', created_by: 'conformance-harness' });
+  ctx.foundationAssignCondition_({ patient_id: rlPatient.data.patient_id, condition_slug: 'mcas', assigned_by: rlDocId });
+  var rlRejected = false;
+  for (var rli = 0; rli < 12; rli++) {
+    var rlRes = ctx.foundationGenerateDigitalTwinNarrative_({ doctor_id: rlDocId, patient_id: rlPatient.data.patient_id, narrative_type: 'ai_summary' });
+    if (rlRes.status === 'error' && rlRes.error.code === 'FOUNDATION_DIGITAL_TWIN_RATE_LIMITED') { rlRejected = true; break; }
+  }
+  record('Stage29: the per-doctor daily generation rate limit rejects once its ceiling is reached (docs/59 §10)', rlRejected);
+
+  // ---- Audit trail ----
+  record('Stage29: the batch wrote its own digital_twin_narrative_generated / digital_twin_narrative_reviewed AuditLog rows',
+    auditRowsOf(h, 'digital_twin_narrative_generated').length >= 1 && auditRowsOf(h, 'digital_twin_narrative_reviewed').length >= 1);
+
+  // ---- HTTP dispatch — correct guard, cross-identity-type rejection (docs/59 §10/§15) ----
+  var docSessionA29 = ctx.foundationIssueDoctorSessionToken_(docA29Id);
+  var patientSessionOn29 = ctx.foundationIssueSessionToken_(patientOn29.data.patient_id);
+  record('Stage29: get_patient_digital_twin (HTTP) succeeds for a DoctorSession, roster-scoped',
+    JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'get_patient_digital_twin', session_token: docSessionA29, patient_id: patientOn29.data.patient_id })._text).status === 'ok');
+  record('Stage29: generate_digital_twin_narrative rejects a real PatientSession token with FOUNDATION_UNAUTHORIZED — patients never generate',
+    JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'generate_digital_twin_narrative', session_token: patientSessionOn29, patient_id: patientOn29.data.patient_id, narrative_type: 'health_story' })._text).error.code === 'FOUNDATION_UNAUTHORIZED');
+  record('Stage29: review_digital_twin_narrative rejects a real PatientSession token with FOUNDATION_UNAUTHORIZED — patients never review',
+    JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'review_digital_twin_narrative', session_token: patientSessionOn29, narrative_id: gen2.data.narrative_id, review_status: 'approved' })._text).error.code === 'FOUNDATION_UNAUTHORIZED');
+  record('Stage29: get_patient_digital_twin rejects a real PatientSession token with FOUNDATION_UNAUTHORIZED',
+    JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'get_patient_digital_twin', session_token: patientSessionOn29, patient_id: patientOn29.data.patient_id })._text).error.code === 'FOUNDATION_UNAUTHORIZED');
+  record('Stage29: get_health_story (HTTP) succeeds for a PatientSession, own record only',
+    JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'get_health_story', session_token: patientSessionOn29 })._text).status === 'ok');
+  record('Stage29: get_health_story rejects a real DoctorSession token with FOUNDATION_UNAUTHORIZED — NOT dual-guarded (docs/59 §4)',
+    JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'get_health_story', session_token: docSessionA29 })._text).error.code === 'FOUNDATION_UNAUTHORIZED');
+  record('Stage29: get_progress_analytics rejects a real DoctorSession token with FOUNDATION_UNAUTHORIZED',
+    JSON.parse(ctx.handleFoundationRequest_({ foundation_action: 'get_progress_analytics', session_token: docSessionA29 })._text).error.code === 'FOUNDATION_UNAUTHORIZED');
+
+  // ---- ADR-029/§18 item 6 as a source-level fact: DigitalTwinContext.gs makes no AI/model call ----
+  var staticAnalyzer29 = require('../static-analysis/analyze.js');
+  record('Stage29: DigitalTwinContext.gs (context builder + both computed views) makes no UrlFetchApp/model call — the deterministic half is provably AI-free (docs/59 §18 item 6)',
+    !/UrlFetchApp\.|callOpenRouter[A-Za-z_]*\(/.test(staticAnalyzer29.neutralizeCommentsAndStrings(require('fs').readFileSync(require('path').join(harness.APPS_SCRIPT_DIR, 'DigitalTwinContext.gs'), 'utf8'))));
 })();
 
 function auditRowsOf(h, eventType) {

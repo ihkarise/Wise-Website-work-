@@ -369,7 +369,29 @@
  * DoctorEmail.gs, DoctorLoginFlow.gs, DoctorRouteGuard.gs,
  * DoctorModuleRegistry.gs, DoctorModuleState.gs, DoctorPatientRoster.gs,
  * Appointment.gs, InventoryItem.gs, AIAssistantContext.gs, AIAssistantInteraction.gs,
- * HoloscanRecognition.gs, HoloscanRecognitionCheck.gs, MedicationHistory.gs.
+ * HoloscanRecognition.gs, HoloscanRecognitionCheck.gs, MedicationHistory.gs,
+ * DigitalTwinContext.gs, DigitalTwinDriftCheck.gs, DigitalTwinNarrative.gs.
+ *
+ *   - get_patient_digital_twin / generate_digital_twin_narrative /
+ *     review_digital_twin_narrative — Batch PXP-12 additions (Phase 2D, docs/59 §12,
+ *     ADR-028/029/030), the Doctor Dashboard's eighth capability (DigitalTwinNarrative.gs,
+ *     registered as shared/constants/doctor-module-registry.json's `digital_twin_review`
+ *     entry, disabled by default per ADR-030). All three are doctor-guarded only — doctor_id
+ *     is always DoctorSession-derived, never client-supplied. get_patient_digital_twin is
+ *     read-only (one roster patient's computed Digital Twin view + Progress Analytics + every
+ *     narrative including pending drafts). generate_digital_twin_narrative is a write route: it
+ *     writes exactly one DigitalTwinNarrative row (review_status pending, never patient-visible);
+ *     it never creates, updates, or fulfills any other entity (ADR-028, statically enforced per
+ *     docs/59 §18 item 1). review_digital_twin_narrative records the caller's one-way
+ *     approved/edited_and_approved/rejected decision, setting published_output — the sole gate to
+ *     patient visibility — and likewise never writes anywhere else.
+ *   - get_health_story / get_progress_analytics — Batch PXP-12 additions (docs/59 §12), the
+ *     patient-facing half of Phase 2D. Both are patient-guarded only — patient_id is always
+ *     PatientSession-derived, never client-supplied. get_health_story returns the caller's own
+ *     computed Digital Twin view + ONLY their approved/edited_and_approved narratives'
+ *     published_output (never a pending/rejected draft, never the raw ai_output, ADR-028).
+ *     get_progress_analytics returns the caller's own deterministic, non-AI Progress Analytics
+ *     view — no model output, no doctor gate. Neither is dual-guarded (docs/59 §4).
  */
 
 /**
@@ -1060,6 +1082,80 @@ function foundationHandleGetHealthMilestones_(input) {
 }
 
 /**
+ * Batch PXP-12 (Phase 2D — Wise Digital Twin & AI Summaries, docs/59 §12, ADR-028/029/030):
+ * one roster patient's computed Digital Twin view + Progress Analytics + every
+ * DigitalTwinNarrative including pending drafts (full, doctor-only shape). Read-only,
+ * enablement- and roster-gated (digital_twin_review disabled by default, ADR-030). doctor_id
+ * is always DoctorSession-derived, never client-supplied.
+ */
+function foundationHandleGetPatientDigitalTwin_(input) {
+  return withFoundationDoctorAuth_(input && input.session_token, function (doctorId) {
+    return foundationGetPatientDigitalTwinForDoctor_(doctorId, input && input.patient_id);
+  });
+}
+
+/**
+ * Batch PXP-12 (docs/59 §12): runs the generation pipeline for a roster patient +
+ * narrative_type, writing one DigitalTwinNarrative row (review_status pending, NEVER
+ * patient-visible). doctor_id is always DoctorSession-derived, never client-supplied.
+ * foundationGenerateDigitalTwinNarrative_() itself enforces fail-closed enablement (ADR-030),
+ * roster scope, the per-doctor rate limit, grounded context assembly (ADR-029), and the
+ * independent drift check. The only Sheet it writes is DigitalTwinNarratives (ADR-028,
+ * statically enforced per docs/59 §18 item 1).
+ */
+function foundationHandleGenerateDigitalTwinNarrative_(input) {
+  return withFoundationDoctorAuth_(input && input.session_token, function (doctorId) {
+    return foundationGenerateDigitalTwinNarrative_({
+      doctor_id: doctorId,
+      patient_id: input && input.patient_id,
+      narrative_type: input && input.narrative_type
+    });
+  });
+}
+
+/**
+ * Batch PXP-12 (docs/59 §8.3/§12, ADR-028): records the caller's one-way
+ * approved/edited_and_approved/rejected decision on one narrative for a roster patient — the
+ * SOLE gate to patient visibility. doctor_id is always DoctorSession-derived, never
+ * client-supplied. Never writes any entity's Sheet other than DigitalTwinNarratives.
+ */
+function foundationHandleReviewDigitalTwinNarrative_(input) {
+  return withFoundationDoctorAuth_(input && input.session_token, function (doctorId) {
+    return foundationReviewDigitalTwinNarrative_({
+      doctor_id: doctorId,
+      narrative_id: input && input.narrative_id,
+      review_status: input && input.review_status,
+      edited_output: input && input.edited_output,
+      review_notes: input && input.review_notes
+    });
+  });
+}
+
+/**
+ * Batch PXP-12 (docs/59 §12, ADR-028): the caller's OWN computed Digital Twin view + only their
+ * approved/edited_and_approved narratives' published_output — never a pending or rejected draft,
+ * never the raw ai_output. patient_id is always PatientSession-derived, never client-supplied.
+ * Not dual-guarded — the doctor's roster-scoped view is the separate get_patient_digital_twin
+ * route (docs/59 §4).
+ */
+function foundationHandleGetHealthStory_(input) {
+  return withFoundationAuth_(input && input.session_token, function (patientId) {
+    return foundationGetHealthStoryForPatient_(patientId);
+  });
+}
+
+/**
+ * Batch PXP-12 (docs/59 §6.3/§12): the caller's OWN deterministic, non-AI Progress Analytics
+ * view — no model output, no doctor gate. patient_id is always PatientSession-derived, never
+ * client-supplied.
+ */
+function foundationHandleGetProgressAnalytics_(input) {
+  return withFoundationAuth_(input && input.session_token, function (patientId) {
+    return foundationGetProgressAnalyticsForPatient_(patientId);
+  });
+}
+
+/**
  * Serializes a response-envelope-shaped value to the wire. Apps Script
  * Web Apps cannot set a real HTTP status code (every response transports
  * as HTTP 200 regardless — the same platform fact Code.gs's own
@@ -1226,6 +1322,21 @@ function handleFoundationRequest_(input) {
       break;
     case 'get_health_milestones':
       envelope = foundationHandleGetHealthMilestones_(input);
+      break;
+    case 'get_patient_digital_twin':
+      envelope = foundationHandleGetPatientDigitalTwin_(input);
+      break;
+    case 'generate_digital_twin_narrative':
+      envelope = foundationHandleGenerateDigitalTwinNarrative_(input);
+      break;
+    case 'review_digital_twin_narrative':
+      envelope = foundationHandleReviewDigitalTwinNarrative_(input);
+      break;
+    case 'get_health_story':
+      envelope = foundationHandleGetHealthStory_(input);
+      break;
+    case 'get_progress_analytics':
+      envelope = foundationHandleGetProgressAnalytics_(input);
       break;
     default:
       envelope = buildFoundationErrorEnvelope_('FOUNDATION_UNKNOWN_ACTION', 'Unknown request.');

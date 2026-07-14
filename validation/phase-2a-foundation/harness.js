@@ -198,6 +198,17 @@
  * `foundationGetDoctorPatientRoster_` and pure date arithmetic (the computed milestone
  * schedule, docs/58 §7) — the same "additive entity, zero new infrastructure" pattern,
  * and notably the first Phase 2C batch to make no model/UrlFetchApp call at all (ADR-027).
+ *
+ * Extended in Phase 2D batch PXP-12 with `DigitalTwinContext.gs`, `DigitalTwinDriftCheck.gs`,
+ * and `DigitalTwinNarrative.gs` in the FILES list — no new mock needed:
+ * `DigitalTwinNarrative.gs` reuses this harness's own already-mocked `UrlFetchApp.fetch`/
+ * `CacheService`/`LockService`/`foundationDsInsert_`/`foundationDsUpdateById_`/
+ * `foundationGetDoctorPatientRoster_`/`foundationGetDoctorModuleStates_` primitives exactly (the
+ * same primitives `AIAssistantInteraction.gs` already exercises — it even reuses that file's own
+ * `foundationSecondsUntilUtcMidnight_()`/`FOUNDATION_CACHE_SERVICE_MAX_TTL_SECONDS_` rate-limit
+ * helpers rather than redeclaring them), and `DigitalTwinContext.gs`/`DigitalTwinDriftCheck.gs`
+ * are deterministic, non-AI code over already-mocked scoped readers. The platform's first
+ * patient-facing AI feature, proven end to end against the default canned OpenRouter response.
  */
 
 var fs = require('fs');
@@ -259,6 +270,9 @@ var FILES = [
   'MedicationHistory.gs',
   'MilestoneTrack.gs',
   'MilestoneReview.gs',
+  'DigitalTwinContext.gs',
+  'DigitalTwinDriftCheck.gs',
+  'DigitalTwinNarrative.gs',
   'FoundationRouter.gs'
 ];
 

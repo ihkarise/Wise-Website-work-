@@ -136,6 +136,25 @@ var FOUNDATION_DOCTOR_MODULE_REGISTRY_ = [
     display_order: 90,
     data_source: 'get_patient_milestones',
     future_ai_capable: false
+  },
+  {
+    // Batch PXP-12 (Phase 2D — Wise Digital Twin & AI Summaries, docs/59 §13.2,
+    // ADR-028/029/030) — the platform's THIRD AI-output-review doctor capability and its
+    // highest-risk one, since the content a doctor generates and reviews there is
+    // destined for a PATIENT (ADR-028), not just for the doctor's own consumption (as with
+    // ai_assistant) or for an internal medication record (as with holoscan_review).
+    // Diverges from every normal-rollout entry, per ADR-030 (the identical discipline
+    // ADR-023 established for ai_assistant and ADR-026 for holoscan_review): this entry's
+    // own DoctorModuleState must remain absent (fail-closed, ADR-010) for every doctor by
+    // default; enabling it is a deliberate, disclosed, per-doctor administrative decision,
+    // never a bulk/default rollout. Backed by the roster-scoped get_patient_digital_twin
+    // route (generate_digital_twin_narrative/review_digital_twin_narrative are the same
+    // batch's additional write routes, not this entry's own data_source).
+    capability_key: 'digital_twin_review',
+    display_name: 'Digital Twin Review',
+    display_order: 100,
+    data_source: 'get_patient_digital_twin',
+    future_ai_capable: false
   }
 ];
 

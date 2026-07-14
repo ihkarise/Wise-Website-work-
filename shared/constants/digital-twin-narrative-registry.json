@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wisehomeopathy.com/shared/constants/digital-twin-narrative-registry.json",
+  "title": "Digital Twin Narrative-Type Registry",
+  "version": "1.0.0",
+  "description": "The canonical, static list of Digital Twin narrative-type descriptors — Batch PXP-12 (Phase 2D, docs/59-PHASE-2D-DIGITAL-TWIN-ARCHITECTURE-FREEZE.md §11.3, ADR-028/029/030), governed by docs/53-PHASE-3-IMPLEMENTATION-RULES.md. Structurally parallel to shared/constants/ai-assistant-capability-registry.json's own 'availability + allow-list' framing — this file declares the fixed set of narrative types the Digital Twin may generate and, for each, exactly which of the patient's own already-stored entities the DigitalTwinContextBuilder (apps-script/DigitalTwinContext.gs) may read (context_sources) — never 'everything' (ADR-029). requires_knowledge_engine is a reserved field that MUST be false for every entry in this freeze's scope (§5/ADR-029): the Digital Twin narrates 'what the patient's own record says', never a knowledge base that isn't built. output_shape is 'draft_text' for both entries — plain, short, patient-friendly prose the drift check can reliably parse (docs/59 §7.2 item 6). Two entries are defined, sharing one pipeline, one gate, one set of boundaries: health_story (the patient's living health story) and ai_summary (the same shape at a coarser cadence). apps-script/DigitalTwinContext.gs hand-ports this list into its own Foundation-prefixed array, the same convention ai-assistant-capability-registry.json's own consumer already uses — update both by hand if the canonical list ever changes, per shared/README.md's rule. See digital-twin-narrative-registry.md for the full field-by-field explanation.",
+  "narrative_types": [
+    {
+      "narrative_type": "health_story",
+      "display_name": "Health Story",
+      "description": "A plain-language narrative of the patient's own recorded history — care plan, recent check-ins, calculator results, symptom logs, medication history, and celebrated health milestones — organized into one readable story. Never a diagnosis, treatment, prognosis, or reassurance beyond what a doctor already recorded (ADR-004). Doctor-approved before the patient ever sees it (ADR-028).",
+      "context_sources": ["care_plan", "check_in_response", "calculator_result", "symptom_log", "medication_history", "health_milestone"],
+      "output_shape": "draft_text",
+      "requires_knowledge_engine": false,
+      "future_ai_capable": false
+    },
+    {
+      "narrative_type": "ai_summary",
+      "display_name": "AI Summary",
+      "description": "The same AI-narrated shape as the Health Story, produced at a coarser cadence (a periodic progress summary) from a narrower slice of the patient's own record. Same pipeline, same doctor-approval gate, same content boundaries (ADR-004/ADR-028/ADR-029).",
+      "context_sources": ["check_in_response", "calculator_result", "health_milestone"],
+      "output_shape": "draft_text",
+      "requires_knowledge_engine": false,
+      "future_ai_capable": false
+    }
+  ]
+}

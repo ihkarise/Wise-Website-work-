@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wisehomeopathy.com/shared/schemas/digital-twin-narrative.schema.json",
+  "title": "DigitalTwinNarrative",
+  "version": "1.0.0",
+  "description": "The canonical shape of a DigitalTwinNarrative record — docs/59-PHASE-2D-DIGITAL-TWIN-ARCHITECTURE-FREEZE.md §11.1's AI narrative audit/decision/delivery record, Batch PXP-12 (Phase 2D — Wise Digital Twin & AI Summaries, ADR-028/029/030), governed by docs/53-PHASE-3-IMPLEMENTATION-RULES.md. The platform's FIRST patient-facing AI-generated content: a doctor generates one narrative (health_story | ai_summary) for one of their own roster patients, and NO narrative reaches a patient until that doctor approves it (ADR-028). This entity is the only thing Phase 2D persists — the Digital Twin view and the Progress Analytics view are computed on read, never stored (ADR-004/ADR-028). Every generated row is created review_status 'pending' and is never patient-visible; the patient read route (get_health_story) returns ONLY 'approved'/'edited_and_approved' narratives' published_output, server-enforced. `context_snapshot` and `ai_output_flags` follow docs/44 §11.4's JSON-storage policy exactly as AIAssistantInteraction.context_snapshot/CalculatorResult.input_snapshot already established: stored JSON-encoded in the Sheet cell (an implementation-only detail), but this contract describes both as real object/array values, since apps-script/DigitalTwinNarrative.gs's own row-to-API-shape conversion always parses them back before returning a record. ai_output is retained immutably even after an edited_and_approved decision — the honest audit of what the model produced (ADR-028).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["narrative_id", "patient_id", "narrative_type", "context_snapshot", "prompt_template_version", "model", "ai_output", "ai_output_flags", "review_status", "published_output", "reviewed_by", "review_notes", "created_at", "reviewed_at"],
+  "properties": {
+    "narrative_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Server-generated UUID (generateFoundationId_()), this row's own identity — never client-supplied."
+    },
+    "patient_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The subject patient. Roster-validated at creation, since a doctor generates it (DoctorPatientRoster.gs, reused, never re-derived)."
+    },
+    "narrative_type": {
+      "type": "string",
+      "enum": ["health_story", "ai_summary"],
+      "description": "The fixed narrative kind (docs/59 §11.3). Two entries share one pipeline, one gate, one set of boundaries — distinguished only by their context_sources allow-list. Never free text."
+    },
+    "context_snapshot": {
+      "type": "object",
+      "description": "The exact, flat, size-bounded context object DigitalTwinContextBuilder (apps-script/DigitalTwinContext.gs) assembled and sent to the model — stored for audit/traceability, mirroring AIAssistantInteraction.context_snapshot exactly. Stored JSON-encoded in the underlying Sheet cell — an implementation-only detail; every function returning a record parses it back into this real object shape first."
+    },
+    "prompt_template_version": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Matches the version-controlled prompt spec (apps-script/DIGITAL-TWIN-PROMPTS.md), mirrors AI-ASSISTANT-PROMPTS.md/PROMPT_VERSION_ convention exactly."
+    },
+    "model": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The OpenRouter model identifier used for this invocation (CONFIG.DIGITAL_TWIN.MODEL — a local, decoupled constant, never a read of Phase 1.5's frozen Config.gs, docs/59 §7.3)."
+    },
+    "ai_output": {
+      "type": "string",
+      "description": "The model's raw draft narrative. NEVER shown to a patient directly — only a doctor-approved published_output is (ADR-028). Immutable once written (the honest record of what the model produced), retained even after an edited_and_approved decision."
+    },
+    "ai_output_flags": {
+      "type": "array",
+      "description": "DigitalTwinDriftCheck_()'s advisory flags (docs/59 §8.2), an array of human-readable strings — empty array, not null, when clean. Stored JSON-encoded in the underlying Sheet cell — an implementation-only detail; every function returning a record parses it back into this real array shape first."
+    },
+    "review_status": {
+      "type": "string",
+      "enum": ["pending", "approved", "edited_and_approved", "rejected"],
+      "description": "Always 'pending' at creation; transitions one-way, exactly once (ADR-028), mirroring AIAssistantInteraction.doctor_decision's precedent. Only 'approved'/'edited_and_approved' ever makes a narrative patient-visible — the sole gate to patient visibility."
+    },
+    "published_output": {
+      "type": "string",
+      "description": "The text the patient actually sees — set only on 'approved' (equals ai_output) or 'edited_and_approved' (the doctor's own edited text). Empty-string sentinel while 'pending' or when 'rejected'. The one field the patient read route returns."
+    },
+    "reviewed_by": {
+      "type": "string",
+      "description": "doctor_id, DoctorSession-derived, set at review time. Empty-string sentinel while still 'pending'."
+    },
+    "review_notes": {
+      "type": "string",
+      "description": "Optional doctor rationale, empty-string sentinel when not supplied — the same convention every other optional free-text field in this codebase already uses."
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Server-set (foundationNowIso_()) at creation. Never editable."
+    },
+    "reviewed_at": {
+      "type": "string",
+      "description": "Server-set (foundationNowIso_()) at the moment review_status transitions away from 'pending'. Empty-string sentinel while still 'pending' — mirrors AIAssistantInteraction.decided_at exactly (a plain string type, never real null, ADR-006)."
+    }
+  }
+}
