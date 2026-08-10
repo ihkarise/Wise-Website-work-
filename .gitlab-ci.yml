@@ -1,0 +1,11 @@
+pages:
+  stage: deploy
+  script:
+    - mkdir public
+    - cp -r assets blog conditions online-consultation my-health-journey doctor-dashboard admin internal public/
+    - cp *.html robots.txt sitemap.xml public/
+  artifacts:
+    paths:
+      - public
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
