@@ -34,16 +34,42 @@ launch-readiness gaps found in the Phase 1 production audit (2026-09-25).
   `lbImg.src`/`.alt` on click and resolves the element via `querySelector('img')`, so
   behaviour is unchanged.
 
+#### Changed — blog launch decision
+- **Blog removed from public navigation on all 9 public pages** (`index.html`, `team.html`,
+  `gallery.html`, `contact.html`, `privacy.html`, `terms.html`, `disclaimer.html`,
+  `conditions/index.html`, `online-consultation/index.html`) — primary nav, mobile menu
+  and footer. The hub has no published posts: it rendered three dated cards that were
+  `<article>` blocks with no `<a>` at all, which reads as an abandoned site. Every removal
+  is an HTML comment tagged `PHASE1-BLOG-HIDDEN` that retains the original markup verbatim,
+  so restoring the blog is a single search-and-revert on that marker — **nothing was deleted**.
+- **Homepage blog-teaser section hidden** (`index.html`, `<section id="blog">`) — three cards
+  linking to the empty hub. Same marker. Nothing links to `#blog`, verified before hiding.
+- **`blog/index.html` marked `noindex,follow`** so the empty hub is not indexed while unlinked.
+- **`sitemap.xml`** — `/blog/` entry removed while the hub is noindex (now 10 URLs).
+
 #### Validation
-- `sitemap.xml` parses as well-formed XML; all 11 `<loc>` targets verified present on disk.
+- `sitemap.xml` parses as well-formed XML; all 10 `<loc>` targets verified present on disk.
+- Comment-stripped scan confirms **no live blog link remains** on any public page, and that
+  no nested HTML comments were introduced (comments cannot nest; the nav `<li>` is parked on
+  a sentinel during the anchor pass specifically to avoid that).
+- Primary-nav contents diffed per page: `Home, Online Consultation, Conditions, Team,
+  Gallery, Patient Login[, Book Now]` — only `Blog` removed, every other item intact.
 - Internal-link crawl across all 32 HTML pages: **the only unresolved reference is
   `assets/favicon.ico`**, which is a missing-asset issue, not a broken link.
 - HTML tag-balance check passes on every changed file, and on untouched
   `index.html`/`team.html` as a baseline control.
 
+#### Known, pre-existing, not introduced here
+- `online-consultation/index.html` has an unclosed `<section>` (and therefore `<body>`).
+  Verified byte-identical at `HEAD` before these changes — pre-existing, not caused here.
+  Browsers auto-close it, so it is not launch-blocking, but it should be fixed in Week 1.
+- `thanks.html` (newsletter confirmation, `noindex`) still links to `blog/`. It is only
+  reachable by submitting the newsletter form on the now-unlinked hub, so it is effectively
+  unreachable; left untouched so restoring the blog needs no second edit.
+
 > **Not yet done — Phase 1 remains open.** Production images, the consultation fee
-> value, the hosting-platform decision, analytics/Search Console, the blog launch
-> decision, and all live-domain verification are still outstanding. See the audit's
+> value, the GitLab Pages hosting migration, analytics/Search Console, and all
+> live-domain verification are still outstanding. See the audit's
 > launch-blocker list. Phase 1 status in `docs/24-ROADMAP.md` is unchanged
 > (**In Progress**) and must not be closed until the launch gate passes.
 
