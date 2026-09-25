@@ -1,11 +1,26 @@
+# Wise Homeopathy — GitLab Pages deployment (Phase 1 hosting migration).
+# Static copy only: no build step, no framework, no bundler. Mirrors the
+# Netlify publish root, minus repository-only material (docs/, adr/,
+# validation/, apps-script/, shared/ — none of which is referenced at runtime
+# by any page; verified).
+#
+# Canonical redirect and security headers are NOT configured here: GitLab Pages
+# supports neither per-project response headers nor forced cross-host redirects.
+# Both live in Cloudflare — see docs/60-PHASE-1-HOSTING-MIGRATION.md.
 pages:
   stage: deploy
   script:
-    - mkdir public
+    - mkdir -p public
     - cp -r assets blog conditions online-consultation my-health-journey doctor-dashboard admin internal public/
     - cp *.html robots.txt sitemap.xml public/
+    # Contributor instructions, not a production asset.
+    - rm -f public/assets/PUT-YOUR-FILES-HERE.txt
+    # Fail loudly if the error page or sitemap did not make it into the artifact.
+    - test -f public/404.html
+    - test -f public/sitemap.xml
+    - test -f public/index.html
   artifacts:
     paths:
       - public
   rules:
-    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

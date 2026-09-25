@@ -59,6 +59,36 @@ launch-readiness gaps found in the Phase 1 production audit (2026-09-25).
 - HTML tag-balance check passes on every changed file, and on untouched
   `index.html`/`team.html` as a baseline control.
 
+#### Added — hosting migration plan (item 1)
+- **`docs/60-PHASE-1-HOSTING-MIGRATION.md`** (new) — the Netlify → GitLab Pages +
+  Cloudflare migration runbook. Records the verified capability gap that makes
+  Cloudflare mandatory rather than optional: GitLab Pages supports neither forced
+  cross-host redirects (its `_redirects` is path-level, files take priority, and the
+  `force`/`!` flag does not exist) nor per-project response headers. Without Cloudflare
+  the canonical redirect and every security header including HSTS would be lost,
+  reinstating `WEBSITE-AUDIT.md` finding C1. Contains the Cloudflare rules that
+  reproduce `netlify.toml` verbatim, the forms migration, an 8-step cutover order,
+  rollback, production verification commands, and an open-items checklist.
+- **Netlify config deliberately retained.** `netlify.toml` and `_redirects` are NOT
+  deleted in this change. Netlify still serves production; removing them before
+  GitLab + Cloudflare is verified would strip the live site's headers and canonical
+  redirect. They are deleted at cutover step 8.
+
+#### Changed — production hardening
+- **`.gitlab-ci.yml`** — publishes `mkdir -p` (idempotent), drops the contributor-only
+  `assets/PUT-YOUR-FILES-HERE.txt` from the artifact, asserts `index.html`, `404.html`
+  and `sitemap.xml` are present so a missing file fails the pipeline instead of
+  shipping a broken site, and keys on `$CI_DEFAULT_BRANCH` rather than a literal.
+  Documents that headers/redirects intentionally live in Cloudflare, not here.
+- **`robots.txt`** — was `Allow: /` with nothing disallowed. Now disallows the staff,
+  admin, doctor and authenticated patient surfaces (`/admin/`, `/internal/`,
+  `/doctor-dashboard/`, `/doctor-login.html`, `/doctor-verify.html`,
+  `/my-health-journey/`, `/verify.html`). `/login.html` is deliberately left
+  crawlable — it is the public patient entry point and is listed in `sitemap.xml`.
+- **`admin/index.html` and `verify.html`** — added `noindex, nofollow`. Both were
+  fully indexable: the first is the Decap CMS surface, the second consumes a
+  one-time magic-link token. Every other non-public page already had the tag.
+
 #### Known, pre-existing, not introduced here
 - `online-consultation/index.html` has an unclosed `<section>` (and therefore `<body>`).
   Verified byte-identical at `HEAD` before these changes — pre-existing, not caused here.

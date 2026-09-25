@@ -1,4 +1,16 @@
 User-agent: *
 Allow: /
 
+# Authenticated, staff-only and token-consuming surfaces. These are all
+# noindex at the page level too; this is defence in depth, not the only control.
+# /login.html is deliberately NOT disallowed — it is the public patient entry
+# point and is listed in sitemap.xml.
+Disallow: /admin/
+Disallow: /internal/
+Disallow: /doctor-dashboard/
+Disallow: /doctor-login.html
+Disallow: /doctor-verify.html
+Disallow: /my-health-journey/
+Disallow: /verify.html
+
 Sitemap: https://www.wisehomeopathy.com/sitemap.xml
