@@ -8,6 +8,12 @@
   <url><loc>https://www.wisehomeopathy.com/gallery.html</loc><priority>0.6</priority></url>
   <url><loc>https://www.wisehomeopathy.com/contact.html</loc><priority>0.8</priority></url>
   <url><loc>https://www.wisehomeopathy.com/login.html</loc><priority>0.5</priority></url>
+  <!-- Legal pages — indexable trust signals for a medical practice; excluded
+       until now, which understated the site to crawlers. /404.html is
+       deliberately absent: it is noindex and returns a 404 status. -->
+  <url><loc>https://www.wisehomeopathy.com/privacy.html</loc><priority>0.3</priority></url>
+  <url><loc>https://www.wisehomeopathy.com/terms.html</loc><priority>0.3</priority></url>
+  <url><loc>https://www.wisehomeopathy.com/disclaimer.html</loc><priority>0.4</priority></url>
   <!-- Only the Patient Login entry point is listed here — the authenticated
        pages behind it (/my-health-journey/ and its sub-pages) have no useful
        content to show an unauthenticated crawler and are not queued for

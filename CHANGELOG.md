@@ -6,7 +6,46 @@ See `WEBSITE-AUDIT.md` for the full audit this work is based on, and its Phase 4
 
 ## [Unreleased]
 
-Nothing pending.
+### Phase 1 (Public Website) — pre-launch production readiness
+
+Small, non-architectural fixes toward closing Phase 1 per `docs/24-ROADMAP.md`. No
+framework, build step, or backend phase touched; no frozen phase reopened. Addresses
+launch-readiness gaps found in the Phase 1 production audit (2026-09-25).
+
+#### Added
+- **`404.html`** (new) — the site had no error page. Self-contained, matches
+  `thanks.html`'s design language and brand tokens, `noindex`, with root-absolute
+  links to Home / Conditions / Online Consultation / Team / Contact (root-absolute
+  because a 404 is served from arbitrary URL depths). Served automatically by both
+  Netlify and GitLab Pages, and already covered by `.gitlab-ci.yml`'s `cp *.html`.
+- **Skip-to-content link on `contact.html`** — the site's highest-intent page was the
+  only public page with no keyboard skip link. Adds the `.skip` rule already used by
+  `index.html`/`team.html` and points it at the existing hero section via `id="main"`.
+  No DOM re-nesting, so no layout risk.
+
+#### Changed
+- **`sitemap.xml`** — added `privacy.html`, `terms.html` and `disclaimer.html`, which
+  were previously absent, understating the site's trust pages to crawlers. Now 11 URLs,
+  every one verified to resolve to a real file. `404.html` deliberately excluded.
+
+#### Fixed
+- **`gallery.html`** — removed `src=""` from the lightbox `<img>`. An empty `src` makes
+  browsers re-request the page URL on every gallery load. The lightbox JS assigns
+  `lbImg.src`/`.alt` on click and resolves the element via `querySelector('img')`, so
+  behaviour is unchanged.
+
+#### Validation
+- `sitemap.xml` parses as well-formed XML; all 11 `<loc>` targets verified present on disk.
+- Internal-link crawl across all 32 HTML pages: **the only unresolved reference is
+  `assets/favicon.ico`**, which is a missing-asset issue, not a broken link.
+- HTML tag-balance check passes on every changed file, and on untouched
+  `index.html`/`team.html` as a baseline control.
+
+> **Not yet done — Phase 1 remains open.** Production images, the consultation fee
+> value, the hosting-platform decision, analytics/Search Console, the blog launch
+> decision, and all live-domain verification are still outstanding. See the audit's
+> launch-blocker list. Phase 1 status in `docs/24-ROADMAP.md` is unchanged
+> (**In Progress**) and must not be closed until the launch gate passes.
 
 ## 2026-07-16 — Phase 2D Implementation (Batch PXP-12): Wise Digital Twin & AI Summaries
 
