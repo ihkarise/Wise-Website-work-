@@ -1,5 +1,5 @@
 # 24 - Wise Product Roadmap
-## Version 1.26 — 2026-07-16
+## Version 1.27 — 2026-09-26
 
 # Phase 1 — Public Website
 Status: In Progress
@@ -17,6 +17,40 @@ Remaining
 - Dedicated Condition Pages
 - Resources Hub
 - Photography & Branding Assets
+
+## Launch
+
+Phase 1 closes when the public website is live, verified, and in real clinic
+use. Scope is the Remaining list above plus the production go-live sequence:
+hosting migration (docs/60-PHASE-1-HOSTING-MIGRATION.md), production images,
+consultation fee, analytics/Search Console, and the launch gate in
+docs/18-RELEASE-CHECKLIST.md.
+
+**Nothing under Post-Launch Features below is part of this scope, and nothing
+there may block or delay the launch.**
+
+## Post-Launch Features
+
+Reserved for work **after** go-live. Each item is a reservation only —
+documentation, a feature ID, and a specification. None is implemented, none is
+scoped for implementation, and none is a Phase 1 launch blocker. Per the
+precedent of docs/43, docs/48 and docs/57, each requires its own dedicated
+architecture-freeze pass and separate explicit approval before any code is
+written.
+
+- **PWL-1 — Patient Feedback & Google Review** — **PLANNED — POST-LAUNCH. NOT
+  IMPLEMENTED.** An admin-initiated system for inviting selected patients to
+  give feedback and, optionally, leave a Google review. Manual send per patient
+  (no automatic or bulk sending), a 👍/👎 first screen, 1–5 star rating and
+  optional private feedback on the 👍 path, a private improvement form on the
+  👎 path, and a configurable per-patient cooldown. The Google review
+  invitation is **neutral and never conditioned on the rating** — rating-gated
+  solicitation is prohibited by design, both as a Google reviews policy
+  violation and as a misrepresentation of real patient experience. Private
+  feedback stays strictly separate from the public review and is never
+  published. Twelve data fields are reserved; no schema, Sheet, registry entry
+  or UI exists. Full specification:
+  **docs/61-PWL-1-PATIENT-FEEDBACK-AND-GOOGLE-REVIEW.md**.
 
 # Phase 1.5 — Platform Validation
 Status: **Software Complete, Deployment Complete, Operationally Complete**

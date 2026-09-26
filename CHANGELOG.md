@@ -59,6 +59,37 @@ launch-readiness gaps found in the Phase 1 production audit (2026-09-25).
 - HTML tag-balance check passes on every changed file, and on untouched
   `index.html`/`team.html` as a baseline control.
 
+#### Added — post-launch feature reservation (documentation only)
+- **`docs/61-PWL-1-PATIENT-FEEDBACK-AND-GOOGLE-REVIEW.md`** (new) — feature
+  reservation for **PWL-1 — Patient Feedback & Google Review**, a new feature-ID
+  prefix (`PWL` = Public Website, Post-Launch; verified not to collide with the
+  existing `PA`/`PXP`/`WPI` series). Admin-initiated per patient, 👍/👎 first
+  screen, 1–5 stars plus optional private feedback on the 👍 path, private
+  improvement form on the 👎 path, configurable cooldown, twelve reserved data
+  fields, privacy considerations, architectural notes for a future freeze, and
+  six open questions left deliberately unresolved.
+  **Status: PLANNED — POST-LAUNCH. NOT IMPLEMENTED.**
+  - Records the neutral-invitation rule as a **hard constraint**: the Google
+    review invitation is never conditioned on the rating. Rating-gated
+    solicitation ("review gating") is prohibited both as a Google reviews policy
+    violation that risks the clinic's Business Profile and as a
+    misrepresentation of real patient experience. Any future request to gate by
+    rating is to be refused with reference to that section.
+- **`docs/24-ROADMAP.md`** bumped to **Version 1.27** — adds two new subsections
+  under Phase 1: **Launch** (states the closing scope and that nothing in
+  Post-Launch Features may block or delay it) and **Post-Launch Features**
+  (holding PWL-1). Additive only: 35 insertions, the single deletion being the
+  version line. **No phase status line changed** — Phase 1 remains
+  **In Progress**, and Phases 1.5/2A/2B/2C/2D/3 are untouched.
+
+#### Not implemented
+- No UI, backend, schema, Sheet, registry entry or router dispatch case was
+  created for PWL-1, and no existing patient workflow was modified. Verified:
+  the change touches no `.gs`, `.html`, `.js`, `shared/schemas/` or
+  `shared/constants/` file. Per docs/00 and the precedent of docs/43/48/57,
+  implementation requires its own architecture-freeze pass, any ADRs its
+  decisions need, and separate explicit approval — none of which exist.
+
 #### Added — hosting migration plan (item 1)
 - **`docs/60-PHASE-1-HOSTING-MIGRATION.md`** (new) — the Netlify → GitLab Pages +
   Cloudflare migration runbook. Records the verified capability gap that makes
