@@ -59,6 +59,65 @@ launch-readiness gaps found in the Phase 1 production audit (2026-09-25).
 - HTML tag-balance check passes on every changed file, and on untouched
   `index.html`/`team.html` as a baseline control.
 
+#### Added — legal/privacy/compliance audit and safe remediation
+- **`docs/LEGAL-PRIVACY-COMPLIANCE-AUDIT.md`** (new) — full repository-evidence audit:
+  data inventory (31 schemas), cookie inventory, consent audit, third-party processor
+  table (13 services, traced from code not assumed), AI/IP audit, open-source and asset
+  license audits, medical and marketing claims audits, security findings, and a launch
+  matrix. 2 blockers, 5 must-fix, 14 owner decisions, 12 legal-review items.
+  Status **YELLOW / READY AFTER FIXES**.
+- **Gate 0 premise correction:** the audit brief stated a `foundation_action:
+  request_consultation` migration exists. It does **not** — zero occurrences across all
+  54 remote branches, and it is absent from the router's 54 dispatch cases. The
+  implemented consultation flow is Netlify Forms -> `booking-received.html`.
+
+#### Changed — consent and privacy-rights discoverability
+- **`contact.html`** — added a **required, not pre-checked** `privacy_consent` checkbox
+  with a Privacy Policy link before submission. This form collects health information
+  ("Main concern", and a message field prompting for current medication) and previously
+  obtained no affirmative consent and linked no policy. Wording names health
+  information explicitly and is single-purpose. Styling reuses the clinic's existing
+  `.consent` component from `internal/consultation-summary.html` — the same pattern
+  already server-enforced for staff submissions per docs/25 §9.2.
+- **`contact.html`** — the four non-`required` fields are now labelled "(optional)".
+- **"Your Privacy Rights" footer link** on all 9 public pages and `404.html`, pointing
+  to the existing `privacy.html#choices` (access / correction / deletion). The rights
+  mechanism already existed; nothing linked to it.
+- **`404.html`** — added the legal navigation it lacked.
+
+#### Fixed — regression introduced by the previous batch
+- **`verify.html` / `robots.txt`** — the previous batch added `noindex` to
+  `verify.html` and `Disallow: /verify.html` + `Disallow: /my-health-journey/`.
+  That contradicted **Batch PA-6** (docs/29), which deliberately *removed* noindex from
+  `/login.html`, `/verify.html` and the `/my-health-journey/` pages, as asserted by
+  `validation/pa-6-public-nav/browser-test.js:129-143`. The browser suite caught it.
+  Both reverted, with a comment in `robots.txt` recording why those paths must stay
+  crawlable. `pa-6-public-nav` returns to 22/22.
+
+#### Deliberately not done
+- **No cookie banner and no `cookie-policy.html`** — verified zero `document.cookie`
+  occurrences, no analytics, no ad pixels; `privacy.html`'s cookie section is already
+  accurate, so either addition would be unevidenced.
+- No invented retention period, refund rule, age limit, medical claim or legal text; no
+  marketing claim deleted; no asset deleted or replaced; no change to the Appointment
+  schema, PMS architecture or any frozen phase.
+
+#### Validation
+- Static analysis **PASS, 0 findings** (71 `.gs` files); conformance **PASS 875/875**;
+  Phase 1.5 regression **PASS 45/45**.
+- Browser suites: **18/19 pass with 0 failed checks.** Running them required installing
+  the deliberately-untracked Playwright and symlinking this container's pre-installed
+  chromium build 1194 into the path build 1243 expected — a container fix, no repository
+  change.
+- `phase-2c-milestones` is **pre-existing flaky, not a regression**: 0/1/1 failures on
+  the current tree versus 0/2/2 on a clean `e8e794e` worktree predating every commit in
+  this branch. It exercises `doctor-dashboard/`, untouched by this batch.
+- Broken-link audit over 32 pages: only unresolved reference remains
+  `assets/favicon.ico`. HTML tag balance clean on every changed file. `sitemap.xml`
+  well-formed with all 10 targets resolving.
+- Noted pre-existing, not introduced: `online-consultation/index.html` has an unclosed
+  `<section>`, byte-identical at `HEAD` before this branch.
+
 #### Added — post-launch feature reservation (documentation only)
 - **`docs/61-PWL-1-PATIENT-FEEDBACK-AND-GOOGLE-REVIEW.md`** (new) — feature
   reservation for **PWL-1 — Patient Feedback & Google Review**, a new feature-ID

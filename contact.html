@@ -73,6 +73,11 @@ header.site{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.92);ba
 .submit{width:100%;background:var(--color-accent);color:#fff;border:none;padding:15px;border-radius:var(--radius-md);font:600 15.5px var(--font-body);cursor:pointer;transition:transform .15s ease,box-shadow .2s ease}
 .submit:hover{transform:translateY(-2px);box-shadow:0 12px 28px rgba(214,46,77,.34)}
 .formnote{font-size:12.5px;color:var(--color-text-faint);margin-top:12px;text-align:center}
+.consent{display:flex;align-items:flex-start;gap:10px;background:var(--color-surface);border:1px solid var(--color-line);border-radius:12px;padding:14px 16px;margin:6px 0 18px}
+.consent input{width:auto;margin-top:3px;flex:none}
+.consent label{font-size:13.5px;font-weight:500;color:var(--color-ink);line-height:1.5}
+.consent a{color:var(--color-brand);text-decoration:underline}
+.optional{font-weight:400;color:var(--color-text-faint);font-size:12.5px}
 .contact-list{list-style:none;display:grid;gap:18px;margin-bottom:24px}
 .contact-list li{display:flex;gap:14px;align-items:flex-start}
 .ci{width:42px;height:42px;border-radius:12px;background:var(--color-surface);display:flex;align-items:center;justify-content:center;color:var(--color-brand);flex:none}
@@ -161,11 +166,11 @@ footer nav a:hover{color:#fff}
 
       <div class="row2">
         <div class="field"><label for="name">Full name</label><input id="name" name="name" type="text" required></div>
-        <div class="field"><label for="country">Country</label><input id="country" name="country" type="text" placeholder="e.g. UAE"></div>
+        <div class="field"><label for="country">Country <span class="optional">(optional)</span></label><input id="country" name="country" type="text" placeholder="e.g. UAE"></div>
       </div>
       <div class="row2">
         <div class="field"><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" required></div>
-        <div class="field"><label for="phone">Phone / WhatsApp</label><input id="phone" name="phone" type="tel" placeholder="+971 …"></div>
+        <div class="field"><label for="phone">Phone / WhatsApp <span class="optional">(optional)</span></label><input id="phone" name="phone" type="tel" placeholder="+971 …"></div>
       </div>
       <div class="field">
         <label for="mode">Consultation type</label>
@@ -176,12 +181,20 @@ footer nav a:hover{color:#fff}
         </select>
       </div>
       <div class="field">
-        <label for="condition">Main concern</label>
+        <label for="condition">Main concern <span class="optional">(optional)</span></label>
         <input id="condition" name="condition" type="text" placeholder="e.g. Hashimoto's, chronic urticaria, eczema">
       </div>
       <div class="field">
-        <label for="message">Briefly, what's been happening?</label>
+        <label for="message">Briefly, what's been happening? <span class="optional">(optional)</span></label>
         <textarea id="message" name="message" placeholder="How long, what you've tried, current medication (optional)"></textarea>
+      </div>
+      <div class="consent">
+        <input type="checkbox" id="privacy_consent" name="privacy_consent" value="yes" required>
+        <label for="privacy_consent">I have read and understood the
+          <a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a>
+          and consent to Wise Homeopathy processing the information I submit here —
+          including the health information in this form — in order to respond to my
+          consultation request.</label>
       </div>
       <button class="submit" type="submit">Send request</button>
       <p class="formnote">Private &amp; confidential. We never share your details. By sending, you agree to be contacted about your consultation.</p>
@@ -233,7 +246,7 @@ footer nav a:hover{color:#fff}
       </div>
       <div><h3>Care</h3><nav><a href="online-consultation/">Online Consultation</a><a href="index.html#conditions">Conditions</a><!-- PHASE1-BLOG-HIDDEN: <a href="blog/">Blog</a> --><a href="gallery.html">Gallery</a></nav></div>
       <div><h3>Clinic</h3><nav><a href="team.html">Our Team</a><a href="contact.html">Book Consultation</a></nav></div>
-      <div><h3>Legal</h3><nav><a href="privacy.html">Privacy Policy</a><a href="terms.html">Terms of Use</a><a href="disclaimer.html">Medical Disclaimer</a></nav></div>
+      <div><h3>Legal</h3><nav><a href="privacy.html">Privacy Policy</a><a href="terms.html">Terms of Use</a><a href="disclaimer.html">Medical Disclaimer</a><a href="privacy.html#choices">Your Privacy Rights</a></nav></div>
       <div><h3>Follow</h3><nav><a href="https://www.youtube.com/@WiseHomeopathy" rel="noopener">YouTube</a><a href="https://www.instagram.com/WiseHomeopathy" rel="noopener">Instagram</a><a href="https://www.facebook.com/WiseHomeopathy" rel="noopener">Facebook</a></nav></div>
     </div>
     <div class="foot-bottom">
