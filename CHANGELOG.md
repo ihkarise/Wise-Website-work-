@@ -59,6 +59,55 @@ launch-readiness gaps found in the Phase 1 production audit (2026-09-25).
 - HTML tag-balance check passes on every changed file, and on untouched
   `index.html`/`team.html` as a baseline control.
 
+#### Production launch closure pass
+- **`online-consultation/index.html`** — the `[ADD FEE]` placeholder and its stale
+  `TODO` comment are gone. The block now reads **"Consultation fee applies."**, the
+  owner's exact wording. **No fee amount was invented.** Repository-wide search
+  confirms the only remaining occurrences of the string are in `.md` documentation,
+  none of which `.gitlab-ci.yml` publishes.
+- **`contact.html`** — the under-18 guardian declaration is now `required` only when
+  the visitor answers Yes to "Is this enquiry about someone under 18?", with the row
+  highlighted. Reuses `internal/consultation-summary.html`'s existing
+  `updateSubmitState()` client-gate pattern. Without JavaScript the row stays visible
+  and optional, so the form can never become unsubmittable.
+  **Verified and documented honestly:** no schema in `shared/schemas/` contains any
+  consent field (searched all 31 schemas and all 71 `.gs` files), so the portal
+  cannot record guardian consent against a patient account. The declaration is
+  recorded as a form field and enforced at collection; nothing in the UI claims more
+  than that. The minimum schema change needed to close it properly is specified in
+  `docs/62` §C and deliberately **not** built.
+- **`.gitlab-ci.yml`** — `blog/post-template/` is removed from the published
+  artifact. It shipped `CHANGE-ME` placeholder text to a public URL. It is a
+  template, not a page: unlinked and absent from `sitemap.xml`. **No `noindex` was
+  added and no canonical, sitemap, robots or structured-data rule was touched.**
+- **`docs/62-PRODUCTION-CLOSURE-REPORT.md`** (new) — closure record: completed work,
+  verification results, owner-confirmed claims, real blockers, legal/provider review
+  items, the full Netlify dependency audit with A/B/C classification, honest
+  marketing opt-out status, and an evidence-based performance checklist.
+
+#### Netlify status (unchanged by this pass, and reported rather than worked around)
+- **An active Netlify production dependency remains**, so GitLab-only hosting is not
+  yet achievable. `contact.html`'s form — which carries the privacy, minor, guardian
+  and marketing consent fields — is a Netlify Form, and `netlify.toml` / `_redirects`
+  supply headers and the canonical redirect that GitLab Pages cannot reproduce.
+  **Nothing was migrated or deleted:** removing it now would leave the only reachable
+  enquiry form with no backend and destroy the consent evidence. Full classification
+  and cutover order: `docs/62` §F and `docs/60`.
+
+#### Validation
+- Static analysis **PASS 0 findings**; conformance **PASS 875/875**; Phase 1.5
+  **PASS 45/45**; browser suites **18/19 with 0 failed checks** (`pa-5-reports`
+  28/28, `pa-2-dashboard` 30/30, `pa-6-public-nav` 22/22).
+- Forbidden-claims scan over visible text: **0 hits** across 30 public pages.
+- Placeholder scan: **0** pages with visible placeholder text.
+- `sitemap.xml` well-formed, 11/11 targets resolve. Broken-link audit leaves only
+  `assets/favicon.ico`. HTML balance clean on every changed file; `contact.html`'s
+  inline script parses.
+- Owner-confirmed claims verified still present and unmodified: 8+ years, 5000+
+  patients, NTET, TCMC 12515, 6+ countries, the four approved reviews.
+- `phase-2c-milestones` remains the pre-existing flake (0/2/2 on a clean `e8e794e`
+  worktree predating this branch). No test was weakened to pass.
+
 #### Added — legal/privacy/compliance audit and safe remediation
 - **`docs/LEGAL-PRIVACY-COMPLIANCE-AUDIT.md`** (new) — full repository-evidence audit:
   data inventory (31 schemas), cookie inventory, consent audit, third-party processor

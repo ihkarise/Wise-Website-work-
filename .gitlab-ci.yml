@@ -15,6 +15,9 @@ pages:
     - cp *.html robots.txt sitemap.xml public/
     # Contributor instructions, not a production asset.
     - rm -f public/assets/PUT-YOUR-FILES-HERE.txt
+    # Blog authoring template — ships CHANGE-ME placeholder text to a public
+    # URL otherwise. Not linked, not in sitemap; it is a template, not a page.
+    - rm -rf public/blog/post-template
     # Fail loudly if the error page or sitemap did not make it into the artifact.
     - test -f public/404.html
     - test -f public/sitemap.xml

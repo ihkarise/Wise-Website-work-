@@ -209,7 +209,7 @@ footer nav a:hover{color:#fff}
           <label><input type="radio" name="enquiry_for_minor" value="yes"> Yes</label>
         </div>
       </div>
-      <div class="consent">
+      <div class="consent" id="guardianRow">
         <input type="checkbox" id="guardian_consent" name="guardian_consent" value="yes">
         <label for="guardian_consent">If you answered <strong>Yes</strong> above: I am that person&rsquo;s parent or legal guardian, and I consent on their behalf. An enquiry about someone under 18 must be submitted by their parent or guardian.</label>
       </div>
@@ -281,6 +281,29 @@ footer nav a:hover{color:#fff}
 const mb=document.getElementById('menuBtn'),mm=document.getElementById('mmenu');
 mb.addEventListener('click',()=>{const o=mm.classList.toggle('open');mb.setAttribute('aria-expanded',o)});
 mm.querySelectorAll('a').forEach(a=>a.addEventListener('click',()=>{mm.classList.remove('open');mb.setAttribute('aria-expanded','false')}));
+
+/* Under-18 enquiries: the guardian declaration becomes REQUIRED only when the
+   visitor says the enquiry is about someone under 18. Same client-gate pattern
+   as internal/consultation-summary.html's updateSubmitState(). This enforces
+   the declaration at the point of collection; it does not, and must not be
+   read as, recording guardian consent against a patient account — no schema in
+   shared/schemas/ has a consent field yet (see docs/62). Without JS the row
+   stays visible and optional, so the form can never become unsubmittable. */
+(function(){
+  const minorRadios=document.querySelectorAll('input[name="enquiry_for_minor"]');
+  const guardian=document.getElementById('guardian_consent');
+  const row=document.getElementById('guardianRow');
+  if(!minorRadios.length||!guardian||!row) return;
+  function sync(){
+    const isMinor=document.querySelector('input[name="enquiry_for_minor"]:checked')?.value==='yes';
+    guardian.required=isMinor;
+    row.style.outline=isMinor?'2px solid var(--color-accent)':'';
+    row.style.outlineOffset=isMinor?'2px':'';
+    if(!isMinor) guardian.checked=false;
+  }
+  minorRadios.forEach(r=>r.addEventListener('change',sync));
+  sync();
+})();
 </script>
 </body>
 </html>
