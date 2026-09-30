@@ -2,11 +2,23 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://wisehomeopathy.com/shared/schemas/patient-profile.schema.json",
   "title": "Patient Profile",
-  "version": "1.0.0",
-  "description": "The canonical shape of a PatientProfile record — docs/44-PHASE-2B-TECHNICAL-PLAN.md §17's Patient Profile design, batch PXP-1 (docs/44 §22), governed by docs/47-PHASE-2B-IMPLEMENTATION-RULES.md. A separate entity from the frozen Patients sheet/patient-identity.schema.json (ADR-002) — never widens that schema, mirrors the same reasoning docs/44 §6.2 already used for DoctorAssignedCondition. The platform's first patient-mutable, upsert-style entity (create-or-update on one 1:1 row), unlike every prior entity's create-and-list-only lifecycle. See patient-profile.md for the lazy-creation and status-gating decisions this schema depends on.",
+  "version": "1.1.0",
+  "description": "The canonical shape of a PatientProfile record — docs/44-PHASE-2B-TECHNICAL-PLAN.md §17's Patient Profile design, batch PXP-1 (docs/44 §22), governed by docs/47-PHASE-2B-IMPLEMENTATION-RULES.md. A separate entity from the frozen Patients sheet/patient-identity.schema.json (ADR-002) — never widens that schema, mirrors the same reasoning docs/44 §6.2 already used for DoctorAssignedCondition. The platform's first patient-mutable, upsert-style entity (create-or-update on one 1:1 row), unlike every prior entity's create-and-list-only lifecycle. See patient-profile.md for the lazy-creation and status-gating decisions this schema depends on. Version 1.1.0 adds four additive guardian-consent columns (is_minor, guardian_name, guardian_relationship, guardian_consent_at) so that parent/guardian consent for an under-18 patient can be genuinely persisted against the patient's own record rather than only declared on a public form. No 1.0.0 column was renamed, reordered relative to its neighbours, repurposed or removed. A live sheet created before 1.1.0 must be migrated once with migratePatientProfileGuardianColumns() — FoundationDataStore.gs fails closed on header drift by design.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["patient_id", "phone", "date_of_birth", "preferred_contact_method", "emergency_contact", "updated_at", "updated_by"],
+  "required": [
+    "patient_id",
+    "phone",
+    "date_of_birth",
+    "preferred_contact_method",
+    "emergency_contact",
+    "is_minor",
+    "guardian_name",
+    "guardian_relationship",
+    "guardian_consent_at",
+    "updated_at",
+    "updated_by"
+  ],
   "properties": {
     "patient_id": {
       "type": "string",
@@ -23,12 +35,38 @@
     },
     "preferred_contact_method": {
       "type": "string",
-      "enum": ["", "email", "phone", "sms"],
+      "enum": [
+        "",
+        "email",
+        "phone",
+        "sms"
+      ],
       "description": "Optional, patient-editable. Empty string when not yet chosen. One of the three enumerated values when set — validated server-side, not left as a free string, since this field drives no branching logic today but is deliberately closed to a small vocabulary rather than accepting arbitrary text."
     },
     "emergency_contact": {
       "type": "string",
       "description": "Optional free-text emergency contact (name and phone number combined as one field, per ADR-006's flat-column convention — no nested object), patient-editable. Empty string when not yet provided. Size-bounded at write time (200 characters) and HTML-escaped wherever displayed, never trusted as markup — the same discipline every other free-text field on this platform already follows (e.g. symptom-log.schema.json's notes)."
+    },
+    "is_minor": {
+      "type": "string",
+      "enum": [
+        "",
+        "yes",
+        "no"
+      ],
+      "description": "Whether this patient is under 18, declared in the portal. Empty string when not yet declared — the default for every pre-1.1.0 row and every new profile, and deliberately NOT inferred from date_of_birth, which is optional and may be blank. 'yes' makes guardian_name, guardian_relationship and an explicit consent affirmation mandatory; 'no' clears the whole guardian block, which is what keeps adult profiles unaffected."
+    },
+    "guardian_name": {
+      "type": "string",
+      "description": "Name of the parent or legal guardian who gave consent. Empty string unless is_minor is 'yes'. Required and non-empty when is_minor is 'yes'. Bounded at 120 characters server-side and HTML-escaped wherever displayed, following emergency_contact's discipline."
+    },
+    "guardian_relationship": {
+      "type": "string",
+      "description": "The guardian's relationship to the patient, as free text (e.g. mother, father, legal guardian) rather than a closed enum, since real relationships vary. Empty string unless is_minor is 'yes'. Required and non-empty when is_minor is 'yes'. Bounded at 60 characters server-side and HTML-escaped wherever displayed."
+    },
+    "guardian_consent_at": {
+      "type": "string",
+      "description": "Server-set ISO 8601 date-time stamped the first time guardian consent is affirmed for a declared minor, and preserved verbatim on every later save so it records when consent was actually given rather than when the row was last touched. NEVER accepted from the request body. Empty string means no guardian consent has been recorded — this field, and only this field, is the proof of persistence the UI may rely on before telling anyone consent is on file. Cleared when is_minor is set to 'no'."
     },
     "updated_at": {
       "type": "string",

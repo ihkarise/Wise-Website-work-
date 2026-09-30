@@ -59,6 +59,86 @@ launch-readiness gaps found in the Phase 1 production audit (2026-09-25).
 - HTML tag-balance check passes on every changed file, and on untouched
   `index.html`/`team.html` as a baseline control.
 
+#### Final engineering blocker remediation
+- **Guardian consent is now genuinely persisted.** `shared/schemas/patient-profile.schema.json`
+  -> **1.1.0**, adding four additive columns (`is_minor`, `guardian_name`,
+  `guardian_relationship`, `guardian_consent_at`) to the existing patient-scoped,
+  authenticated `PatientProfile` entity rather than inventing a new one. No 1.0.0
+  column was renamed, reordered, repurposed or removed. `guardian_consent_at` is
+  server-set only, stamped once and preserved verbatim; the profile UI reports
+  consent recorded **only** from that persisted value, so a rejected save, a server
+  error or a dropped connection all leave it reading "not yet recorded". Adults are
+  unaffected — declaring a patient an adult clears the guardian block entirely.
+  A `guardian_consent_recorded` audit event is written.
+  - **Deployment step:** run `migratePatientProfileGuardianColumns()` once from the
+    Apps Script editor before using the profile routes. `FoundationDataStore.gs`
+    fails closed on header drift by design. The migration is idempotent,
+    additive-only, refuses an unrecognised header, and preserves existing values.
+- **The Netlify Forms dependency is removed.** New `apps-script/FoundationEnquiry.gs`
+  plus one new public dispatch case, `request_consultation` — the same
+  unauthenticated category as the pre-existing `request_login_link`. Narrow by
+  design: one action, a fixed field allow-list, one fixed sheet, no sheet/range/
+  column/function name accepted from the request, no patient record touched, only a
+  receipt id returned. Protections actually implemented: allow-list validation with
+  per-field maximums, a honeypot that writes nothing, per-email rate limiting in its
+  own namespace, spreadsheet formula-injection neutralisation, and server-set
+  `enquiry_id`/`submitted_at`. **No CAPTCHA exists and none is claimed**; Apps Script
+  cannot set response headers, so origin-restricted CORS is documented as a platform
+  limitation rather than asserted.
+  - `contact.html` now submits to that endpoint with local validation, a loading
+    state, a disabled button, an in-flight duplicate guard and verbatim server
+    errors. It reaches `booking-received.html` **only** on `status: 'ok'` carrying a
+    non-empty `enquiry_id`.
+  - `privacy.html` corrected: it named Netlify as the forms processor, which is no
+    longer true. It now describes the actual flow and discloses the stored consent
+    fields.
+  - The two duplicate Netlify forms on the unlinked, `noindex` blog hub were removed
+    rather than re-pointed; newsletter sign-up has no backend, so it is an honest
+    note instead of a control that silently fails.
+  - **Zero HTML pages** now declare `data-netlify`, `netlify-honeypot` or a Netlify
+    `form-name` field — asserted by test. `netlify.toml` and `_redirects` are
+    retained deliberately: `.gitlab-ci.yml` does not publish them, so they are inert
+    on GitLab Pages, and they remain the rollback path until DNS cutover is
+    confirmed. Their header/redirect capability has no GitLab Pages equivalent —
+    documented, and **Cloudflare was not added**.
+- **Broken image references repaired where a fallback does not exist.** `og:image`
+  removed from `index.html`, `team.html` and `online-consultation/index.html` (a tag
+  pointing at a missing file makes every share render broken; each removal is a
+  reversible comment naming the path to restore), and one 404ing structured-data
+  `image` removed from the Physician node — an optional schema.org property, so the
+  graph stays valid and all JSON-LD still parses. **No image was fabricated.** The
+  remaining 11 references (logo, 4 doctor photos, 6 clinic photos) are owner-supplied
+  assets that all degrade gracefully today; they are pinned by exact path in the new
+  suite so any NEW missing image fails the build. The favicon genuinely does not
+  exist and its `<link>` tags were left in place, since browsers request
+  `/favicon.ico` regardless.
+
+#### Validation
+- Static analysis **PASS, 0 findings**. The new one-time migration wrapper is
+  registered in `analyze.js`'s existing `MANUAL_DROPDOWN_WRAPPERS` category
+  alongside `installRetentionTrigger` — a registration, not a weakened check.
+- Conformance **PASS 915/915** (up from 875): new **Stage30** covers guardian-consent
+  validation, persistence, timestamp preservation, server-only stamping, adult
+  isolation, and the enquiry endpoint's validation, consent preservation, formula
+  neutralisation, honeypot and rate limiting.
+- Phase 1.5 **PASS 45/45**.
+- Browser suites **19/20, 0 failed checks**, including the new
+  `validation/closure-blockers/` suite (**38 checks**) covering Netlify absence,
+  confirmed-only success, duplicate-submission control, minor/guardian paths,
+  failed-persistence honesty, and image resolution.
+- `pxp-1-patient-profile` **28/28** (up from 25): its bare `.field` count of 4 became
+  obsolete when the owner's decision added guardian fields, and was replaced with
+  four **stronger** per-id assertions plus adult-isolation checks.
+- `phase-2c-milestones` remains the pre-existing flake (0/2/2 on a clean `e8e794e`
+  worktree predating this branch); `doctor-dashboard/` has zero diff across the
+  branch. One nondeterminism in the **new** suite was found and fixed, not tolerated:
+  lazily-loaded gallery images are now force-loaded before the check, giving 3/3
+  clean runs.
+- **SEO safety verified by diff:** no canonical, `robots`, `noindex`, sitemap URL or
+  public URL line changed; `sitemap.xml` and `robots.txt` are byte-untouched. The
+  only structured-data change is the single 404ing `image` removal. Sitemap valid,
+  11/11 targets resolve. Broken-link audit leaves only `assets/favicon.ico`.
+
 #### Production launch closure pass
 - **`online-consultation/index.html`** — the `[ADD FEE]` placeholder and its stale
   `TODO` comment are gone. The block now reads **"Consultation fee applies."**, the

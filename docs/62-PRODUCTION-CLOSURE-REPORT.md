@@ -255,3 +255,162 @@ and the owner's locked decisions are implemented and verified. It is **not**
 called production-ready: legal sign-off on the portal privacy policy, the
 retention period and the AI provider terms is outstanding; the production images
 do not exist; and the intended GitLab-only hosting is not yet achievable (§F).
+
+---
+
+# Appendix A — Final Engineering Blocker Remediation
+
+Closes the three engineering blockers §D listed. Version 1.0 above is the
+original closure record and is not rewritten.
+
+## A1. REQUIRED DEPLOYMENT STEP — read before deploying
+
+Two operational steps must be performed once, in this order, or the affected
+features will fail closed rather than misbehave:
+
+1. **Run `migratePatientProfileGuardianColumns()`** once from the Apps Script
+   editor. `patient-profile.schema.json` is now **1.1.0** with four additive
+   guardian-consent columns, and `FoundationDataStore.gs` deliberately refuses
+   to read or write a sheet whose live header has drifted from the expected
+   columns. Until the live `PatientProfile` sheet is migrated, the profile
+   routes will throw instead of writing into the wrong cells. The function is
+   idempotent, additive-only, refuses to migrate an unrecognised header, and
+   moves existing `updated_at`/`updated_by` values across with their columns so
+   no historical value is lost. A sheet that does not exist yet needs nothing —
+   it will be created with the 1.1.0 header.
+2. **Nothing is needed for `ConsultationEnquiries`.** That sheet is created
+   automatically with its full header on the first enquiry.
+
+## A2. Blocker 1 — guardian consent persistence: IMPLEMENTED
+
+Extended the existing patient-scoped, patient-writable `PatientProfile` entity
+rather than inventing a new one. That reuses the authenticated
+`save_patient_profile` route, whose `patient_id` is session-derived and never
+accepted from the request body (ADR-002), so no new authentication system was
+introduced and one patient cannot touch another's consent.
+
+Fields added (schema 1.1.0): `is_minor` (`''`/`yes`/`no`), `guardian_name`,
+`guardian_relationship`, `guardian_consent_at`. The actor is already covered by
+the entity's existing `updated_by` audit column.
+
+`guardian_consent_at` is **server-set only** — never read from the request —
+stamped the first time consent is affirmed and preserved verbatim afterwards, so
+it records when consent was given rather than when the row was last touched.
+It is the single source of truth the UI may rely on. Declaring the patient an
+adult clears the whole guardian block, which is what keeps adult profiles
+untouched. A separate `guardian_consent_recorded` audit event is written.
+
+The UI renders consent state **only** from the persisted `guardian_consent_at`
+returned by the server, carried on a `data-recorded-at` attribute. A validation
+rejection, a server error and a dropped connection all leave it reading
+"Guardian consent not yet recorded" — proven by test, not by inspection.
+
+**Enquiry-time declaration and portal-recorded consent are deliberately kept
+distinct.** `consultation-enquiry.schema.json`'s `guardian_declared` is a
+declaration by someone with no account; only `patient-profile`'s
+`guardian_consent_at` is consent recorded against a patient record. Neither
+schema describes itself as the other.
+
+## A3. Blocker 2 — Netlify form dependency: REMOVED
+
+New `apps-script/FoundationEnquiry.gs` and a single new dispatch case,
+`request_consultation` — public and unauthenticated, the same category as the
+pre-existing `request_login_link`. It is not a general-purpose write API: one
+action, a fixed field allow-list, one fixed sheet, a fixed column list. It
+accepts no sheet name, range, column list, entity name or function name, never
+reads or writes a patient record, and returns only a receipt id.
+
+Implemented protections: allow-list validation with per-field maximum lengths;
+a honeypot that returns the ordinary success shape while writing nothing;
+per-email rate limiting (5 per 15 minutes) in its own cache namespace;
+**spreadsheet formula-injection neutralisation** on every free-text value;
+server-set `enquiry_id`/`submitted_at`; generic outward messages; no secret
+involved anywhere.
+
+**Not implemented and not claimed:** no CAPTCHA of any kind (none is configured
+and no key exists). Apps Script Web Apps cannot set response headers, so CORS
+cannot be restricted to a specific origin at this layer — the same platform
+limitation `request_login_link` already lives with, and the reason the endpoint
+is write-only and returns no personal data.
+
+Frontend: `contact.html` posts to the endpoint with local validation, a loading
+state, a disabled button, an in-flight guard against duplicate submission, and
+verbatim server error messages. It reaches `booking-received.html` **only** when
+the response is `status: 'ok'` **and** carries a non-empty `enquiry_id`, which
+exists only after the row was stored.
+
+`privacy.html` was corrected: it previously named Netlify as the forms
+processor, which is no longer true. It now describes the actual flow and
+discloses the consent fields that are stored.
+
+Blog: the two duplicate Netlify forms on the unlinked, `noindex` blog hub were
+removed rather than re-pointed — maintaining two submission paths for one
+purpose would be a second place for consent wording to drift. Newsletter
+sign-up has no backend, so it was replaced with an honest note rather than a
+control that silently fails.
+
+### Is GitLab-only hosting now achievable?
+
+**For forms, yes — the functional Netlify dependency is gone.** Zero HTML pages
+declare `data-netlify`, `netlify-honeypot` or a Netlify `form-name` field,
+asserted by test.
+
+**One documented capability gap remains, and Cloudflare was NOT added.**
+`netlify.toml` (HSTS and security headers, `/assets/*` caching) and `_redirects`
+(apex → `www`) have no GitLab Pages equivalent: GitLab Pages supports neither
+per-project response headers nor forced cross-host redirects. Both files are
+retained deliberately — `.gitlab-ci.yml` does not publish them, so they are
+inert on GitLab Pages, and they remain the rollback path until DNS cutover is
+confirmed. Deleting them now would remove that safety net while the live host
+is unverified. Supplying headers and the canonical redirect is an
+infrastructure decision for the owner (`docs/60` §4 documents one option); it
+is not a Netlify form dependency and not something to add unilaterally.
+
+## A4. Blocker 3 — images: PARTIALLY RESOLVED
+
+Fixed, because these break with no fallback:
+- **`og:image` removed** from `index.html`, `team.html` and
+  `online-consultation/index.html`. A tag pointing at a missing file makes every
+  share render as a broken image card; no tag lets the platform use its own
+  no-image layout. Each removal is a documented, reversible comment naming the
+  path to restore. **No social image was fabricated.**
+- **One 404ing structured-data `image`** removed from the Physician node in
+  `online-consultation/index.html`. `image` is optional on schema.org Person,
+  so the graph stays valid — verified, all JSON-LD still parses.
+
+**Not fixed, and not fixable by engineering: 11 owner-supplied assets** — the
+clinic logo and ten photographs (4 doctors, 6 clinic). Fabricating a logo or a
+photograph of a named physician is not an engineering fix. All eleven already
+degrade gracefully in the existing markup (monogram wordmark, initials avatars,
+"Add photo" tiles), so every page renders correctly without them. They are
+pinned by exact path in `validation/closure-blockers/browser-test.js`, so the
+suite still fails if any **new** missing image appears, and the list reaching
+zero is the signal that this blocker is closed.
+
+**Favicon:** `assets/favicon.ico` genuinely does not exist, and no valid icon
+exists anywhere in the repository to reuse. The `<link rel="icon">` tags were
+deliberately **left in place**: browsers request `/favicon.ico` by default even
+with no tag, so removing them would not prevent the 404 — it would only add
+churn. No arbitrary favicon was generated. Owner-supplied.
+
+## A5. Performance re-check
+
+No infrastructure was added. Against §H's classification, this pass changed
+two rows and no other:
+- **Already present → still present:** loading skeletons, CDN (current host),
+  dashboard preview caps.
+- **Newly present:** the enquiry form's in-flight guard is a real duplicate-
+  request control, and its loading state is a real skeleton-equivalent.
+- Everything else is unchanged, including every **Not applicable to current
+  architecture** row. Lighthouse was not re-run: the live domain remains
+  unreachable from this environment, so no new measurement exists and none is
+  claimed.
+
+## A6. What still requires legal/provider review
+
+Unchanged from §E — twelve items. This pass adds no legal claim. Two now have
+concrete engineering behind them to review rather than a gap: guardian consent
+is genuinely persisted, and enquiry consent evidence now lives in the clinic's
+own Google-backed system rather than a third-party form service. Whether either
+satisfies the DPDP Act, and whether the retention position is adequate, remain
+legal questions.

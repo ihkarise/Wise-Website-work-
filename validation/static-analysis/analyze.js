@@ -100,6 +100,7 @@ var MANUAL_DROPDOWN_WRAPPERS = [
   'createFoundationLoginToken', // FoundationLoginTokens.gs — IA-1's manually-run token creation
   'createFoundationConsultationEntry', // FoundationConsultationHistory.gs — PA-3's manually-run entry creation
   'createFoundationReportForExistingDriveFile', // FoundationReports.gs — PA-5's manually-run staff-attributed upload wrapper
+  'migratePatientProfileGuardianColumns', // FoundationPatientProfile.gs — one-time 1.0.0 -> 1.1.0 header migration for guardian consent
   'assignFoundationCondition', // DoctorAssignedCondition.gs — PXP-2's manually-run doctor/staff assignment tool
   'resolveFoundationCondition', // DoctorAssignedCondition.gs — PXP-2's manually-run doctor/staff resolution tool
   'setFoundationModuleState', // PatientModuleState.gs — PXP-3's manually-run doctor/staff enable/disable tool

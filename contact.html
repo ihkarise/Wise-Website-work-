@@ -77,6 +77,11 @@ header.site{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.92);ba
 .consent input{width:auto;margin-top:3px;flex:none}
 .consent label{font-size:13.5px;font-weight:500;color:var(--color-ink);line-height:1.5}
 .consent a{color:var(--color-brand);text-decoration:underline}
+.status{margin-top:14px;padding:13px 16px;border-radius:12px;font-size:14px;display:none;line-height:1.5}
+.status.loading{display:block;background:var(--color-surface);border:1px solid var(--color-line);color:var(--color-text-secondary)}
+.status.ok{display:block;background:#EEF7F0;border:1px solid #CBE5D3;color:#1D5B33}
+.status.err{display:block;background:#FFF6F7;border:1px solid #F3CBD3;color:#8E1F33}
+.submit:disabled{opacity:.6;cursor:not-allowed}
 .minor-q{background:var(--color-surface);border:1px solid var(--color-line);border-radius:12px;padding:14px 16px;margin:0 0 12px}
 .minor-q > span{display:block;font-size:13.5px;font-weight:600;color:var(--color-ink);margin-bottom:8px}
 .minor-opts{display:flex;gap:18px;flex-wrap:wrap}
@@ -161,14 +166,17 @@ footer nav a:hover{color:#fff}
 
 <div class="wrap cols">
 
-  <!-- LEFT: booking form (Netlify Forms = the backend, works automatically once deployed) -->
+  <!-- LEFT: booking form. Submits to the clinic's own Apps Script backend
+       (foundation_action: request_consultation) — no third-party form service. -->
   <div class="card">
     <h2>Request a consultation</h2>
     <p class="sub">Tell us a little about your case. Dr. Libin Job's team replies personally, usually within one working day.</p>
 
-    <form name="consultation" method="POST" data-netlify="true" netlify-honeypot="bot-field" action="booking-received.html">
-      <input type="hidden" name="form-name" value="consultation">
-      <p style="display:none"><label>Leave blank: <input name="bot-field"></label></p>
+    <form id="enquiryForm" name="consultation" method="POST" action="booking-received.html" novalidate>
+      <!-- Honeypot, now our own rather than Netlify's: the backend silently
+           discards any submission that fills it. aria-hidden + tabindex keeps
+           it away from screen readers and keyboard users. -->
+      <p style="display:none" aria-hidden="true"><label>Leave blank: <input name="bot_field" id="bot_field" tabindex="-1" autocomplete="off"></label></p>
 
       <div class="row2">
         <div class="field"><label for="name">Full name</label><input id="name" name="name" type="text" required></div>
@@ -217,8 +225,9 @@ footer nav a:hover{color:#fff}
         <input type="checkbox" id="marketing_consent" name="marketing_consent" value="yes">
         <label for="marketing_consent"><strong>Optional.</strong> I would like to receive occasional health information and clinic updates by email or WhatsApp. You can opt out at any time. This is separate from messages about your enquiry or your care, which we will send either way.</label>
       </div>
-      <button class="submit" type="submit">Send request</button>
-      <p class="formnote">Private &amp; confidential. We do not sell your details or share them for anyone else&rsquo;s marketing. Your submission is handled by our clinic team and the service that delivers this form to us &mdash; see the <a href="privacy.html">Privacy Policy</a>.</p>
+      <button class="submit" type="submit" id="enquirySubmitBtn">Send request</button>
+      <div class="status" id="enquiryStatus" role="status" aria-live="polite"></div>
+      <p class="formnote">Private &amp; confidential. We do not sell your details or share them for anyone else&rsquo;s marketing. Your enquiry is sent to the clinic&rsquo;s own system and read by our team &mdash; see the <a href="privacy.html">Privacy Policy</a>.</p>
     </form>
   </div>
 
@@ -281,6 +290,105 @@ footer nav a:hover{color:#fff}
 const mb=document.getElementById('menuBtn'),mm=document.getElementById('mmenu');
 mb.addEventListener('click',()=>{const o=mm.classList.toggle('open');mb.setAttribute('aria-expanded',o)});
 mm.querySelectorAll('a').forEach(a=>a.addEventListener('click',()=>{mm.classList.remove('open');mb.setAttribute('aria-expanded','false')}));
+
+/* ---------------------------------------------------------------------
+   Enquiry submission — posts to the clinic's own Apps Script backend
+   (foundation_action: request_consultation). This replaced Netlify Forms,
+   which is no longer a production dependency.
+
+   The WEB_APP_URL below is the same public Apps Script Web App endpoint
+   login.html / verify.html / the portal already use. It is public by
+   design and is NOT a secret: it carries no key, and the enquiry route is
+   write-only and returns no personal data. No credential of any kind is
+   present in this page.
+
+   Confirmation is gated on the server's own receipt: booking-received.html
+   is reached only when the response is status 'ok' AND carries a non-empty
+   enquiry_id, which exists only after the row was actually stored. A
+   validation error, a rate-limit refusal, a server error or a dropped
+   connection all keep the visitor on the page with their answers intact.
+   --------------------------------------------------------------------- */
+(function () {
+  var WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwrAx9jPnji2U-ngBpYTtV2p_SJnnFrYa7fKYo589zeVfRrwuz3N5aIS0xeiQeuFvMhIQ/exec';
+  var form = document.getElementById('enquiryForm');
+  var submitBtn = document.getElementById('enquirySubmitBtn');
+  var statusBox = document.getElementById('enquiryStatus');
+  if (!form || !submitBtn || !statusBox) { return; }
+
+  var inFlight = false;
+  function val(id) { var el = document.getElementById(id); return el ? el.value : ''; }
+  function checked(id) { var el = document.getElementById(id); return !!(el && el.checked); }
+
+  form.addEventListener('submit', function (event) {
+    event.preventDefault();
+    // Duplicate rapid submissions: a second submit while one is in flight is
+    // dropped outright, in addition to the button being disabled.
+    if (inFlight) { return; }
+
+    // Local validation first, so an obviously incomplete form never costs a
+    // round trip. The server re-validates everything regardless.
+    if (!form.checkValidity()) {
+      form.reportValidity();
+      return;
+    }
+
+    var minorEl = document.querySelector('input[name="enquiry_for_minor"]:checked');
+    var isMinor = minorEl && minorEl.value === 'yes';
+
+    inFlight = true;
+    submitBtn.disabled = true;
+    statusBox.className = 'status loading';
+    statusBox.textContent = 'Sending your enquiry…';
+
+    fetch(WEB_APP_URL, {
+      method: 'POST',
+      // text/plain avoids a CORS preflight; the Apps Script doPost parses the
+      // body as JSON regardless of Content-Type (docs/29 §3) — the same
+      // pattern login.html already uses.
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        foundation_action: 'request_consultation',
+        name: val('name'),
+        email: val('email'),
+        phone: val('phone'),
+        country: val('country'),
+        consultation_type: val('mode'),
+        condition: val('condition'),
+        message: val('message'),
+        enquiry_for_minor: isMinor ? 'yes' : 'no',
+        guardian_declared: checked('guardian_consent'),
+        privacy_consent: checked('privacy_consent'),
+        marketing_consent: checked('marketing_consent'),
+        bot_field: val('bot_field')
+      })
+    })
+      .then(function (response) { return response.json(); })
+      .then(function (data) {
+        // Every Foundation response is a response-envelope: branch on
+        // data.status, never on an HTTP status code (Apps Script Web Apps
+        // always transport as HTTP 200).
+        if (data && data.status === 'ok' && data.data && data.data.enquiry_id) {
+          statusBox.className = 'status ok';
+          statusBox.textContent = 'Your enquiry has been received. Taking you to the confirmation page…';
+          window.location.href = 'booking-received.html';
+          return;
+        }
+        inFlight = false;
+        submitBtn.disabled = false;
+        statusBox.className = 'status err';
+        statusBox.textContent = (data && data.error && data.error.message)
+          || 'We could not send your enquiry. Please try again, or reach us on WhatsApp.';
+      })
+      .catch(function () {
+        // A dropped connection is never reported as success, and the
+        // visitor's answers are left exactly as typed.
+        inFlight = false;
+        submitBtn.disabled = false;
+        statusBox.className = 'status err';
+        statusBox.textContent = 'Could not reach the server. Check your connection and try again, or reach us on WhatsApp.';
+      });
+  });
+})();
 
 /* Under-18 enquiries: the guardian declaration becomes REQUIRED only when the
    visitor says the enquiry is about someone under 18. Same client-gate pattern

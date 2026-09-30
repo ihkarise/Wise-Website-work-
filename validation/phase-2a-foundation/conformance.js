@@ -254,6 +254,7 @@ var symptomLogSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas
 var reportSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/report.schema.json'), 'utf8'));
 var uploadLimits = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'constants/upload-limits.json'), 'utf8'));
 var patientProfileSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/patient-profile.schema.json'), 'utf8'));
+var consultationEnquirySchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/consultation-enquiry.schema.json'), 'utf8'));
 var doctorAssignedConditionSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/doctor-assigned-condition.schema.json'), 'utf8'));
 var patientModuleStateSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/patient-module-state.schema.json'), 'utf8'));
 var checkInTemplateAssignmentSchema = JSON.parse(fs.readFileSync(path.join(SHARED_DIR, 'schemas/check-in-template-assignment.schema.json'), 'utf8'));
@@ -5097,6 +5098,151 @@ var ctx = loadProject(h.sandbox);
   var staticAnalyzer29 = require('../static-analysis/analyze.js');
   record('Stage29: DigitalTwinContext.gs (context builder + both computed views) makes no UrlFetchApp/model call — the deterministic half is provably AI-free (docs/59 §18 item 6)',
     !/UrlFetchApp\.|callOpenRouter[A-Za-z_]*\(/.test(staticAnalyzer29.neutralizeCommentsAndStrings(require('fs').readFileSync(require('path').join(harness.APPS_SCRIPT_DIR, 'DigitalTwinContext.gs'), 'utf8'))));
+})();
+
+(function stage30_guardianConsentAndPublicEnquiry() {
+  // ---- Guardian consent on PatientProfile (schema 1.1.0) ----
+  var minorPatient = ctx.foundationCreatePatient_({
+    full_name: 'Stage30 Minor', email: 'stage30-minor@example.com',
+    condition_slug: 'mcas', created_by: 'conformance-harness'
+  });
+  var adultPatient = ctx.foundationCreatePatient_({
+    full_name: 'Stage30 Adult', email: 'stage30-adult@example.com',
+    condition_slug: 'mcas', created_by: 'conformance-harness'
+  });
+  record('Stage30: setup — a minor and an adult patient exist',
+    minorPatient.status === 'ok' && adultPatient.status === 'ok');
+  var minorId = minorPatient.data.patient_id;
+  var adultId = adultPatient.data.patient_id;
+
+  // An adult profile is completely unaffected: no guardian data required.
+  var adultSave = ctx.foundationSavePatientProfile_({ patient_id: adultId, is_minor: 'no', phone: '555 123 4567' });
+  record('Stage30: an adult profile saves with no guardian information at all', adultSave.status === 'ok');
+  record('Stage30: an adult profile records NO guardian consent — guardian_consent_at stays empty',
+    adultSave.data.guardian_consent_at === '' && adultSave.data.guardian_name === '' && adultSave.data.guardian_relationship === '');
+  var adultShape = validate(patientProfileSchema, adultSave.data);
+  record('Stage30: the adult record conforms to patient-profile.schema.json 1.1.0', adultShape.valid === true, adultShape.errors.join('; '));
+
+  record('Stage30: is_minor outside yes/no is rejected',
+    ctx.foundationSavePatientProfile_({ patient_id: adultId, is_minor: 'maybe' }).error.code === 'FOUNDATION_INVALID_INPUT');
+
+  // A declared minor must supply guardian name, relationship AND explicit consent.
+  var noName = ctx.foundationSavePatientProfile_({ patient_id: minorId, is_minor: 'yes', guardian_relationship: 'mother', guardian_consent: true });
+  record('Stage30: a minor without guardian_name is rejected',
+    noName.status === 'error' && noName.error.code === 'FOUNDATION_INVALID_INPUT');
+  var noRelationship = ctx.foundationSavePatientProfile_({ patient_id: minorId, is_minor: 'yes', guardian_name: 'A Guardian', guardian_consent: true });
+  record('Stage30: a minor without guardian_relationship is rejected',
+    noRelationship.status === 'error' && noRelationship.error.code === 'FOUNDATION_INVALID_INPUT');
+  var noConsent = ctx.foundationSavePatientProfile_({ patient_id: minorId, is_minor: 'yes', guardian_name: 'A Guardian', guardian_relationship: 'mother' });
+  record('Stage30: a minor without an explicit guardian_consent affirmation is rejected',
+    noConsent.status === 'error' && noConsent.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  // Nothing above persisted, so no consent exists yet — a rejected save must
+  // never leave consent looking recorded.
+  var afterRejections = ctx.foundationGetPatientProfile_(minorId);
+  record('Stage30: after those rejections NO guardian consent is on file — a failed save never marks consent complete',
+    afterRejections.status === 'ok' && afterRejections.data.guardian_consent_at === '');
+
+  var tooLongName = ctx.foundationSavePatientProfile_({ patient_id: minorId, is_minor: 'yes', guardian_name: new Array(122).join('x'), guardian_relationship: 'mother', guardian_consent: true });
+  record('Stage30: a guardian_name longer than 120 characters is rejected',
+    tooLongName.status === 'error' && tooLongName.error.code === 'FOUNDATION_INVALID_INPUT');
+
+  // The successful path actually persists, and stamps the timestamp server-side.
+  var goodSave = ctx.foundationSavePatientProfile_({ patient_id: minorId, is_minor: 'yes', guardian_name: 'Mary Guardian', guardian_relationship: 'mother', guardian_consent: true });
+  record('Stage30: a complete minor submission succeeds', goodSave.status === 'ok');
+  record('Stage30: guardian consent is genuinely persisted — guardian_consent_at is server-stamped, name and relationship stored',
+    goodSave.data.guardian_consent_at !== '' && goodSave.data.guardian_name === 'Mary Guardian' && goodSave.data.guardian_relationship === 'mother');
+  var minorShape = validate(patientProfileSchema, goodSave.data);
+  record('Stage30: the minor record conforms to patient-profile.schema.json 1.1.0', minorShape.valid === true, minorShape.errors.join('; '));
+  var reread = ctx.foundationGetPatientProfile_(minorId);
+  record('Stage30: the stored consent record survives a re-read (it is in the sheet, not just the response)',
+    reread.data.guardian_consent_at === goodSave.data.guardian_consent_at && reread.data.guardian_name === 'Mary Guardian');
+  record('Stage30: a guardian_consent_recorded audit row was written',
+    auditRowsOf(h, 'guardian_consent_recorded').length === 1);
+
+  // The original consent timestamp is preserved, not re-stamped, and consent
+  // need not be re-affirmed to edit other fields.
+  var laterEdit = ctx.foundationSavePatientProfile_({ patient_id: minorId, is_minor: 'yes', guardian_name: 'Mary Guardian', guardian_relationship: 'mother', phone: '555 999 0000' });
+  record('Stage30: a later edit succeeds without re-affirming consent once consent is already on file', laterEdit.status === 'ok');
+  record('Stage30: guardian_consent_at is preserved verbatim, never re-stamped — it records when consent was given',
+    laterEdit.data.guardian_consent_at === goodSave.data.guardian_consent_at);
+  record('Stage30: guardian_consent_at is never accepted from the request body',
+    ctx.foundationSavePatientProfile_({ patient_id: minorId, is_minor: 'yes', guardian_name: 'Mary Guardian', guardian_relationship: 'mother', guardian_consent_at: '1999-01-01T00:00:00Z' }).data.guardian_consent_at === goodSave.data.guardian_consent_at);
+
+  // Declaring the patient an adult clears the guardian block outright.
+  var becameAdult = ctx.foundationSavePatientProfile_({ patient_id: minorId, is_minor: 'no' });
+  record('Stage30: switching is_minor to no clears the whole guardian block',
+    becameAdult.status === 'ok' && becameAdult.data.guardian_consent_at === '' && becameAdult.data.guardian_name === '' && becameAdult.data.guardian_relationship === '');
+
+  // ---- Public enquiry endpoint (request_consultation) ----
+  var validEnquiry = {
+    foundation_action: 'request_consultation',
+    name: 'Stage30 Enquirer', email: 'stage30-enq@example.com', phone: '555 222 3333',
+    country: 'UAE', consultation_type: 'Online (video)', condition: 'eczema',
+    message: 'Synthetic conformance enquiry.', enquiry_for_minor: 'no',
+    guardian_declared: false, privacy_consent: true, marketing_consent: true
+  };
+  var okEnquiry = JSON.parse(ctx.handleFoundationRequest_(validEnquiry)._text);
+  record('Stage30: request_consultation accepts a valid enquiry with no session at all (public by design)',
+    okEnquiry.status === 'ok' && !!okEnquiry.data.enquiry_id);
+  record('Stage30: the response echoes back no submitted content — only the receipt id and a message',
+    Object.keys(okEnquiry.data).sort().join(',') === 'enquiry_id,message');
+
+  var enquiryRows = h.spreadsheet.getSheetByName(ctx.FOUNDATION_ENQUIRY_SHEET_)._debug().rows;
+  record('Stage30: the enquiry was actually written to its own sheet, never to Patients or PatientProfile',
+    enquiryRows.length === 1);
+  var storedEnquiry = {};
+  ['enquiry_id','submitted_at','name','email','phone','country','consultation_type','condition','message','enquiry_for_minor','guardian_declared','privacy_consent','marketing_consent']
+    .forEach(function (c, i) { storedEnquiry[c] = enquiryRows[0][i]; });
+  var enquiryShape = validate(consultationEnquirySchema, storedEnquiry);
+  record('Stage30: the stored enquiry conforms to consultation-enquiry.schema.json', enquiryShape.valid === true, enquiryShape.errors.join('; '));
+  record('Stage30: privacy consent is preserved in the stored row', storedEnquiry.privacy_consent === 'yes');
+  record('Stage30: the marketing opt-in is preserved in the stored row', storedEnquiry.marketing_consent === 'yes');
+  record('Stage30: the minor declaration is preserved in the stored row', storedEnquiry.enquiry_for_minor === 'no');
+  record('Stage30: submitted_at is server-set, not client-supplied', storedEnquiry.submitted_at !== '');
+
+  record('Stage30: an enquiry without privacy_consent is refused outright — no row can exist without it',
+    JSON.parse(ctx.handleFoundationRequest_(Object.assign({}, validEnquiry, { email: 'stage30-b@example.com', privacy_consent: false }))._text).error.code === 'FOUNDATION_INVALID_INPUT');
+  record('Stage30: an enquiry with no name is rejected',
+    JSON.parse(ctx.handleFoundationRequest_(Object.assign({}, validEnquiry, { email: 'stage30-c@example.com', name: '' }))._text).error.code === 'FOUNDATION_INVALID_INPUT');
+  record('Stage30: an enquiry with a malformed email is rejected',
+    JSON.parse(ctx.handleFoundationRequest_(Object.assign({}, validEnquiry, { email: 'not-an-email' }))._text).error.code === 'FOUNDATION_INVALID_INPUT');
+  record('Stage30: an enquiry with an over-long message is rejected',
+    JSON.parse(ctx.handleFoundationRequest_(Object.assign({}, validEnquiry, { email: 'stage30-d@example.com', message: new Array(2002).join('x') }))._text).error.code === 'FOUNDATION_INVALID_INPUT');
+  record('Stage30: an enquiry about a minor without a guardian declaration is rejected',
+    JSON.parse(ctx.handleFoundationRequest_(Object.assign({}, validEnquiry, { email: 'stage30-e@example.com', enquiry_for_minor: 'yes', guardian_declared: false }))._text).error.code === 'FOUNDATION_INVALID_INPUT');
+
+  var minorEnquiry = JSON.parse(ctx.handleFoundationRequest_(Object.assign({}, validEnquiry, { email: 'stage30-f@example.com', enquiry_for_minor: 'yes', guardian_declared: true }))._text);
+  record('Stage30: an enquiry about a minor WITH a guardian declaration succeeds', minorEnquiry.status === 'ok');
+  var minorRow = h.spreadsheet.getSheetByName(ctx.FOUNDATION_ENQUIRY_SHEET_)._debug().rows[1];
+  record('Stage30: the guardian declaration is preserved in the stored row',
+    minorRow[9] === 'yes' && minorRow[10] === 'yes');
+
+  // Spreadsheet formula injection must be neutralised, not stored live.
+  var formulaEnquiry = JSON.parse(ctx.handleFoundationRequest_(Object.assign({}, validEnquiry, { email: 'stage30-g@example.com', name: '=HYPERLINK("http://evil","click")' }))._text);
+  var formulaRow = h.spreadsheet.getSheetByName(ctx.FOUNDATION_ENQUIRY_SHEET_)._debug().rows[2];
+  record('Stage30: a leading = is neutralised so a submission can never become a live spreadsheet formula',
+    formulaEnquiry.status === 'ok' && String(formulaRow[2]).charAt(0) === "'");
+
+  // The honeypot succeeds outwardly but writes nothing.
+  var rowsBeforeHoneypot = h.spreadsheet.getSheetByName(ctx.FOUNDATION_ENQUIRY_SHEET_)._debug().rows.length;
+  var honeypot = JSON.parse(ctx.handleFoundationRequest_(Object.assign({}, validEnquiry, { email: 'stage30-h@example.com', bot_field: 'i am a bot' }))._text);
+  record('Stage30: a honeypot submission returns the ordinary success shape, revealing nothing to a bot', honeypot.status === 'ok');
+  record('Stage30: a honeypot submission carries NO enquiry_id, so the frontend never confirms it',
+    honeypot.data.enquiry_id === '');
+  record('Stage30: a honeypot submission writes no row',
+    h.spreadsheet.getSheetByName(ctx.FOUNDATION_ENQUIRY_SHEET_)._debug().rows.length === rowsBeforeHoneypot);
+
+  // Rate limiting: the 6th submission from one address in the window is refused.
+  var limited = null;
+  for (var i = 0; i < 8; i++) {
+    limited = JSON.parse(ctx.handleFoundationRequest_(Object.assign({}, validEnquiry, { email: 'stage30-rl@example.com' }))._text);
+  }
+  record('Stage30: repeated enquiries from one address are rate-limited with FOUNDATION_ENQUIRY_RATE_LIMITED',
+    limited.status === 'error' && limited.error.code === 'FOUNDATION_ENQUIRY_RATE_LIMITED');
+
+  record('Stage30: request_consultation writes a consultation_enquiry_received audit row',
+    auditRowsOf(h, 'consultation_enquiry_received').length >= 2);
 })();
 
 function auditRowsOf(h, eventType) {
