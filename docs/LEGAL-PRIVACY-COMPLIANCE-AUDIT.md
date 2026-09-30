@@ -1,5 +1,5 @@
 # Legal, Privacy, Consent, Licensing & Compliance Audit
-## Version 1.0 — 2026-09-30 · Repository evidence only
+## Version 2.0 — 2026-09-30 · Repository evidence only
 
 > **Not legal advice.** This is a repository-evidence audit by a software agent, not
 > a lawyer. Every item marked 🔵 LEGAL REVIEW needs an India/Kerala-qualified
@@ -657,3 +657,185 @@ The single highest-value next action is not code: it is taking §3.2's data inve
 and §8's processor table to an India/Kerala-qualified professional and having the
 portal privacy policy and terms drafted. The engineering is ready for that
 conversation; the paperwork is what is missing.
+
+
+---
+
+# Appendix A — Owner-Decision Implementation Pass (v2.0)
+
+The owner answered every Gate 0 question and locked 32 decisions. This appendix
+records what was implemented, what was deliberately left alone, and what is still
+open. **Version 1.0 above is kept as the original audit record and is not rewritten.**
+
+## A1. Changed files
+
+| File | Why |
+|---|---|
+| `index.html` | Country count; hero CTA + note; journey heading + step one; testimonial heading and intro; three testimonials replaced with four genuine Google reviews; closing CTA and proof bar; footer link |
+| `team.html` | Country count ×2; closing CTA and proof bar; footer link |
+| `contact.html` | Emergency notice; under-18 question; guardian consent; marketing opt-in; corrected form note; footer link |
+| `online-consultation/index.html` | Country count made consistent; emergency notice; footer link |
+| `my-health-journey/dashboard.js` | `REPORTS_UPLOAD_ENABLED = false` launch flag; upload form replaced with a notice; `wireReportForm()` early-return |
+| `my-health-journey/index.html` | Optional-participation notice; emergency notice; link to the portal policy |
+| `my-health-journey/health-story/index.html` | AI-assisted label; emergency notice; link to the portal policy |
+| `patient-privacy.html` | **New** — Patient Portal Privacy Policy |
+| `privacy.html`, `terms.html`, `disclaimer.html`, `gallery.html`, `conditions/index.html`, `404.html` | Footer link to the portal policy |
+| `sitemap.xml` | `patient-privacy.html` added (11 URLs, all resolve) |
+| `validation/pa-2-dashboard/browser-test.js` | Two upload assertions re-pointed at the disabled state |
+| `validation/pa-5-reports/browser-test.js` | Upload-flow sections gated on the real flag; new disabled-state section 5b |
+
+## A2. Reviews removed
+
+All three, in full, not rewritten, not paraphrased, not preserved elsewhere:
+
+1. **Sara A.** — "Dubai, UAE · MCAS"
+2. **Maria K.** — "Toronto, Canada · Hashimoto's"
+3. **Rachel P.** — "London, UK · CSU + Hashimoto's"
+
+Reason: absent from the owner's Google review source, and each carried specific
+clinical-outcome claims (antibody levels, antihistamine reduction, "improved
+dramatically").
+
+## A3. Doctor reviews excluded
+
+Not published as patient testimonials: **Dr. Sandeep K. Jose**, **Dr. Dhanya
+Prince**, **Dr. Vimal Sharma**, **Dr. Aswathi Savithri**.
+
+## A4. New reviews — exact selected text
+
+Four, verbatim, including original punctuation, spacing and emoji:
+
+| Name | Exact text as published |
+|---|---|
+| Fathima Nazrin | `Excellent doctor and a trustworthy homeopathy clinic. It was a very good experience, and I started feeling relief very quickly.` |
+| Shareena Habeeb | `Very good consultation and effective medicine..!🥹🤍` |
+| Mahesh Madhavan | `Grateful for your exceptional care and dedication for patient well being 😊` |
+| Joseph Alex | `Good treatment.good doctor very satisfied` |
+
+Real displayed names; sub-line reads "Google review". **No invented initials,
+locations, conditions or photographs.**
+
+**Star ratings removed.** The supplied source carries no star rating, so the old
+`★★★★★` / `aria-label="5 out of 5"` would have been an invented rating. No
+`Review`, `AggregateRating` or `ratingValue` structured data was added.
+
+### Not published, and why
+
+| Reviewer | Reason |
+|---|---|
+| Midhun Krishna | Disease-specific (chickenpox) — excluded per the owner's decision |
+| Deepak Narayanan | Disease-specific (varicose veins / leg ulcer) |
+| Deepu Suresh | Disease-specific (daughter's wheezing) |
+| Philemon Chacko | **No verbatim text available** — only a description. Publishing would require paraphrase |
+| Ria Prince | **No verbatim text available** |
+| Stephen M | **No verbatim text available** |
+| Prejitha Sp | Verbatim text available, but "effective for all allergies..It has no side effects.." is a strong efficacy **and safety** claim. Held back for owner confirmation |
+| Aathi Sai | Verbatim text available; a mild outcome claim ("My health is Much more improvement"). Held back for owner confirmation |
+
+## A5. Medical upload
+
+**Disabled for current launch scope; underlying tested implementation preserved
+for future use.**
+
+A single `REPORTS_UPLOAD_ENABLED = false` flag in `my-health-journey/dashboard.js`
+carries the required comment. The patient-facing file input and submit button are
+replaced by a notice telling patients to share reports with the clinic directly.
+Untouched and still validated: the `upload_report` / `get_reports` /
+`download_report` router cases, `FoundationReports.gs`, the Drive path, the
+schema, the registry entry, `readFileAsBase64()`, `wireReportForm()` and the
+client pre-check constants. **Verified zero diff under `apps-script/` and
+`shared/`.** Reading and downloading stored reports still works. No AWS claim
+made anywhere.
+
+## A6. Consultation
+
+**Free General Enquiry / Paid Consultation distinction implemented.** All seven
+"free consultation" occurrences removed. The free step is now an enquiry that may
+be handled by staff, an assistant doctor or a senior doctor; the full case review
+is stated to happen in the paid doctor consultation. **The fee was not invented** —
+`[ADD FEE]` remains for owner entry.
+
+## A7. Country
+
+**6+ countries wording implemented**, consistently, in all four places.
+`Every continent` removed. The repository's existing verified six-country patient
+list (UAE, Canada, United Kingdom, Russia, Ireland, Sri Lanka) was **preserved
+as-is** — no country list was invented.
+
+## A8. Outcome claims
+
+**Unsupported recovery/guarantee wording removed.**
+"From first consultation to lasting recovery" → "From your first enquiry to
+ongoing care". "Real patients. Real recovery. Every continent." → "Real patient
+experiences. Personalised care." "Treatment outcomes vary by individual" was
+already present on the public pages and is retained.
+
+## A9. AI
+
+Health Story now leads with **"AI-assisted health information — reviewed and
+approved by your doctor before being shown to you"**, states the draft is
+AI-assisted from information already in the record, and that it is not a diagnosis
+and does not replace the doctor's judgement. Added only to content that is
+actually AI-generated. The AI-assists → doctor-reviews → doctor-decides safeguard
+is untouched and still proven by conformance. External processing (OpenRouter →
+Anthropic) is disclosed in the portal policy with an explicit opt-out route.
+**No FDA claim exists anywhere in the repository.**
+
+## A10. Privacy
+
+Two layers now exist. `privacy.html` remains the public-website policy; the new
+`patient-privacy.html` is the substantially more detailed portal policy, with
+categories taken from the 31 shipped schemas, real purposes, only
+actually-used providers, long-term retention stated without an invented number,
+the real 14-day delivery-email purge disclosed, and access / correction /
+deletion described as a reviewed human process. Reachable from every public
+page's footer, `404.html`, the portal dashboard and the Health Story page.
+
+## A11. Launch matrix
+
+| Item | Status | Evidence | Action |
+|---|---|---|---|
+| Country claim | 🟢 GREEN | `6+ countries` ×4; zero `40+ countries` / `Every continent` in visible text | — |
+| Consultation wording | 🟢 GREEN | 7 occurrences replaced; gate scan clean | Owner enters the fee |
+| Free enquiry | 🟢 GREEN | "Free General Enquiry" + "consultation fee applies" | — |
+| Patient portal | 🟢 GREEN | Optional-participation notice on the dashboard | — |
+| Medical uploads | 🟢 GREEN | `REPORTS_UPLOAD_ENABLED = false`; backend zero-diff | Reactivation needs privacy/storage/security review |
+| AI disclosure | 🟢 GREEN | AI-assisted label on Health Story | — |
+| External AI processing | 🟡 YELLOW | OpenRouter + Anthropic disclosed, opt-out offered | Provider terms 🔵 |
+| Doctor review | 🟢 GREEN | Conformance 875/875 incl. rejected-narrative isolation | — |
+| Digital Twin | 🟢 GREEN | Optional + doctor-approved + not a doctor replacement | — |
+| Holoscan | 🟡 YELLOW | Covered by the optional notice and the portal policy | Dedicated per-feature explanation if enabled |
+| Minor consent | 🟡 YELLOW | Required under-18 question + guardian checkbox on the enquiry form; policy states guardian involvement | Portal cannot record guardian consent — backend work |
+| Data access | 🟢 GREEN | Portal policy + My Profile self-edit | — |
+| Data correction | 🟢 GREEN | Portal policy + My Profile self-edit | — |
+| Data deletion | 🟢 GREEN | Request → authorised review → action, explicitly not automatic | Exact exceptions 🔵 |
+| Privacy rights | 🟢 GREEN | "Your Privacy Rights" in every footer | — |
+| Public Privacy Policy | 🟢 GREEN | `privacy.html` | — |
+| Patient Privacy Policy | 🟢 GREEN | `patient-privacy.html`, linked from the portal | Legal sign-off 🔵 |
+| Retention | 🟡 YELLOW | Long-term stated; no number invented; 14-day purge disclosed | Exact period 🔵 |
+| Third parties | 🟢 GREEN | Only actually-used providers listed | Processor agreements 🔵 |
+| Marketing consent | 🟢 GREEN | Separate, not-required opt-in, recorded via the form | Opt-out handling operationally 🟡 |
+| Payments | ⚪ N/A | No gateway, no payment link anywhere | Nothing invented |
+| Reviews | 🟢 GREEN | 3 removed, 4 genuine published verbatim, 4 doctors excluded, stars removed | 2 held for owner (A4) |
+| Medical claims | 🟢 GREEN | Visible-text scan clean; disclaimer unchanged | — |
+| Emergency disclaimer | 🟢 GREEN | online-consultation, contact, portal, Health Story (+ existing disclaimer/terms) | — |
+
+## A12. Unresolved
+
+**Owner:** the consultation fee (`[ADD FEE]`); whether to publish the Prejitha Sp
+and Aathi Sai reviews; "8+ years", "5000+ patients", NTET 2025, TCMC 12515;
+whether to add a per-feature explanation screen before first use of Digital Twin
+and Holoscan; operational handling of marketing opt-outs.
+
+**Backend:** enforcing the under-18 answer and recording guardian consent inside
+the portal (stated as absent in the policy, not faked); recording an AI opt-out as
+a per-patient setting rather than a clinic-side action.
+
+**Legal (unchanged from §20):** all 12 items, most importantly sign-off on the new
+portal policy, the exact clinical-record retention period, external AI provider
+terms, minor/guardian consent under the DPDP Act, and jurisdiction given the
+international patients advertised.
+
+**Pre-existing, not introduced:** `online-consultation/index.html` has an unclosed
+`<section>` (byte-identical at `HEAD` before this branch);
+`validation/phase-2c-milestones` is flaky (0/2/2 on a clean `e8e794e` worktree).
