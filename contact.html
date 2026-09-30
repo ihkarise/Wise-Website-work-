@@ -77,6 +77,11 @@ header.site{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.92);ba
 .consent input{width:auto;margin-top:3px;flex:none}
 .consent label{font-size:13.5px;font-weight:500;color:var(--color-ink);line-height:1.5}
 .consent a{color:var(--color-brand);text-decoration:underline}
+.minor-q{background:var(--color-surface);border:1px solid var(--color-line);border-radius:12px;padding:14px 16px;margin:0 0 12px}
+.minor-q > span{display:block;font-size:13.5px;font-weight:600;color:var(--color-ink);margin-bottom:8px}
+.minor-opts{display:flex;gap:18px;flex-wrap:wrap}
+.minor-opts label{display:flex;align-items:center;gap:7px;font-size:13.5px;font-weight:500;color:var(--color-ink)}
+.minor-opts input{width:auto;flex:none;margin:0}
 .optional{font-weight:400;color:var(--color-text-faint);font-size:12.5px}
 .contact-list{list-style:none;display:grid;gap:18px;margin-bottom:24px}
 .contact-list li{display:flex;gap:14px;align-items:flex-start}
@@ -150,6 +155,7 @@ footer nav a:hover{color:#fff}
     <p class="eyebrow">Book a consultation</p>
     <h1>Let's start your healing</h1>
     <p>Online consultations worldwide and in-clinic visits in Kottayam. Send your details below, or reach us directly on WhatsApp — whichever is easier for you.</p>
+    <p style="background:#FFF6F7;border:1px solid #F3CBD3;border-left:4px solid #D62E4D;border-radius:12px;padding:14px 16px;font-size:13.5px;line-height:1.6;color:#0B0B0B;margin:0 0 18px"><strong>Not for emergencies.</strong> Wise Homeopathy online services do not provide emergency medical care. If this is an emergency, contact your nearest emergency medical facility or emergency service immediately.</p>
   </div>
 </section>
 
@@ -196,8 +202,23 @@ footer nav a:hover{color:#fff}
           including the health information in this form — in order to respond to my
           consultation request.</label>
       </div>
+      <div class="minor-q">
+        <span>Is this enquiry about someone under 18?</span>
+        <div class="minor-opts">
+          <label><input type="radio" name="enquiry_for_minor" value="no" required> No</label>
+          <label><input type="radio" name="enquiry_for_minor" value="yes"> Yes</label>
+        </div>
+      </div>
+      <div class="consent">
+        <input type="checkbox" id="guardian_consent" name="guardian_consent" value="yes">
+        <label for="guardian_consent">If you answered <strong>Yes</strong> above: I am that person&rsquo;s parent or legal guardian, and I consent on their behalf. An enquiry about someone under 18 must be submitted by their parent or guardian.</label>
+      </div>
+      <div class="consent">
+        <input type="checkbox" id="marketing_consent" name="marketing_consent" value="yes">
+        <label for="marketing_consent"><strong>Optional.</strong> I would like to receive occasional health information and clinic updates by email or WhatsApp. You can opt out at any time. This is separate from messages about your enquiry or your care, which we will send either way.</label>
+      </div>
       <button class="submit" type="submit">Send request</button>
-      <p class="formnote">Private &amp; confidential. We never share your details. By sending, you agree to be contacted about your consultation.</p>
+      <p class="formnote">Private &amp; confidential. We do not sell your details or share them for anyone else&rsquo;s marketing. Your submission is handled by our clinic team and the service that delivers this form to us &mdash; see the <a href="privacy.html">Privacy Policy</a>.</p>
     </form>
   </div>
 
