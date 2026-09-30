@@ -240,10 +240,17 @@ async function main() {
       check('Dashboard: the Timeline card carries its own "No data yet" badge', timelineBadgeParent);
       const reportsBadgeParent = await page.$eval('#card-reports-body', (el) => el.querySelector('.badge-nodata') !== null);
       check('Dashboard: the Reports card carries its own "No data yet" badge (PA-5)', reportsBadgeParent);
+      // LAUNCH SCOPE: patient report upload is intentionally disabled
+      // (my-health-journey/dashboard.js REPORTS_UPLOAD_ENABLED = false).
+      // These two checks previously asserted the upload form and its
+      // <label for> were present. They now assert the opposite — that no
+      // upload affordance is reachable — so the suite guards the disabled
+      // state instead of silently passing either way. Restore the original
+      // two assertions when the flag is flipped back to true.
       const reportFormPresent = await page.$eval('#card-reports-body', (el) => el.querySelector('#reportForm') !== null);
-      check('Dashboard: the Reports card still shows its upload form alongside the empty list (docs/29 §5: write affordance is the card\'s primary content)', reportFormPresent);
-      const reportFileLabelFor = await page.getAttribute('#card-reports-body label', 'for');
-      check('Dashboard: the Reports upload field has a real, associated <label for>', reportFileLabelFor === 'reportFile');
+      check('Dashboard: the Reports card shows NO upload form while upload is disabled for launch', reportFormPresent === false);
+      const reportFileInputPresent = await page.$eval('#card-reports-body', (el) => el.querySelector('input[type="file"]') !== null);
+      check('Dashboard: the Reports card exposes no file input while upload is disabled for launch', reportFileInputPresent === false);
 
       // Direct function check too (not just the real render above) — the
       // 'nodata' variant now has a real card consumer (Timeline, PA-3), but
