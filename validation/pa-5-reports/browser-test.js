@@ -27,6 +27,17 @@ const fs = require('fs');
 const { chromium } = require('playwright');
 
 const ROOT = path.resolve(__dirname, '..', '..');
+
+// LAUNCH SCOPE: patient report upload can be switched off for launch via
+// my-health-journey/dashboard.js's REPORTS_UPLOAD_ENABLED flag. This suite
+// reads that same flag out of the shipped source rather than assuming a
+// state, so the upload-flow sections below (5, 7, 8 and 9, plus one
+// assertion in 6) run when upload is enabled and are replaced by
+// disabled-state assertions when it is not. Nothing is deleted: flipping
+// the flag back to true restores full upload coverage automatically.
+const UPLOAD_UI_ENABLED = /REPORTS_UPLOAD_ENABLED\s*=\s*true/.test(
+  fs.readFileSync(path.join(ROOT, 'my-health-journey', 'dashboard.js'), 'utf8')
+);
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.ico': 'image/x-icon', '.svg': 'image/svg+xml' };
 
 let passCount = 0;
@@ -238,7 +249,7 @@ async function main() {
     }
 
     // ---- 5. Dashboard: Reports card always shows the upload form, even with zero entries ----
-    {
+    if (UPLOAD_UI_ENABLED) {
       const context = await browser.newContext();
       await blockExternalFonts(context);
       const page = await context.newPage();
@@ -261,6 +272,26 @@ async function main() {
       await context.close();
     }
 
+    // ---- 5b. Dashboard: with upload disabled for launch, no upload affordance exists ----
+    if (!UPLOAD_UI_ENABLED) {
+      const context = await browser.newContext();
+      await blockExternalFonts(context);
+      const page = await context.newPage();
+      await mockFoundation(page, { reports: [] });
+      await withSessionToken(page, baseUrl, FAKE_TOKEN);
+      await page.goto(`${baseUrl}/my-health-journey/`);
+      await page.waitForSelector('#card-reports-body');
+      check('Dashboard: Reports card exposes no upload form while upload is disabled for launch',
+        (await page.$('#card-reports-body #reportForm')) === null);
+      check('Dashboard: Reports card exposes no file input while upload is disabled for launch',
+        (await page.$('#card-reports-body input[type="file"]')) === null);
+      check('Dashboard: Reports card still tells the patient how to get a report added',
+        (await page.$eval('#card-reports-body', (el) => el.textContent)).indexOf('share any reports directly with the clinic') !== -1);
+      check('Dashboard: the recent-uploads list container is still rendered so stored reports remain visible',
+        (await page.$('#card-reports-body #reportsList')) !== null);
+      await context.close();
+    }
+
     // ---- 6. Dashboard: Reports card shows recent uploads + "View full history" link when entries exist ----
     {
       const context = await browser.newContext();
@@ -278,14 +309,19 @@ async function main() {
       const viewFullHref = await page.$eval('#card-reports-body a.secondary', (el) => el.getAttribute('href'));
       check('Dashboard: Reports card\'s "View full history" link points at the real Reports page', viewFullHref === '../my-health-journey/reports/');
 
-      check('Dashboard: the upload form is still present even when reports already exist (write affordance is the card\'s primary content)',
-        (await page.$('#reportForm')) !== null);
+      if (UPLOAD_UI_ENABLED) {
+        check('Dashboard: the upload form is still present even when reports already exist (write affordance is the card\'s primary content)',
+          (await page.$('#reportForm')) !== null);
+      } else {
+        check('Dashboard: no upload form is exposed even when reports already exist (upload disabled for launch)',
+          (await page.$('#reportForm')) === null);
+      }
 
       await context.close();
     }
 
     // ---- 7. Dashboard: a client-side oversized file is rejected without ever calling the network ----
-    {
+    if (UPLOAD_UI_ENABLED) {
       const context = await browser.newContext();
       await blockExternalFonts(context);
       const page = await context.newPage();
@@ -314,7 +350,7 @@ async function main() {
     }
 
     // ---- 8. Dashboard: a valid file upload succeeds, resets the form, and refreshes the list ----
-    {
+    if (UPLOAD_UI_ENABLED) {
       const context = await browser.newContext();
       await blockExternalFonts(context);
       const page = await context.newPage();
@@ -337,7 +373,7 @@ async function main() {
     }
 
     // ---- 9. Dashboard: a rejected upload shows the backend's error message verbatim ----
-    {
+    if (UPLOAD_UI_ENABLED) {
       const context = await browser.newContext();
       await blockExternalFonts(context);
       const page = await context.newPage();

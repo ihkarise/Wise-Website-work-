@@ -11,7 +11,10 @@
 <meta property="og:title" content="Online Homeopathy Consultation for Autoimmune & Allergic Disease">
 <meta property="og:description" content="Worldwide video consultations with Dr. Libin Job for root-cause autoimmune and allergy care.">
 <meta property="og:url" content="https://www.wisehomeopathy.com/online-consultation/">
-<meta property="og:image" content="https://www.wisehomeopathy.com/assets/images/online-consultation-og.jpg">
+<!-- og:image intentionally absent: no verified social image asset exists yet.
+     A tag pointing at a missing file makes every share render as a broken
+     image card, which is worse than no tag. Restore it, pointing at
+     assets/images/online-consultation-og.jpg, once the real asset is supplied. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&display=swap" rel="stylesheet">
@@ -216,7 +219,6 @@
       "name": "Dr. Libin Job",
       "honorificPrefix": "Dr.",
       "jobTitle": "Chief Medical Officer",
-      "image": "https://www.wisehomeopathy.com/assets/images/team/doctor-libin.jpg",
       "url": "https://www.wisehomeopathy.com/team.html",
       "worksFor": {
         "@id": "https://www.wisehomeopathy.com/#clinic"
@@ -695,7 +697,7 @@ footer nav a:hover{color:#fff}
         <li><a href="../index.html">Home</a></li>
         <li><a href="../online-consultation/" aria-current="page">Online Consultation</a></li><li><a href="../conditions/">Conditions</a></li>
         <li><a href="../team.html">Team</a></li>
-        <li><a href="../blog/">Blog</a></li>
+        <!-- PHASE1-BLOG-HIDDEN: <li><a href="../blog/">Blog</a></li> -->
         <li><a href="../gallery.html">Gallery</a></li>
         <li><a href="../login.html">Patient Login</a></li>
         <li><a class="nav-cta" href="../contact.html">Book Now</a></li>
@@ -713,7 +715,7 @@ footer nav a:hover{color:#fff}
     <a href="../online-consultation/" aria-current="page">Online Consultation</a>
     <a href="../conditions/">Conditions</a>
     <a href="../team.html">Team</a>
-    <a href="../blog/">Blog</a>
+    <!-- PHASE1-BLOG-HIDDEN: <a href="../blog/">Blog</a> -->
     <a href="../gallery.html">Gallery</a>
     <a href="../login.html">Patient Login</a>
     <a class="nav-cta" href="../contact.html">Book Now</a>
@@ -761,7 +763,7 @@ footer nav a:hover{color:#fff}
     </div>
 
     <ul class="oc-hero__trust reveal in" data-d="4">
-      <li><strong>6 countries</strong><span>patients treated worldwide</span></li>
+      <li><strong>6+ countries</strong><span>patients treated worldwide</span></li>
       <li><strong>English &amp; Malayalam</strong><span>scheduled to your timezone</span></li>
       <li><strong>BHMS, MD (Hom)</strong><span>led by Dr. Libin Job</span></li>
     </ul>
@@ -935,14 +937,15 @@ footer nav a:hover{color:#fff}
         <li>Structured follow-up to track measurable change</li>
       </ul>
       <div class="price-amt">
-        <div class="label">Consultation fee</div>
-        <!-- TODO: Replace with your actual fee. Keep two lines, e.g. "₹1,500" / "≈ $18 · €17" -->
-        <div class="amt">[ADD FEE]</div>
-        <div class="sub">Fee shown at booking · per consultation</div>
+        <div class="label">Doctor consultation</div>
+        <div class="amt" style="font-size:20px;line-height:1.35">Consultation fee applies.</div>
+        <div class="sub">Confirmed with you when you book · per consultation</div>
       </div>
     </div>
   </div>
 </section>
+
+<section class="block"><div class="wrap"><p style="background:#FFF6F7;border:1px solid #F3CBD3;border-left:4px solid #D62E4D;border-radius:12px;padding:14px 16px;font-size:13.5px;line-height:1.6;color:#0B0B0B;margin:0 0 18px"><strong>Not for emergencies.</strong> Wise Homeopathy online services do not provide emergency medical care. If this is an emergency, contact your nearest emergency medical facility or emergency service immediately.</p></div></section>
 
 <!-- 7 · DOCTOR CREDIBILITY -->
 <section class="block belief">
@@ -1062,9 +1065,9 @@ footer nav a:hover{color:#fff}
         </a>
         <p class="foot-nap">Root-cause homeopathic care for autoimmune &amp; allergic disease.<br>Vettor Complex, No. 527/XII, Near KSRTC Bus Stand,<br>Kottayam, Kerala 686001 · India<br>wisehomeopathy@outlook.com · +91 79076 71049<br><strong style="color:#aeb6c2">wisehomeopathy.com</strong></p>
       </div>
-      <div><h3>Care</h3><nav><a href="../online-consultation/">Online Consultation</a><a href="../index.html#conditions">Conditions</a><a href="../blog/">Blog</a><a href="../gallery.html">Gallery</a></nav></div>
+      <div><h3>Care</h3><nav><a href="../online-consultation/">Online Consultation</a><a href="../index.html#conditions">Conditions</a><!-- PHASE1-BLOG-HIDDEN: <a href="../blog/">Blog</a> --><a href="../gallery.html">Gallery</a></nav></div>
       <div><h3>Clinic</h3><nav><a href="../team.html">Our Team</a><a href="../index.html#why">Why Wise</a><a href="../contact.html">Book Consultation</a></nav></div>
-      <div><h3>Legal</h3><nav><a href="../privacy.html">Privacy Policy</a><a href="../terms.html">Terms of Use</a><a href="../disclaimer.html">Medical Disclaimer</a></nav></div>
+      <div><h3>Legal</h3><nav><a href="../privacy.html">Privacy Policy</a><a href="../terms.html">Terms of Use</a><a href="../disclaimer.html">Medical Disclaimer</a><a href="../patient-privacy.html">Patient Portal Privacy</a><a href="../privacy.html#choices">Your Privacy Rights</a></nav></div>
       <div><h3>Follow</h3><nav><a href="https://www.youtube.com/@WiseHomeopathy" rel="noopener">YouTube</a><a href="https://www.instagram.com/WiseHomeopathy" rel="noopener">Instagram</a><a href="https://www.facebook.com/WiseHomeopathy" rel="noopener">Facebook</a></nav></div>
     </div>
     <div class="foot-bottom">

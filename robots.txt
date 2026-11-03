@@ -1,4 +1,16 @@
 User-agent: *
 Allow: /
 
+# Authenticated, staff-only and token-consuming surfaces. These are all
+# noindex at the page level too; this is defence in depth, not the only control.
+# /login.html, /verify.html and /my-health-journey/* are deliberately NOT
+# disallowed: Batch PA-6 (docs/29) removed their noindex on purpose, and
+# validation/pa-6-public-nav/browser-test.js asserts they carry no robots meta.
+# Only surfaces outside that decision are listed below.
+Disallow: /admin/
+Disallow: /internal/
+Disallow: /doctor-dashboard/
+Disallow: /doctor-login.html
+Disallow: /doctor-verify.html
+
 Sitemap: https://www.wisehomeopathy.com/sitemap.xml

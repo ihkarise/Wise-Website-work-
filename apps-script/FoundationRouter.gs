@@ -1179,6 +1179,15 @@ function handleFoundationRequest_(input) {
     case 'request_login_link':
       envelope = foundationHandleRequestLoginLink_(input);
       break;
+    // Public and unauthenticated by design, the same category as
+    // request_login_link above: a member of the public sending a
+    // consultation enquiry has no session and may never become a patient.
+    // Write-only, one fixed sheet, no patient record touched, no personal
+    // data returned — see FoundationEnquiry.gs's header for the full scope
+    // and security posture.
+    case 'request_consultation':
+      envelope = foundationHandleRequestConsultation_(input);
+      break;
     case 'consume_login_link':
       envelope = foundationHandleConsumeLoginLink_(input);
       break;

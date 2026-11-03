@@ -231,6 +231,7 @@ var FILES = [
   'FoundationRateLimit.gs',
   'FoundationEmail.gs',
   'FoundationLoginFlow.gs',
+  'FoundationEnquiry.gs',
   'FoundationConsultationHistory.gs',
   'FoundationSymptomLog.gs',
   'FoundationReports.gs',

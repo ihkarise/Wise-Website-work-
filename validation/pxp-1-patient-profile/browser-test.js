@@ -174,8 +174,25 @@ async function main() {
       const phoneValue = await page.inputValue('#pfPhone');
       check('My Profile: a first-time visit (lazy-created default) renders an empty, editable phone field, not an error state', phoneValue === '');
 
-      const fieldCount = await page.$$eval('#profileForm .field', (els) => els.length);
-      check('My Profile: the form renders all four editable fields (phone, DOB, contact method, emergency contact)', fieldCount === 4);
+      // Updated at the guardian-consent batch (schema 1.1.0): the form gained
+      // three fields (is_minor, guardian_name, guardian_relationship) because
+      // the owner required real guardian-consent persistence for under-18
+      // patients. The original bare count of 4 is therefore obsolete. It is
+      // replaced by explicit per-id assertions, which are STRONGER than the
+      // count they replace — a count cannot tell which fields are present.
+      const originalFieldsPresent = await page.$$eval(
+        '#pfPhone, #pfDob, #pfContactMethod, #pfEmergencyContact', (els) => els.length);
+      check('My Profile: the four original editable fields are all still present (phone, DOB, contact method, emergency contact)',
+        originalFieldsPresent === 4);
+      const guardianFieldsPresent = await page.$$eval(
+        '#pfIsMinor, #pfGuardianName, #pfGuardianRelationship, #pfGuardianConsent', (els) => els.length);
+      check('My Profile: the guardian-consent controls are present (schema 1.1.0)', guardianFieldsPresent === 4);
+      const guardianHiddenForNonMinor = await page.$eval('#pfGuardianBlock', (el) => el.hidden);
+      check('My Profile: the guardian block is hidden for a patient not declared as under 18 (adults unaffected)',
+        guardianHiddenForNonMinor === true);
+      const guardianNameRequired = await page.$eval('#pfGuardianName', (el) => el.required);
+      check('My Profile: guardian name is NOT required while the patient is not declared under 18',
+        guardianNameRequired === false);
 
       const labelsForIds = await page.$$eval('#profileForm label', (els) => els.map((e) => e.getAttribute('for')));
       check('My Profile: every field has a real, associated <label for>', ['pfPhone', 'pfDob', 'pfContactMethod', 'pfEmergencyContact'].every((id) => labelsForIds.indexOf(id) !== -1));

@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wisehomeopathy.com/shared/schemas/consultation-enquiry.schema.json",
+  "title": "Consultation Enquiry",
+  "version": "1.0.0",
+  "description": "The canonical shape of a ConsultationEnquiry record — a consultation enquiry submitted from the public website by someone who has no session and may never become a patient. Introduced to replace the Netlify Forms handler that previously backed contact.html, so that the site's consent evidence (privacy consent, the under-18 declaration, the guardian declaration and the marketing opt-in) is stored in the clinic's own Apps Script + Sheets architecture rather than a third-party form service. Deliberately NOT a patient entity: it never touches Patients or PatientProfile, and holds no patient_id (ADR-002 — an enquiry is not a patient identity). Written only by the public, unauthenticated request_consultation route in FoundationEnquiry.gs, which validates every field against an allow-list, bounds every length, neutralises spreadsheet formulas, rate-limits per email address, and sets enquiry_id/submitted_at/privacy_consent server-side.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "enquiry_id", "submitted_at", "name", "email", "phone", "country",
+    "consultation_type", "condition", "message",
+    "enquiry_for_minor", "guardian_declared", "privacy_consent", "marketing_consent"
+  ],
+  "properties": {
+    "enquiry_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Server-generated identifier (generateFoundationId_()), never accepted from the request. It is also the receipt the frontend keys success on: it exists only after the row was actually appended, so the confirmation page is never shown for an enquiry that was not stored."
+    },
+    "submitted_at": {
+      "type": "string",
+      "description": "Server-set ISO 8601 date-time (foundationNowIso_()). Never taken from the client, which could otherwise backdate or forward-date an enquiry."
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The enquirer's name. Required. Bounded at 120 characters and formula-neutralised server-side; HTML-escaped wherever displayed."
+    },
+    "email": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The enquirer's email address. Required, pattern-validated server-side, bounded at 200 characters. Also the rate-limit key (hashed, in its own cache namespace)."
+    },
+    "phone": {
+      "type": "string",
+      "description": "Optional phone or WhatsApp number. Empty string when not provided. Validated as digits/spaces/+/-/() only, 7-20 characters, when non-empty — the same rule patient-profile.schema.json's phone already uses."
+    },
+    "country": {
+      "type": "string",
+      "description": "Optional country, free text. Empty string when not provided. Bounded at 60 characters and formula-neutralised."
+    },
+    "consultation_type": {
+      "type": "string",
+      "description": "Optional preference as submitted by the form's select (e.g. online video, in-clinic, not sure). Kept as bounded free text rather than a closed enum so that changing the form's option labels cannot start rejecting valid submissions. Bounded at 60 characters and formula-neutralised."
+    },
+    "condition": {
+      "type": "string",
+      "description": "Optional main concern, free text, and therefore potentially health information about an identified person. Empty string when not provided. Bounded at 200 characters and formula-neutralised. Covered by the Website Privacy Policy, not the Patient Portal Privacy Policy, since no patient record exists at enquiry time."
+    },
+    "message": {
+      "type": "string",
+      "description": "Optional free-text message, which may also contain health information. Empty string when not provided. Bounded at 2000 characters and formula-neutralised."
+    },
+    "enquiry_for_minor": {
+      "type": "string",
+      "enum": ["yes", "no"],
+      "description": "Whether the enquiry concerns someone under 18. Required — there is no empty state, because the form makes the question mandatory. 'yes' makes guardian_declared mandatory."
+    },
+    "guardian_declared": {
+      "type": "string",
+      "enum": ["yes", "no"],
+      "description": "Whether the sender declared they are the parent or legal guardian of the under-18 person the enquiry concerns. Must be 'yes' when enquiry_for_minor is 'yes', enforced server-side. This is a DECLARATION captured at enquiry time from someone with no account; it is NOT the same thing as guardian consent recorded against a patient record, which lives in patient-profile.schema.json 1.1.0's guardian_consent_at and can only exist once a patient identity does."
+    },
+    "privacy_consent": {
+      "type": "string",
+      "enum": ["yes"],
+      "description": "Always 'yes' on a stored row: the route refuses the submission outright when privacy consent is not affirmed, so no row can exist without it. Stored explicitly rather than implied, so the evidence is visible in the sheet itself."
+    },
+    "marketing_consent": {
+      "type": "string",
+      "enum": ["yes", "no"],
+      "description": "Whether the sender opted in to occasional marketing communication. Separate from, and never a condition of, the healthcare enquiry itself. 'no' when not opted in. Opt-out handling is operational/manual today — no automated unsubscribe workflow exists and none is claimed."
+    }
+  }
+}

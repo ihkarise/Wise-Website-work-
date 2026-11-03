@@ -149,6 +149,24 @@
   // (docs/29 §8: "client-side limits are UX only, never trusted") — the
   // server performs the real, content-based, authorization-grade
   // validation regardless (apps-script/FoundationReports.gs).
+  // ---------------------------------------------------------------------
+  // LAUNCH SCOPE FLAG — patient medical-report upload.
+  //
+  // Medical report upload intentionally disabled for current launch scope.
+  // Future reactivation requires privacy/storage/security review.
+  //
+  // The underlying implementation is deliberately left fully intact and is
+  // NOT deleted: the Batch PA-5 upload_report / get_reports / download_report
+  // router cases, FoundationReports.gs, the Drive storage path, the schema,
+  // the registry entry, readFileAsBase64(), wireReportForm() and the client
+  // pre-check constants below all remain exactly as validated. Setting this
+  // flag back to true restores the patient-facing upload control with no
+  // other change. Reading and downloading already-stored reports is
+  // unaffected — only the creation of NEW uploads through the launch UI is
+  // withheld.
+  // ---------------------------------------------------------------------
+  var REPORTS_UPLOAD_ENABLED = false;
+
   var REPORT_MAX_UPLOAD_BYTES = 5242880;
   var REPORT_ALLOWED_MIME_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
   var REPORT_ACCEPT_ATTR = '.pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png';
@@ -158,6 +176,13 @@
   // Symptom Tracker card's form already established. Reuses .field input
   // unchanged for the file input itself — no new CSS rule needed.
   function reportsFormHtml() {
+    if (!REPORTS_UPLOAD_ENABLED) {
+      // No form, no file input, no submit path — nothing for a patient to
+      // upload through. Copy states the fact without promising a date.
+      return '<p class="empty-text">Uploading new reports from your account is not available at the moment. ' +
+        'Please share any reports directly with the clinic, and we will add them to your record.</p>' +
+        '<div id="reportsList" style="margin-top:14px"></div>';
+    }
     return '<form id="reportForm">' +
       '<div class="field"><label for="reportFile">Choose a file (PDF, JPG, or PNG — up to 5 MB)</label>' +
       '<input id="reportFile" type="file" accept="' + REPORT_ACCEPT_ATTR + '" required></div>' +
@@ -227,6 +252,10 @@
   // component (the same pattern wireSymptomForm() already uses).
   function wireReportForm(sessionToken) {
     var form = document.getElementById('reportForm');
+    // Disabled for launch (see REPORTS_UPLOAD_ENABLED): reportsFormHtml()
+    // renders no form, so there is nothing to wire. Returning early keeps
+    // loadReportsPreview()'s call site unchanged.
+    if (!form) { return; }
     var fileInput = document.getElementById('reportFile');
     var submitBtn = document.getElementById('reportSubmitBtn');
     var statusBox = document.getElementById('reportStatus');

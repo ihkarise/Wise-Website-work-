@@ -73,6 +73,21 @@ header.site{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.92);ba
 .submit{width:100%;background:var(--color-accent);color:#fff;border:none;padding:15px;border-radius:var(--radius-md);font:600 15.5px var(--font-body);cursor:pointer;transition:transform .15s ease,box-shadow .2s ease}
 .submit:hover{transform:translateY(-2px);box-shadow:0 12px 28px rgba(214,46,77,.34)}
 .formnote{font-size:12.5px;color:var(--color-text-faint);margin-top:12px;text-align:center}
+.consent{display:flex;align-items:flex-start;gap:10px;background:var(--color-surface);border:1px solid var(--color-line);border-radius:12px;padding:14px 16px;margin:6px 0 18px}
+.consent input{width:auto;margin-top:3px;flex:none}
+.consent label{font-size:13.5px;font-weight:500;color:var(--color-ink);line-height:1.5}
+.consent a{color:var(--color-brand);text-decoration:underline}
+.status{margin-top:14px;padding:13px 16px;border-radius:12px;font-size:14px;display:none;line-height:1.5}
+.status.loading{display:block;background:var(--color-surface);border:1px solid var(--color-line);color:var(--color-text-secondary)}
+.status.ok{display:block;background:#EEF7F0;border:1px solid #CBE5D3;color:#1D5B33}
+.status.err{display:block;background:#FFF6F7;border:1px solid #F3CBD3;color:#8E1F33}
+.submit:disabled{opacity:.6;cursor:not-allowed}
+.minor-q{background:var(--color-surface);border:1px solid var(--color-line);border-radius:12px;padding:14px 16px;margin:0 0 12px}
+.minor-q > span{display:block;font-size:13.5px;font-weight:600;color:var(--color-ink);margin-bottom:8px}
+.minor-opts{display:flex;gap:18px;flex-wrap:wrap}
+.minor-opts label{display:flex;align-items:center;gap:7px;font-size:13.5px;font-weight:500;color:var(--color-ink)}
+.minor-opts input{width:auto;flex:none;margin:0}
+.optional{font-weight:400;color:var(--color-text-faint);font-size:12.5px}
 .contact-list{list-style:none;display:grid;gap:18px;margin-bottom:24px}
 .contact-list li{display:flex;gap:14px;align-items:flex-start}
 .ci{width:42px;height:42px;border-radius:12px;background:var(--color-surface);display:flex;align-items:center;justify-content:center;color:var(--color-brand);flex:none}
@@ -95,9 +110,12 @@ footer nav a:hover{color:#fff}
 .foot-bottom{border-top:1px solid rgba(255,255,255,.12);margin-top:32px;padding-top:20px;font-size:12.5px;color:rgba(255,255,255,.6);display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
 @media(max-width:760px){.foot-grid{grid-template-columns:1fr 1fr}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto}}
+.skip{position:absolute;left:-9999px;background:var(--color-brand);color:#fff;padding:10px 18px;border-radius:10px;z-index:999}
+.skip:focus{left:16px;top:12px}
 </style>
 </head>
 <body>
+<a class="skip" href="#main">Skip to main content</a>
 
 <header class="site">
   <div class="wrap nav">
@@ -112,7 +130,7 @@ footer nav a:hover{color:#fff}
         <li><a href="index.html">Home</a></li>
         <li><a href="online-consultation/">Online Consultation</a></li><li><a href="conditions/">Conditions</a></li>
         <li><a href="team.html">Team</a></li>
-        <li><a href="blog/">Blog</a></li>
+        <!-- PHASE1-BLOG-HIDDEN: <li><a href="blog/">Blog</a></li> -->
         <li><a href="gallery.html">Gallery</a></li>
         <li><a href="login.html">Patient Login</a></li>
         <li><a class="nav-cta" href="contact.html" aria-current="page">Book Now</a></li>
@@ -130,39 +148,43 @@ footer nav a:hover{color:#fff}
     <a href="online-consultation/">Online Consultation</a>
     <a href="conditions/">Conditions</a>
     <a href="team.html">Team</a>
-    <a href="blog/">Blog</a>
+    <!-- PHASE1-BLOG-HIDDEN: <a href="blog/">Blog</a> -->
     <a href="gallery.html">Gallery</a>
     <a href="login.html">Patient Login</a>
     <a class="nav-cta" href="contact.html" aria-current="page">Book Now</a>
   </nav>
 </header>
 
-<section class="hero">
+<section class="hero" id="main">
   <div class="wrap">
     <p class="eyebrow">Book a consultation</p>
     <h1>Let's start your healing</h1>
     <p>Online consultations worldwide and in-clinic visits in Kottayam. Send your details below, or reach us directly on WhatsApp — whichever is easier for you.</p>
+    <p style="background:#FFF6F7;border:1px solid #F3CBD3;border-left:4px solid #D62E4D;border-radius:12px;padding:14px 16px;font-size:13.5px;line-height:1.6;color:#0B0B0B;margin:0 0 18px"><strong>Not for emergencies.</strong> Wise Homeopathy online services do not provide emergency medical care. If this is an emergency, contact your nearest emergency medical facility or emergency service immediately.</p>
   </div>
 </section>
 
 <div class="wrap cols">
 
-  <!-- LEFT: booking form (Netlify Forms = the backend, works automatically once deployed) -->
+  <!-- LEFT: booking form. Submits to the clinic's own Apps Script backend
+       (foundation_action: request_consultation) — no third-party form service. -->
   <div class="card">
     <h2>Request a consultation</h2>
     <p class="sub">Tell us a little about your case. Dr. Libin Job's team replies personally, usually within one working day.</p>
 
-    <form name="consultation" method="POST" data-netlify="true" netlify-honeypot="bot-field" action="booking-received.html">
-      <input type="hidden" name="form-name" value="consultation">
-      <p style="display:none"><label>Leave blank: <input name="bot-field"></label></p>
+    <form id="enquiryForm" name="consultation" method="POST" action="booking-received.html" novalidate>
+      <!-- Honeypot, now our own rather than Netlify's: the backend silently
+           discards any submission that fills it. aria-hidden + tabindex keeps
+           it away from screen readers and keyboard users. -->
+      <p style="display:none" aria-hidden="true"><label>Leave blank: <input name="bot_field" id="bot_field" tabindex="-1" autocomplete="off"></label></p>
 
       <div class="row2">
         <div class="field"><label for="name">Full name</label><input id="name" name="name" type="text" required></div>
-        <div class="field"><label for="country">Country</label><input id="country" name="country" type="text" placeholder="e.g. UAE"></div>
+        <div class="field"><label for="country">Country <span class="optional">(optional)</span></label><input id="country" name="country" type="text" placeholder="e.g. UAE"></div>
       </div>
       <div class="row2">
         <div class="field"><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" required></div>
-        <div class="field"><label for="phone">Phone / WhatsApp</label><input id="phone" name="phone" type="tel" placeholder="+971 …"></div>
+        <div class="field"><label for="phone">Phone / WhatsApp <span class="optional">(optional)</span></label><input id="phone" name="phone" type="tel" placeholder="+971 …"></div>
       </div>
       <div class="field">
         <label for="mode">Consultation type</label>
@@ -173,15 +195,39 @@ footer nav a:hover{color:#fff}
         </select>
       </div>
       <div class="field">
-        <label for="condition">Main concern</label>
+        <label for="condition">Main concern <span class="optional">(optional)</span></label>
         <input id="condition" name="condition" type="text" placeholder="e.g. Hashimoto's, chronic urticaria, eczema">
       </div>
       <div class="field">
-        <label for="message">Briefly, what's been happening?</label>
+        <label for="message">Briefly, what's been happening? <span class="optional">(optional)</span></label>
         <textarea id="message" name="message" placeholder="How long, what you've tried, current medication (optional)"></textarea>
       </div>
-      <button class="submit" type="submit">Send request</button>
-      <p class="formnote">Private &amp; confidential. We never share your details. By sending, you agree to be contacted about your consultation.</p>
+      <div class="consent">
+        <input type="checkbox" id="privacy_consent" name="privacy_consent" value="yes" required>
+        <label for="privacy_consent">I have read and understood the
+          <a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a>
+          and consent to Wise Homeopathy processing the information I submit here —
+          including the health information in this form — in order to respond to my
+          consultation request.</label>
+      </div>
+      <div class="minor-q">
+        <span>Is this enquiry about someone under 18?</span>
+        <div class="minor-opts">
+          <label><input type="radio" name="enquiry_for_minor" value="no" required> No</label>
+          <label><input type="radio" name="enquiry_for_minor" value="yes"> Yes</label>
+        </div>
+      </div>
+      <div class="consent" id="guardianRow">
+        <input type="checkbox" id="guardian_consent" name="guardian_consent" value="yes">
+        <label for="guardian_consent">If you answered <strong>Yes</strong> above: I am that person&rsquo;s parent or legal guardian, and I consent on their behalf. An enquiry about someone under 18 must be submitted by their parent or guardian.</label>
+      </div>
+      <div class="consent">
+        <input type="checkbox" id="marketing_consent" name="marketing_consent" value="yes">
+        <label for="marketing_consent"><strong>Optional.</strong> I would like to receive occasional health information and clinic updates by email or WhatsApp. You can opt out at any time. This is separate from messages about your enquiry or your care, which we will send either way.</label>
+      </div>
+      <button class="submit" type="submit" id="enquirySubmitBtn">Send request</button>
+      <div class="status" id="enquiryStatus" role="status" aria-live="polite"></div>
+      <p class="formnote">Private &amp; confidential. We do not sell your details or share them for anyone else&rsquo;s marketing. Your enquiry is sent to the clinic&rsquo;s own system and read by our team &mdash; see the <a href="privacy.html">Privacy Policy</a>.</p>
     </form>
   </div>
 
@@ -228,9 +274,9 @@ footer nav a:hover{color:#fff}
         </a>
         <p class="foot-nap">Root-cause homeopathic care for autoimmune &amp; allergic disease.<br>Vettor Complex, No. 527/XII, Near KSRTC Bus Stand,<br>Kottayam, Kerala 686001 · India<br>wisehomeopathy@outlook.com · +91 79076 71049<br><strong style="color:#aeb6c2">wisehomeopathy.com</strong></p>
       </div>
-      <div><h3>Care</h3><nav><a href="online-consultation/">Online Consultation</a><a href="index.html#conditions">Conditions</a><a href="blog/">Blog</a><a href="gallery.html">Gallery</a></nav></div>
+      <div><h3>Care</h3><nav><a href="online-consultation/">Online Consultation</a><a href="index.html#conditions">Conditions</a><!-- PHASE1-BLOG-HIDDEN: <a href="blog/">Blog</a> --><a href="gallery.html">Gallery</a></nav></div>
       <div><h3>Clinic</h3><nav><a href="team.html">Our Team</a><a href="contact.html">Book Consultation</a></nav></div>
-      <div><h3>Legal</h3><nav><a href="privacy.html">Privacy Policy</a><a href="terms.html">Terms of Use</a><a href="disclaimer.html">Medical Disclaimer</a></nav></div>
+      <div><h3>Legal</h3><nav><a href="privacy.html">Privacy Policy</a><a href="terms.html">Terms of Use</a><a href="disclaimer.html">Medical Disclaimer</a><a href="patient-privacy.html">Patient Portal Privacy</a><a href="privacy.html#choices">Your Privacy Rights</a></nav></div>
       <div><h3>Follow</h3><nav><a href="https://www.youtube.com/@WiseHomeopathy" rel="noopener">YouTube</a><a href="https://www.instagram.com/WiseHomeopathy" rel="noopener">Instagram</a><a href="https://www.facebook.com/WiseHomeopathy" rel="noopener">Facebook</a></nav></div>
     </div>
     <div class="foot-bottom">
@@ -244,6 +290,128 @@ footer nav a:hover{color:#fff}
 const mb=document.getElementById('menuBtn'),mm=document.getElementById('mmenu');
 mb.addEventListener('click',()=>{const o=mm.classList.toggle('open');mb.setAttribute('aria-expanded',o)});
 mm.querySelectorAll('a').forEach(a=>a.addEventListener('click',()=>{mm.classList.remove('open');mb.setAttribute('aria-expanded','false')}));
+
+/* ---------------------------------------------------------------------
+   Enquiry submission — posts to the clinic's own Apps Script backend
+   (foundation_action: request_consultation). This replaced Netlify Forms,
+   which is no longer a production dependency.
+
+   The WEB_APP_URL below is the same public Apps Script Web App endpoint
+   login.html / verify.html / the portal already use. It is public by
+   design and is NOT a secret: it carries no key, and the enquiry route is
+   write-only and returns no personal data. No credential of any kind is
+   present in this page.
+
+   Confirmation is gated on the server's own receipt: booking-received.html
+   is reached only when the response is status 'ok' AND carries a non-empty
+   enquiry_id, which exists only after the row was actually stored. A
+   validation error, a rate-limit refusal, a server error or a dropped
+   connection all keep the visitor on the page with their answers intact.
+   --------------------------------------------------------------------- */
+(function () {
+  var WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwrAx9jPnji2U-ngBpYTtV2p_SJnnFrYa7fKYo589zeVfRrwuz3N5aIS0xeiQeuFvMhIQ/exec';
+  var form = document.getElementById('enquiryForm');
+  var submitBtn = document.getElementById('enquirySubmitBtn');
+  var statusBox = document.getElementById('enquiryStatus');
+  if (!form || !submitBtn || !statusBox) { return; }
+
+  var inFlight = false;
+  function val(id) { var el = document.getElementById(id); return el ? el.value : ''; }
+  function checked(id) { var el = document.getElementById(id); return !!(el && el.checked); }
+
+  form.addEventListener('submit', function (event) {
+    event.preventDefault();
+    // Duplicate rapid submissions: a second submit while one is in flight is
+    // dropped outright, in addition to the button being disabled.
+    if (inFlight) { return; }
+
+    // Local validation first, so an obviously incomplete form never costs a
+    // round trip. The server re-validates everything regardless.
+    if (!form.checkValidity()) {
+      form.reportValidity();
+      return;
+    }
+
+    var minorEl = document.querySelector('input[name="enquiry_for_minor"]:checked');
+    var isMinor = minorEl && minorEl.value === 'yes';
+
+    inFlight = true;
+    submitBtn.disabled = true;
+    statusBox.className = 'status loading';
+    statusBox.textContent = 'Sending your enquiry…';
+
+    fetch(WEB_APP_URL, {
+      method: 'POST',
+      // text/plain avoids a CORS preflight; the Apps Script doPost parses the
+      // body as JSON regardless of Content-Type (docs/29 §3) — the same
+      // pattern login.html already uses.
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        foundation_action: 'request_consultation',
+        name: val('name'),
+        email: val('email'),
+        phone: val('phone'),
+        country: val('country'),
+        consultation_type: val('mode'),
+        condition: val('condition'),
+        message: val('message'),
+        enquiry_for_minor: isMinor ? 'yes' : 'no',
+        guardian_declared: checked('guardian_consent'),
+        privacy_consent: checked('privacy_consent'),
+        marketing_consent: checked('marketing_consent'),
+        bot_field: val('bot_field')
+      })
+    })
+      .then(function (response) { return response.json(); })
+      .then(function (data) {
+        // Every Foundation response is a response-envelope: branch on
+        // data.status, never on an HTTP status code (Apps Script Web Apps
+        // always transport as HTTP 200).
+        if (data && data.status === 'ok' && data.data && data.data.enquiry_id) {
+          statusBox.className = 'status ok';
+          statusBox.textContent = 'Your enquiry has been received. Taking you to the confirmation page…';
+          window.location.href = 'booking-received.html';
+          return;
+        }
+        inFlight = false;
+        submitBtn.disabled = false;
+        statusBox.className = 'status err';
+        statusBox.textContent = (data && data.error && data.error.message)
+          || 'We could not send your enquiry. Please try again, or reach us on WhatsApp.';
+      })
+      .catch(function () {
+        // A dropped connection is never reported as success, and the
+        // visitor's answers are left exactly as typed.
+        inFlight = false;
+        submitBtn.disabled = false;
+        statusBox.className = 'status err';
+        statusBox.textContent = 'Could not reach the server. Check your connection and try again, or reach us on WhatsApp.';
+      });
+  });
+})();
+
+/* Under-18 enquiries: the guardian declaration becomes REQUIRED only when the
+   visitor says the enquiry is about someone under 18. Same client-gate pattern
+   as internal/consultation-summary.html's updateSubmitState(). This enforces
+   the declaration at the point of collection; it does not, and must not be
+   read as, recording guardian consent against a patient account — no schema in
+   shared/schemas/ has a consent field yet (see docs/62). Without JS the row
+   stays visible and optional, so the form can never become unsubmittable. */
+(function(){
+  const minorRadios=document.querySelectorAll('input[name="enquiry_for_minor"]');
+  const guardian=document.getElementById('guardian_consent');
+  const row=document.getElementById('guardianRow');
+  if(!minorRadios.length||!guardian||!row) return;
+  function sync(){
+    const isMinor=document.querySelector('input[name="enquiry_for_minor"]:checked')?.value==='yes';
+    guardian.required=isMinor;
+    row.style.outline=isMinor?'2px solid var(--color-accent)':'';
+    row.style.outlineOffset=isMinor?'2px':'';
+    if(!isMinor) guardian.checked=false;
+  }
+  minorRadios.forEach(r=>r.addEventListener('change',sync));
+  sync();
+})();
 </script>
 </body>
 </html>
